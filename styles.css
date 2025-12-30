@@ -1,0 +1,567 @@
+/* CSS Reset & Variables */
+:root {
+    /* Inverted colors for White Theme */
+    --color-headline: #111111;
+    --color-label: #555555;
+    --color-body: #333333;
+    --color-icon: #111111;
+    --color-btn-bg: rgba(0, 0, 0, 0.05);
+    /* Light gray for buttons on white */
+    --color-btn-bg-pressed: rgba(0, 0, 0, 0.1);
+    --color-btn-text: #111111;
+    --color-status: #111111;
+
+    --font-serif: 'Playfair Display', serif;
+    /* Closest match to "editorial serif" */
+    --font-sans: 'Inter', sans-serif;
+    /* "clean sans" */
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background-color: #FFFFFF;
+    /* Spec: solid white */
+}
+
+/* Background & Overlay */
+.background-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    background-color: #FFFFFF;
+    /* Spec: solid white */
+}
+
+.bg-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 65vh;
+    object-fit: cover;
+    object-position: center center;
+    opacity: 1;
+
+    /* Remove Masking (Spec: Content Masking > Text Scrim > false) */
+    -webkit-mask-image: none;
+    mask-image: none;
+
+    /* Product Shadow Spec: opacity 0.18, blur 28px, y 18px */
+    filter: drop-shadow(0px 18px 28px rgba(0, 0, 0, 0.18));
+}
+
+.overlay-gradient {
+    display: none;
+    /* Spec: gradient > enabled: false */
+}
+
+/* Status Bar */
+.status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 44px;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 24px;
+    margin-top: 8px;
+    color: var(--color-status);
+    /* Dark color for white bg */
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.sb-right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Navigation & Logo */
+.back-button {
+    position: absolute;
+    top: 52px;
+    left: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--color-icon);
+    /* Will be dark in light theme */
+    cursor: pointer;
+    z-index: 20;
+}
+
+.logo-mark {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 32px;
+    color: var(--color-icon);
+    z-index: 20;
+}
+
+/* Main Content */
+.content-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: 22%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: 22%;
+    /* Approximate from spec */
+    pointer-events: none;
+    /* Let clicks pass through if needed, though mostly static text */
+    z-index: 10;
+    /* Ensure text is above background */
+}
+
+/* Elements positioning based on "offset_y_from_bottom_percent" logic roughly 
+   converted to flex/absolute or just margin-top flow. 
+   Since they are absolute positions in spec, absolute is safer for "pixel-perfect". */
+
+.moon-icon-container {
+    position: absolute;
+    left: 24px;
+    bottom: 44%;
+    color: var(--color-icon);
+}
+
+.headline {
+    position: absolute;
+    left: 24px;
+    bottom: 260px;
+    /* From Spec */
+    font-family: var(--font-serif);
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.05;
+    color: var(--color-headline);
+}
+
+.label {
+    position: absolute;
+    left: 24px;
+    bottom: 220px;
+    /* From Spec */
+    /* Moved down closer to body copy to reduce space */
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    color: var(--color-label);
+    text-transform: uppercase;
+}
+
+.body-copy {
+    position: absolute;
+    left: 24px;
+    bottom: 140px;
+    /* From Spec (content_block offset) */
+    font-family: var(--font-sans);
+    font-weight: 300;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--color-body);
+    max-width: 78%;
+}
+
+/* Bottom Bar */
+.bottom-bar {
+    position: absolute;
+    bottom: 54px;
+    /* Safe area padding */
+    left: 0;
+    width: 100%;
+    padding: 0 18px;
+    display: flex;
+    gap: 12px;
+    z-index: 20;
+}
+
+.pill-btn {
+    flex: 1;
+    /* Chromatic shine & Glassmorphism for Light Theme */
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+
+    /* Layout & Text */
+    color: var(--color-btn-text);
+    border-radius: 9999px;
+    padding: 12px 18px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.pill-btn:active {
+    background-color: var(--color-btn-bg-pressed);
+    transform: scale(0.98);
+}
+
+/* Animations */
+.fade-target {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.fade-target.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Home Page Styles */
+.home-hero {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.hero-bg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.4) 70%, rgba(20, 10, 0, 0.8) 100%);
+}
+
+.home-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: white;
+    padding: 24px;
+}
+
+.logo-container {
+    margin-top: 120px;
+    /* Space from top */
+    opacity: 0.9;
+}
+
+.home-logo {
+    color: white;
+}
+
+.text-group {
+    margin-top: auto;
+    /* Push to bottom area */
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.travel-headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    line-height: 1.1;
+    font-weight: 400;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+}
+
+.location-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    font-weight: 300;
+    margin-bottom: 12px;
+    opacity: 0.8;
+}
+
+.travel-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    opacity: 0.7;
+    line-height: 1.4;
+    margin-bottom: 32px;
+}
+
+.discover-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 32px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+    color: white;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    margin-bottom: 48px;
+    transition: all 0.2s ease;
+}
+
+.discover-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(0.98);
+}
+
+.legal-text {
+    position: absolute;
+    bottom: 24px;
+    font-size: 9px;
+    opacity: 0.4;
+    font-weight: 300;
+    text-align: center;
+    width: 100%;
+    transition: background-color 0.2s;
+}
+
+/* Reservation Modal - Apple Style */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-content {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 320px;
+    padding: 32px 28px;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transform: scale(0.94);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-overlay.active .modal-content {
+    transform: scale(1);
+}
+
+.modal-title {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    margin-bottom: 8px;
+    color: #000;
+    font-weight: 500;
+}
+
+.modal-desc {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 24px;
+    line-height: 1.4;
+}
+
+.form-group {
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+.form-label {
+    display: none;
+    /* Cleaner look, rely on placeholders */
+}
+
+.form-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid transparent;
+    /* No border initially */
+    border-radius: 12px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.2s ease;
+    color: #1d1d1f;
+}
+
+.form-input:focus {
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+    /* Subtle focus ring */
+}
+
+.modal-actions {
+    display: flex;
+    flex-direction: column;
+    /* Stacked buttons */
+    gap: 12px;
+    margin-top: 28px;
+}
+
+.modal-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 99px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 15px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-btn.confirm {
+    background: #0071e3;
+    /* Classic Apple Blue */
+    color: white;
+}
+
+.modal-btn.confirm:active {
+    background: #0077ED;
+    transform: scale(0.98);
+}
+
+.modal-btn.cancel {
+    background: transparent;
+    color: #0071e3;
+    padding: 8px;
+    font-size: 14px;
+    margin-top: -4px;
+}
+
+.modal-btn.cancel:hover {
+    text-decoration: underline;
+}
+
+/* Success View */
+.success-message {
+    display: none;
+    /* Hidden by default */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    animation: fadeIn 0.5s ease;
+}
+
+.success-icon {
+    width: 48px;
+    height: 48px;
+    background: #34C759;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-bottom: 16px;
+}
+
+.success-title {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 18px;
+    color: #1d1d1f;
+    margin-bottom: 8px;
+}
+
+.success-sub {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: #86868b;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Discreet Admin Link */
+.admin-link {
+    position: fixed;
+    bottom: 12px;
+    right: 20px;
+    font-size: 11px;
+    color: rgba(0, 0, 0, 0.15);
+    /* Slightly more visible but still faint */
+    text-decoration: none;
+    z-index: 50;
+    font-family: var(--font-sans);
+    letter-spacing: 0.05em;
+    transition: color 0.3s;
+}
+
+.admin-link:hover {
+    color: #0071e3;
+}

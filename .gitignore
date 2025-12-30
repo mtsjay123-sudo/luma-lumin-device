@@ -1,0 +1,17 @@
+# Environment Secrets
+.env
+
+# Local Data
+reservations.json
+
+# Text files
+background_placeholder.txt
+ref.png
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
