@@ -1,0 +1,8 @@
+models/
+data/personality_dataset/raw/
+data/voice_actor/
+.venv/
+__pycache__/
+.env
+*.db
+.DS_Store
