@@ -49,57 +49,52 @@ def _load_model():
 
 
 def _strip_repetition(text: str) -> str:
-    """Truncate output at the first detected repetition loop.
-
-    Catches:
-      - any single word repeated 3+ times in a row (e.g. "what's what's what's")
-      - any 2-word phrase repeated 3+ times in a row (e.g. "you know you know you know")
-      - any phrase of 3+ words repeated 2+ times in a row
-    Earliest detected loop wins so we cut as soon as possible.
-    """
+    """Truncate at the first detected repetition. Then trim to the last clean sentence end."""
+    import re
     words = text.split()
     n = len(words)
     if n < 2:
         return text
 
     norm = [w.lower().strip(" .,!?;:\"'") for w in words]
-
-    earliest_cut = None  # index (exclusive) to truncate at
+    earliest_cut = None
 
     def consider(cut_index: int) -> None:
         nonlocal earliest_cut
         if earliest_cut is None or cut_index < earliest_cut:
             earliest_cut = cut_index
 
-    # Single-word repeats: need 3+ in a row -> keep only the first occurrence
-    for i in range(n - 2):
-        if norm[i] and norm[i] == norm[i + 1] == norm[i + 2]:
+    # Single word repeated 2+ times in a row: "that that", "inna inna"
+    for i in range(n - 1):
+        if norm[i] and norm[i] == norm[i + 1]:
             consider(i + 1)
             break
 
-    # 2-word phrase repeats: need 3+ in a row -> keep only the first occurrence
-    for i in range(n - 5):
+    # 2-word phrase repeated 2+ times: "tend to tend to"
+    for i in range(n - 3):
         phrase = norm[i : i + 2]
         if phrase[0] == "" and phrase[1] == "":
             continue
-        if norm[i + 2 : i + 4] == phrase and norm[i + 4 : i + 6] == phrase:
+        if norm[i + 2 : i + 4] == phrase:
             consider(i + 2)
             break
 
-    # 3+ word phrase repeats: need 2+ in a row -> keep the first occurrence
+    # 3+ word phrase repeated 2+ times
     for span in range(3, n // 2 + 1):
         for i in range(n - span * 2 + 1):
-            phrase = norm[i : i + span]
-            if phrase == norm[i + span : i + span * 2]:
+            if norm[i : i + span] == norm[i + span : i + span * 2]:
                 consider(i + span)
                 break
-        if earliest_cut is not None and earliest_cut <= span:
-            # already have a cut that's at or before this span's earliest possible boundary
-            pass
 
-    if earliest_cut is None:
-        return text
-    return " ".join(words[:earliest_cut]).strip(" .,")
+    if earliest_cut is not None:
+        truncated = " ".join(words[:earliest_cut]).strip(" .,")
+        # trim to the last complete sentence so the audio doesn't end mid-thought
+        last_sentence = re.search(r'^(.*[.!?])\s*[^.!?]*$', truncated, re.DOTALL)
+        if last_sentence and len(last_sentence.group(1)) > 10:
+            return last_sentence.group(1).strip()
+        return truncated
+
+    return text
 
 
 def _sanitize(text: str) -> str:
