@@ -60,7 +60,7 @@ def _strip_repetition(text: str) -> str:
     return text
 
 
-def generate(messages: list[dict], max_tokens: int = 256, system_prompt: Optional[str] = None) -> str:
+def generate(messages: list[dict], max_tokens: int = 400, system_prompt: Optional[str] = None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     model = _load_model()
 
