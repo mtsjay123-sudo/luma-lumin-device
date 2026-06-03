@@ -102,7 +102,13 @@ def _strip_repetition(text: str) -> str:
     return " ".join(words[:earliest_cut]).strip(" .,")
 
 
-def generate(messages: list[dict], max_tokens: int = 400, system_prompt: Optional[str] = None) -> str:
+def _sanitize(text: str) -> str:
+    """Remove non-ASCII characters and collapse whitespace."""
+    cleaned = "".join(c if ord(c) < 128 else " " for c in text)
+    return " ".join(cleaned.split())
+
+
+def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     model = _load_model()
 
@@ -111,12 +117,12 @@ def generate(messages: list[dict], max_tokens: int = 400, system_prompt: Optiona
     result = model.create_chat_completion(
         messages=full_messages,
         max_tokens=max_tokens,
-        temperature=0.75,
-        mirostat_mode=2,   # adaptive sampling — prevents runaway repetition
-        mirostat_tau=4.0,
+        temperature=0.65,
+        mirostat_mode=2,
+        mirostat_tau=3.5,
         mirostat_eta=0.1,
-        repeat_penalty=1.4,
+        repeat_penalty=1.5,
         stop=["<|eot_id|>", "<|end_of_text|>"],
     )
     raw = result["choices"][0]["message"]["content"].strip()
-    return _strip_repetition(raw)
+    return _strip_repetition(_sanitize(raw))
