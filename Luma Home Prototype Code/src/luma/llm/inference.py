@@ -30,7 +30,19 @@ def _load_model():
     return _llm
 
 
-def generate(messages: list[dict], max_tokens: int = 256, system_prompt: Optional[str] = None) -> str:
+def _strip_repetition(text: str) -> str:
+    """Truncate output at the point where a phrase (4+ words) repeats."""
+    words = text.split()
+    for span in range(4, len(words) // 2 + 1):
+        for i in range(len(words) - span * 2 + 1):
+            phrase = words[i : i + span]
+            rest = words[i + span :]
+            if phrase == rest[: span]:
+                return " ".join(words[:i + span]).strip(" .,")
+    return text
+
+
+def generate(messages: list[dict], max_tokens: int = 160, system_prompt: Optional[str] = None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     model = _load_model()
 
@@ -39,10 +51,12 @@ def generate(messages: list[dict], max_tokens: int = 256, system_prompt: Optiona
     result = model.create_chat_completion(
         messages=full_messages,
         max_tokens=max_tokens,
-        temperature=0.7,
-        top_p=0.9,
+        temperature=0.75,
+        mirostat_mode=2,   # adaptive sampling — prevents runaway repetition
+        mirostat_tau=4.0,
+        mirostat_eta=0.1,
         repeat_penalty=1.4,
-        frequency_penalty=0.3,
         stop=["<|eot_id|>", "<|end_of_text|>"],
     )
-    return result["choices"][0]["message"]["content"].strip()
+    raw = result["choices"][0]["message"]["content"].strip()
+    return _strip_repetition(raw)
