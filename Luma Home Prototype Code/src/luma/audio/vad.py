@@ -11,7 +11,7 @@ from luma.config import SAMPLE_RATE
 # VADIterator requires 512-sample chunks at 16 kHz
 _CHUNK = 512
 _SILENCE_MS = 800  # ms of silence before utterance is considered done
-_MIN_SPEECH_CHUNKS = 4  # ignore very short noise bursts (<4 chunks ≈ 128 ms)
+_MIN_SPEECH_CHUNKS = 8  # ignore very short noise bursts (<8 chunks ≈ 256 ms)
 
 _model = None
 _model_lock = threading.Lock()
@@ -72,14 +72,21 @@ def start_listening(callback: Callable[[str], None], stop_event: threading.Event
                         blocksize=_CHUNK, callback=audio_callback):
         was_speaking = False
         while not stop_event.is_set():
-            # When LUMA finishes speaking, reset VAD + drain queue to avoid echo triggers
+            # When LUMA finishes speaking, wait for room reverb to die down,
+            # then reset VAD + drain queue to avoid echo triggers
             if was_speaking and not _speaking.is_set():
-                vad.reset_states()
-                while not q.empty():
+                _time = __import__("time")
+                _queue = __import__("queue")
+                # Sleep 400ms so reverb dies down before we start listening again
+                _time.sleep(0.4)
+                # Keep draining for another 400ms to flush any reverb-tail audio
+                drain_deadline = _time.monotonic() + 0.4
+                while _time.monotonic() < drain_deadline:
                     try:
                         q.get_nowait()
-                    except __import__("queue").Empty:
-                        break
+                    except _queue.Empty:
+                        _time.sleep(0.01)
+                vad.reset_states()
                 in_speech = False
                 utterance = []
                 speech_chunk_count = 0
