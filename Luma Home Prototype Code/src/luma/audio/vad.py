@@ -10,7 +10,7 @@ from luma.config import SAMPLE_RATE
 
 # VADIterator requires 512-sample chunks at 16 kHz
 _CHUNK = 512
-_SILENCE_MS = 800  # ms of silence before utterance is considered done
+_SILENCE_MS = 1500  # ms of silence before utterance is considered done
 _MIN_SPEECH_CHUNKS = 8  # ignore very short noise bursts (<8 chunks ≈ 256 ms)
 
 _model = None

@@ -116,7 +116,7 @@ def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optiona
         mirostat_mode=2,
         mirostat_tau=3.5,
         mirostat_eta=0.1,
-        repeat_penalty=1.5,
+        repeat_penalty=1.8,
         stop=["<|eot_id|>", "<|end_of_text|>"],
     )
     raw = result["choices"][0]["message"]["content"].strip()
