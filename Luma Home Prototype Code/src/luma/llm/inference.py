@@ -41,7 +41,8 @@ def generate(messages: list[dict], max_tokens: int = 256, system_prompt: Optiona
         max_tokens=max_tokens,
         temperature=0.7,
         top_p=0.9,
-        repeat_penalty=1.1,
+        repeat_penalty=1.4,
+        frequency_penalty=0.3,
         stop=["<|eot_id|>", "<|end_of_text|>"],
     )
     return result["choices"][0]["message"]["content"].strip()

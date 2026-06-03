@@ -15,6 +15,14 @@ _MIN_SPEECH_CHUNKS = 4  # ignore very short noise bursts (<4 chunks ≈ 128 ms)
 
 _model = None
 _model_lock = threading.Lock()
+_speaking = threading.Event()  # set while LUMA is playing audio — mic is ignored
+
+
+def set_speaking(val: bool) -> None:
+    if val:
+        _speaking.set()
+    else:
+        _speaking.clear()
 
 
 def _get_vad_iterator() -> VADIterator:
@@ -55,13 +63,33 @@ def start_listening(callback: Callable[[str], None], stop_event: threading.Event
     q: "queue.Queue[np.ndarray]" = __import__("queue").Queue()
 
     def audio_callback(indata, frames, time, status):
-        q.put(indata[:, 0].copy())
+        if not _speaking.is_set():
+            q.put(indata[:, 0].copy())
 
     print("Listening... (just talk, LUMA will respond)", flush=True)
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=_CHUNK, callback=audio_callback):
+        was_speaking = False
         while not stop_event.is_set():
+            # When LUMA finishes speaking, reset VAD + drain queue to avoid echo triggers
+            if was_speaking and not _speaking.is_set():
+                vad.reset_states()
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except __import__("queue").Empty:
+                        break
+                in_speech = False
+                utterance = []
+                speech_chunk_count = 0
+                print("Listening...", flush=True)
+            was_speaking = _speaking.is_set()
+
+            if _speaking.is_set():
+                __import__("time").sleep(0.05)
+                continue
+
             try:
                 chunk = q.get(timeout=0.5)
             except __import__("queue").Empty:

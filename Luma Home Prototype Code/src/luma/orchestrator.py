@@ -4,7 +4,7 @@ from luma.llm.inference import generate
 from luma.audio.tts import synthesize
 from luma.audio.io import play, record_push_to_talk
 from luma.audio.stt import transcribe
-from luma.audio.vad import start_listening
+from luma.audio.vad import start_listening, set_speaking
 
 _history: list[dict] = []
 
@@ -13,7 +13,11 @@ def _speak(text: str) -> None:
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         wav_path = f.name
     synthesize(text, wav_path)
-    play(wav_path)
+    set_speaking(True)
+    try:
+        play(wav_path)
+    finally:
+        set_speaking(False)
 
 
 def ask_typed(prompt: str) -> str:
