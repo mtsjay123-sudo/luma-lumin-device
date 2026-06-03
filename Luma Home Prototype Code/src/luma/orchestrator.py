@@ -1,8 +1,10 @@
 import tempfile
+import threading
 from luma.llm.inference import generate
 from luma.audio.tts import synthesize
 from luma.audio.io import play, record_push_to_talk
 from luma.audio.stt import transcribe
+from luma.audio.vad import start_listening
 
 _history: list[dict] = []
 
@@ -30,6 +32,22 @@ def ask_voice() -> str:
     if not transcript.strip():
         return ""
     return ask_typed(transcript)
+
+
+def ask_voice_hands_free(stop_event: threading.Event | None = None) -> None:
+    """Hands-free loop: VAD detects speech, transcribes, LLM replies, speaks.
+
+    Blocks until stop_event is set or KeyboardInterrupt.
+    """
+    def on_utterance(wav_path: str):
+        transcript = transcribe(wav_path)
+        if not transcript.strip():
+            return
+        print(f"You said: {transcript}")
+        reply = ask_typed(transcript)
+        print(f"LUMA: {reply}\n")
+
+    start_listening(on_utterance, stop_event=stop_event)
 
 
 def reset():
