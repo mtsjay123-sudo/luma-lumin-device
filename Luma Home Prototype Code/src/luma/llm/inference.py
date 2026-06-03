@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+import os
+import contextlib
 from typing import Optional
 from luma.config import LLAMA_MODEL_PATH
 from luma.llm.prompts import SYSTEM_PROMPT
 
 _llm = None
+
+
+@contextlib.contextmanager
+def _silence_stderr():
+    """Suppress C-level stderr (llama.cpp prints warnings there)."""
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    old = os.dup(2)
+    os.dup2(devnull, 2)
+    os.close(devnull)
+    try:
+        yield
+    finally:
+        os.dup2(old, 2)
+        os.close(old)
 
 
 def _load_model():
@@ -21,12 +37,14 @@ def _load_model():
             f"Model not found at {LLAMA_MODEL_PATH}. Run scripts/download_models.sh first."
         )
 
-    _llm = Llama(
-        model_path=str(LLAMA_MODEL_PATH),
-        n_ctx=4096,
-        n_threads=4,
-        verbose=False,
-    )
+    with _silence_stderr():
+        _llm = Llama(
+            model_path=str(LLAMA_MODEL_PATH),
+            n_ctx=16384,
+            n_threads=8,
+            n_batch=512,
+            verbose=False,
+        )
     return _llm
 
 
@@ -42,7 +60,7 @@ def _strip_repetition(text: str) -> str:
     return text
 
 
-def generate(messages: list[dict], max_tokens: int = 160, system_prompt: Optional[str] = None) -> str:
+def generate(messages: list[dict], max_tokens: int = 256, system_prompt: Optional[str] = None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     model = _load_model()
 
