@@ -4,7 +4,26 @@ import os
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = REPO_ROOT / "data"
 MODELS_DIR = REPO_ROOT / "models"
-LLAMA_MODEL_PATH = MODELS_DIR / "llama-3.2-3b-q4" / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+DEFAULT_LLAMA_MODEL_PATH = MODELS_DIR / "llama-3.2-3b-q4" / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+# Keep the verified Llama model by default. Select another tested GGUF explicitly.
+LLAMA_MODEL_PATH = Path(os.environ.get("LUMA_MODEL_PATH") or DEFAULT_LLAMA_MODEL_PATH).expanduser()
+
+
+def _model_int(name, default, minimum, maximum):
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer.") from error
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}.")
+    return value
+
+
+LLAMA_CONTEXT_SIZE = _model_int("LUMA_CONTEXT_SIZE", 4096, 2048, 32768)
+LLAMA_GPU_LAYERS = _model_int("LUMA_GPU_LAYERS", -1, -1, 999)
+LLAMA_THREADS = _model_int("LUMA_THREADS", min(8, os.cpu_count() or 4), 1, 128)
+LLAMA_BATCH_SIZE = _model_int("LUMA_BATCH_SIZE", 512, 1, 2048)
+LLAMA_CHAT_FORMAT = os.environ.get("LUMA_CHAT_FORMAT") or None
 WHISPER_MODEL_SIZE = "base.en"
 MEMORY_DB_PATH = Path("~/.luma/memory.db").expanduser()
 SAMPLE_RATE = 16000

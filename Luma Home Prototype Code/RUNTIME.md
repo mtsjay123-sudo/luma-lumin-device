@@ -1,79 +1,70 @@
-# Luma local agent — September 7, 2026
+# Luma — personal home companion runtime
 
-The Mac software prototype is runnable. It includes local conversation and speech, explicit encrypted memory, persistent reminders and routines, a browser control surface, and opt-in action adapters. It is not a finished consumer device. The older README/build plan is a product roadmap, not a list of verified delivered capabilities.
+Updated September 7, 2026. Open **http://127.0.0.1:8095/** on this Mac. This is a working software prototype with a local language model and connected action adapters. It is not a finished hardware appliance or an assistant with unrestricted access to every merchant.
 
-## Open it
+## Start and use it
 
-The control app is running at http://127.0.0.1:8095/ on this Mac. To restart:
+Double-click `scripts/start_luma.command`, or run:
 
 ```sh
 cd '/Users/marvinjohnson/Desktop/Lumin Universe Holding Company/All of Lumin/Luma Home Prototype/Luma Home Prototype Code'
 .venv/bin/python -m luma.cli serve
 ```
 
-Use `--no-model serve` for instant local tools without loading the language model. `--no-model status` prints device state. `chat` opens typed terminal interaction; `--voice chat` opts into push-to-talk and `--hands-free chat` opts into the microphone with name/follow-up gating. `/help` lists controls. The web app starts muted; its microphone switch is an explicit opt-in. Camera capture is not implemented.
+The launcher is also at `Desktop/Amiri_2026_Execution/Luma/Start Luma.command`. Keep the terminal/runtime running. Startup mutes the microphone; enable it explicitly in the app. `--no-model serve` runs local tools without conversation inference. CLI `chat`, `--voice chat` and `--hands-free chat` remain available; `/help` lists controls.
 
-Existing local model files are reused. First conversation loads Llama 3.2 3B; subsequent responses reuse it. Apple Metal is enabled by default with a 4,096-token context. Set `LUMA_GPU_LAYERS=0` for CPU-only inference. Fresh model smoke tests completed in about 10–25 seconds on this Mac; response time varies with context and hardware. The source-only repository excludes model weights, provider credentials and personal state.
+Try “Hey Luma, can you text my mom to pick up the groceries while she is out?” after saving Mom in People & Texts. Common natural text requests preserve their requested content through a fast path. Other conversation uses the local model and its available tools. Unknown people are not guessed. Send actions still show the exact recipient, message and route before submission.
 
-## Try these
+## What now works
 
-- `Remember I prefer vegetarian food`
-- `What do you remember?`
-- `Remind me in 20 minutes to check the oven`
-- `Every day at 09:00 remind me to review my priorities`
-- `Explain how a reminder can help me stay organized`
-- `Search compare prices for Sony WH-1000XM6 headphones` after configuring and enabling search
-
-Local tools respond without waiting for a model plan when the command has a deterministic match. Model plans are restricted to registered tools and validated arguments. Questions asking for an explanation cannot create a reminder. Text messages require an explicitly supplied recipient. A small local model can still misunderstand language; inspect the proposed action details.
-
-## What is implemented
-
-| Feature | Behavior |
+| Capability | Actual behavior |
 | --- | --- |
-| Conversation | Local Llama inference, bounded conversation context; Everyday, Study, Cofounder and Kids modes. |
-| Speech | Cached Whisper transcription, Silero VAD, local Kokoro synthesis; bounded audio buffers and mute-aware playback. |
-| Voice profile | `LUMA_VOICE=luma` blends 70% `af_bella` with 30% `af_heart`, speed 0.96. This is a customized stock synthesis profile, not an exclusive recorded actor or cloned person's voice. Individual stock names remain configurable. |
-| Memory | Explicit memories, encrypted payloads in local SQLite, delete controls and keyword recall. The whole SQLite file is not encrypted; IDs and timestamps remain metadata. |
-| Reminders | Durable future-dated tasks, completion controls, daily routines, quiet hours, hush and grouped notifications. The app must remain running. |
-| Web search | Brave API adapter returning source titles, snippets and links; off until explicitly enabled. It does not calculate final shipping/tax or guarantee the cheapest price. |
-| Text messages | Twilio adapter, exact recipient/body review, expiring one-use approval, no automatic retry after uncertain delivery. Provider acceptance is not a delivery receipt. |
-| Lights | Allowlisted Home Assistant lights; reviewed on/off/brightness actions. |
-| Shopping | A named merchant link plus shopping list and budget. Continue in that merchant's saved-wallet checkout. Luma does not build a merchant cart, store card data, charge a card or place an order. |
-| Local controls | Loopback-only HTTP, same-origin mutation checks, host checks, session cookie, restricted content policy, bounded inputs, no personal data in request logs. |
+| Local conversation | GGUF inference with constrained action schemas, bounded context, and runtime validation. See the live model name in Personality. |
+| Personality | Persisted preferred name, warm/direct/playful tone, everyday/contemporary/classic language and reply length. Preferences can be changed in the app or requested conversationally. The model adapts without assuming an age. This is personalization, not weight fine-tuning. |
+| Hearing and speaking | Local Whisper, Silero voice activity detection and Kokoro. Luma's stock-style voice blend is 70% af_bella/30% af_heart. It is not an exclusive actor recording. |
+| Memory and routines | Explicit encrypted memories, keyword recall, persistent reminders, daily routines, quiet hours, hush and completion controls. |
+| Contacts | Encrypted local contact book with exact name/number resolution. No automatic reading of phone contacts. |
+| Mac Messages | Reviewed sends through a specifically selected iMessage or SMS account on this Mac. Requires account setup and Apple's Automation permission. Does not silently change transport or claim delivery. |
+| Twilio | Alternative reviewed SMS through a configured Twilio number, plus real delivery-status lookup. Queued/sent is distinct from delivered. |
+| Phone drafts | Copy a prepared message and open Messages on the phone, then tap Send yourself. Nothing is sent by generating a draft. |
+| Phone companion | One-use QR invitation, HTTPS, expiring credentials and immediate revocation. Requires a reachable private network. The current runtime does not expose a usable home Wi-Fi address, so a physical phone has not been paired. |
+| Appointments | Cal.com availability, exact slot selection, attendee review, booking creation and receipt refresh for configured free services. Paid, recurring/group and unsupported authenticated bookings remain on the provider. |
+| Groceries | Real Instacart shoppable-list creation with exact items/quantities and nearby-retailer lookup. Food Lion is shown only if the provider returns it for the requested area. |
+| Shopping/payment | Review matched products, final prices, stock, fees and delivery in merchant checkout. The merchant's saved wallet handles payment. Luma has not placed a grocery order and does not store raw cards/CVCs. |
+| Web and lights | Opt-in Brave search and allowlisted Home Assistant lights. Both require their provider setup. |
 
-Messages, lights and checkout handoffs require review even when their integration is enabled. Unknown tool names are rejected. Confirmation is atomically consumed once; cancellation, expiration or revoked consent prevents execution. Network timeouts leave an uncertain outcome that is never automatically retried.
+## Connect your phone and own messaging account
 
-## Configure real services
+For own-account messaging, use **People & Texts → Send through → This Mac's Messages**. Set up Messages on the Mac first and check its sending identity. For ordinary SMS, enable iPhone Text Message Forwarding to the Mac. Selecting the route does not bypass Apple's account or Automation controls. Sending identity is determined by Messages settings; it is not automatically guaranteed to be a particular mobile number. The first reviewed send may require a macOS permission prompt.
 
-Copy `.env.example` to `.env` only if a `.env` does not already exist. Fill in credentials locally, then restart. Enable each service in the browser or terminal after setup. Do not commit that file.
+Phone pairing is separate from SMS identity. Use **Your phone** to start the home-network HTTPS connection and generate a QR. Scan it on the same network, trust the development certificate explicitly, and name the device. Invitations expire in ten minutes; paired access expires after thirty days and can be revoked immediately. Phone access can prepare/approve actions, but device, integration and pairing administration stays on the Mac. This is not away-from-home access and does not import contacts, grant native iMessage permissions, or install a native iPhone app.
 
-- Search: `BRAVE_SEARCH_API_KEY`.
-- Messages: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`; the sender and destination must meet the account's messaging requirements.
-- Lights: `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN`, comma-separated `LUMA_ALLOWED_LIGHTS`.
-- Shopping: `LUMA_MERCHANTS_JSON`, a JSON object mapping your merchant names to HTTPS entry URLs. Links should be the merchants you actually use. Payment stays on their own checkout.
-- Device: `LUMA_TIMEZONE`, optional `LUMA_STATE_DIR`, `LUMA_VOICE`, `LUMA_VOICE_SPEED`, and platform-specific eSpeak paths where needed.
+The runtime currently sees a special routed address rather than an RFC1918 home-network address. Consequently, live phone pairing needs the runtime to run with access to the actual home LAN or a separately configured private connection. No public tunnel or unprotected listener was created.
 
-No real messages, purchases, charges or light commands were sent during implementation testing. Adapters were tested using fake transport in isolated temporary state. The current services show “Connection setup needed.”
+## Connected-service setup
 
-State is stored at `~/.luma/agent/state.db`, with its encryption key at `~/.luma/agent/state.key`. Directory/key permissions are restricted. Back up both securely together; losing the key prevents recovery. An existing database without its key fails closed. Raw card numbers, CVC fields and passwords are rejected as memories. Do not treat a same-user local process or an unlocked laptop as a hostile boundary this prototype can defeat.
+Use `.env.example` as a reference; do not overwrite an existing `.env`. Fill credentials locally, restart, then enable the relevant integration in the app. Credential values are never sent to the browser.
 
-## Verified and remaining work
+- Brave: `BRAVE_SEARCH_API_KEY`.
+- Twilio: account SID, auth token and sender number in the documented `TWILIO_*` fields.
+- Cal.com: `CAL_COM_API_KEY` and `LUMA_CAL_EVENT_TYPES_JSON`, for example aliases mapped to event type IDs you can book.
+- Instacart: Developer Platform `INSTACART_API_KEY`, with the correct production/development environment.
+- Home Assistant: local URL/token plus `LUMA_ALLOWED_LIGHTS`.
 
-Eighteen runtime tests pass, covering encrypted persistence, payment-data rejection, missing keys, one-use/concurrent confirmations, expiration, consent changes, unknown outcomes, children's restrictions, reminders, unregistered model tools and local HTTP protections. The real Llama model answered a benign explanation without creating a task. The new voice was synthesized and passed back through local Whisper with intelligible transcription. No live microphone recording was required for these tests.
+These accounts have not been created or verified for you. No real text, appointment, shopping list, order, payment or light command was submitted during tests.
 
-Still needed before a consumer launch: reliable wake-word-free address detection and speaker identity; evaluated child safety plus authenticated parent controls; semantic multi-person memory; production crisis handling; real calendar/music integrations; merchant cart/order integrations; delivery receipts; network/privacy and adversarial testing; an original licensed voice recording if exclusivity is desired; hardware microphones, physical mute, camera, lighting, boot/recovery, signed updates, provisioning and manufacturing validation. Kids mode currently hides adult records and blocks external tools, but a local user can change the mode; it is not authenticated parental control. Ambient command detection is experimental. No production reliability, shipping date or retail price is established by this prototype.
+## Data and execution
 
-## Tests
+Encrypted payloads live in `~/.luma/agent/state.db`, with its restricted-permission key at `state.key`. IDs and timestamps remain visible SQLite metadata. Back up both securely. Losing the key prevents recovery. Conversation turns stay in RAM; explicit memories, contacts, preferences, drafts, actions and receipts persist. Card-like numbers/passwords are rejected as memory.
 
-```sh
-.venv/bin/python -m unittest discover -s tests -p test_agent_runtime.py
-.venv/bin/python -m compileall -q src/luma
-```
+Actions have one-use confirmations, expiration and consent checks. Uncertain sends/bookings are never silently retried. Pairing is atomic and stores token hashes in encrypted records. The phone listener requires TLS and validated Host/Origin; its root page never grants an owner cookie. Physical mute, authenticated parental controls and robust multi-person/wake-word-free address detection remain development work.
 
-## Upstream references
+## Validation and next work
 
-- [Kokoro model card and Apache 2.0 weights](https://huggingface.co/hexgrad/Kokoro-82M)
-- [Kokoro ONNX runtime](https://github.com/thewh1teagle/kokoro-onnx)
-- [Twilio Message API](https://www.twilio.com/docs/messaging/api/message-resource)
+103 focused tests passed before the final model switch, including a real TLS companion client, revocation, exact contact resolution, Mac send argument isolation, booking availability/confirmation, grocery-list provenance and prompt schemas. Desktop and 390px mobile browser checks found no horizontal overflow or JavaScript errors. An isolated browser test exercised contact creation, a grocery message draft and a reviewed appointment receipt using fake provider transport; no live transactions occurred.
 
-The public sales page is https://lumin-holdings-site.vercel.app/luma. This localhost control app is a separate device interface; it is intentionally not exposed on the public holding-company website.
+The local Llama comparison exposed invented grocery items, so common natural message phrasing now preserves the requested content deterministically. A stronger local model is being checked separately; [MODEL_AND_PERSONALITY.md](MODEL_AND_PERSONALITY.md) records exact model provenance and comparison results. These small evaluations do not establish perfect reliability.
+
+Next meaningful integrations are verified merchant product/price/stock feeds and transactional order access, calendar synchronization, authenticated parent/household profiles, and physical-device validation. A shopping-list URL is not an order receipt, and web snippets do not prove the cheapest available total.
+
+Detailed adapters: [Mac Messages](MAC_MESSAGES.md), [phone pairing](PHONE_CONNECTION.md), [appointments](BOOKINGS.md), [groceries](COMMERCE.md). The separate public product landing page is https://lumin-holdings-site.vercel.app/luma.

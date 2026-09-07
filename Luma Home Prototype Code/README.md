@@ -1,6 +1,6 @@
 # LUMA — MVP repository
 
-> **September 7, 2026 implementation status:** Start with [RUNTIME.md](RUNTIME.md) for the working local agent, browser controls, verified features and remaining work. The build plan below describes the intended product; its pricing, shipment dates, privacy and capability claims are not evidence that those milestones are complete.
+> **September 7, 2026 implementation status:** Start with [RUNTIME.md](RUNTIME.md) for the working local agent, phone pairing, personal texting, appointments, groceries, personality controls and remaining work. The build plan below describes the intended product; its pricing, shipment dates, privacy and capability claims are not evidence that those milestones are complete.
 
 Ambient AI companion device. $199 retail. On-device LLM + STT + TTS. Privacy-first. No wake word.
 

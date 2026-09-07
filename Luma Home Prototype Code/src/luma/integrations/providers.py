@@ -53,15 +53,54 @@ class Providers:
         missing = [n for n in names if not self.env.get(n)]
         if missing: raise ProviderError("Configure " + ", ".join(missing) + " first.")
 
-    def sms(self, args):
-        self.require("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER")
+    def _twilio(self):
+        self.require("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN")
         sid = self.env["TWILIO_ACCOUNT_SID"]
         if not re.fullmatch(r"AC[0-9a-fA-F]{32}", sid): raise ProviderError("Invalid Twilio account SID.")
         auth = base64.b64encode(f"{sid}:{self.env['TWILIO_AUTH_TOKEN']}".encode()).decode()
-        result = self.request("POST", f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json", {"Authorization": "Basic " + auth}, {"To": args["to"], "From": self.env["TWILIO_FROM_NUMBER"], "Body": args["body"]}, form=True)
+        return f"https://api.twilio.com/2010-04-01/Accounts/{sid}", {"Authorization": "Basic " + auth}
+
+    def sms(self, args):
+        self.require("TWILIO_FROM_NUMBER")
+        base, headers = self._twilio()
+        result = self.request("POST", base + "/Messages.json", headers, {"To": args["to"], "From": self.env["TWILIO_FROM_NUMBER"], "Body": args["body"]}, form=True)
         if not result.get("sid"):
             raise OutcomeUnknown("Twilio response has no message ID; check its dashboard before retrying.")
         return {"message_id": result["sid"], "status": result.get("status", "accepted"), "summary": "Twilio accepted the SMS request. Delivery is not confirmed."}
+
+    def sms_status(self, args):
+        """Read one provider receipt. A sent message has not necessarily arrived."""
+        message_id = args.get("message_id") if isinstance(args, dict) else None
+        if not isinstance(message_id, str) or not re.fullmatch(r"SM[0-9a-fA-F]{32}", message_id):
+            raise ValueError("Use the Twilio message ID returned by a confirmed SMS action.")
+        base, headers = self._twilio()
+        result = self.request("GET", base + "/Messages/" + message_id + ".json", headers)
+        if not isinstance(result, dict) or result.get("sid") != message_id:
+            raise ProviderError("Twilio returned an invalid message receipt. Delivery remains unconfirmed.")
+        summaries = {
+            "accepted": "Twilio accepted the request. Delivery is not confirmed.",
+            "scheduled": "Twilio reports the message is scheduled. It has not been sent.",
+            "queued": "The message is queued at Twilio. Delivery is not confirmed.",
+            "sending": "Twilio is sending the message. Delivery is not confirmed.",
+            "sent": "Twilio reports the message was sent to the carrier. Delivery is not confirmed.",
+            "delivered": "Twilio reports delivery. This does not confirm the recipient read the SMS.",
+            "undelivered": "Twilio reports the message was not delivered. No retry was attempted.",
+            "failed": "Twilio reports the message failed. No retry was attempted.",
+            "canceled": "Twilio reports the scheduled message was canceled.",
+            "receiving": "Twilio is receiving this inbound message.",
+            "received": "Twilio received this inbound message; this is not an outbound delivery receipt.",
+            "read": "Twilio reports the message was read on a supported messaging channel.",
+            "partially_delivered": "Twilio reports partial delivery. Complete delivery is not confirmed.",
+        }
+        status = result.get("status")
+        if not isinstance(status, str) or status not in summaries:
+            status = "unknown"
+        receipt = {"message_id": message_id, "status": status, "summary": summaries.get(status, "Twilio did not return a recognized status. Delivery remains unconfirmed.")}
+        if result.get("error_code") is not None:
+            receipt["error_code"] = str(result["error_code"])[:32]
+        if isinstance(result.get("error_message"), str):
+            receipt["error_message"] = " ".join(result["error_message"].split())[:400]
+        return receipt
 
     def search(self, args):
         self.require("BRAVE_SEARCH_API_KEY")

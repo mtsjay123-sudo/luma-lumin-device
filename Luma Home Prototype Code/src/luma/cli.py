@@ -14,12 +14,14 @@ def main():
     parser.add_argument('command',nargs='?',default='chat',choices=['chat','serve','status','ask'])
     parser.add_argument('message',nargs='?')
     parser.add_argument('--port',type=int,default=8095)
+    parser.add_argument('--phone-host',help='Optional private Wi-Fi IPv4 for the HTTPS phone companion')
+    parser.add_argument('--phone-port',type=int,default=8096)
     args=parser.parse_args()
     from luma.agent.runtime import Agent
     agent=Agent(use_model=not args.no_model)
     if args.command=='serve':
         from luma.control.server import serve
-        serve(agent,args.port);return
+        serve(agent,args.port,args.phone_host,args.phone_port);return
     if args.command=='status':print(json.dumps(agent.status(),indent=2));return
     if args.command=='ask':
         if not args.message:parser.error('ask requires a quoted message')
@@ -42,7 +44,7 @@ def main():
             try:
                 bits=line.split()
                 if line=='/quit':break
-                elif line=='/help':print('/status · /mode friend|study|cofounder|kids · /enable web_search|sms|home_assistant|shopping · /disable SERVICE · /confirm ACTION TOKEN · /cancel ACTION · /mute · /unmute · /hush · /quit')
+                elif line=='/help':print('/status · /mode friend|study|cofounder|kids · /enable web_search|sms|home_assistant|shopping|booking · /disable SERVICE · /confirm ACTION TOKEN · /cancel ACTION · /mute · /unmute · /hush · /quit')
                 elif line=='/status':print(json.dumps(agent.status(),indent=2))
                 elif bits[0]=='/mode' and len(bits)==2:agent.set_mode(bits[1])
                 elif bits[0] in {'/enable','/disable'} and len(bits)==2:agent.enable(bits[1],bits[0]=='/enable')

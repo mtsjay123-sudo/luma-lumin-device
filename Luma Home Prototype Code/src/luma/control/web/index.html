@@ -13,6 +13,22 @@
       ><span class="local"><i></i> On this Mac</span
       ><button id="privacy" class="pill">Microphone off</button>
     </header>
+    <section id="pair-screen" class="pair-screen" hidden>
+      <span class="eyebrow">YOUR HOME, A LITTLE CLOSER</span>
+      <h1>Bring Luma along.</h1>
+      <p id="pair-message">
+        Scan an invitation from Luma’s Mac controls to pair this phone.
+      </p>
+      <form id="pair-form" hidden>
+        <label
+          >Phone name<input
+            id="pair-name"
+            value="My phone"
+            maxlength="60"
+            required /></label
+        ><button class="button">Pair this phone ↗</button>
+      </form>
+    </section>
     <main>
       <section class="welcome">
         <div>
@@ -108,6 +124,291 @@
           </p>
         </section>
       </div>
+      <nav class="home-nav" aria-label="Luma controls">
+        <a href="#command">Talk</a><a href="#people">People & texts</a
+        ><a href="#groceries">Groceries</a>
+        <a href="#appointments">Appointments</a
+        ><a href="#phone-connection">Your phone</a
+        ><a href="#personality">Personality</a>
+      </nav>
+      <section id="people" class="feature-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">KNOW WHO YOU MEAN</span>
+            <h2>Your people.</h2>
+          </div>
+          <span>Saved here, by you</span>
+        </div>
+        <div class="dashboard">
+          <article class="card">
+            <h3>A name Luma knows.</h3>
+            <p class="intro">
+              Save Mom, Dad, a friend, or someone you reach often. “Text my
+              mom…” can then resolve to the exact person.
+            </p>
+            <form id="contact-form" class="stack-form">
+              <label
+                >Name<input
+                  id="contact-name"
+                  placeholder="Mom"
+                  maxlength="80"
+                  required /></label
+              ><label
+                >Mobile number<input
+                  id="contact-phone"
+                  type="tel"
+                  placeholder="+1 919 555 0123"
+                  required /></label
+              ><button class="button">Save contact</button>
+            </form>
+            <div id="contacts-list"></div>
+            <p class="footnote">
+              Luma does not automatically read your phone’s contacts.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Say it your way.</h3>
+            <p class="intro" id="message-route">
+              Draft for your phone, or send from a connected Luma number.
+            </p>
+            <form id="message-route-form" class="stack-form owner-only">
+              <label
+                >Send through<select id="message-transport">
+                  <option value="phone_draft">
+                    My phone · draft and tap Send
+                  </option>
+                  <option value="mac_imessage">
+                    This Mac’s Messages · iMessage
+                  </option>
+                  <option value="mac_sms">
+                    This Mac’s Messages · SMS forwarding
+                  </option>
+                  <option value="twilio">A connected Twilio number</option>
+                </select></label
+              ><button class="pill">Use this texting route</button>
+              <p class="footnote">
+                Mac Messages uses your signed-in account. Check its sending
+                identity; macOS may ask for Automation permission on the first
+                reviewed send. SMS also needs iPhone Text Message Forwarding.
+                Luma never changes routes on its own.
+              </p>
+            </form>
+            <form id="message-form" class="stack-form">
+              <label
+                >To<input
+                  id="message-recipient"
+                  list="contact-options"
+                  placeholder="Mom or +19195550123"
+                  required /></label
+              ><datalist id="contact-options"></datalist
+              ><label
+                >Message<textarea
+                  id="message-body"
+                  rows="3"
+                  placeholder="Could you pick up the groceries while you’re out?"
+                  maxlength="1000"
+                  required
+                ></textarea></label
+              ><button class="button">Prepare message ↗</button>
+            </form>
+          </article>
+        </div>
+        <div id="message-drafts" class="receipt-grid"></div>
+        <div id="message-receipts" class="receipt-grid"></div>
+      </section>
+      <section id="groceries" class="feature-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">THE LITTLE ERRANDS, TOGETHER</span>
+            <h2>From your list to your table.</h2>
+          </div>
+          <span>Instacart · merchant checkout</span>
+        </div>
+        <p class="intro">
+          Put the groceries in one place. Check nearby retailers, create a
+          shoppable list, then review the actual matched products and total at
+          checkout.
+        </p>
+        <div class="dashboard">
+          <article class="card">
+            <h3>Your grocery list.</h3>
+            <form id="grocery-form" class="stack-form">
+              <label
+                >List name<input
+                  id="grocery-title"
+                  value="Groceries for home"
+                  maxlength="120"
+                  required
+              /></label>
+              <div id="grocery-items"></div>
+              <button id="grocery-add" type="button" class="text-button">
+                ＋ Add an item</button
+              ><button id="grocery-create" class="button">
+                Create shoppable list ↗
+              </button>
+            </form>
+            <p id="grocery-status" class="footnote"></p>
+          </article>
+          <article class="card">
+            <h3>Find your nearby retailers.</h3>
+            <p class="intro">
+              Food Lion can appear here when Instacart returns it for your area.
+              Store selection, inventory, delivery and prices are verified in
+              checkout.
+            </p>
+            <form id="retailer-form" class="stack-form">
+              <label
+                >ZIP code<input
+                  id="grocery-zip"
+                  inputmode="numeric"
+                  pattern="[0-9]{5}"
+                  maxlength="5"
+                  placeholder="Your delivery area"
+                  required /></label
+              ><button id="retailer-search" class="button">
+                Check nearby stores
+              </button>
+            </form>
+            <div id="retailer-results"></div>
+            <p class="footnote">
+              A returned retailer does not guarantee that an item is in stock.
+              Luma does not declare the cheapest option without comparable live
+              prices.
+            </p>
+          </article>
+        </div>
+        <div id="grocery-receipts" class="receipt-grid"></div>
+      </section>
+      <section id="appointments" class="feature-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">MAKE ROOM FOR WHAT MATTERS</span>
+            <h2>Find a time. Make it happen.</h2>
+          </div>
+          <span>Cal.com appointments</span>
+        </div>
+        <p class="intro" id="booking-help">
+          Choose a connected service, see its actual availability, then review a
+          specific appointment before booking.
+        </p>
+        <form id="availability-form" class="inline-form">
+          <label>Service<select id="booking-service" required></select></label
+          ><label>From<input id="booking-from" type="date" required /></label
+          ><label
+            >Through<input id="booking-through" type="date" required /></label
+          ><button class="button">Find available times ↗</button>
+        </form>
+        <div id="booking-slots" class="slot-grid"></div>
+        <form id="booking-form" class="card stack-form" hidden>
+          <h3 id="booking-selection">Your appointment</h3>
+          <p id="booking-selection-detail" class="intro"></p>
+          <label
+            >Your name<input
+              id="attendee-name"
+              autocomplete="name"
+              maxlength="100"
+              required /></label
+          ><label
+            >Confirmation email<input
+              id="attendee-email"
+              type="email"
+              autocomplete="email"
+              required /></label
+          ><button class="button">Review this booking ↗</button>
+        </form>
+        <div id="booking-receipts" class="receipt-grid"></div>
+      </section>
+      <section id="phone-connection" class="feature-section owner-only">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">FROM YOUR ROOM TO YOUR HAND</span>
+            <h2>A place on your phone.</h2>
+          </div>
+        </div>
+        <div class="dashboard">
+          <article class="card">
+            <h3>Pair over your home Wi-Fi.</h3>
+            <p class="intro" id="phone-status">
+              Checking this Mac’s local connection…
+            </p>
+            <div class="stack-form">
+              <label id="phone-address-label"
+                >This Mac’s home-network address<select
+                  id="phone-address"
+                ></select></label
+              ><button id="phone-start" class="button">
+                Start phone connection</button
+              ><button id="phone-invite" class="button" hidden>
+                Create pairing QR ↗
+              </button>
+            </div>
+            <div id="pair-invite" hidden>
+              <img id="pair-qr" alt="One-use Luma phone pairing invitation" />
+              <p class="footnote">
+                Scan with your phone’s camera. This private invitation expires
+                in 10 minutes. Keep it to yourself.
+              </p>
+              <a id="pair-link" class="text-button">Open pairing link</a>
+            </div>
+            <p class="footnote">
+              This development connection uses a local certificate that your
+              phone must explicitly trust. It works while this Mac is running on
+              the same network. Away-from-home access is not connected.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Your connected phones.</h3>
+            <div id="paired-devices"></div>
+            <p class="footnote">
+              Remove a phone to end its access immediately. Paired access
+              expires after 30 days.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section id="personality" class="feature-section owner-only">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">SOUNDS A LITTLE MORE LIKE YOU</span>
+            <h2>A familiar kind of conversation.</h2>
+            <p id="model-info" class="intro"></p>
+          </div>
+        </div>
+        <p class="intro">
+          Set a starting style. Luma should follow the conversation naturally,
+          without forcing slang or guessing your age.
+        </p>
+        <form id="personality-form" class="inline-form">
+          <label
+            >Call me<input
+              id="profile-name"
+              maxlength="60"
+              placeholder="Your name" /></label
+          ><label
+            >Tone<select id="profile-tone">
+              <option value="warm">Warm & friendly</option>
+              <option value="direct">Straight to the point</option>
+              <option value="playful">Light & playful</option>
+            </select></label
+          ><label
+            >Language<select id="profile-style">
+              <option value="plain">Everyday</option>
+              <option value="contemporary">Contemporary</option>
+              <option value="classic">Classic</option>
+            </select></label
+          ><label
+            >Reply length<select id="profile-verbosity">
+              <option value="brief">Brief</option>
+              <option value="balanced">Balanced</option>
+              <option value="detailed">Detailed</option>
+            </select></label
+          ><button class="button">Save my preferences</button>
+        </form>
+        <p class="footnote">
+          Saved locally. These preferences shape responses; they are not new
+          model training.
+        </p>
+      </section>
       <section class="connections">
         <div class="section-heading">
           <div>
@@ -117,6 +418,15 @@
           <span>Off until you choose</span>
         </div>
         <div class="connection-grid">
+          <article class="connection" data-service="booking">
+            <span class="connection-icon">◷</span>
+            <h3>Be there.</h3>
+            <p>
+              Check availability and book a reviewed, free appointment with your
+              configured Cal.com services.
+            </p>
+            <button class="toggle">Enable booking</button><small></small>
+          </article>
           <article class="connection" data-service="web_search">
             <span class="connection-icon">↗</span>
             <h3>Find it.</h3>
@@ -142,8 +452,8 @@
             <span class="connection-icon">＋</span>
             <h3>Plan dinner.</h3>
             <p>
-              Prepare a shopping list and continue to a configured merchant’s
-              checkout.
+              Create a real Instacart shoppable list, or continue to a
+              configured merchant’s checkout.
             </p>
             <button class="toggle">Enable shopping</button><small></small>
           </article>
@@ -152,9 +462,10 @@
           <summary>Connect your services</summary>
           <p>
             Provider credentials are configured in this device’s local .env
-            file. Search uses Brave; SMS uses Twilio; lights use your Home
-            Assistant server. Configure approved merchant links for shopping.
-            Enabling a switch does not create an account or subscription.
+            file. Search uses Brave; SMS uses Twilio; appointments use Cal.com;
+            lights use your Home Assistant server. Configure approved merchant
+            links for shopping. Enabling a switch does not create an account or
+            subscription.
           </p>
           <p>
             Payments stay at the merchant, where you can use a saved wallet.

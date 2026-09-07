@@ -19,6 +19,10 @@ from zoneinfo import ZoneInfo
 from luma.config import STATE_DB_PATH, STATE_KEY_PATH
 from luma.memory.store import Store, reject_payment_secrets
 from luma.integrations.providers import Providers, ProviderError, OutcomeUnknown
+from luma.integrations.bookings import CalBookings
+from luma.agent.contacts import ContactBook
+from luma.integrations.mac_messages import MacMessages
+from luma.integrations.commerce import GroceryService, validate_list
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,7 @@ class Tool:
 
 
 TOOLS = {
+    "personality.set_style": Tool("Change conversation style only when asked: tone warm/direct/playful, language_style plain/contemporary/classic, verbosity brief/balanced/detailed", {"tone":"string", "language_style":"string", "verbosity":"string"}),
     "memory.remember": Tool("Save an explicitly requested personal memory locally", {"text": "string"}),
     "memory.recall": Tool("Find saved memories", {"query": "string"}),
     "tasks.create": Tool("Save a reminder with an ISO 8601 due date including time zone", {"title": "string", "due": "string"}, kids=True),
@@ -38,7 +43,11 @@ TOOLS = {
     "tasks.complete": Tool("Mark a reminder complete", {"id": "string"}, kids=True),
     "routines.create": Tool("Schedule a daily local reminder at HH:MM", {"title": "string", "at": "string"}, kids=True),
     "web.search": Tool("Search the live web with cited links; price results are not quotes", {"query": "string"}, "web_search", False),
+    "messages.prepare": Tool("Draft a message to a saved contact name or exact phone number; prepare sending for review", {"recipient": "string", "body": "string"}),
+    "mac_messages.send": Tool("Submit a reviewed message through this Mac Messages account", {"to": "string", "body": "string", "transport": "string"}, "sms", True),
     "sms.send": Tool("Send the exact text to an E.164 phone number using Twilio", {"to": "string", "body": "string"}, "sms", True),
+    "booking.availability": Tool("Find real available appointment slots for a configured service", {"service": "string", "start": "string", "end": "string", "time_zone": "string"}, "booking"),
+    "booking.create": Tool("Book only a slot selected in the local booking form", {"offer_id": "string", "name": "string", "email": "string"}, "booking", True),
     "home.light": Tool("Control a configured Home Assistant light", {"entity_id": "string", "state": "string", "brightness": "integer"}, "home_assistant", True),
     "food.checkout": Tool("Prepare a shopping list and merchant checkout handoff; does not purchase", {"merchant": "string", "items": "string", "budget_cents": "integer"}, "shopping", True),
 }
@@ -54,9 +63,10 @@ def validate(name, args):
             raise ValueError(f"{key} must be nonempty text of at most 2000 characters.")
         if typ == "integer" and (type(val) is not int or val < 0): raise ValueError(f"{key} must be a nonnegative integer.")
     reject_payment_secrets(args)
-    if name == "sms.send":
+    if name in {"sms.send", "mac_messages.send"}:
         if not re.fullmatch(r"\+[1-9]\d{7,14}", args["to"]): raise ValueError("Use an exact E.164 recipient such as +19195550123.")
         if len(args["body"]) > 1000: raise ValueError("SMS text must be at most 1000 characters.")
+    if name == "mac_messages.send" and args["transport"] not in {"imessage", "sms"}: raise ValueError("Choose iMessage or SMS forwarding explicitly.")
     if name == "home.light":
         if not re.fullmatch(r"light\.[a-z0-9_]+", args["entity_id"]) or args["state"] not in {"on", "off"} or args["brightness"] > 100:
             raise ValueError("Only named lights, on/off and brightness 0–100 are supported.")
@@ -76,6 +86,9 @@ class Agent:
         self.planner = planner
         self.use_model = use_model
         self.clock = now or time.time
+        self.contacts = ContactBook(self.store)
+        self.groceries = GroceryService(env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
+        self.bookings = CalBookings(self.store, env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
         self.lock = threading.RLock()
         self.history = []  # conversations are RAM-only; explicit memories persist
         self.speaking = False
@@ -88,6 +101,18 @@ class Agent:
     @property
     def muted(self): return self.store.setting("muted", True)
 
+    @property
+    def profile(self):
+        return self.store.setting("personality", {"name": "", "tone": "warm", "language_style": "plain", "verbosity": "balanced"})
+
+    def set_profile(self, profile):
+        from luma.llm.prompts import normalize_profile
+        if self.mode == "kids": raise ValueError("Set household preferences in adult mode.")
+        profile = normalize_profile(profile)
+        self.store.set_setting("personality",profile)
+        self.history.clear()
+        return self.profile
+
     def set_mode(self, mode):
         if mode not in {"friend", "study", "cofounder", "kids"}: raise ValueError("Choose friend, study, cofounder or kids.")
         with self.lock:
@@ -98,7 +123,7 @@ class Agent:
         self.store.set_setting("muted", bool(value))
 
     def enable(self, service, value):
-        if service not in {"web_search", "sms", "home_assistant", "shopping"}: raise ValueError("Unknown integration.")
+        if service not in {"web_search", "sms", "home_assistant", "shopping", "booking"}: raise ValueError("Unknown integration.")
         if self.mode == "kids" and value: raise ValueError("Integrations cannot be enabled in kids mode.")
         self.store.set_setting("integration:" + service, bool(value))
 
@@ -106,8 +131,23 @@ class Agent:
         if not 1 <= minutes <= 1440: raise ValueError("Hush must be 1–1440 minutes.")
         self.store.set_setting("hush_until", self.clock() + minutes * 60)
 
+    @property
+    def message_route(self):
+        return self.store.setting("message_route", "phone_draft")
+
+    def set_message_route(self, route):
+        if self.mode == "kids": raise ValueError("Message settings are unavailable in kids mode.")
+        if route not in {"phone_draft", "twilio", "mac_imessage", "mac_sms"}: raise ValueError("Choose a supported texting route.")
+        self.store.set_setting("message_route", route)
+        self.enable("sms", route != "phone_draft")
+        return {"route": route}
+
     def status(self):
-        return {"provider_ready": {"web_search": bool(self.providers.env.get("BRAVE_SEARCH_API_KEY")), "sms": all(self.providers.env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]), "home_assistant": all(self.providers.env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping": self.providers.env.get("LUMA_MERCHANTS_JSON", "{}") != "{}"}, "mode": self.mode, "microphone_muted": self.muted, "camera": "not connected", "memory": "encrypted local payloads; lexical retrieval", "conversation_storage": "RAM only", "integrations": {s: self.store.setting("integration:" + s, False) for s in ["web_search", "sms", "home_assistant", "shopping"]}, "quiet_hours": self.store.setting("quiet_hours", [23, 7]), "hush_until": self.store.setting("hush_until", 0), "model_enabled": self.use_model, "tasks": len(self.store.all("task")), "routines": len(self.store.all("routine"))}
+        env=self.providers.env
+        mac=MacMessages(env=env).readiness()
+        sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else False
+        from luma.config import LLAMA_MODEL_PATH
+        return {"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY"))}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -121,11 +161,13 @@ class Agent:
             due = datetime.fromisoformat(args["due"].replace("Z", "+00:00")).timestamp()
             if not self.clock() < due <= self.clock()+366*86400: raise ValueError("Choose a reminder in the future, within one year.")
         self._check(name)
+        if name == "messages.prepare": return self.prepare_message(args["recipient"], args["body"])
+        review = self.bookings.preview(args) if name == "booking.create" else None
         token = secrets.token_hex(4)
-        row = self.store.put("action", {"tool": name, "arguments": args, "state": "pending" if TOOLS[name].confirm else "ready", "created": self.clock(), "expires": self.clock() + 600, "approval_hash": hashlib.sha256(token.encode()).hexdigest()})
+        row = self.store.put("action", {"tool": name, "arguments": args, "review": review, "state": "pending" if TOOLS[name].confirm else "ready", "created": self.clock(), "expires": self.clock() + 600, "approval_hash": hashlib.sha256(token.encode()).hexdigest()})
         if TOOLS[name].confirm:
             # Token is returned once to the local control surface, never to LLM.
-            return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered."}
+            return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered."}
         return self._execute(row, {"ready"})
 
     def confirm(self, id, token):
@@ -147,6 +189,8 @@ class Agent:
         name, args = row["tool"], row["arguments"]
         validate(name, args)
         self._check(name)  # recheck mode/consent at action time
+        if name == "sms.send" and self.message_route != "twilio": raise ValueError("The texting route changed. Prepare a fresh message for review.")
+        if name == "mac_messages.send" and self.message_route != "mac_"+args["transport"]: raise ValueError("The texting route changed. Prepare a fresh message for review.")
         self.store.transition(row["id"], expected, "executing", started=self.clock())
         try:
             result = self._run(name, args)
@@ -165,6 +209,9 @@ class Agent:
             raise
 
     def _run(self, name, args):
+        if name == "personality.set_style":
+            profile=self.set_profile({**self.profile,**args})
+            return {"profile":profile,"summary":"Conversation style saved. I'll use your preferences in future replies."}
         if name == "memory.remember":
             row = self.store.put("memory", {"text": args["text"], "source": "explicit_user_request"})
             return {"summary": "Remembered locally.", "memory": row}
@@ -183,11 +230,41 @@ class Agent:
         if name == "routines.create":
             row = self.store.put("routine", {**args, "last_day": None, "enabled": True, "mode": self.mode})
             return {"summary": "Daily routine saved in " + str(self.zone) + ".", "routine": row}
+        if name == "booking.availability": return self.bookings.availability(args)
+        if name == "booking.create": return self.bookings.create(args)
         if name == "web.search": return self.providers.search(args)
         if name == "sms.send": return self.providers.sms(args)
+        if name == "mac_messages.send":
+            env={**self.providers.env,"LUMA_MESSAGES_TRANSPORT":args["transport"]}
+            return MacMessages(env=env).send({"to":args["to"],"body":args["body"]})
         if name == "home.light": return self.providers.light(args)
         if name == "food.checkout": return self.providers.checkout(args)
         raise ValueError("Tool has no handler.")
+
+    def prepare_message(self, recipient, body):
+        if self.mode == "kids": raise ValueError("Messages are unavailable in kids mode.")
+        try: contact = self.contacts.resolve(recipient)
+        except ValueError:
+            if not isinstance(recipient, str): raise
+            simpler = re.sub(r"^(?:my|our)\s+", "", recipient.strip(), flags=re.I)
+            if simpler == recipient: raise
+            contact = self.contacts.resolve(simpler)
+        args = {"to": contact["phone"], "body": body}
+        validate("sms.send", args)
+        if self.store.setting("integration:sms", False):
+            if self.message_route.startswith("mac_"): return self.propose("mac_messages.send",{**args,"transport":self.message_route[4:]})
+            if self.message_route == "twilio": return self.propose("sms.send", args)
+        draft = self.store.put("phone_draft", {**args, "name": contact["name"], "created": self.clock()})
+        return {"state": "draft", "message_draft": draft, "summary": "Message drafted for your phone. Copy the text, open Messages and tap Send there. Luma has not sent it."}
+
+    def message_status(self, action_id):
+        self._check("sms.send")
+        action = self.store.get("action", action_id)
+        if not action or action.get("tool") != "sms.send" or not action.get("result", {}).get("message_id"):
+            raise ValueError("No SMS receipt exists for this action.")
+        status = self.providers.sms_status({"message_id": action["result"]["message_id"]})
+        self.store.put("sms_receipt", {**status, "action_id": action_id, "checked": self.clock()}, "sms_receipt:" + action_id)
+        return status
 
     def tick(self):
         """Coalesce due local reminders, honor hush/quiet and cap proactive turns.
@@ -240,24 +317,37 @@ class Agent:
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
                 return self.propose("tasks.create", {"title": m[3], "due": datetime.fromtimestamp(self.clock()+delay, self.zone).isoformat()})
             if lowered.startswith("search "): return self.propose("web.search", {"query": text[7:].strip()})
-            m = re.fullmatch(r"text (\+[1-9]\d{7,14})\s*:\s*(.+)", text, re.S)
-            if m: return self.propose("sms.send", {"to": m[1], "body": m[2]})
+            # Preserve requested message content for common natural phrasing.
+            # This fast path avoids adding products, prices or promises during paraphrase.
+            natural = re.fullmatch(r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?(?:text|message|sms)\s+(.+?)\s+(to|that|saying)\s+(.+)", text, re.I | re.S)
+            if natural:
+                recipient, connector, body = natural.groups()
+                try:
+                    if connector.lower() == "to": body = "Please " + body.rstrip(".?!") + "."
+                    elif body.startswith('"') and body.endswith('"'): body = body[1:-1]
+                    return self.prepare_message(recipient, body)
+                except ValueError as error:
+                    return {"text": str(error) + " Add or choose the exact person in People & Texts so I do not guess."}
+            m = re.fullmatch(r"(?:please )?text ([^:\n]{1,90}):\s*(.+)", text, re.S | re.I)
+            if m: return self.prepare_message(m[1], m[2])
             m = re.fullmatch(r"every day at ((?:[01]\d|2[0-3]):[0-5]\d) (.+)", text, re.I)
             if m: return self.propose("routines.create", {"title": m[2], "at": m[1]})
             if not self.use_model:
                 return {"text": "Local tools are ready. Try 'remember ...', 'recall ...', 'remind me in 5 minutes to ...', 'tasks', or 'every day at 09:00 ...'. Model conversation is disabled."}
             context = [] if self.mode == "kids" else self.store.recall(text)
             informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
-            allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items() if (not informational or k in {"web.search", "memory.recall", "tasks.list"}) and (self.mode != "kids" or v.kids) and (not v.service or self.store.setting("integration:"+v.service, False))}
+            allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items() if k not in {"booking.create", "sms.send", "mac_messages.send"} and (not informational or k in {"web.search", "memory.recall", "tasks.list"}) and (self.mode != "kids" or v.kids) and (not v.service or self.store.setting("integration:"+v.service, False))}
             if re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered):
                 allowed = {}  # Conceptual explanations need prose, not a task-list operation.
+            if "messages.prepare" in allowed:
+                allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in self.contacts.list()]
             if self.planner is None:
                 from luma.llm.inference import plan
                 planner = plan
             else: planner = self.planner
             self.history.append({"role": "user", "content": text})
             self.history = self.history[-20:]
-            answer = planner(self.history, context, allowed, self.mode)
+            answer = planner(self.history, context, allowed, self.mode, profile=self.profile) if self.planner is None else planner(self.history, context, allowed, self.mode)
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")
                 if name not in allowed:

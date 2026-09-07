@@ -28,9 +28,12 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.agent.chat(text)
         self.assertEqual(self.store.all('memory'),[])
     def test_sms_disabled_until_explicitly_enabled(self):
-        with self.assertRaises(ValueError):self.agent.chat('text +19195550123: Fixture only')
+        result=self.agent.chat('text +19195550123: Fixture only')
+        self.assertEqual(result['state'],'draft')
+        self.assertEqual(result['message_draft']['to'],'+19195550123')
+        with self.assertRaises(ValueError):self.agent.propose('sms.send',{'to':'+19195550123','body':'Fixture only'})
         self.assertEqual(self.providers.calls,0)
-    def draft(self):self.agent.enable('sms',True);return self.agent.chat('text +19195550123: Fixture only')
+    def draft(self):self.agent.set_message_route('twilio');return self.agent.chat('text +19195550123: Fixture only')
     def test_sms_requires_correct_confirmation_and_only_executes_once(self):
         d=self.draft();self.assertEqual(self.providers.calls,0)
         with self.assertRaises(ValueError):self.agent.confirm(d['action'],'wrong')
@@ -77,6 +80,16 @@ class RuntimeTests(unittest.TestCase):
         self.agent.planner=planner
         self.assertIn('future intention',self.agent.chat('Explain how reminders help')['text'])
         self.assertEqual(self.store.all('action'),[])
+    def test_natural_message_plan_resolves_named_contact_without_sending(self):
+        self.agent.contacts.save({'name':'Mom','phone':'+19195550123'})
+        self.agent.use_model=True
+        self.agent.planner=lambda *args:{'type':'tool','name':'messages.prepare','arguments':{'recipient':'my mom','body':'Could you pick up the groceries while you are out?'}}
+        result=self.agent.chat('Hey Luma, can you text my mom to pick up the groceries while she is out?')
+        self.assertEqual(result['state'],'draft');self.assertEqual(result['message_draft']['to'],'+19195550123');self.assertEqual(self.providers.calls,0)
+    def test_personality_persists_and_rejects_unknown_preferences(self):
+        profile={'name':'Amiri','tone':'playful','language_style':'contemporary','verbosity':'brief'}
+        self.agent.set_profile(profile);self.assertEqual(self.agent.profile,profile)
+        with self.assertRaises(ValueError):self.agent.set_profile({**profile,'tone':'unrestricted'})
     def test_past_reminder_is_rejected(self):
         with self.assertRaises(ValueError):self.agent.propose('tasks.create',{'title':'old','due':'2024-01-01T12:00:00Z'})
         self.assertEqual(self.store.all('task'),[])

@@ -1,96 +1,235 @@
+"""Local owner controls and an opt-in, paired HTTPS phone companion."""
 from __future__ import annotations
-import json,secrets,threading,time
-from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+import base64
+import json
+import secrets
+import ssl
+import subprocess
+import threading
+import time
+from collections import deque
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlsplit
+from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
 
-ROOT=Path(__file__).parent/'web'
+ROOT = Path(__file__).parent / 'web'
 
-def make_server(agent,port=8095):
-    events=[]
-    def on_result(result):
-        events.append({"created":time.time(),"result":result})
-        if len(events)>30:events.pop(0)
-    agent.on_result=on_result
-    session=secrets.token_urlsafe(32);stop=threading.Event()
+def lan_addresses():
+    """Read local interfaces only. Never infer a publicly reachable device URL."""
+    import re
+    try:
+        output = subprocess.run(['/sbin/ifconfig'], capture_output=True, text=True, timeout=3).stdout
+        addresses = re.findall(r'\binet (\d+\.\d+\.\d+\.\d+)', output)
+    except (OSError, subprocess.TimeoutExpired):
+        addresses = []
+    result = []
+    for address in addresses:
+        try: address = str(private_ipv4(address))
+        except ValueError: continue
+        if address not in result: result.append(address)
+    return result
+
+class ControlContext:
+    def __init__(self, agent):
+        self.agent = agent
+        self.events = deque(maxlen=30)
+        self.stop = threading.Event()
+        self.pairing = PairingManager(agent.store)
+        self.phone_server = None
+        self.phone_origin = None
+        self.owner_session = secrets.token_urlsafe(32)
+        self.lock = threading.RLock()
+        self.limits = {}
+        agent.on_result = self.publish
+
+    def publish(self, result):
+        self.events.append({'created': time.time(), 'result': result})
+
+    def allowed(self, key, count, seconds=60):
+        now = time.monotonic()
+        with self.lock:
+            self.limits = {k: v for k, v in self.limits.items() if now-v[0] < seconds}
+            start, used = self.limits.get(key, (now, 0))
+            self.limits[key] = (start, used+1)
+            return used < count
+
+    def start_phone(self, host, port=8096):
+        host = str(private_ipv4(host))
+        if host not in lan_addresses(): raise ValueError('Connect this Mac to your home Wi-Fi first, then choose its local address.')
+        with self.lock:
+            if self.phone_server: return self.phone_origin
+            cert, key = ensure_local_certificate(self.agent.store.db_path.parent / 'phone-tls', host)
+            server = make_server(self.agent, port, context=self, phone_host=host)
+            try:
+                tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                tls.minimum_version = ssl.TLSVersion.TLSv1_2
+                tls.load_cert_chain(cert, key)
+                server.socket = tls.wrap_socket(server.socket, server_side=True)
+            except Exception:
+                server.server_close(); raise
+            self.phone_origin = f'https://{host}:{server.server_port}'
+            self.phone_server = server
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            return self.phone_origin
+
+
+def make_server(agent, port=8095, *, context=None, phone_host=None):
+    root_context = context is None
+    ctx = context or ControlContext(agent)
+    companion = phone_host is not None
+
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self,*args):pass # Do not log memory, messages, tokens or contact information.
-        def valid_host(self):return self.headers.get('Host') in {f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'}
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(15)
+
+        def log_message(self, *args): pass
+
+        def authorities(self):
+            port = self.server.server_port
+            return {f'{phone_host}:{port}'} if companion else {f'127.0.0.1:{port}', f'localhost:{port}'}
+
+        def valid_host(self): return self.headers.get('Host') in self.authorities()
+
+        def valid_origin(self):
+            scheme = 'https' if companion else 'http'
+            return self.headers.get('Origin') in {f'{scheme}://{a}' for a in self.authorities()}
+
         def authenticated(self):
-            c=SimpleCookie()
-            try:c.load(self.headers.get('Cookie',''))
-            except Exception:return False
-            token=c.get('luma_owner')
-            return bool(token and secrets.compare_digest(token.value,session))
-        def send(self,data,status=200,kind='application/json',cookie=False):
-            encoded=(json.dumps(data,ensure_ascii=False).encode() if kind=='application/json' else data)
-            self.send_response(status);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(encoded)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','no-referrer');self.send_header('X-Frame-Options','DENY');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
-            if cookie:self.send_header('Set-Cookie',f'luma_owner={session}; HttpOnly; SameSite=Strict; Path=/')
-            self.end_headers();self.wfile.write(encoded)
+            cookies = SimpleCookie()
+            try: cookies.load(self.headers.get('Cookie', ''))
+            except Exception: return False
+            token = cookies.get('luma_phone' if companion else 'luma_owner')
+            if not token: return False
+            return bool(ctx.pairing.authenticate(token.value)) if companion else secrets.compare_digest(token.value, ctx.owner_session)
+
+        def send(self, data, status=200, kind='application/json', *, owner_cookie=False, phone_token=None):
+            encoded = json.dumps(data, ensure_ascii=False).encode() if kind=='application/json' else data
+            self.send_response(status)
+            for k, v in {'Content-Type':kind, 'Content-Length':str(len(encoded)), 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items(): self.send_header(k,v)
+            if owner_cookie: self.send_header('Set-Cookie',f'luma_owner={ctx.owner_session}; HttpOnly; SameSite=Strict; Path=/')
+            if phone_token: self.send_header('Set-Cookie',f'luma_phone={phone_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/')
+            self.end_headers()
+            self.wfile.write(encoded)
+
         def do_GET(self):
-            if not self.valid_host():return self.send({'error':'Invalid local host'},403)
-            path=urlsplit(self.path).path
-            if path in {'/','/app.js','/style.css'}:
-                f=ROOT/('index.html' if path=='/' else path[1:]);kind={'/':'text/html; charset=utf-8','/app.js':'text/javascript; charset=utf-8','/style.css':'text/css; charset=utf-8'}[path]
-                return self.send(f.read_bytes(),kind=kind,cookie=path=='/')
-            if not self.authenticated():return self.send({'error':'Open the local control page first.'},401)
+            if not self.valid_host(): return self.send({'error':'Invalid device host'},403)
+            path = urlsplit(self.path).path
+            static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/style.css':('style.css','text/css')}
+            if path in static:
+                file, kind = static[path]
+                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path=='/' and not companion)
+            if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated()})
+            if not self.authenticated(): return self.send({'error':'Pair this phone from the Mac, or reopen the local owner controls.'},401)
             if path=='/api/state':
-                # Approval hashes and one-time confirmation tokens never appear in history.
-                actions=[{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)]
-                return self.send({'status':agent.status(),'memories':[] if agent.mode=='kids' else agent.store.all('memory',40),'tasks':agent._run('tasks.list',{})['tasks'],'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode],'actions':[] if agent.mode=='kids' else actions,'events':events[-20:]})
+                adult = agent.mode!='kids'
+                actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
             return self.send({'error':'Not found'},404)
+
         def do_POST(self):
-            if not self.valid_host() or not self.authenticated():return self.send({'error':'Unauthorized local request'},403)
-            origin=self.headers.get('Origin')
-            if origin not in {f'http://127.0.0.1:{self.server.server_port}',f'http://localhost:{self.server.server_port}'}:return self.send({'error':'Local origin required'},403)
-            if self.headers.get('Content-Type','').split(';')[0]!='application/json':return self.send({'error':'JSON required'},415)
+            if not self.valid_host() or not self.valid_origin(): return self.send({'error':'Device origin required'},403)
+            path = urlsplit(self.path).path
+            pairing = companion and path=='/api/phone/pair'
+            if not pairing and not self.authenticated(): return self.send({'error':'Unauthorized device request'},403)
+            if not ctx.allowed(('pair' if pairing else 'request', self.client_address[0]), 10 if pairing else 90): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:
-                size=int(self.headers.get('Content-Length','0'))
-                if not 0<size<=12000:return self.send({'error':'Request exceeds limit'},413)
-                data=json.loads(self.rfile.read(size));path=urlsplit(self.path).path
-                if not isinstance(data,dict):raise ValueError('Expected an object')
-                if path=='/api/chat':result=agent.chat(data.get('text'))
-                elif path=='/api/confirm':result=agent.confirm(data.get('id'),data.get('token',''))
-                elif path=='/api/cancel':result=agent.cancel(data.get('id'))
+                size = int(self.headers.get('Content-Length','0'))
+                if not 0<size<=12000: return self.send({'error':'Request exceeds limit'},413)
+                data = json.loads(self.rfile.read(size))
+                if not isinstance(data,dict): raise ValueError('Expected an object')
+                if pairing:
+                    result = ctx.pairing.pair(data.get('token'),data.get('name'))
+                    return self.send({'paired':True,'device':result['device']},phone_token=result['token'])
+                if path.startswith('/api/phone/'):
+                    if companion or agent.mode=='kids': return self.send({'error':'Phone management is available only on the Mac owner controls.'},403)
+                    if path=='/api/phone/start': result={'origin':ctx.start_phone(data.get('host'))}
+                    elif path=='/api/phone/invite':
+                        if not ctx.phone_origin: raise ValueError('Start the home Wi-Fi connection first.')
+                        import qrcode
+                        from qrcode.image.svg import SvgPathFillImage
+                        invite = ctx.pairing.create_invite()
+                        url = ctx.phone_origin+'/#pair='+invite['token']
+                        svg = qrcode.make(url,image_factory=SvgPathFillImage).to_string()
+                        result={'url':url,'expires_at':invite['expires_at'],'qr':'data:image/svg+xml;base64,'+base64.b64encode(svg).decode()}
+                    elif path=='/api/phone/revoke': result={'revoked':ctx.pairing.revoke(data.get('id'))}
+                    else: return self.send({'error':'Not found'},404)
+                elif path=='/api/chat': result=agent.chat(data.get('text'))
+                elif path=='/api/confirm': result=agent.confirm(data.get('id'),data.get('token',''))
+                elif path=='/api/cancel': result=agent.cancel(data.get('id'))
                 elif path=='/api/setting':
-                    key=data.get('key');value=data.get('value')
-                    if key=='mode':
-                        agent.set_mode(value);events.clear()
-                    elif key=='muted' and type(value) is bool:agent.set_muted(value)
-                    elif key=='hush':agent.hush()
-                    elif key in {'web_search','sms','home_assistant','shopping'} and type(value) is bool:agent.enable(key,value)
-                    else:raise ValueError('Unsupported setting')
+                    key,value=data.get('key'),data.get('value')
+                    if companion and key!='hush': return self.send({'error':'Change device and integration settings on the Mac.'},403)
+                    if key=='mode': agent.set_mode(value); ctx.events.clear()
+                    elif key=='muted' and type(value) is bool: agent.set_muted(value)
+                    elif key=='hush': agent.hush()
+                    elif key in {'web_search','sms','home_assistant','shopping','booking'} and type(value) is bool: agent.enable(key,value)
+                    else: raise ValueError('Unsupported setting')
                     result={'ok':True}
-                elif path=='/api/memory/delete':
-                    if agent.mode=='kids':raise ValueError('Memory controls are not available in kids mode')
-                    result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
-                elif path=='/api/task/complete':result=agent.propose('tasks.complete',{'id':str(data.get('id',''))})
-                else:return self.send({'error':'Not found'},404)
+                elif path=='/api/task/complete': result=agent.propose('tasks.complete',{'id':str(data.get('id',''))})
+                else:
+                    if agent.mode=='kids': raise ValueError('Personal and external action controls are unavailable in kids mode.')
+                    if path=='/api/profile':
+                        if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
+                        result={'profile':agent.set_profile(data)}
+                    elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/contacts/save': result=agent.contacts.save(data)
+                    elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
+                    elif path=='/api/messages/route':
+                        if companion: return self.send({'error':'Choose the sending account on the Mac.'},403)
+                        result=agent.set_message_route(data.get('route'))
+                    elif path=='/api/groceries/nearby':
+                        agent._check('food.checkout'); result=agent.groceries.nearby(data)
+                    elif path=='/api/groceries/create':
+                        agent._check('food.checkout'); result=agent.groceries.create_list(data)
+                        agent.store.put('grocery_receipt',result,result['local_receipt_id'])
+                    elif path=='/api/messages/prepare': result=agent.prepare_message(data.get('recipient'),data.get('body'))
+                    elif path=='/api/messages/status': result=agent.message_status(data.get('action_id'))
+                    elif path=='/api/messages/delete-draft': result={'deleted':agent.store.delete('phone_draft',str(data.get('id','')))}
+                    elif path=='/api/booking/availability': result=agent.propose('booking.availability',data)
+                    elif path=='/api/booking/prepare': result=agent.propose('booking.create',data)
+                    elif path=='/api/booking/status':
+                        agent._check('booking.create'); result=agent.bookings.status(data)
+                    else: return self.send({'error':'Not found'},404)
+                if result.get('state')=='pending': ctx.publish(result)
                 return self.send(result)
-            except (ValueError,TypeError,KeyError) as e:return self.send({'error':str(e)},400)
-            except Exception:return self.send({'error':'The local operation failed. Check the runtime terminal; no success was confirmed.'},500)
-    server=ThreadingHTTPServer(('127.0.0.1',port),Handler);server.daemon_threads=True;server.agent_stop=stop
-    def clock_loop():
-        while not stop.wait(1):
-            try:
-                event=agent.tick()
-                if event:
-                    events.append(event)
-                    if len(events)>30:events.pop(0)
-                    if not agent.muted:
-                        from luma.orchestrator import speak
-                        speak(event['text'],agent)
-            except Exception:pass
-    threading.Thread(target=clock_loop,daemon=True).start()
+            except (ValueError,TypeError,KeyError) as e: return self.send({'error':str(e)},400)
+            except RuntimeError as e: return self.send({'error':str(e)},502)
+            except Exception: return self.send({'error':'The operation could not be confirmed. Check the device terminal; no success was assumed.'},500)
+
+    server=ThreadingHTTPServer((phone_host or '127.0.0.1',port),Handler)
+    server.daemon_threads=True
+    server.agent_stop=ctx.stop
+    server.control_context=ctx
+    if root_context:
+        def clock_loop():
+            while not ctx.stop.wait(1):
+                try:
+                    event=agent.tick()
+                    if event:
+                        ctx.events.append(event)
+                        if not agent.muted:
+                            from luma.orchestrator import speak
+                            speak(event['text'],agent)
+                except Exception: pass
+        threading.Thread(target=clock_loop,daemon=True).start()
     return server
 
-def serve(agent,port):
+
+def serve(agent,port,phone_host=None,phone_port=8096):
     server=make_server(agent,port)
+    ctx=server.control_context
+    if phone_host: ctx.start_phone(phone_host,phone_port)
     print(f'LUMA local control: http://127.0.0.1:{server.server_port}/',flush=True)
-    # Listening remains muted until the owner explicitly enables it in the UI.
+    if ctx.phone_origin: print('LUMA phone connection: '+ctx.phone_origin,flush=True)
     from luma.orchestrator import start_hands_free
     threading.Thread(target=start_hands_free,args=(agent,server.agent_stop),daemon=True).start()
-    try:server.serve_forever()
-    except KeyboardInterrupt:pass
-    finally:server.agent_stop.set();agent.set_muted(True);server.server_close();agent.store.close()
+    try: server.serve_forever()
+    except KeyboardInterrupt: pass
+    finally:
+        ctx.stop.set(); agent.set_muted(True)
+        if ctx.phone_server: ctx.phone_server.shutdown(); ctx.phone_server.server_close()
+        server.server_close(); agent.store.close()
