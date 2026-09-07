@@ -2,7 +2,7 @@
 
 Luma runs an existing local language model through `llama-cpp-python`; the product's personality, memory and action controls are application code. There has been no Luma-specific fine-tuning or training on the owner's conversations.
 
-The original working model is **Llama 3.2 3B Instruct, Q4_K_M** at `models/llama-3.2-3b-q4/Llama-3.2-3B-Instruct-Q4_K_M.gguf`. It remains available. `LUMA_MODEL_PATH` selects the active GGUF at startup. Changing a path requires restarting Luma; a missing file raises an error instead of silently downloading or substituting a model.
+**This Mac now uses Qwen3-4B-Instruct-2507, Q4_K_M**, selected in the private local `.env` and verified through the live browser. The original working model is **Llama 3.2 3B Instruct, Q4_K_M** at `models/llama-3.2-3b-q4/Llama-3.2-3B-Instruct-Q4_K_M.gguf`. It remains available. `LUMA_MODEL_PATH` selects the active GGUF at startup. Changing a path requires restarting Luma; a missing file raises an error instead of silently downloading or substituting a model.
 
 ## Personal conversation
 
@@ -12,9 +12,9 @@ A companion should respond naturally to a greeting, remember only what the owner
 
 This is prompt-based personalization plus encrypted application memory, not a newly trained model. A future fine-tune would require a curated, consented dataset, holdout evaluations and measured improvement before deployment. It would not replace reliable integrations or permission checks.
 
-## One feasible upgrade to evaluate
+## Verified local model
 
-**Qwen3-4B-Instruct-2507, Q4_K_M** is the selected local comparison candidate. Qwen identifies the base as a four-billion-parameter non-thinking model with improved instruction and tool use, under Apache 2.0. Those are publisher claims; Luma-specific quality and latency require local evaluation. [Official Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
+**Qwen3-4B-Instruct-2507, Q4_K_M** is the selected model on this Mac after a verified download and local workflow evaluation. Qwen identifies the base as a four-billion-parameter non-thinking model with improved instruction and tool use, under Apache 2.0. Those are publisher claims; Luma-specific quality and latency require local evaluation. [Official Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
 
 The GGUF is a third-party quantization published by bartowski, rather than a Qwen-produced GGUF. [Quantization publisher and files](https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/tree/main).
 
@@ -47,4 +47,4 @@ The planner builds a constrained JSON grammar from only the tools allowed on tha
 
 ## Validation
 
-Eight focused unit tests cover bounded profiles, isolation of adult details from kids prompts, permitted tool schemas, complete current-request preservation and configuration validation. Local model comparison results will be recorded after the verified download completes. No comparison sends a text, contacts a provider or persists personal test state.
+108 focused tests cover the runtime, profiles, contacts, reviewed messages, bookings, groceries and phone pairing. The seven-case local Qwen workflow evaluation exercised conversation, exact grocery drafting, explanation, ambiguous recipients, a model-written message, saved style and unavailable shopping. A real browser response also verified the model-enabled server. [Detailed measurements and limitations](MODEL_EVALUATION.md). No comparison sent a text, contacted a provider or persisted personal test state.

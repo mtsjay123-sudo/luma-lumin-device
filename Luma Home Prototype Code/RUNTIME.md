@@ -61,9 +61,9 @@ Actions have one-use confirmations, expiration and consent checks. Uncertain sen
 
 ## Validation and next work
 
-103 focused tests passed before the final model switch, including a real TLS companion client, revocation, exact contact resolution, Mac send argument isolation, booking availability/confirmation, grocery-list provenance and prompt schemas. Desktop and 390px mobile browser checks found no horizontal overflow or JavaScript errors. An isolated browser test exercised contact creation, a grocery message draft and a reviewed appointment receipt using fake provider transport; no live transactions occurred.
+108 focused tests passed, including a real TLS companion client, revocation, exact contact resolution, Mac send argument isolation, booking availability/confirmation, grocery-list provenance and prompt schemas. Desktop and 390px mobile browser checks found no horizontal overflow or JavaScript errors. An isolated browser test exercised contact creation, a grocery message draft and a reviewed appointment receipt using fake provider transport; no live transactions occurred.
 
-The local Llama comparison exposed invented grocery items, so common natural message phrasing now preserves the requested content deterministically. A stronger local model is being checked separately; [MODEL_AND_PERSONALITY.md](MODEL_AND_PERSONALITY.md) records exact model provenance and comparison results. These small evaluations do not establish perfect reliability.
+The local Llama comparison exposed invented grocery items, so common natural message phrasing now preserves the requested content deterministically. Qwen3-4B-Instruct-2507 Q4_K_M is now selected on this Mac and has answered through the live browser. Common style changes and grocery setup handoffs also use immediate local routes. [MODEL_AND_PERSONALITY.md](MODEL_AND_PERSONALITY.md) and [MODEL_EVALUATION.md](MODEL_EVALUATION.md) record model provenance, timings and the weaknesses found in testing. These small evaluations do not establish perfect reliability.
 
 Next meaningful integrations are verified merchant product/price/stock feeds and transactional order access, calendar synchronization, authenticated parent/household profiles, and physical-device validation. A shopping-list URL is not an order receipt, and web snippets do not prove the cheapest available total.
 

@@ -52,4 +52,41 @@ class HouseholdWorkflows(unittest.TestCase):
         self.assertIn('No action was taken',self.agent.chat('Find me a time tomorrow')['text'])
         self.assertFalse(self.store.all('action'))
 
+    def test_grocery_request_cannot_become_an_unrelated_message(self):
+        self.agent.use_model=True
+        self.agent.planner=lambda *args:self.fail('Unavailable grocery ordering should have a direct, honest handoff')
+        result=self.agent.chat('Find the cheapest eggs at Food Lion and order them for me.')
+        self.assertEqual(result['section'],'groceries')
+        self.assertIn("haven't placed an order",result['text'])
+        self.assertFalse(self.store.all('phone_draft'))
+        self.assertFalse(self.store.all('action'))
+
+    def test_unrelated_conversation_does_not_offer_texting_to_model(self):
+        self.agent.use_model=True
+        def planner(history,memories,tools,mode):
+            self.assertNotIn('messages.prepare',tools)
+            return {'type':'reply','text':'Welcome home.'}
+        self.agent.planner=planner
+        self.assertEqual(self.agent.chat('Just got home.')['text'],'Welcome home.')
+
+    def test_style_preferences_are_explicit_and_survive_a_new_agent(self):
+        self.agent.set_profile({'name':'Amiri','language_style':'classic','verbosity':'detailed'})
+        self.agent.chat('Talk to me more casually and keep it short.')
+        restored=Agent(store=self.store,use_model=False)
+        self.assertEqual(restored.profile['name'],'Amiri')
+        self.assertEqual(restored.profile['language_style'],'contemporary')
+        self.assertEqual(restored.profile['verbosity'],'brief')
+
+    def test_message_wording_and_negative_request_do_not_change_personality(self):
+        from luma.agent.conversation import style_update
+        for text in ['Reply to Mom casually.', 'Talk to me but do not keep it short.', 'Text Mom saying keep it short']:
+            self.assertIsNone(style_update(text,self.agent.profile))
+
+    def test_model_identity_comes_from_runtime_instead_of_model_guess(self):
+        self.agent.use_model=True
+        self.agent.planner=lambda *args:self.fail('Runtime model identity does not need inference')
+        result=self.agent.chat('Hey Luma, what LLM are you using?')
+        self.assertIn('running locally on this Mac',result['text'])
+        self.assertIn('have not been fine-tuned',result['text'])
+
 if __name__=='__main__':unittest.main()

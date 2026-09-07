@@ -23,6 +23,7 @@ from luma.integrations.bookings import CalBookings
 from luma.agent.contacts import ContactBook
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
+from luma.agent.conversation import wants_message, style_update, grocery_request
 
 
 @dataclass(frozen=True)
@@ -332,6 +333,18 @@ class Agent:
             if m: return self.prepare_message(m[1], m[2])
             m = re.fullmatch(r"every day at ((?:[01]\d|2[0-3]):[0-5]\d) (.+)", text, re.I)
             if m: return self.propose("routines.create", {"title": m[2], "at": m[1]})
+            style = style_update(text, self.profile)
+            if style:
+                self.set_profile(style)
+                return {"text": "Got it. I've saved your conversation preferences: " + style['language_style'] + " language and " + style['verbosity'] + " replies.", "profile": style}
+            if self.mode != 'kids' and grocery_request(text) and not wants_message(text):
+                ready = bool(self.providers.env.get('INSTACART_API_KEY'))
+                return {"text": ("Let's build the grocery list and check nearby retailers. " if ready else "Connect Instacart in the local setup to create a shoppable grocery list and check nearby retailers. ") + "I don't have verified product prices or stock to choose the cheapest eggs. Review the exact listing, total and saved payment method at merchant checkout; I haven't placed an order.", "section": "groceries"}
+            if re.search(r"\b(?:what|which) (?:llm|(?:language |ai )?model) (?:are you|do you|does luma|is luma)\b", lowered):
+                from luma.config import LLAMA_MODEL_PATH
+                name = LLAMA_MODEL_PATH.name
+                label = 'Qwen3 4B Instruct 2507' if name.startswith('Qwen_Qwen3-4B-Instruct-2507') else 'Llama 3.2 3B Instruct' if name.startswith('Llama-3.2-3B-Instruct') else name
+                return {"text": ("I'm using " if self.use_model else "Conversation is off. The configured model is ") + label + ", running locally on this Mac. Your saved preferences shape how I reply; the model weights have not been fine-tuned."}
             if not self.use_model:
                 return {"text": "Local tools are ready. Try 'remember ...', 'recall ...', 'remind me in 5 minutes to ...', 'tasks', or 'every day at 09:00 ...'. Model conversation is disabled."}
             context = [] if self.mode == "kids" else self.store.recall(text)
@@ -339,8 +352,11 @@ class Agent:
             allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items() if k not in {"booking.create", "sms.send", "mac_messages.send"} and (not informational or k in {"web.search", "memory.recall", "tasks.list"}) and (self.mode != "kids" or v.kids) and (not v.service or self.store.setting("integration:"+v.service, False))}
             if re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered):
                 allowed = {}  # Conceptual explanations need prose, not a task-list operation.
+            # A planner must not turn an unrelated shopping or social request into a message.
+            if not wants_message(text):
+                allowed.pop("messages.prepare", None)
             if "messages.prepare" in allowed:
-                allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in self.contacts.list()]
+                allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in sorted(self.contacts.list(), key=lambda c: c["name"].casefold() not in text.casefold())[:24]]
             if self.planner is None:
                 from luma.llm.inference import plan
                 planner = plan
@@ -354,7 +370,11 @@ class Agent:
                     return {"text": "No action was taken. Ask explicitly if you want me to save a memory, create a reminder, or prepare an action."}
                 if name == "sms.send" and arguments.get("to", "") not in text:
                     return {"text": "Give me the exact recipient phone number and message so I can prepare it for review."}
-                result = self.propose(name, arguments)
+                try:
+                    result = self.propose(name, arguments)
+                except ValueError as error:
+                    if name != "messages.prepare": raise
+                    return {"text": str(error) + " Choose the exact person and message in People & Texts.", "section": "people"}
                 # Do not include confirmation token or raw provider content in the LLM context.
                 self.history.append({"role": "assistant", "content": "An action was proposed. Read the authoritative action result on the local control surface."})
                 return result

@@ -97,6 +97,21 @@ function result(data) {
       };
       buttons.append(b);
     }
+    if (["sms.send", "mac_messages.send"].includes(data.tool)) {
+      buttons.append(
+        button("Edit message", async () => {
+          await api("/api/cancel", { id: data.action });
+          buttons
+            .querySelectorAll("button")
+            .forEach((e) => (e.disabled = true));
+          $("#message-recipient").value = data.arguments.to;
+          $("#message-body").value = data.arguments.body;
+          $("#people").scrollIntoView({ behavior: "smooth" });
+          $("#message-body").focus();
+          await refresh();
+        }),
+      );
+    }
     box.append(buttons);
   } else {
     const text =
@@ -112,6 +127,21 @@ function result(data) {
             ? "Action cancelled."
             : "Done.");
     box.append(make("p", text));
+    if (data.profile) profileLoaded = false;
+    if (["groceries", "people"].includes(data.section)) {
+      box.append(
+        button(
+          data.section === "groceries"
+            ? "Open groceries"
+            : "Open People & Texts",
+          () => {
+            document
+              .getElementById(data.section)
+              .scrollIntoView({ behavior: "smooth" });
+          },
+        ),
+      );
+    }
     if (data.memories)
       for (const m of data.memories)
         box.append(make("p", m.text, "remembered"));
@@ -218,7 +248,9 @@ async function refresh() {
         : "Enable";
       c.querySelector("button").classList.toggle("enabled", on);
       c.querySelector("button").disabled =
-        s.mode === "kids" || state.viewer === "phone" || (!on && !s.provider_ready?.[service]);
+        s.mode === "kids" ||
+        state.viewer === "phone" ||
+        (!on && !s.provider_ready?.[service]);
       c.querySelector("small").textContent =
         s.mode === "kids"
           ? "Unavailable in Kids mode"

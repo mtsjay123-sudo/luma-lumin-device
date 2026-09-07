@@ -1,0 +1,196 @@
+{
+  "llama_raw": {
+    "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    "context": 4096,
+    "cases": [
+      {
+        "case": "greeting",
+        "seconds": 10.6,
+        "valid": true,
+        "result": {
+          "type": "reply",
+          "text": "Welcome home, it sounds like you're ready to unwind. How was your day?"
+        }
+      },
+      {
+        "case": "mom_message",
+        "seconds": 3.33,
+        "valid": false,
+        "result": {
+          "type": "tool",
+          "name": "messages.prepare",
+          "arguments": {
+            "recipient": "Mom",
+            "body": "Can you pick up some milk and eggs?"
+          }
+        }
+      },
+      {
+        "case": "explanation",
+        "seconds": 9.99,
+        "valid": true,
+        "result": {
+          "type": "reply",
+          "text": "To text someone, I can use the messages.prepare tool to draft a message. You'll need to specify the recipient's contact label or explicit phone number, and then provide the message you'd like me to send. For example, if you want to text your mom, you can say 'Mom' as the recipient, and then type out the message in the body field. I won't actually send the message until you confirm it."
+        }
+      },
+      {
+        "case": "ambiguous_recipient",
+        "seconds": 2.71,
+        "valid": false,
+        "result": {
+          "type": "tool",
+          "name": "messages.prepare",
+          "arguments": {
+            "recipient": "her",
+            "body": "Can you pick up groceries?"
+          }
+        }
+      }
+    ],
+    "peak_process_rss_bytes": 610205696
+  },
+  "qwen_raw": {
+    "model": "Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "context": 4096,
+    "cases": [
+      {
+        "case": "greeting",
+        "seconds": 7.95,
+        "valid": true,
+        "result": {
+          "type": "reply",
+          "text": "Hey Amiri, I'm glad you're home. How was your day?"
+        }
+      },
+      {
+        "case": "mom_message",
+        "seconds": 1.72,
+        "valid": true,
+        "result": {
+          "type": "tool",
+          "name": "messages.prepare",
+          "arguments": {
+            "recipient": "Mom",
+            "body": "Could you pick up groceries?"
+          }
+        }
+      },
+      {
+        "case": "explanation",
+        "seconds": 1.8,
+        "valid": false,
+        "result": {
+          "type": "tool",
+          "name": "messages.prepare",
+          "arguments": {
+            "recipient": "someone",
+            "body": "Could you please text someone for me?"
+          }
+        }
+      },
+      {
+        "case": "ambiguous_recipient",
+        "seconds": 1.67,
+        "valid": false,
+        "result": {
+          "type": "tool",
+          "name": "messages.prepare",
+          "arguments": {
+            "recipient": "her",
+            "body": "Could you pick up groceries?"
+          }
+        }
+      }
+    ],
+    "peak_process_rss_bytes": 738082816
+  },
+  "qwen_runtime": {
+    "model": "Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "cases": [
+      {
+        "case": "greeting",
+        "seconds": 13.35,
+        "result": {
+          "text": "Hey Amiri, sounds like you've been busy. How was your day?"
+        }
+      },
+      {
+        "case": "mom_groceries",
+        "seconds": 0.0,
+        "result": {
+          "state": "draft",
+          "message_draft": {
+            "to": "+19195550123",
+            "body": "Please pick up the groceries while she is out.",
+            "name": "Mom"
+          },
+          "summary": "Message drafted for your phone. Copy the text, open Messages and tap Send there. Luma has not sent it."
+        }
+      },
+      {
+        "case": "explanation",
+        "seconds": 4.87,
+        "result": {
+          "text": "I can help draft a message for you to send. Could you let me know who you'd like to text and what you'd like to say?"
+        }
+      },
+      {
+        "case": "ambiguous_person",
+        "seconds": 0.0,
+        "result": {
+          "text": "No exact saved contact matches that name. Save the contact or provide an E.164 number. Add or choose the exact person in People & Texts so I do not guess."
+        }
+      },
+      {
+        "case": "natural_message",
+        "seconds": 5.8,
+        "result": {
+          "state": "draft",
+          "message_draft": {
+            "to": "+19195550123",
+            "body": "I'll be home at six.",
+            "name": "Mom"
+          },
+          "summary": "Message drafted for your phone. Copy the text, open Messages and tap Send there. Luma has not sent it."
+        }
+      },
+      {
+        "case": "style",
+        "seconds": 0.0,
+        "result": {
+          "text": "Got it. I've saved your conversation preferences: contemporary language and brief replies.",
+          "profile": {
+            "name": "Amiri",
+            "tone": "warm",
+            "language_style": "contemporary",
+            "verbosity": "brief"
+          }
+        }
+      },
+      {
+        "case": "unconnected_shopping",
+        "seconds": 0.0,
+        "result": {
+          "text": "Connect Instacart in the local setup to create a shoppable grocery list and check nearby retailers. I don't have verified product prices or stock to choose the cheapest eggs. Review the exact listing, total and saved payment method at merchant checkout; I haven't placed an order.",
+          "section": "groceries"
+        }
+      }
+    ],
+    "profile": {
+      "name": "Amiri",
+      "tone": "warm",
+      "language_style": "contemporary",
+      "verbosity": "brief"
+    },
+    "microphone_muted": true,
+    "action_count": 0,
+    "voice": {
+      "source": "Hey Amiri, sounds like you've been busy. How was your day?",
+      "synthesis_seconds": 4.8,
+      "duration_seconds": 3.39,
+      "transcript": "Hey Amiri, sounds like you've been busy. How was your day? //",
+      "transcription_seconds": 1.21
+    }
+  }
+}

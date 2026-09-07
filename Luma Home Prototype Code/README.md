@@ -1,3 +1,5 @@
+> Current local model: **Qwen3-4B-Instruct-2507 Q4_K_M** on this Mac, with the original Llama retained. See [the measured evaluation](MODEL_EVALUATION.md) and [current capabilities](RUNTIME.md). Historical model and future-training references below belong to the original roadmap.
+
 # LUMA — MVP repository
 
 > **September 7, 2026 implementation status:** Start with [RUNTIME.md](RUNTIME.md) for the working local agent, phone pairing, personal texting, appointments, groceries, personality controls and remaining work. The build plan below describes the intended product; its pricing, shipment dates, privacy and capability claims are not evidence that those milestones are complete.
