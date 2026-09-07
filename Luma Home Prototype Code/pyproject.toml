@@ -21,4 +21,14 @@ dependencies = [
     "httpx",
     "feedparser",
     "wikipedia-api",
+    "cryptography>=44",
 ]
+
+[project.scripts]
+luma = "luma.cli:main"
+
+[tool.pytest.ini_options]
+markers = ["integration: requires local audio or model files"]
+
+[tool.setuptools.package-data]
+"luma.control" = ["web/*.html", "web/*.css", "web/*.js"]

@@ -1,8 +1,9 @@
-models/
-data/personality_dataset/raw/
-data/voice_actor/
 .venv/
-__pycache__/
 .env
-*.db
-.DS_Store
+__pycache__/
+*.pyc
+*.egg-info/
+models/
+data/test_audio/
+.local-state/
+.pytest_cache/

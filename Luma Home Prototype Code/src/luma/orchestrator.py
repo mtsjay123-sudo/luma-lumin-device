@@ -1,77 +1,107 @@
+"""Agent voice orchestration. Microphone access requires explicit local opt-in."""
+import json
+import os
+import re
 import tempfile
 import threading
-from luma.llm.inference import generate
-from luma.audio.tts import synthesize
-from luma.audio.io import play, record_push_to_talk
-from luma.audio.stt import transcribe
-from luma.audio.vad import start_listening, set_speaking
+import time
 
-_history: list[dict] = []
-_response_lock = threading.Lock()
+_default_agent = None
 
 
-def _speak(text: str) -> None:
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        wav_path = f.name
-    synthesize(text, wav_path)
-    set_speaking(True)
+def get_agent():
+    global _default_agent
+    if _default_agent is None:
+        from luma.agent.runtime import Agent
+        _default_agent = Agent()
+    return _default_agent
+
+
+def display(result):
+    print(json.dumps(result, indent=2, ensure_ascii=False), flush=True)
+
+
+def speak(text, agent):
+    if agent.muted: return
+    from luma.audio import io, tts, vad
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f: path = f.name
+    agent.speaking = True
+    vad.set_speaking(True)
     try:
-        play(wav_path)
+        tts.synthesize(text, path)
+        if not agent.muted: io.play(path, should_stop=lambda: agent.muted)
     finally:
-        set_speaking(False)
+        vad.set_speaking(False)
+        agent.speaking = False
+        try: os.unlink(path)
+        except FileNotFoundError: pass
 
 
-def ask_typed(prompt: str) -> str:
-    _history.append({"role": "user", "content": prompt})
-    reply = generate(_history)
-    _history.append({"role": "assistant", "content": reply})
-    _speak(reply)
-    return reply
-
-
-def ask_voice() -> str:
-    """Record push-to-talk audio, transcribe, send to LLM, speak reply."""
-    wav_path = record_push_to_talk()
-    transcript = transcribe(wav_path)
-    print(f"You said: {transcript}")
-    if not transcript.strip():
-        return ""
-    return ask_typed(transcript)
-
-
-def ask_voice_hands_free(stop_event: threading.Event | None = None) -> None:
-    """Hands-free loop: VAD detects speech, transcribes, LLM replies, speaks.
-
-    Blocks until stop_event is set or KeyboardInterrupt.
-    """
-    def _handle_utterance(wav_path: str):
-        try:
-            transcript = transcribe(wav_path)
-            stripped = transcript.strip()
-            if len(stripped.split()) < 2:
-                return
-            print(f"You said: {stripped}")
-            reply = ask_typed(stripped)
-            print(f"LUMA: {reply}\n")
-        except Exception as e:
-            print(f"[error] {e}", flush=True)
-
-    def on_utterance(wav_path: str):
-        # If LUMA is already working on a response, drop this utterance instead
-        # of queuing it up — prevents stale audio from piling up.
-        if not _response_lock.acquire(blocking=False):
-            return
-
-        def _worker():
-            try:
-                _handle_utterance(wav_path)
-            finally:
-                _response_lock.release()
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    start_listening(on_utterance, stop_event=stop_event)
+def ask_typed(text, agent=None, voice=False):
+    agent = agent or get_agent()
+    result = agent.chat(text)
+    display(result)
+    if getattr(agent, "on_result", None): agent.on_result(result)
+    if voice:
+        message = "Please review the exact action details and confirm using your local controls." if result.get("state") == "pending" else result.get("text", result.get("summary", "Your local result is ready."))
+        speak(message, agent)
+    return result
 
 
 def reset():
-    _history.clear()
+    get_agent().history.clear()
+
+
+def ask_voice(agent=None):
+    agent = agent or get_agent()
+    if agent.muted: raise ValueError("Enable the microphone locally before voice capture.")
+    from luma.audio.io import record_push_to_talk
+    from luma.audio.stt import transcribe
+    path = record_push_to_talk(should_stop=lambda: agent.muted)
+    if not path: return
+    try:
+        text = transcribe(path)
+        if text and not agent.muted: return ask_typed(text, agent, voice=True)
+    finally:
+        try: os.unlink(path)
+        except FileNotFoundError: pass
+
+
+def start_hands_free(agent=None, stop_event=None, ambient=False):
+    agent = agent or get_agent()
+    stop_event = stop_event or threading.Event()
+    from luma.audio import vad
+    from luma.audio.stt import transcribe
+    followup_until = 0.0
+
+    def received(path):
+        nonlocal followup_until
+        try:
+            if agent.muted: return
+            text = transcribe(path).strip()
+            if not text or agent.muted: return
+            named = re.search(r"\b(?:luma|luna)\b", text, re.I)
+            addressed = bool(named) or time.monotonic() < followup_until
+            # Experimental heuristic, not diarization or a trained addressee model.
+            if ambient and re.match(r"(?:remember |recall |remind me |search |text \+|every day at )", text, re.I): addressed = True
+            if not addressed: return
+            if named: text = text[named.end():].lstrip(" ,.:!?") or "Hello"
+            with agent.lock:
+                if agent.muted: return
+                ask_typed(text, agent, voice=True)
+                followup_until = time.monotonic() + 45
+        except Exception as e:
+            print("Voice turn failed: " + str(e), flush=True)
+        finally:
+            try: os.unlink(path)
+            except FileNotFoundError: pass
+
+    while not stop_event.is_set():
+        if agent.muted:
+            stop_event.wait(0.2)
+            continue
+        try:
+            vad.start_listening(received, stop_event, should_stop=lambda: agent.muted)
+        except Exception as e:
+            agent.set_muted(True)
+            print("Microphone stopped: " + str(e), flush=True)

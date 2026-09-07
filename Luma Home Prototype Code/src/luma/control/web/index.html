@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Luma · At home</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">luma<span>HOME</span></a
+      ><span class="local"><i></i> On this Mac</span
+      ><button id="privacy" class="pill">Microphone off</button>
+    </header>
+    <main>
+      <section class="welcome">
+        <div>
+          <span class="eyebrow">A LITTLE MORE PRESENCE</span>
+          <h1>A little help.<br />Right here.</h1>
+          <p>
+            Your plans, your thoughts, your everyday.<br />Make some room for
+            what matters.
+          </p>
+          <div class="mode">
+            <label for="mode">Your rhythm</label
+            ><select id="mode">
+              <option value="friend">Everyday</option>
+              <option value="study">Study</option>
+              <option value="cofounder">Cofounder</option>
+              <option value="kids">Kids</option>
+            </select>
+          </div>
+        </div>
+        <div class="device-scene">
+          <div class="halo"></div>
+          <div class="device">
+            <div class="dome"></div>
+            <div class="base"></div>
+          </div>
+          <span id="device-status">Quietly ready.</span
+          ><small>Software prototype · device visualization</small>
+        </div>
+      </section>
+      <section class="command-card">
+        <div class="section-heading">
+          <h2>What can I take care of?</h2>
+          <span id="runtime-mode">Local intelligence</span>
+        </div>
+        <form id="command">
+          <label class="sr-only" for="message">Ask Luma</label
+          ><textarea
+            id="message"
+            rows="2"
+            maxlength="4000"
+            placeholder="Remind me in 20 minutes to check the oven…"
+            required
+          ></textarea>
+          <div class="command-bottom">
+            <span
+              >Typed commands stay local unless you enable a connected
+              action.</span
+            ><button type="submit" id="send" class="button">
+              Ask Luma <b>↗</b>
+            </button>
+          </div>
+        </form>
+        <div class="quick-actions">
+          <button data-prompt="Remember I prefer vegetarian food">
+            Remember something</button
+          ><button data-prompt="Remind me in 20 minutes to check the oven">
+            Set a reminder</button
+          ><button
+            data-prompt="Search compare prices for Sony WH-1000XM6 headphones"
+          >
+            Research a price</button
+          ><button data-prompt="Text +19195550123: ">Draft a message</button>
+        </div>
+        <div id="results" aria-live="polite"></div>
+      </section>
+      <div class="dashboard">
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">A LITTLE LESS TO REMEMBER</span>
+              <h2>Your day, held together.</h2>
+            </div>
+            <button id="hush" class="text-button">Hush 30 min</button>
+          </div>
+          <div id="reminders"></div>
+          <div id="routines"></div>
+          <p class="footnote">
+            Reminders need Luma running. Quiet hours are 11 PM–7 AM. Proactive
+            reminders are grouped, at most once every 30 minutes.
+          </p>
+        </section>
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ONLY WHAT YOU CHOOSE</span>
+              <h2>A sense of continuity.</h2>
+            </div>
+          </div>
+          <div id="memories"></div>
+          <p class="footnote">
+            Explicit memories are encrypted locally. You can remove them here.
+            Conversation turns remain in memory only.
+          </p>
+        </section>
+      </div>
+      <section class="connections">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">BRING YOUR WORLD A LITTLE CLOSER</span>
+            <h2>Connected by choice.</h2>
+          </div>
+          <span>Off until you choose</span>
+        </div>
+        <div class="connection-grid">
+          <article class="connection" data-service="web_search">
+            <span class="connection-icon">↗</span>
+            <h3>Find it.</h3>
+            <p>Web research and product-price discovery with source links.</p>
+            <button class="toggle">Enable search</button><small></small>
+          </article>
+          <article class="connection" data-service="sms">
+            <span class="connection-icon">↗</span>
+            <h3>Say it.</h3>
+            <p>
+              Draft a text. Review the recipient and exact message before
+              sending.
+            </p>
+            <button class="toggle">Enable messages</button><small></small>
+          </article>
+          <article class="connection" data-service="home_assistant">
+            <span class="connection-icon">☼</span>
+            <h3>Set the mood.</h3>
+            <p>Control your selected Home Assistant lights from the room.</p>
+            <button class="toggle">Enable lights</button><small></small>
+          </article>
+          <article class="connection" data-service="shopping">
+            <span class="connection-icon">＋</span>
+            <h3>Plan dinner.</h3>
+            <p>
+              Prepare a shopping list and continue to a configured merchant’s
+              checkout.
+            </p>
+            <button class="toggle">Enable shopping</button><small></small>
+          </article>
+        </div>
+        <details class="setup-help">
+          <summary>Connect your services</summary>
+          <p>
+            Provider credentials are configured in this device’s local .env
+            file. Search uses Brave; SMS uses Twilio; lights use your Home
+            Assistant server. Configure approved merchant links for shopping.
+            Enabling a switch does not create an account or subscription.
+          </p>
+          <p>
+            Payments stay at the merchant, where you can use a saved wallet.
+            Luma does not store card numbers, place an order, or claim it found
+            the lowest total price. Verify availability, tax and delivery at
+            checkout.
+          </p>
+        </details>
+      </section>
+      <footer>
+        <span>luma <small>BY LUMIN</small></span>
+        <p>
+          On-device thinking. Connected actions on your terms.<br />Software
+          prototype · camera and production hardware are not connected.
+        </p>
+      </footer>
+    </main>
+    <div id="toast" role="status"></div>
+  </body>
+</html>
