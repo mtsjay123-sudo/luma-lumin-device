@@ -13,7 +13,7 @@ cd '/Users/marvinjohnson/Desktop/Lumin Universe Holding Company/All of Lumin/Lum
 
 Use `--no-model serve` for instant local tools without loading the language model. `--no-model status` prints device state. `chat` opens typed terminal interaction; `--voice chat` opts into push-to-talk and `--hands-free chat` opts into the microphone with name/follow-up gating. `/help` lists controls. The web app starts muted; its microphone switch is an explicit opt-in. Camera capture is not implemented.
 
-Existing local model files are reused. First conversation loads Llama 3.2 3B; subsequent responses reuse it. Apple Metal is enabled by default with a 4,096-token context. Set `LUMA_GPU_LAYERS=0` for CPU-only inference. A fresh model smoke test completed in about 10 seconds on this Mac; response time varies with context and hardware. The source-only repository excludes model weights, provider credentials and personal state.
+Existing local model files are reused. First conversation loads Llama 3.2 3B; subsequent responses reuse it. Apple Metal is enabled by default with a 4,096-token context. Set `LUMA_GPU_LAYERS=0` for CPU-only inference. Fresh model smoke tests completed in about 10–25 seconds on this Mac; response time varies with context and hardware. The source-only repository excludes model weights, provider credentials and personal state.
 
 ## Try these
 
@@ -59,7 +59,7 @@ State is stored at `~/.luma/agent/state.db`, with its encryption key at `~/.luma
 
 ## Verified and remaining work
 
-Seventeen runtime tests pass, covering encrypted persistence, payment-data rejection, missing keys, one-use/concurrent confirmations, expiration, consent changes, unknown outcomes, children's restrictions, reminders, unregistered model tools and local HTTP protections. The real Llama model answered a benign explanation without creating a task. The new voice was synthesized and passed back through local Whisper with intelligible transcription. No live microphone recording was required for these tests.
+Eighteen runtime tests pass, covering encrypted persistence, payment-data rejection, missing keys, one-use/concurrent confirmations, expiration, consent changes, unknown outcomes, children's restrictions, reminders, unregistered model tools and local HTTP protections. The real Llama model answered a benign explanation without creating a task. The new voice was synthesized and passed back through local Whisper with intelligible transcription. No live microphone recording was required for these tests.
 
 Still needed before a consumer launch: reliable wake-word-free address detection and speaker identity; evaluated child safety plus authenticated parent controls; semantic multi-person memory; production crisis handling; real calendar/music integrations; merchant cart/order integrations; delivery receipts; network/privacy and adversarial testing; an original licensed voice recording if exclusivity is desired; hardware microphones, physical mute, camera, lighting, boot/recovery, signed updates, provisioning and manufacturing validation. Kids mode currently hides adult records and blocks external tools, but a local user can change the mode; it is not authenticated parental control. Ambient command detection is experimental. No production reliability, shipping date or retail price is established by this prototype.
 

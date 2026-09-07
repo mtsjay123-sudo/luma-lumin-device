@@ -249,6 +249,8 @@ class Agent:
             context = [] if self.mode == "kids" else self.store.recall(text)
             informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
             allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items() if (not informational or k in {"web.search", "memory.recall", "tasks.list"}) and (self.mode != "kids" or v.kids) and (not v.service or self.store.setting("integration:"+v.service, False))}
+            if re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered):
+                allowed = {}  # Conceptual explanations need prose, not a task-list operation.
             if self.planner is None:
                 from luma.llm.inference import plan
                 planner = plan

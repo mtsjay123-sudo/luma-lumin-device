@@ -34,9 +34,13 @@ Keep replies under 100 words. Do not claim perception, physical devices, deliver
     for message in reversed(messages):
         if used+len(message["content"])>7000 and recent: break
         recent.insert(0,message); used+=len(message["content"])
+    response_format = {"type": "json_object"}
+    if not tools:
+        prompt += "\nNo tools are available for this turn. Answer the question directly in a reply."
+        response_format["schema"] = {"type": "object", "properties": {"type": {"const": "reply"}, "text": {"type": "string"}}, "required": ["type", "text"], "additionalProperties": False}
     with _inference_lock:
         model = _load_model()
-        result = model.create_chat_completion(messages=[{"role": "system", "content": prompt}] + recent, response_format={"type": "json_object"}, max_tokens=320, temperature=0.25)
+        result = model.create_chat_completion(messages=[{"role": "system", "content": prompt}] + recent, response_format=response_format, max_tokens=320, temperature=0.25)
     try:
         result = json.loads(result["choices"][0]["message"]["content"])
     except (KeyError, TypeError, json.JSONDecodeError) as e:
