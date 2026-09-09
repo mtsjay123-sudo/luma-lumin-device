@@ -1,5 +1,5 @@
 /* Local companion controls. Saved values are rendered as text, never HTML. */
-let rhythmLoaded = false;
+let rhythmLoaded = false, voiceLoaded = false;
 const presets = {everyday:'Everyday', straight_talk:'Straight Talk', playful:'Playful', quiet:'Quiet', unfiltered:'Unfiltered'};
 function safeForm(form, handler) {
   form.onsubmit = async (event) => {
@@ -21,8 +21,13 @@ for (const [preset,label] of Object.entries(presets)) {
   choice.dataset.preset = preset;
   $('#personality-presets').append(choice);
 }
+safeForm($('#voice-form'), async () => {
+  await api('/api/voice/preferences',{voice:$('#voice-choice').value,speed:Number($('#voice-pace').value)});
+  await api('/api/speak',{text:"Hey, you're home. Long day? Tell me what happened. We don't have to solve everything right now."});
+  voiceLoaded = false;
+});
 $('#voice-preview').onclick = async () => {
-  try { await api('/api/speak', {text: "Hey, I'm Luma. Tell me what's on your mind. We can talk it through, or take care of something together."}); }
+  try { await api('/api/speak', {text: "Hey, you're home. Long day? Tell me what happened. We don't have to solve everything right now."}); }
   catch(error) { toast(error.message); }
 };
 $('#interrupt').onclick = async () => {
@@ -105,6 +110,12 @@ function renderCompanion(data) {
   if (!rhythmLoaded) {
     $('#quiet-start').value = s.quiet_hours[0]; $('#quiet-end').value = s.quiet_hours[1];
     $('#briefing-hour').value = s.daily_briefing_hour; rhythmLoaded = true;
+  }
+  if (!voiceLoaded && s.voice_preferences) {
+    $('#voice-choice').value = s.voice_preferences.voice;
+    const pace=Number(s.voice_preferences.speed);
+    $('#voice-pace').value=String([.94,1.03,1.12].sort((a,b)=>Math.abs(a-pace)-Math.abs(b-pace))[0]);
+    voiceLoaded = true;
   }
   $('#briefing-enabled').checked = s.daily_briefing_enabled;
   $('#barge-in').checked = s.barge_in;

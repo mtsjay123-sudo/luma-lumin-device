@@ -1,3 +1,5 @@
+Voice delivery was revised September 9: connected phrasing, native voice presets, a higher-precision Mac speech model and continuous prefetched playback. See [voice tuning and validation](docs/VOICE_TUNING_2026-09-09.md).
+
 # Latest companion build — September 8, 2026
 
 The new controls and behavior are documented in [docs/COMPANION_UPGRADES.md](docs/COMPANION_UPGRADES.md). Device setup, boot service, privacy feedback, diagnostics and recovery are documented in [docs/DEVICE_SETUP.md](docs/DEVICE_SETUP.md). The older notes below describe prior validation; they are not the current complete feature list.

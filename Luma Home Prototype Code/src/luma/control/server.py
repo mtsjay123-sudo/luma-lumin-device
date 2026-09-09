@@ -217,6 +217,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     if path=='/api/profile':
                         if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
                         result={'profile':agent.set_profile(data)}
+                    elif path=='/api/voice/preferences':
+                        if companion: return self.send({'error':'Set the household voice on the Mac.'},403)
+                        result={'voice_preferences':agent.set_voice_preferences(data)}
                     elif path=='/api/personality/preset':
                         if companion: return self.send({'error':'Select personality on the Mac.'},403)
                         result={'profile':agent.set_preset(data.get('preset'),data.get('adult_confirmed',False))}

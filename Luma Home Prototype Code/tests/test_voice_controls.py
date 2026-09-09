@@ -150,7 +150,7 @@ class CancellableSpeechTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "voice.wav"
             with patch.object(tts, "_get_kokoro", return_value=Engine()):
-                tts.synthesize("First sentence. Second sentence.", str(output), voice="af_bella")
+                tts.synthesize("First " + "word " * 35 + ". Second " + "word " * 35 + ".", str(output), voice="af_bella")
             with wave.open(str(output), "r") as audio:
                 self.assertEqual(audio.getnframes(), 4800)
                 self.assertEqual(audio.getframerate(), 24000)

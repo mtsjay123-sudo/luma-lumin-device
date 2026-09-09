@@ -8,32 +8,41 @@ from luma.config import SAMPLE_RATE
 from luma.hardware.device import resolve_audio_device
 
 
-def play(wav_path: str, should_stop=None) -> bool:
+def play_chunks(chunks, should_stop=None) -> bool:
+    """Play (mono int16 samples, rate) chunks without reopening the audio device."""
     should_stop = should_stop or (lambda: False)
-    if should_stop():
-        return False
+    iterator = iter(chunks)
+    if should_stop(): return False
+    try: first, rate = next(iterator)
+    except StopIteration: return not should_stop()
+    if should_stop(): return False
+    device = resolve_audio_device(os.getenv("LUMA_OUTPUT_DEVICE"), sd.query_devices(), direction="output")
+    block = max(1, rate // 50)
+    with sd.OutputStream(samplerate=rate, channels=1, dtype='float32', device=device, latency='low', blocksize=block) as stream:
+        import itertools
+        try:
+            for pcm, next_rate in itertools.chain([(first, rate)], iterator):
+                if next_rate != rate: raise ValueError("Speech sample rate changed during playback.")
+                audio = np.asarray(pcm).astype(np.float32) / 32767.0
+                if audio.ndim != 1 or not np.isfinite(audio).all(): raise ValueError("Invalid speech audio.")
+                for start in range(0, len(audio), block):
+                    if should_stop(): stream.abort(); return False
+                    stream.write(audio[start:start+block].reshape(-1,1))
+            if should_stop(): stream.abort(); return False
+        except BaseException:
+            stream.abort()
+            raise
+    return True
+
+
+def play(wav_path: str, should_stop=None) -> bool:
+    if should_stop is not None and should_stop(): return False
     with wave.open(wav_path, "r") as wf:
         if wf.getsampwidth() != 2 or wf.getnchannels() != 1:
             raise ValueError("Luma playback requires a mono 16-bit PCM WAV.")
         rate = wf.getframerate()
-        frames = wf.readframes(wf.getnframes())
-        audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32767.0
-    # Use an explicit OutputStream rather than sd.play() to avoid the global
-    # sounddevice state that can conflict with the always-open InputStream.
-    device = resolve_audio_device(os.getenv("LUMA_OUTPUT_DEVICE"), sd.query_devices(), direction="output")
-    if should_stop():
-        return False
-    block = max(1, rate // 50)
-    with sd.OutputStream(samplerate=rate, channels=1, dtype='float32', device=device, latency='low', blocksize=block) as stream:
-        for start in range(0, len(audio), block):
-            if should_stop():
-                stream.abort()
-                return False
-            stream.write(audio[start:start + block].reshape(-1, 1))
-        if should_stop():
-            stream.abort()
-            return False
-    return True
+        pcm = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16)
+    return play_chunks([(pcm,rate)], should_stop=should_stop)
 
 
 def record_push_to_talk(should_stop=None) -> str | None:

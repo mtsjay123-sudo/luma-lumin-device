@@ -402,6 +402,12 @@
           Set a starting style. Luma should follow the conversation naturally,
           without forcing slang or guessing your age.
         </p>
+        <form id="voice-form" class="voice-settings card inline-form">
+          <label>Voice<select id="voice-choice"><option value="luma">Luma · Conversational</option><option value="soft">Luma · Warm</option><option value="grounded">Luma · Grounded</option></select></label>
+          <label>Speaking pace<select id="voice-pace"><option value="0.94">Relaxed</option><option value="1.03">Natural</option><option value="1.12">A little quicker</option></select></label>
+          <button class="button">Save & hear this voice ▶</button>
+          <p class="footnote">Connected phrases, fewer awkward gaps. Your voice choice stays on this device.</p>
+        </form>
         <div id="personality-presets" class="preset-dial" role="group" aria-label="Personality presets"></div>
         <label class="check-label"><input id="adult-unfiltered" type="checkbox" /> I’m an adult choosing Unfiltered: occasional swearing and friendly roasting.</label>
         <form id="personality-form" class="inline-form">

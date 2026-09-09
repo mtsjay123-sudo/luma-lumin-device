@@ -35,7 +35,8 @@ def speak(text, agent, cancel_event=None, allow_muted=False):
         if should_stop(): return False
         agent.speaking = True
         vad.set_speaking(True)
-        return tts.speak(text, should_stop=should_stop)
+        preferences = agent.voice_preferences
+        return tts.speak(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])
     finally:
         vad.set_speaking(False)
         agent.speaking = False

@@ -34,10 +34,10 @@ SAMPLE_RATE = 16000
 STATE_DIR = Path(os.environ.get("LUMA_STATE_DIR", "~/.luma/agent")).expanduser()
 STATE_DB_PATH = STATE_DIR / "state.db"
 STATE_KEY_PATH = STATE_DIR / "state.key"
-KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-82m" / "kokoro-v1.0.int8.onnx"
+KOKORO_MODEL_PATH = Path(os.environ.get("LUMA_TTS_MODEL_PATH") or MODELS_DIR / "kokoro-82m" / "kokoro-v1.0.int8.onnx").expanduser()
 KOKORO_VOICES_PATH = MODELS_DIR / "kokoro-82m" / "voices-v1.0.bin"
 VOICE_ID = os.environ.get("LUMA_VOICE", "luma")
-VOICE_SPEED = float(os.environ.get("LUMA_VOICE_SPEED", "0.96"))
+VOICE_SPEED = float(os.environ.get("LUMA_VOICE_SPEED", "1.03"))
 ESPEAK_LIB = os.environ.get("LUMA_ESPEAK_LIB") or ("/opt/homebrew/lib/libespeak-ng.dylib" if sys.platform == "darwin" else ctypes.util.find_library("espeak-ng") or "libespeak-ng.so.1")
 ESPEAK_DATA = os.environ.get("LUMA_ESPEAK_DATA", "/opt/homebrew/share/espeak-ng-data" if sys.platform == "darwin" else "/usr/lib/aarch64-linux-gnu/espeak-ng-data")
 
