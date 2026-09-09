@@ -42,6 +42,8 @@ async function setting(key, value) {
 }
 const renderedActions = new Set();
 function result(data) {
+  if (data.event_id && renderedActions.has(data.event_id)) return;
+  if (data.event_id) renderedActions.add(data.event_id);
   const identity = data.action && `${data.action}:${data.state}`;
   if (identity && renderedActions.has(identity)) return;
   if (identity) renderedActions.add(identity);
@@ -170,6 +172,10 @@ function result(data) {
       );
     }
   }
+  if ((data.text || data.summary) && state?.viewer !== "phone") box.append(button("▶ Hear this", async () => {
+    await api("/api/speak", {text: data.text || data.summary});
+  }));
+  if (data.records) for (const r of data.records) box.append(make("p", r.title + ": " + r.details, "remembered"));
   $("#results").prepend(box);
   while ($("#results").children.length > 6)
     $("#results").lastElementChild.remove();
@@ -182,11 +188,12 @@ async function refresh() {
     state = await api("/api/state");
     const s = state.status;
     renderExtra(state);
+    if (typeof renderCompanion === "function") renderCompanion(state);
     $("#privacy").textContent = s.microphone_muted
       ? "Microphone off"
       : "Microphone on · mute";
     $("#privacy").classList.toggle("enabled", !s.microphone_muted);
-    $("#device-status").textContent = s.microphone_muted
+    $("#device-status").textContent = s.busy ? "Thinking, right here." : s.speaking ? "Speaking with you." : s.microphone_muted
       ? "Quietly ready."
       : "Listening on this Mac.";
     $(".device-scene").classList.toggle("listening", !s.microphone_muted);
@@ -236,7 +243,12 @@ async function refresh() {
           await api("/api/memory/delete", { id: m.id });
           refresh();
         };
-        row.append(b);
+        row.append(button("Edit", async () => {
+          $("#memory-edit").hidden = false;
+          $("#memory-edit-id").value = m.id;
+          $("#memory-edit-text").value = m.text;
+          $("#memory-edit-text").focus();
+        }), b);
         memories.append(row);
       }
     }
@@ -254,6 +266,8 @@ async function refresh() {
       c.querySelector("small").textContent =
         s.mode === "kids"
           ? "Unavailable in Kids mode"
+          : service === "sms" && s.message_route.startsWith("mac_")
+            ? "Mac bridge available · account not yet verified"
           : s.provider_ready?.[service]
             ? "Connection configured"
             : "Connection setup needed";
@@ -282,7 +296,7 @@ $("#command").onsubmit = async (e) => {
   $("#send").textContent = "Thinking locally…";
   const text = $("#message").value;
   try {
-    const d = await api("/api/chat", { text });
+    const d = await api("/api/chat", { text, voice: $("#speak-replies").checked });
     result(d);
     $("#message").value = "";
     await refresh();
@@ -626,6 +640,7 @@ $("#personality-form").onsubmit = async (e) => {
   e.preventDefault();
   try {
     await api("/api/profile", {
+      ...state.status.profile,
       name: $("#profile-name").value,
       tone: $("#profile-tone").value,
       language_style: $("#profile-style").value,

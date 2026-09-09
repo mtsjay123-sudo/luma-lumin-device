@@ -20,9 +20,14 @@ def lan_addresses():
     """Read local interfaces only. Never infer a publicly reachable device URL."""
     import re
     try:
-        output = subprocess.run(['/sbin/ifconfig'], capture_output=True, text=True, timeout=3).stdout
-        addresses = re.findall(r'\binet (\d+\.\d+\.\d+\.\d+)', output)
-    except (OSError, subprocess.TimeoutExpired):
+        import shutil
+        if shutil.which('ip'):
+            output = subprocess.run(['ip','-j','-4','address','show'], capture_output=True, text=True, timeout=3).stdout
+            addresses = [a.get('local','') for i in json.loads(output) for a in i.get('addr_info',[]) if a.get('family') == 'inet']
+        else:
+            output = subprocess.run(['/sbin/ifconfig'], capture_output=True, text=True, timeout=3).stdout
+            addresses = re.findall(r'\binet (\d+\.\d+\.\d+\.\d+)', output)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
         addresses = []
     result = []
     for address in addresses:
@@ -45,7 +50,18 @@ class ControlContext:
         agent.on_result = self.publish
 
     def publish(self, result):
+        result.setdefault('event_id', secrets.token_hex(8))
         self.events.append({'created': time.time(), 'result': result})
+
+    def say(self, text, cancel_event=None):
+        event = cancel_event or self.agent.new_turn()
+        def play():
+            try:
+                from luma.orchestrator import speak
+                speak(text, self.agent, cancel_event=event, allow_muted=True)
+            except Exception as error:
+                self.publish({'text':'Voice could not play: ' + str(error)[:250]})
+        threading.Thread(target=play, daemon=True).start()
 
     def allowed(self, key, count, seconds=60):
         now = time.monotonic()
@@ -117,7 +133,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
         def do_GET(self):
             if not self.valid_host(): return self.send({'error':'Invalid device host'},403)
             path = urlsplit(self.path).path
-            static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/style.css':('style.css','text/css')}
+            static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css')}
             if path in static:
                 file, kind = static[path]
                 return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path=='/' and not companion)
@@ -126,7 +142,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
@@ -157,7 +173,26 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         result={'url':url,'expires_at':invite['expires_at'],'qr':'data:image/svg+xml;base64,'+base64.b64encode(svg).decode()}
                     elif path=='/api/phone/revoke': result={'revoked':ctx.pairing.revoke(data.get('id'))}
                     else: return self.send({'error':'Not found'},404)
-                elif path=='/api/chat': result=agent.chat(data.get('text'))
+                elif path=='/api/interrupt': result=agent.interrupt()
+                elif path=='/api/speak':
+                    if companion: return self.send({'error':'Voice playback is controlled on the Mac.'},403)
+                    text=data.get('text')
+                    if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Enter a short voice preview.')
+                    from luma.memory.store import reject_payment_secrets
+                    reject_payment_secrets(text)
+                    ctx.say(text)
+                    result={'ok':True,'summary':'Speaking on this Mac. Stop interrupts playback.'}
+                elif path=='/api/chat':
+                    event=agent.new_turn()
+                    result=agent.chat(data.get('text'),cancel_event=event)
+                    ctx.publish(result)
+                    if data.get('voice') is True and not companion and not event.is_set():
+                        spoken='Please review the exact details in the action card.' if result.get('state')=='pending' else result.get('text') or result.get('summary') or 'Your result is ready in Luma.'
+                        ctx.say(spoken, event)
+                elif path=='/api/workflows/start' or path=='/api/workflows/resume':
+                    result=agent.chat(data.get('goal'),agent_mode=True,resume_id=data.get('id') if path.endswith('resume') else None)
+                    ctx.publish(result)
+                elif path=='/api/workflows/stop': result=agent.workflows.stop(data.get('id'))
                 elif path=='/api/confirm': result=agent.confirm(data.get('id'),data.get('token',''))
                 elif path=='/api/cancel': result=agent.cancel(data.get('id'))
                 elif path=='/api/setting':
@@ -166,15 +201,51 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     if key=='mode': agent.set_mode(value); ctx.events.clear()
                     elif key=='muted' and type(value) is bool: agent.set_muted(value)
                     elif key=='hush': agent.hush()
+                    elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
+                    elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
+                    elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
                     elif key in {'web_search','sms','home_assistant','shopping','booking'} and type(value) is bool: agent.enable(key,value)
                     else: raise ValueError('Unsupported setting')
                     result={'ok':True}
+                elif path=='/api/timers/start': result=agent.propose('timers.start',data)
+                elif path=='/api/timers/control': result=agent.propose('timers.control',data)
+                elif path=='/api/recipes/action': result=agent.propose('cooking.step',data)
+                elif path=='/api/briefing': result=agent.household.briefing(mode=agent.mode)
                 elif path=='/api/task/complete': result=agent.propose('tasks.complete',{'id':str(data.get('id',''))})
                 else:
                     if agent.mode=='kids': raise ValueError('Personal and external action controls are unavailable in kids mode.')
                     if path=='/api/profile':
                         if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
                         result={'profile':agent.set_profile(data)}
+                    elif path=='/api/personality/preset':
+                        if companion: return self.send({'error':'Select personality on the Mac.'},403)
+                        result={'profile':agent.set_preset(data.get('preset'),data.get('adult_confirmed',False))}
+                    elif path=='/api/quiet-hours':
+                        if companion: return self.send({'error':'Set quiet hours on the Mac.'},403)
+                        result=agent.set_quiet_hours(data.get('start'),data.get('end'))
+                    elif path=='/api/household/save': result={'record':agent.household.save_record(**data,mode=agent.mode)}
+                    elif path=='/api/household/delete': result={'deleted':agent.household.delete_record(data.get('id'),mode=agent.mode)}
+                    elif path=='/api/recipes/save': result={'recipe':agent.household.save_recipe(**data,mode=agent.mode)}
+                    elif path=='/api/recipes/delete': result={'deleted':agent.household.delete_recipe(data.get('id'),mode=agent.mode)}
+                    elif path=='/api/groceries/save':
+                        from luma.integrations.commerce import validate_list
+                        ident=data.get('id')
+                        existing=agent.store.get('grocery_list',ident) if isinstance(ident,str) else None
+                        if ident is not None and not existing: raise ValueError('Choose an existing grocery list to edit.')
+                        result={'list':agent.store.put('grocery_list',{**validate_list({k:v for k,v in data.items() if k!='id'}),'created':existing['created'] if existing else agent.clock()},ident),'summary':'Saved locally. You can prepare a family text or create a merchant list later.'}
+                    elif path=='/api/groceries/delete': result={'deleted':agent.store.delete('grocery_list',str(data.get('id','')))}
+                    elif path=='/api/groceries/family':
+                        row=agent.store.get('grocery_list',str(data.get('id','')))
+                        if not row: raise ValueError('Save the exact grocery list first.')
+                        body='Could you pick up these groceries? ' + ', '.join(f"{i['quantity']} {i['unit']} {i['name']}" for i in row['items']) + '.'
+                        if len(body)>1000: raise ValueError('This list is too long for a text; prepare a shorter message.')
+                        result=agent.prepare_message(data.get('recipient'),body)
+                    elif path=='/api/memory/save':
+                        row=agent.store.get('memory',str(data.get('id','')))
+                        if not row: raise ValueError('Choose a saved memory.')
+                        text=data.get('text')
+                        if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
+                        result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
                     elif path=='/api/contacts/save': result=agent.contacts.save(data)
                     elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
@@ -194,7 +265,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif path=='/api/booking/status':
                         agent._check('booking.create'); result=agent.bookings.status(data)
                     else: return self.send({'error':'Not found'},404)
-                if result.get('state')=='pending': ctx.publish(result)
+                if result.get('state')=='pending' and not result.get('event_id'): ctx.publish(result)
                 return self.send(result)
             except (ValueError,TypeError,KeyError) as e: return self.send({'error':str(e)},400)
             except RuntimeError as e: return self.send({'error':str(e)},502)
@@ -227,9 +298,19 @@ def serve(agent,port,phone_host=None,phone_port=8096):
     if ctx.phone_origin: print('LUMA phone connection: '+ctx.phone_origin,flush=True)
     from luma.orchestrator import start_hands_free
     threading.Thread(target=start_hands_free,args=(agent,server.agent_stop),daemon=True).start()
+    import signal
+    previous_signals = {}
+    def stop_on_signal(signum, frame):
+        ctx.stop.set(); agent.interrupt()
+        threading.Thread(target=server.shutdown, daemon=True).start()
+    if threading.current_thread() is threading.main_thread():
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous_signals[signum] = signal.signal(signum, stop_on_signal)
     try: server.serve_forever()
     except KeyboardInterrupt: pass
     finally:
         ctx.stop.set(); agent.set_muted(True)
         if ctx.phone_server: ctx.phone_server.shutdown(); ctx.phone_server.server_close()
+        for signum, previous in previous_signals.items(): signal.signal(signum, previous)
+        agent.interrupt(); agent.device.close()
         server.server_close(); agent.store.close()

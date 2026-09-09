@@ -1,0 +1,11 @@
+# Versions used by the Mac prototype; Linux/aarch64 resolution and physical
+# operation must still be tested on the chosen JetPack/Python image. pip freeze
+# from setup_jetson.sh records the complete resolved target set for recovery.
+llama-cpp-python==0.3.23
+faster-whisper==1.2.1
+kokoro-onnx==0.5.0
+sounddevice==0.5.5
+silero-vad==6.2.1
+python-dotenv==1.2.2
+httpx==0.28.1
+qrcode==8.2

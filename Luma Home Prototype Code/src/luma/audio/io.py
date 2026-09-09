@@ -1,23 +1,39 @@
+import os
 import tempfile
 import threading
 import wave
 import numpy as np
 import sounddevice as sd
-from pynput import keyboard
 from luma.config import SAMPLE_RATE
+from luma.hardware.device import resolve_audio_device
 
 
-def play(wav_path: str, should_stop=None) -> None:
+def play(wav_path: str, should_stop=None) -> bool:
+    should_stop = should_stop or (lambda: False)
+    if should_stop():
+        return False
     with wave.open(wav_path, "r") as wf:
+        if wf.getsampwidth() != 2 or wf.getnchannels() != 1:
+            raise ValueError("Luma playback requires a mono 16-bit PCM WAV.")
         rate = wf.getframerate()
         frames = wf.readframes(wf.getnframes())
         audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32767.0
     # Use an explicit OutputStream rather than sd.play() to avoid the global
     # sounddevice state that can conflict with the always-open InputStream.
-    with sd.OutputStream(samplerate=rate, channels=1, dtype='float32') as stream:
-        for start in range(0, len(audio), max(1, rate // 10)):
-            if should_stop and should_stop(): break
-            stream.write(audio[start:start + max(1, rate // 10)].reshape(-1, 1))
+    device = resolve_audio_device(os.getenv("LUMA_OUTPUT_DEVICE"), sd.query_devices(), direction="output")
+    if should_stop():
+        return False
+    block = max(1, rate // 50)
+    with sd.OutputStream(samplerate=rate, channels=1, dtype='float32', device=device, latency='low', blocksize=block) as stream:
+        for start in range(0, len(audio), block):
+            if should_stop():
+                stream.abort()
+                return False
+            stream.write(audio[start:start + block].reshape(-1, 1))
+        if should_stop():
+            stream.abort()
+            return False
+    return True
 
 
 def record_push_to_talk(should_stop=None) -> str | None:
@@ -27,6 +43,10 @@ def record_push_to_talk(should_stop=None) -> str | None:
     """
     should_stop = should_stop or (lambda: False)
     if should_stop(): return None
+    try:
+        from pynput import keyboard
+    except (ImportError, RuntimeError) as error:
+        raise RuntimeError("Keyboard voice capture needs a desktop session. Use the web microphone control or hands-free mode on this device.") from error
     chunks: list[np.ndarray] = []
     recording = threading.Event()
     done = threading.Event()
@@ -59,18 +79,21 @@ def record_push_to_talk(should_stop=None) -> str | None:
         if not done.is_set():
             chunks.append(indata.copy())
 
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
-                        callback=audio_callback):
-        import time
-        deadline = time.monotonic() + 30
-        while not done.wait(0.1):
-            if should_stop() or time.monotonic() >= deadline:
-                done.set()
-                break
-
-    listener.stop()
-
-    listener.join()
+    try:
+        device = resolve_audio_device(os.getenv("LUMA_INPUT_DEVICE"), sd.query_devices(), direction="input")
+        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", device=device,
+                            callback=audio_callback):
+            import time
+            deadline = time.monotonic() + 30
+            while not done.wait(0.1):
+                if should_stop() or time.monotonic() >= deadline:
+                    done.set()
+                    break
+    finally:
+        listener.stop()
+        listener.join(timeout=1)
+    if should_stop():
+        return None
     print("Processing...", flush=True)
 
     audio = np.concatenate(chunks, axis=0).flatten() if chunks else np.zeros(SAMPLE_RATE, dtype=np.int16)

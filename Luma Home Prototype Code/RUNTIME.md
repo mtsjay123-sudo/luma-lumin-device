@@ -1,3 +1,7 @@
+# Latest companion build — September 8, 2026
+
+The new controls and behavior are documented in [docs/COMPANION_UPGRADES.md](docs/COMPANION_UPGRADES.md). Device setup, boot service, privacy feedback, diagnostics and recovery are documented in [docs/DEVICE_SETUP.md](docs/DEVICE_SETUP.md). The older notes below describe prior validation; they are not the current complete feature list.
+
 # Luma — personal home companion runtime
 
 Updated September 7, 2026. Open **http://127.0.0.1:8095/** on this Mac. This is a working software prototype with a local language model and connected action adapters. It is not a finished hardware appliance or an assistant with unrestricted access to every merchant.

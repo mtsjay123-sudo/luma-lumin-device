@@ -15,6 +15,51 @@ _llm = None
 _inference_lock = threading.RLock()
 
 
+class GenerationCancelled(Exception):
+    """The owner interrupted this turn; a partial proposal must never execute."""
+
+
+def _check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise GenerationCancelled("Conversation interrupted.")
+
+
+@contextlib.contextmanager
+def _model_access(cancel_event=None):
+    """A superseded request can leave the queue without waiting for another turn."""
+    while not _inference_lock.acquire(timeout=0.05):
+        _check_cancel(cancel_event)
+    try:
+        _check_cancel(cancel_event)
+        yield
+    finally:
+        _inference_lock.release()
+
+
+def _complete(model, cancel_event=None, **kwargs):
+    _check_cancel(cancel_event)
+    if cancel_event is None:
+        return model.create_chat_completion(**kwargs)["choices"][0]["message"]["content"]
+    # Closing the generator stops token generation. Native model loading/prompt
+    # prefill must finish first; they cannot be safely killed from another thread.
+    chunks = model.create_chat_completion(stream=True, **kwargs)
+    text = []
+    try:
+        for chunk in chunks:
+            _check_cancel(cancel_event)
+            choices = chunk.get("choices", [])
+            if choices:
+                content = choices[0].get("delta", {}).get("content")
+                if isinstance(content, str):
+                    text.append(content)
+        _check_cancel(cancel_event)
+        return "".join(text)
+    finally:
+        close = getattr(chunks, "close", None)
+        if close is not None:
+            close()
+
+
 def fit_history(messages, token_count, budget):
     """Keep whole recent turns; never silently truncate a current action request."""
     recent, used = [], 0
@@ -33,23 +78,25 @@ def fit_history(messages, token_count, budget):
     return recent
 
 
-def plan(messages, memories, tools, mode, profile=None):
+def plan(messages, memories, tools, mode, profile=None, cancel_event=None):
     """Generate a constrained proposal; execution remains in the runtime."""
     profile = normalize_profile(profile)
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
     prompt = build_plan_prompt(memories, tools, mode, profile, now)
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
-    with _inference_lock:
+    with _model_access(cancel_event):
         model = _load_model()
+        _check_cancel(cancel_event)
         count = lambda text: len(model.tokenize(text.encode("utf-8"), add_bos=False))
         recent = fit_history(messages, count, LLAMA_CONTEXT_SIZE - count(prompt) - max_tokens - 160)
-        result = model.create_chat_completion(
+        raw = _complete(model, cancel_event,
             messages=[{"role": "system", "content": prompt}] + recent,
             response_format={"type": "json_object", "schema": proposal_schema(tools)},
             max_tokens=max_tokens, temperature=0.45, top_p=0.9, repeat_penalty=1.08,
         )
     try:
-        result = json.loads(result["choices"][0]["message"]["content"])
+        _check_cancel(cancel_event)
+        result = json.loads(raw)
     except (KeyError, TypeError, json.JSONDecodeError) as e:
         raise ValueError("The local model returned an invalid proposal. No action was taken.") from e
     if not isinstance(result, dict):
@@ -154,23 +201,21 @@ def _sanitize(text: str) -> str:
     return " ".join(cleaned.split())
 
 
-def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None) -> str:
+def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
-    model = _load_model()
-
     full_messages = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + messages
-
-    result = model.create_chat_completion(
-        messages=full_messages,
-        max_tokens=max_tokens,
-        temperature=0.65,
-        mirostat_mode=2,
-        mirostat_tau=3.5,
-        mirostat_eta=0.1,
-        repeat_penalty=1.8,
-        stop=["<|eot_id|>", "<|end_of_text|>"],
-    )
-    raw = result["choices"][0]["message"]["content"].strip()
+    with _model_access(cancel_event):
+        model = _load_model()
+        raw = _complete(model, cancel_event,
+            messages=full_messages,
+            max_tokens=max_tokens,
+            temperature=0.65,
+            mirostat_mode=2,
+            mirostat_tau=3.5,
+            mirostat_eta=0.1,
+            repeat_penalty=1.8,
+            stop=["<|eot_id|>", "<|end_of_text|>"],
+        ).strip()
     cleaned = _strip_repetition(_sanitize(raw))
     # Ensure the response ends with terminal punctuation so TTS doesn't trail off
     if cleaned and not cleaned.endswith(('.', '!', '?')):

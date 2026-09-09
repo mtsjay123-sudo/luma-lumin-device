@@ -6,6 +6,7 @@
     <title>Luma · At home</title>
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
+    <script src="/companion.js" defer></script>
   </head>
   <body>
     <header>
@@ -33,7 +34,7 @@
       <section class="welcome">
         <div>
           <span class="eyebrow">A LITTLE MORE PRESENCE</span>
-          <h1>A little help.<br />Right here.</h1>
+          <h1>Your day.<br />A little lighter.</h1>
           <p>
             Your plans, your thoughts, your everyday.<br />Make some room for
             what matters.
@@ -58,7 +59,12 @@
           ><small>Software prototype · device visualization</small>
         </div>
       </section>
-      <section class="command-card">
+      <section class="command-card" id="talk">
+        <div class="voice-toolbar owner-only">
+          <button id="voice-preview" type="button" class="pill">▶ Hear Luma</button>
+          <button id="interrupt" type="button" class="pill stop-control">■ Stop / interrupt</button>
+          <label class="check-label"><input id="speak-replies" type="checkbox" /> Speak replies on this Mac</label>
+        </div>
         <div class="section-heading">
           <h2>What can I take care of?</h2>
           <span id="runtime-mode">Local intelligence</span>
@@ -74,8 +80,7 @@
           ></textarea>
           <div class="command-bottom">
             <span
-              >Typed commands stay local unless you enable a connected
-              action.</span
+              >Type below, or turn on the microphone and say “Hey Luma.”</span
             ><button type="submit" id="send" class="button">
               Ask Luma <b>↗</b>
             </button>
@@ -94,6 +99,10 @@
         </div>
         <div id="results" aria-live="polite"></div>
       </section>
+      <section id="daily-briefing" class="briefing-strip">
+        <div><span class="eyebrow">TODAY, AT A GLANCE</span><p id="briefing-copy">Your saved commitments will appear here.</p></div>
+        <button id="read-briefing" class="pill">Read my briefing ↗</button>
+      </section>
       <div class="dashboard">
         <section class="card">
           <div class="section-heading">
@@ -106,8 +115,7 @@
           <div id="reminders"></div>
           <div id="routines"></div>
           <p class="footnote">
-            Reminders need Luma running. Quiet hours are 11 PM–7 AM. Proactive
-            reminders are grouped, at most once every 30 minutes.
+            Reminders need Luma running. Quiet hours and daily briefings are adjustable below. Routine reminders are grouped at most once every 30 minutes.
           </p>
         </section>
         <section class="card">
@@ -118,19 +126,35 @@
             </div>
           </div>
           <div id="memories"></div>
+          <form id="memory-edit" class="stack-form" hidden><label>Edit memory<textarea id="memory-edit-text" maxlength="2000" required></textarea></label><input id="memory-edit-id" type="hidden" /><button class="button">Save correction</button></form>
           <p class="footnote">
-            Explicit memories are encrypted locally. You can remove them here.
+            Explicit memories are encrypted locally. You can edit or remove them here.
             Conversation turns remain in memory only.
           </p>
         </section>
       </div>
       <nav class="home-nav" aria-label="Luma controls">
-        <a href="#command">Talk</a><a href="#people">People & texts</a
+        <a href="#talk">Talk</a><a href="#agent-runs">Agent mode</a><a href="#cooking">Cooking</a><a href="#household">Household</a><a href="#people">People & texts</a
         ><a href="#groceries">Groceries</a>
         <a href="#appointments">Appointments</a
         ><a href="#phone-connection">Your phone</a
         ><a href="#personality">Personality</a>
       </nav>
+      <section id="agent-runs" class="feature-section">
+        <div class="section-heading"><div><span class="eyebrow">PUT A FEW THINGS IN MOTION</span><h2>A task, carried forward.</h2></div><span>Agent mode · by choice</span></div>
+        <p class="intro">Give Luma a task with several steps. It can use saved household information and enabled tools, keep the receipts, and pause when it needs you. Messages, bookings and purchases still come to you for an exact review.</p>
+        <form id="agent-form" class="command-card stack-form"><label>Your task<textarea id="agent-goal" maxlength="4000" required placeholder="Remember that the spare keys are in the blue kitchen drawer, then remind me in 20 minutes to give them to Dad."></textarea></label><input id="agent-resume-id" type="hidden" /><button id="agent-submit" class="button">Start agent task ↗</button><p class="footnote">Up to six steps per run. Stop at any time; completed work stays visible. A restart pauses unfinished work.</p></form>
+        <div id="workflow-list" class="receipt-grid"></div>
+      </section>
+      <section id="cooking" class="feature-section">
+        <div class="section-heading"><div><span class="eyebrow">A SECOND PAIR OF HANDS</span><h2>Stay with the moment.</h2></div><span>Timers & recipe steps</span></div>
+        <div class="dashboard"><article class="card"><h3>Keep a little time.</h3><form id="timer-form" class="inline-form"><label>Name<input id="timer-name" placeholder="Pasta" maxlength="80" required /></label><label>Minutes<input id="timer-minutes" type="number" min="0.0167" max="1440" step="any" value="8" required /></label><button class="button">Start timer</button></form><div id="timer-list"></div><p class="footnote">Timers survive a restart. Quiet hours hold spoken announcements; the panel still shows when time is up.</p></article>
+        <article class="card"><h3>One step at a time.</h3><form id="recipe-form" class="stack-form"><input id="recipe-id" type="hidden" /><label>Recipe<input id="recipe-title" maxlength="120" placeholder="Your weeknight favorite" required /></label><label>Steps · one per line<textarea id="recipe-steps" maxlength="10000" placeholder="Bring a pot of water to a boil.&#10;Add the pasta and start your timer." required></textarea></label><label>Source link · optional<input id="recipe-source" type="url" placeholder="https://…" /></label><button class="button">Save recipe</button></form></article></div><div id="recipe-list" class="receipt-grid"></div>
+      </section>
+      <section id="household" class="feature-section">
+        <div class="section-heading"><div><span class="eyebrow">YOUR HOME, REMEMBERED</span><h2>A place for the little details.</h2></div><span>Private, editable notes</span></div>
+        <div class="dashboard"><article class="card"><form id="household-form" class="stack-form"><input id="household-id" type="hidden" /><label>Keep this under<select id="household-category"><option value="location">Where things are</option><option value="preference">Preferences</option><option value="pantry">Pantry</option><option value="manual">Manual notes</option><option value="warranty">Warranties</option><option value="maintenance">Maintenance</option></select></label><label>Title<input id="household-title" maxlength="120" required placeholder="Spare keys" /></label><label>Details<textarea id="household-details" maxlength="4000" required placeholder="In the blue kitchen drawer."></textarea></label><label>Source link · optional<input id="household-source" type="url" placeholder="https://…" /></label><label>Follow-up date · optional<input id="household-date" type="date" /></label><button class="button">Save household note</button></form></article><article class="card"><label class="search-label">Find something<input id="household-search" type="search" placeholder="Keys, warranty, oven…" /></label><div id="household-list"></div></article></div>
+      </section>
       <section id="people" class="feature-section">
         <div class="section-heading">
           <div>
@@ -232,7 +256,7 @@
         <div class="dashboard">
           <article class="card">
             <h3>Your grocery list.</h3>
-            <form id="grocery-form" class="stack-form">
+            <form id="grocery-form" class="stack-form"><input id="grocery-local-id" type="hidden" />
               <label
                 >List name<input
                   id="grocery-title"
@@ -243,7 +267,7 @@
               <div id="grocery-items"></div>
               <button id="grocery-add" type="button" class="text-button">
                 ＋ Add an item</button
-              ><button id="grocery-create" class="button">
+              ><button id="grocery-save" type="button" class="pill">Save local list</button><button id="grocery-create" class="button">
                 Create shoppable list ↗
               </button>
             </form>
@@ -277,7 +301,7 @@
             </p>
           </article>
         </div>
-        <div id="grocery-receipts" class="receipt-grid"></div>
+        <div id="local-grocery-lists" class="receipt-grid"></div><div id="grocery-receipts" class="receipt-grid"></div>
       </section>
       <section id="appointments" class="feature-section">
         <div class="section-heading">
@@ -378,6 +402,8 @@
           Set a starting style. Luma should follow the conversation naturally,
           without forcing slang or guessing your age.
         </p>
+        <div id="personality-presets" class="preset-dial" role="group" aria-label="Personality presets"></div>
+        <label class="check-label"><input id="adult-unfiltered" type="checkbox" /> I’m an adult choosing Unfiltered: occasional swearing and friendly roasting.</label>
         <form id="personality-form" class="inline-form">
           <label
             >Call me<input
@@ -409,6 +435,7 @@
           model training.
         </p>
       </section>
+      <section id="daily-settings" class="feature-section owner-only"><div class="section-heading"><div><span class="eyebrow">AT YOUR PACE</span><h2>A little quiet, too.</h2></div></div><form id="quiet-form" class="inline-form"><label>Quiet from · 24h<input id="quiet-start" type="number" min="0" max="23" value="23" required /></label><label>Until · 24h<input id="quiet-end" type="number" min="0" max="23" value="7" required /></label><label>Briefing hour · 24h<input id="briefing-hour" type="number" min="0" max="23" value="8" required /></label><button class="button">Save daily rhythm</button></form><label class="check-label"><input id="briefing-enabled" type="checkbox" /> Offer my saved daily briefing once each day</label><label class="check-label"><input id="barge-in" type="checkbox" /> Headphones / isolated speaker: listen for “wait” while speaking</label><p class="footnote">Use Stop for dependable interruption with ordinary speakers. Voice interruption is opt-in because this prototype does not yet cancel speaker echo. Model loading may finish before a stop takes effect.</p></section>
       <section class="connections">
         <div class="section-heading">
           <div>

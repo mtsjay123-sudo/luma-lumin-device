@@ -13,7 +13,7 @@ _MIN_AUDIO_BYTES = 1000
 def _get_model() -> WhisperModel:
     global _model
     if _model is None:
-        _model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8", local_files_only=True)
+        _model = WhisperModel(WHISPER_MODEL_SIZE, device=os.environ.get("LUMA_WHISPER_DEVICE", "cpu"), compute_type=os.environ.get("LUMA_WHISPER_COMPUTE_TYPE", "int8"), local_files_only=True)
     return _model
 
 

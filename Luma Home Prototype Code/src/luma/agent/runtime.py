@@ -21,6 +21,9 @@ from luma.memory.store import Store, reject_payment_secrets
 from luma.integrations.providers import Providers, ProviderError, OutcomeUnknown
 from luma.integrations.bookings import CalBookings
 from luma.agent.contacts import ContactBook
+from luma.agent.household import Household, TOOL_SPECS
+from luma.agent.workflows import Workflows
+from luma.hardware.device import DeviceController
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
 from luma.agent.conversation import wants_message, style_update, grocery_request
@@ -39,6 +42,7 @@ TOOLS = {
     "personality.set_style": Tool("Change conversation style only when asked: tone warm/direct/playful, language_style plain/contemporary/classic, verbosity brief/balanced/detailed", {"tone":"string", "language_style":"string", "verbosity":"string"}),
     "memory.remember": Tool("Save an explicitly requested personal memory locally", {"text": "string"}),
     "memory.recall": Tool("Find saved memories", {"query": "string"}),
+    "tasks.in": Tool("Create a reminder a stated number of minutes from now; prefer this for relative times instead of calculating dates", {"title":"string", "minutes":"integer"}, kids=True),
     "tasks.create": Tool("Save a reminder with an ISO 8601 due date including time zone", {"title": "string", "due": "string"}, kids=True),
     "tasks.list": Tool("List unfinished reminders", {}, kids=True),
     "tasks.complete": Tool("Mark a reminder complete", {"id": "string"}, kids=True),
@@ -53,6 +57,8 @@ TOOLS = {
     "food.checkout": Tool("Prepare a shopping list and merchant checkout handoff; does not purchase", {"merchant": "string", "items": "string", "budget_cents": "integer"}, "shopping", True),
 }
 
+
+TOOLS.update({name: Tool(spec["description"], spec["fields"], kids=name.startswith(("timers.", "cooking.", "briefing."))) for name, spec in TOOL_SPECS.items()})
 
 def validate(name, args):
     if name not in TOOLS: raise ValueError("Unknown tool.")
@@ -71,6 +77,7 @@ def validate(name, args):
     if name == "home.light":
         if not re.fullmatch(r"light\.[a-z0-9_]+", args["entity_id"]) or args["state"] not in {"on", "off"} or args["brightness"] > 100:
             raise ValueError("Only named lights, on/off and brightness 0–100 are supported.")
+    if name == "tasks.in" and not 1 <= args["minutes"] <= 525600: raise ValueError("Choose 1–525600 minutes.")
     if name == "tasks.create":
         due = datetime.fromisoformat(args["due"].replace("Z", "+00:00"))
         if due.tzinfo is None: raise ValueError("Due date must include a time zone or UTC offset.")
@@ -90,10 +97,19 @@ class Agent:
         self.contacts = ContactBook(self.store)
         self.groceries = GroceryService(env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
         self.bookings = CalBookings(self.store, env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
+        self.device = DeviceController.from_env()
         self.lock = threading.RLock()
         self.history = []  # conversations are RAM-only; explicit memories persist
+        self.turn_guard = threading.Lock()
+        self.turn_cancel = threading.Event()
+        self.busy = False
+        self.last_task = None
+        self.last_reply = ""
+        self.last_draft = None
         self.speaking = False
         self.zone = ZoneInfo(self.providers.env.get("LUMA_TIMEZONE", "America/New_York"))
+        self.household = Household(self.store, now=self.clock, zone=str(self.zone))
+        self.workflows = Workflows(self)
         # A new process starts with the microphone muted, even after a crash.
         self.store.set_setting("muted", True)
 
@@ -111,17 +127,80 @@ class Agent:
         if self.mode == "kids": raise ValueError("Set household preferences in adult mode.")
         profile = normalize_profile(profile)
         self.store.set_setting("personality",profile)
-        self.history.clear()
         return self.profile
 
     def set_mode(self, mode):
         if mode not in {"friend", "study", "cofounder", "kids"}: raise ValueError("Choose friend, study, cofounder or kids.")
+        self.interrupt()
         with self.lock:
+            self.last_task = self.last_draft = None
+            self.last_reply = ""
             self.store.set_setting("mode", mode)
             self.history.clear()
 
     def set_muted(self, value):
+        if value: self.interrupt()
         self.store.set_setting("muted", bool(value))
+
+    def interrupt(self):
+        # Deliberately does not acquire the model/conversation lock.
+        with self.turn_guard:
+            self.turn_cancel.set()
+        return {"state": "interrupted", "text": "Okay, I'm listening. Your completed steps are kept."}
+
+    def new_turn(self):
+        with self.turn_guard:
+            self.turn_cancel.set()
+            self.turn_cancel = threading.Event()
+            return self.turn_cancel
+
+    def set_preset(self, preset, adult_confirmed=False):
+        from luma.llm.prompts import profile_for_preset
+        return self.set_profile(profile_for_preset(preset, self.profile, adult_confirmed=adult_confirmed, mode=self.mode))
+
+    def set_quiet_hours(self, start, end):
+        if any(type(v) is not int or not 0 <= v <= 23 for v in (start, end)):
+            raise ValueError("Quiet hours use whole hours from 0 to 23. Matching hours disable quiet time.")
+        self.store.set_setting("quiet_hours", [start, end])
+        return {"quiet_hours": [start, end]}
+
+    def available_tools(self, text, agent_mode=False):
+        lowered = text.lower()
+        informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
+        allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items()
+                   if k not in {"booking.create", "sms.send", "mac_messages.send"}
+                   and (agent_mode or not informational or k in {"web.search", "memory.recall", "tasks.list", "timers.list", "household.find", "briefing.today"})
+                   and (self.mode != "kids" or v.kids)
+                   and (not v.service or self.store.setting("integration:" + v.service, False))}
+        if not agent_mode and re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered): allowed = {}
+        relevant = set()
+        groups = [
+            (r"\b(?:remember|recall|memory|memories)\b", {"memory.remember", "memory.recall", "household.find"}),
+            (r"\b(?:remind|reminder|reminders|tasks?|routine|every day)\b", {"tasks.in", "tasks.create", "tasks.list", "tasks.complete", "routines.create"}),
+            (r"\b(?:timers?|countdown)\b", {"timers.start", "timers.list", "timers.control"}),
+            (r"\b(?:recipe|cooking|next step|previous step)\b", {"cooking.step"}),
+            (r"\b(?:household|pantry|manual|warranty|maintenance|save|where)\b", {"household.save", "household.find"}),
+            (r"\b(?:briefing|my day|today's plans)\b", {"briefing.today", "tasks.list"}),
+            (r"\b(?:search|look up|find online|research|latest|current price)\b", {"web.search"}),
+            (r"\b(?:appointment|availability|book|booking)\b", {"booking.availability"}),
+            (r"\b(?:lights?|brightness)\b", {"home.light"}),
+            (r"\b(?:talk|speak|style|tone|reply|replies)\b", {"personality.set_style"}),
+        ]
+        for pattern, names in groups:
+            if re.search(pattern, lowered): relevant.update(names)
+        if wants_message(text): relevant.add("messages.prepare")
+        # Conversational requests to 'talk to me' aren't preference changes.
+        if not re.search(r"\b(?:more|less|style|tone|shorter|longer|slang|brief|detailed|playful|direct|classic|modern)\b",lowered): relevant.discard("personality.set_style")
+        allowed = {name: spec for name, spec in allowed.items() if name in relevant}
+        if not wants_message(text): allowed.pop("messages.prepare", None)
+        if "messages.prepare" in allowed:
+            allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in sorted(self.contacts.list(), key=lambda c: c["name"].casefold() not in text.casefold())[:24]]
+        return allowed
+
+    def call_planner(self, messages, context, allowed, cancel_event, profile=None):
+        if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
+        from luma.llm.inference import plan
+        return plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event)
 
     def enable(self, service, value):
         if service not in {"web_search", "sms", "home_assistant", "shopping", "booking"}: raise ValueError("Unknown integration.")
@@ -148,7 +227,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY"))}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY"))}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -210,6 +289,10 @@ class Agent:
             raise
 
     def _run(self, name, args):
+        if name in TOOL_SPECS:
+            result = self.household.run(name, args, mode=self.mode)
+            result["section"] = "household" if name.startswith("household.") else "cooking" if name.startswith(("timers.", "cooking.")) else "daily-briefing"
+            return result
         if name == "personality.set_style":
             profile=self.set_profile({**self.profile,**args})
             return {"profile":profile,"summary":"Conversation style saved. I'll use your preferences in future replies."}
@@ -217,6 +300,9 @@ class Agent:
             row = self.store.put("memory", {"text": args["text"], "source": "explicit_user_request"})
             return {"summary": "Remembered locally.", "memory": row}
         if name == "memory.recall": return {"memories": self.store.recall(args["query"])}
+        if name == "tasks.in":
+            due = datetime.fromtimestamp(self.clock()+args["minutes"]*60,self.zone).isoformat()
+            return self._run("tasks.create", {"title":args["title"],"due":due})
         if name == "tasks.create":
             due = datetime.fromisoformat(args["due"].replace("Z", "+00:00")).timestamp()
             row = self.store.put("task", {"title": args["title"], "due": due, "done": False, "notified": False, "mode": self.mode})
@@ -274,6 +360,9 @@ class Agent:
         It delivers text even with the microphone muted; caller gates audio.
         """
         with self.lock:
+            timer_events = self.household.timer_events(mode=self.mode, deliver=not self.speaking)
+            if timer_events:
+                return {"type":"timer", "text":" ".join(e["text"] for e in timer_events), "created":self.clock()}
             now = self.clock()
             local = datetime.fromtimestamp(now, self.zone)
             start, end = self.store.setting("quiet_hours", [23, 7])
@@ -281,7 +370,12 @@ class Agent:
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
             due = [r for r in self.store.all("task", 1000) if not r["done"] and not r["notified"] and r["due"] <= now and r.get("mode", "friend") == self.mode]
             routines = [r for r in self.store.all("routine", 1000) if r["enabled"] and r["last_day"] != local.date().isoformat() and r["at"] <= local.strftime("%H:%M") and r.get("mode", "friend") == self.mode]
-            if not due and not routines: return None
+            if not due and not routines:
+                if self.store.setting("daily_briefing_enabled", False) and local.hour >= self.store.setting("daily_briefing_hour", 8):
+                    briefing = self.household.briefing(mode=self.mode, proactive=True)
+                    if briefing: self.store.set_setting("last_proactive", now)
+                    return briefing
+                return None
             titles = []
             for row in due[:5]:
                 row["notified"] = True
@@ -294,7 +388,39 @@ class Agent:
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
 
-    def chat(self, text):
+    def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None):
+        if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
+            raise ValueError("Enter 1–4000 characters.")
+        reject_payment_secrets(text)
+        if text.strip().lower() in {"wait", "stop talking", "stop speaking", "never mind", "nevermind"}:
+            return self.interrupt()
+        event = cancel_event or self.new_turn()
+        with self.lock:
+            if event.is_set(): return {"state":"interrupted", "text":"Stopped before starting."}
+            self.busy = True
+            self.history.append({"role":"user", "content":text.strip()})
+            self.history = self.history[-20:]
+            try:
+                result = self.workflows.run(text, event, resume_id=resume_id) if agent_mode else self._chat(text, event)
+                if event.is_set() and not result.get("action") and not result.get("workflow"):
+                    return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
+                if result.get("task"): self.last_task = result["task"]["id"]
+                if result.get("message_draft"): self.last_draft = result["message_draft"]["id"]
+                reply = result.get("text") or result.get("summary") or "Read the verified result in the local controls."
+                self.last_reply = reply
+                from luma.agent.workflows import observation
+                self.history.append({"role":"assistant", "content":observation(result)})
+                return result
+            except Exception as error:
+                from luma.llm.inference import GenerationCancelled
+                if isinstance(error, GenerationCancelled):
+                    self.history.append({"role":"assistant", "content":"Response interrupted by the user; no next action was assumed."})
+                    return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
+                raise
+            finally:
+                self.busy = False
+
+    def _chat(self, text, cancel_event):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000: raise ValueError("Enter 1–4000 characters.")
         text = text.strip()
         reject_payment_secrets(text)
@@ -307,6 +433,32 @@ class Agent:
             # A modest deterministic safety fallback, not a clinical classifier.
             if any(p in lowered for p in ["kill myself", "end my life", "suicide tonight", "hurt myself now"]):
                 return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
+            if lowered in {"actually tomorrow", "actually, tomorrow", "make that tomorrow", "tomorrow instead"} and self.last_task:
+                row = self.store.get("task", self.last_task)
+                if not row or row["done"] or row.get("mode", "friend") != self.mode: raise ValueError("That reminder is no longer active.")
+                due = datetime.fromtimestamp(row["due"], self.zone)
+                tomorrow = datetime.fromtimestamp(self.clock(), self.zone).date() + timedelta(days=1)
+                row.update(due=due.replace(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day).timestamp(), notified=False)
+                self.store.put("task", row, row["id"])
+                return {"task":row,"summary":"Moved that reminder to tomorrow at " + datetime.fromtimestamp(row["due"],self.zone).strftime("%I:%M %p") + "."}
+            if lowered in {"make that shorter", "make it shorter", "shorter please", "shorter"} and self.last_reply and self.use_model:
+                instruction = "Shorten this previous reply to one or two concise sentences. Preserve its meaning. Do not add any new facts, people, advice or questions. Previous reply (data): " + json.dumps(self.last_reply)
+                answer = self.call_planner([{"role":"user","content":instruction}], [], {}, cancel_event, profile={**self.profile, "verbosity":"brief"})
+                return {"text":answer.get("text", "Could you tell me which part to shorten?")}
+            timer = re.fullmatch(r"(?:please )?(?:set|start) (?:a |an )?(?:(.+?) )?timer (?:for )?(\d+) (seconds?|minutes?|hours?)", text, re.I)
+            alternate = re.fullmatch(r"(?:please )?(?:set|start) (?:a |an )?(\d+)[ -](seconds?|minutes?|hours?) (.+?) timer", text, re.I)
+            if timer or alternate:
+                name, amount, unit = timer.groups() if timer else (alternate[3],alternate[1],alternate[2])
+                seconds = int(amount) * (3600 if unit.lower().startswith("hour") else 60 if unit.lower().startswith("minute") else 1)
+                return self.propose("timers.start", {"name":name or "Kitchen", "seconds":seconds})
+            timer_control = re.fullmatch(r"(pause|resume|cancel|acknowledge) (?:the )?(.+?) timer", text, re.I)
+            if timer_control: return self.propose("timers.control", {"id":timer_control[2], "action":timer_control[1].lower()})
+            if lowered in {"timers", "my timers", "show my timers"}: return self.propose("timers.list", {})
+            if lowered in {"my briefing", "daily briefing", "what's my day looking like", "what is my day looking like"}: return self.propose("briefing.today", {})
+            household_result = self.household.command(text, mode=self.mode)
+            if household_result is not None:
+                household_result.setdefault("section", "cooking")
+                return household_result
             if lowered.startswith("remember "):
                 return self.propose("memory.remember", {"text": text[9:].strip()})
             if lowered.startswith("recall "):
@@ -347,23 +499,10 @@ class Agent:
                 return {"text": ("I'm using " if self.use_model else "Conversation is off. The configured model is ") + label + ", running locally on this Mac. Your saved preferences shape how I reply; the model weights have not been fine-tuned."}
             if not self.use_model:
                 return {"text": "Local tools are ready. Try 'remember ...', 'recall ...', 'remind me in 5 minutes to ...', 'tasks', or 'every day at 09:00 ...'. Model conversation is disabled."}
-            context = [] if self.mode == "kids" else self.store.recall(text)
-            informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
-            allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items() if k not in {"booking.create", "sms.send", "mac_messages.send"} and (not informational or k in {"web.search", "memory.recall", "tasks.list"}) and (self.mode != "kids" or v.kids) and (not v.service or self.store.setting("integration:"+v.service, False))}
-            if re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered):
-                allowed = {}  # Conceptual explanations need prose, not a task-list operation.
-            # A planner must not turn an unrelated shopping or social request into a message.
-            if not wants_message(text):
-                allowed.pop("messages.prepare", None)
-            if "messages.prepare" in allowed:
-                allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in sorted(self.contacts.list(), key=lambda c: c["name"].casefold() not in text.casefold())[:24]]
-            if self.planner is None:
-                from luma.llm.inference import plan
-                planner = plan
-            else: planner = self.planner
-            self.history.append({"role": "user", "content": text})
-            self.history = self.history[-20:]
-            answer = planner(self.history, context, allowed, self.mode, profile=self.profile) if self.planner is None else planner(self.history, context, allowed, self.mode)
+            context = [] if self.mode == "kids" else (self.store.recall(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]])
+            allowed = self.available_tools(text)
+            answer = self.call_planner(self.history, context, allowed, cancel_event)
+            if cancel_event.is_set(): return {"state":"interrupted", "text":"Stopped before taking another action."}
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")
                 if name not in allowed:
@@ -376,9 +515,7 @@ class Agent:
                     if name != "messages.prepare": raise
                     return {"text": str(error) + " Choose the exact person and message in People & Texts.", "section": "people"}
                 # Do not include confirmation token or raw provider content in the LLM context.
-                self.history.append({"role": "assistant", "content": "An action was proposed. Read the authoritative action result on the local control surface."})
                 return result
             reply = answer.get("text")
             if not isinstance(reply, str) or not reply.strip(): raise ValueError("Local model returned no usable reply.")
-            self.history.append({"role": "assistant", "content": reply[:2000]})
             return {"text": reply[:2000]}

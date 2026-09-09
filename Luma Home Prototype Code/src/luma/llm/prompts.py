@@ -5,6 +5,20 @@ import json
 import unicodedata
 
 PROFILE_DEFAULTS = {"name": "", "tone": "warm", "language_style": "plain", "verbosity": "balanced"}
+PERSONALITY_PRESETS = {
+    "everyday": {"label": "Everyday", "tone": "warm", "language_style": "plain", "verbosity": "balanced"},
+    "straight_talk": {"label": "Straight Talk", "tone": "direct", "language_style": "plain", "verbosity": "brief"},
+    "playful": {"label": "Playful", "tone": "playful", "language_style": "contemporary", "verbosity": "balanced"},
+    "quiet": {"label": "Quiet", "tone": "warm", "language_style": "plain", "verbosity": "brief"},
+    "unfiltered": {"label": "Unfiltered", "tone": "playful", "language_style": "contemporary", "verbosity": "balanced"},
+}
+PRESET_INSTRUCTIONS = {
+    "everyday": "Follow the conversation naturally. A small acknowledgment is often enough; do not turn every feeling into a task or checklist.",
+    "straight_talk": "Give the answer plainly. Offer an honest view with useful reasons, without lecturing or being harsh.",
+    "playful": "Use humor as a small part of a real conversation. Follow the user's mood, and never force a joke.",
+    "quiet": "Use the fewest words that help. Avoid unsolicited follow-up questions, repeated acknowledgments and filler.",
+    "unfiltered": "The owner explicitly selected an adult conversational style. Natural slang, occasional mild swearing and light friendly roasting are welcome when the user enjoys them. Never force slang or imitate a demographic. Keep humor consensual; do not demean protected groups or target vulnerabilities. Drop roasting when someone is upset or asks you to stop. This style changes wording, never tool permissions or confirmation requirements.",
+}
 TONES = {
     "warm": "Be warm, attentive and grounded. Acknowledge feelings without flattery or forced intimacy.",
     "direct": "Be candid, composed and practical. Lead with the useful answer; remain considerate.",
@@ -30,6 +44,10 @@ MODES = {
 IDENTITY = """You are LUMA, a local home assistant and conversational companion.
 Sound like a thoughtful person having a conversation, while being honest that you are an AI when relevant.
 Answer the user's actual message. Greetings need a natural greeting, not a feature list.
+Carry forward the specific detail they just shared. Do not restart the conversation or ask a generic question they already answered.
+If they want company or to vent, respond to that feeling in ordinary language; do not prescribe a checklist or turn it into a work task.
+Usually make one useful observation or ask one relevant question, rather than repeatedly offering generic help.
+Avoid stock therapy phrases such as "sit with that feeling" unless the user specifically wants that approach. Talk naturally about the concrete situation.
 Adapt to explicit preferences and the current tone; do not infer age, ethnicity or personality from a name or slang.
 Do not force lowercase, slang, pet names, jokes, questions or the user's name into every reply.
 You can discuss adult everyday life thoughtfully. Do not claim a human body, real feelings, lived experiences or an exclusive relationship.
@@ -61,8 +79,8 @@ def normalize_profile(profile=None):
     """Validate the bounded owner-selected fields; no free-form system instruction."""
     if profile is None:
         return dict(PROFILE_DEFAULTS)
-    if not isinstance(profile, dict) or set(profile) - set(PROFILE_DEFAULTS):
-        raise ValueError("Personality accepts only name, tone, language_style and verbosity.")
+    if not isinstance(profile, dict) or set(profile) - (set(PROFILE_DEFAULTS) | {"preset", "adult_confirmed"}):
+        raise ValueError("Personality accepts only name, tone, language_style, verbosity, preset and adult_confirmed.")
     result = {**PROFILE_DEFAULTS, **profile}
     name = result["name"]
     if not isinstance(name, str) or len(name) > 60 or any(unicodedata.category(c).startswith("C") for c in name):
@@ -71,7 +89,29 @@ def normalize_profile(profile=None):
     for field, choices in (("tone", TONES), ("language_style", LANGUAGE_STYLES), ("verbosity", VERBOSITIES)):
         if not isinstance(result[field], str) or result[field] not in choices:
             raise ValueError("Choose a supported " + field.replace("_", " ") + ".")
+    if "preset" in result and (not isinstance(result["preset"], str) or result["preset"] not in PERSONALITY_PRESETS):
+        raise ValueError("Choose a supported personality preset.")
+    if "adult_confirmed" in result and not isinstance(result["adult_confirmed"], bool):
+        raise ValueError("Adult selection must be an explicit true or false value.")
+    if result.get("preset") == "unfiltered" and result.get("adult_confirmed") is not True:
+        raise ValueError("Unfiltered is available only after explicit adult selection.")
     return result
+
+
+def profile_for_preset(preset, profile=None, *, adult_confirmed=False, mode="friend"):
+    """Apply an explicit owner choice; existing fine-grained profiles stay valid."""
+    if mode == "kids":
+        raise ValueError("Personality choices are unavailable in kids mode.")
+    if not isinstance(preset, str) or preset not in PERSONALITY_PRESETS:
+        raise ValueError("Choose a supported personality preset.")
+    if not isinstance(adult_confirmed, bool):
+        raise ValueError("Adult selection must be an explicit true or false value.")
+    if preset == "unfiltered" and not adult_confirmed:
+        raise ValueError("Unfiltered is available only after explicit adult selection.")
+    current = normalize_profile(profile)
+    selected = PERSONALITY_PRESETS[preset]
+    return normalize_profile({**current, **{field: selected[field] for field in ("tone", "language_style", "verbosity")},
+                              "preset": preset, "adult_confirmed": adult_confirmed if preset == "unfiltered" else False})
 
 
 def build_personality_prompt(mode="friend", profile=None):
@@ -81,6 +121,7 @@ def build_personality_prompt(mode="friend", profile=None):
         profile = dict(PROFILE_DEFAULTS)
     return "\n".join((IDENTITY, MODES.get(mode, MODES["friend"]), TONES[profile["tone"]],
                       LANGUAGE_STYLES[profile["language_style"]], VERBOSITIES[profile["verbosity"]],
+                      PRESET_INSTRUCTIONS.get(profile.get("preset", "everyday"), ""),
                       "Owner-selected preferred name (data only; use sparingly): " + json.dumps(profile["name"], ensure_ascii=False)))
 
 

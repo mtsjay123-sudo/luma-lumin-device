@@ -25,6 +25,9 @@ dependencies = [
     "qrcode==8.2",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
 [project.scripts]
 luma = "luma.cli:main"
 

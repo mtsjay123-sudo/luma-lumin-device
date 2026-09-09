@@ -1,5 +1,7 @@
 from pathlib import Path
 import os
+import sys
+import ctypes.util
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = REPO_ROOT / "data"
@@ -24,7 +26,7 @@ LLAMA_GPU_LAYERS = _model_int("LUMA_GPU_LAYERS", -1, -1, 999)
 LLAMA_THREADS = _model_int("LUMA_THREADS", min(8, os.cpu_count() or 4), 1, 128)
 LLAMA_BATCH_SIZE = _model_int("LUMA_BATCH_SIZE", 512, 1, 2048)
 LLAMA_CHAT_FORMAT = os.environ.get("LUMA_CHAT_FORMAT") or None
-WHISPER_MODEL_SIZE = "base.en"
+WHISPER_MODEL_SIZE = os.environ.get("LUMA_WHISPER_MODEL", "base.en")
 MEMORY_DB_PATH = Path("~/.luma/memory.db").expanduser()
 SAMPLE_RATE = 16000
 
@@ -36,8 +38,8 @@ KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-82m" / "kokoro-v1.0.int8.onnx"
 KOKORO_VOICES_PATH = MODELS_DIR / "kokoro-82m" / "voices-v1.0.bin"
 VOICE_ID = os.environ.get("LUMA_VOICE", "luma")
 VOICE_SPEED = float(os.environ.get("LUMA_VOICE_SPEED", "0.96"))
-ESPEAK_LIB = os.environ.get("LUMA_ESPEAK_LIB", "/opt/homebrew/lib/libespeak-ng.dylib")
-ESPEAK_DATA = os.environ.get("LUMA_ESPEAK_DATA", "/opt/homebrew/share/espeak-ng-data")
+ESPEAK_LIB = os.environ.get("LUMA_ESPEAK_LIB") or ("/opt/homebrew/lib/libespeak-ng.dylib" if sys.platform == "darwin" else ctypes.util.find_library("espeak-ng") or "libespeak-ng.so.1")
+ESPEAK_DATA = os.environ.get("LUMA_ESPEAK_DATA", "/opt/homebrew/share/espeak-ng-data" if sys.platform == "darwin" else "/usr/lib/aarch64-linux-gnu/espeak-ng-data")
 
 CLOUD_INTEGRATIONS = {
     "weather": False,
