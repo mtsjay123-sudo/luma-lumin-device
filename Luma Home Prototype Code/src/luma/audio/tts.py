@@ -31,14 +31,43 @@ def validate_preferences(value):
     return {"voice":value["voice"], "speed":round(speed,2)}
 
 
+def _spoken_dollars(match):
+    """Read an explicit two-decimal dollar amount without rounding its value."""
+    dollars = int(match["whole"].replace(",", ""))
+    cents = int(match["cents"])
+    parts = []
+    if dollars or not cents:
+        parts.append(f"{dollars} dollar" + ("" if dollars == 1 else "s"))
+    if cents:
+        parts.append(f"{cents} cent" + ("" if cents == 1 else "s"))
+    return ("minus " if match["sign"] else "") + " and ".join(parts)
+
+
 def spoken_text(text):
-    """Remove formatting noise without paraphrasing facts, names or numbers."""
+    """Prepare speech; retain displayed text and exact monetary values elsewhere."""
     if not isinstance(text,str) or not text.strip(): raise ValueError("Speech text cannot be empty.")
     text = re.sub(r"\*\*(.+?)\*\*",r"\1",text)
     text = re.sub(r"`([^`]+)`",r"\1",text)
     text = re.sub(r"(?m)^\s*#{1,6}\s+", "", text)
-    text = re.sub(r"(?m)^\s*[-*•]\s+", "", text)
+    # Give explicit list items their own phrasing, including wrapped item text.
+    # Collapsing all newlines first makes "Get eggs / Call Mom" run together.
+    blocks, current = [], ""
+    for line in text.splitlines():
+        item = re.match(r"^[ \t]*[-*•][ \t]+(.*)", line)
+        if item or not line.strip():
+            if current: blocks.append(current)
+            current = item[1].strip() if item else ""
+        else:
+            current = (current + " " + line.strip()).strip()
+    if current: blocks.append(current)
+    text = " ".join(block if index == len(blocks)-1 or re.search(r'[.!?;:,][\"\u201d\u2019\')\]]*$', block)
+                    else block + "." for index, block in enumerate(blocks))
     text = re.sub(r"(?<=[A-Za-z])[—–](?=[A-Za-z])", ", ", text)
+    # Kokoro's installed tokenizer reads "$12.50" as "dollar twelve, fifty".
+    # Only normalize explicit decimal amounts: leave shorthand, other currencies,
+    # dates, phone numbers, IDs and unsupported number formats unchanged.
+    text = re.sub(r"(?<![\w$])(?P<sign>-)?\$(?P<whole>\d{1,3}(?:,\d{3}){1,3}|\d{1,12})"
+                  r"\.(?P<cents>\d{2})(?!\w|[.,]\d)", _spoken_dollars, text)
     return re.sub(r"\s+", " ", text).strip()
 
 

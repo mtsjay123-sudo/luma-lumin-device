@@ -12,9 +12,23 @@ class NaturalSpeechTests(unittest.TestCase):
         self.assertEqual(tts.speech_chunks(text),[text])
     def test_formatting_is_not_read_but_values_are_preserved(self):
         spoken=tts.spoken_text('## Your reminder\n**Mom**: meet at `3:15 PM`. Price $12.50; quantity 2.\n- Bring the keys.')
-        self.assertIn('Mom: meet at 3:15 PM. Price $12.50; quantity 2.',spoken)
+        self.assertIn('Mom: meet at 3:15 PM. Price 12 dollars and 50 cents; quantity 2.',spoken)
         self.assertIn('Bring the keys.',spoken)
         self.assertNotIn('**',spoken)
+    def test_list_items_have_pauses_without_breaking_wrapped_items(self):
+        self.assertEqual(tts.spoken_text('- Turn it off\n- Wait ten seconds\n- Turn it on'),
+                         'Turn it off. Wait ten seconds. Turn it on')
+        self.assertEqual(tts.spoken_text('Try this:\n- Pick up the eggs\n  from the fridge.\n- Call Mom!\n\nThen take a break.'),
+                         'Try this: Pick up the eggs from the fridge. Call Mom! Then take a break.')
+    def test_currency_is_spoken_exactly_without_rounding_or_changing_other_numbers(self):
+        for original, expected in [('$1.01', '1 dollar and 1 cent'), ('$0.50', '50 cents'),
+                                   ('$12.00', '12 dollars'), ('$0.00', '0 dollars'),
+                                   ('-$1,234.56', 'minus 1234 dollars and 56 cents'),
+                                   ('$12.50.', '12 dollars and 50 cents.'),
+                                   ('$12.50, including tax.', '12 dollars and 50 cents, including tax.')]:
+            with self.subTest(original=original): self.assertEqual(tts.spoken_text(original),expected)
+        unchanged = 'At 3:15 PM call +12025550100. Model 1.2.3, $12.50M, $12.345, $12.50,000, $1,23.45, and €12.50.'
+        self.assertEqual(tts.spoken_text(unchanged),unchanged)
     def test_voice_controls_are_bounded_and_explicit(self):
         self.assertEqual(tts.validate_preferences({'voice':'luma','speed':1.03}),{'voice':'luma','speed':1.03})
         for value in [{'voice':'clone','speed':1},{'voice':'luma','speed':float('nan')},{'voice':'luma','speed':True},{'voice':'luma','speed':3}]:

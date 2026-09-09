@@ -31,3 +31,9 @@ Real app playback completed with the microphone off, no page/speech errors and n
 - Mac demo folder: `/Users/marvinjohnson/Desktop/Amiri_2026_Execution/Luma/Demos/Voice_2026-09-09/`.
 
 For Jetson transfer, copy the selected speech asset and set a device-local path; rerun diagnostics and model-manifest verification. No Mac-specific absolute path is committed in the portable configuration.
+
+## Speech detail follow-up
+
+Explicit bullet items and paragraphs now retain a spoken pause instead of being flattened into a run-on sentence. Wrapped lines within an item stay together. Explicit two-decimal dollar amounts are converted for speech without rounding (for example, $12.50 becomes “12 dollars and 50 cents”); the original displayed and reviewed text stays unchanged. Other currencies, numeric identifiers, times and unsupported shorthand are preserved.
+
+34 focused speech, personality, interruption and companion tests passed, plus 15 subtest checks. A fresh full-precision local recording of a price and three list items was transcribed by local Whisper with the exact amount and every word retained. This is an intelligibility check, not a subjective listening score. The sample and its report are `cadence-check.wav` and `cadence-check.json` in the Mac demo folder.
