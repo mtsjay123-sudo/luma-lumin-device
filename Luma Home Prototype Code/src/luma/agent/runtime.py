@@ -249,7 +249,8 @@ class Agent:
     def call_planner(self, messages, context, allowed, cancel_event, profile=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm.inference import plan
-        return plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event)
+        return plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
+                    on_text=getattr(self, "_on_text", None))
 
     def enable(self, service, value):
         if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser"}: raise ValueError("Unknown integration.")
@@ -737,7 +738,8 @@ class Agent:
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
 
-    def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None):
+    def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None):
+        """on_text receives a reply's words as the model writes them (for speaking early)."""
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
             raise ValueError("Enter 1–4000 characters.")
         reject_payment_secrets(text)
@@ -749,6 +751,7 @@ class Agent:
         with self.lock:
             if event.is_set(): return {"state":"interrupted", "text":"Stopped before starting."}
             self.busy = True
+            self._on_text = on_text
             self.history.append({"role":"user", "content":text.strip()})
             self.history = self.history[-20:]
             try:
@@ -772,6 +775,7 @@ class Agent:
                 raise
             finally:
                 self.busy = False
+                self._on_text = None
 
     def _follow_up(self, question, tool, result, allowed, cancel_event, steps=2):
         """After a look-up, let the model answer or take one more step with what it found.

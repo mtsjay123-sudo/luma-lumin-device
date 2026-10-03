@@ -177,8 +177,24 @@ def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, should_stop
 
 def speak(text: str, should_stop=None, voice: str = DEFAULT_VOICE, speed=None) -> bool:
     """Prefetch at most two phrases while one continuous output stream plays."""
+    return _play_phrases(iter(speech_chunks(spoken_text(text))), should_stop, voice, speed)
+
+
+def speak_stream(phrases, should_stop=None, voice: str = DEFAULT_VOICE, speed=None) -> bool:
+    """Speak phrases as they arrive (e.g. while the model is still writing).
+
+    `phrases` is a blocking iterator of text pieces, already grouped into
+    sentences by the caller (see luma.llm.streaming.SentenceBuffer).
+    """
+    def chunks():
+        for phrase in phrases:
+            if isinstance(phrase, str) and phrase.strip():
+                yield from speech_chunks(spoken_text(phrase))
+    return _play_phrases(chunks(), should_stop, voice, speed)
+
+
+def _play_phrases(chunks, should_stop, voice, speed):
     from luma.audio.io import play_chunks
-    chunks = speech_chunks(spoken_text(text))
     stopped = threading.Event()
     pending = queue.Queue(maxsize=2)
     should_cancel = lambda: stopped.is_set() or (should_stop is not None and should_stop())

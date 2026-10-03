@@ -1,6 +1,7 @@
 """Cancellable local voice turns. Capture requires an explicit owner opt-in."""
 import json
 import os
+import queue
 import re
 import threading
 import time
@@ -26,6 +27,7 @@ def capture_blocked(agent):
 
 
 def speak(text, agent, cancel_event=None, allow_muted=False):
+    """Speak a whole reply, or an iterable of phrases as they arrive."""
     from luma.audio import tts, vad
     event = cancel_event or agent.turn_cancel
     should_stop = lambda: event.is_set() or (not allow_muted and agent.muted)
@@ -36,24 +38,80 @@ def speak(text, agent, cancel_event=None, allow_muted=False):
         agent.speaking = True
         vad.set_speaking(True)
         preferences = agent.voice_preferences
-        return tts.speak(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])
+        if isinstance(text, str):
+            return tts.speak(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])
+        return tts.speak_stream(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])
     finally:
         vad.set_speaking(False)
         agent.speaking = False
         _speech_lock.release()
 
 
+class SpeechStream:
+    """Feed it the reply as the model writes it; Luma starts talking at the first sentence."""
+
+    def __init__(self, agent, cancel_event, allow_muted=False, speaker=None):
+        from luma.llm.streaming import SentenceBuffer
+        self.agent, self.event, self.allow_muted = agent, cancel_event, allow_muted
+        self.buffer = SentenceBuffer()
+        self.phrases = queue.Queue()
+        self.thread = None
+        self.speaker = speaker or speak
+
+    @property
+    def started(self):
+        return self.thread is not None
+
+    def _iter(self):
+        while not self.event.is_set():
+            try: phrase = self.phrases.get(timeout=.05)
+            except queue.Empty: continue
+            if phrase is None: return
+            yield phrase
+
+    def feed(self, delta):
+        for phrase in self.buffer.feed(delta):
+            self._push(phrase)
+
+    def _push(self, phrase):
+        if self.thread is None:
+            phrases = self._iter()
+            self.thread = threading.Thread(target=self._run, args=(phrases,), daemon=True)
+            self.thread.start()
+        self.phrases.put(phrase)
+
+    def _run(self, phrases):
+        try: self.speaker(phrases, self.agent, cancel_event=self.event, allow_muted=self.allow_muted)
+        except Exception as error:
+            if getattr(self.agent, 'on_result', None): self.agent.on_result({'text': 'Voice could not play: ' + str(error)[:250]})
+
+    def finish(self, wait=True):
+        """Speak whatever is left. Returns True if anything was spoken by streaming."""
+        if self.thread is None:
+            return False
+        for phrase in self.buffer.flush():
+            self.phrases.put(phrase)
+        self.phrases.put(None)
+        if wait: self.thread.join()
+        return True
+
+
 def ask_typed(text, agent=None, voice=False, cancel_event=None):
     agent = agent or get_agent()
     event = cancel_event or agent.new_turn()
-    result = agent.chat(text, cancel_event=event)
+    stream = SpeechStream(agent, event) if voice else None
+    result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None)
     # Do not write private conversations to service logs.
     if getattr(agent, 'on_result', None): agent.on_result(result)
     else: display(result)
-    if voice and not event.is_set():
-        message = 'Please review the exact action details in your local controls.' if result.get('state') == 'pending' else result.get('text') or result.get('summary') or 'Your result is ready in Luma.'
-        speak(message, agent, cancel_event=event)
+    if voice and not event.is_set() and not stream.finish():
+        speak(spoken_reply(result), agent, cancel_event=event)
     return result
+
+
+def spoken_reply(result):
+    """What Luma says out loud for a finished turn that wasn't already streamed."""
+    return result.get('text') or result.get('summary') or 'Your result is ready in Luma.'
 
 
 def reset():

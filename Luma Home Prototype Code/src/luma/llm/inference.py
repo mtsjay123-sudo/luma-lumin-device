@@ -36,9 +36,9 @@ def _model_access(cancel_event=None):
         _inference_lock.release()
 
 
-def _complete(model, cancel_event=None, **kwargs):
+def _complete(model, cancel_event=None, on_delta=None, **kwargs):
     _check_cancel(cancel_event)
-    if cancel_event is None:
+    if cancel_event is None and on_delta is None:
         return model.create_chat_completion(**kwargs)["choices"][0]["message"]["content"]
     # Closing the generator stops token generation. Native model loading/prompt
     # prefill must finish first; they cannot be safely killed from another thread.
@@ -52,6 +52,8 @@ def _complete(model, cancel_event=None, **kwargs):
                 content = choices[0].get("delta", {}).get("content")
                 if isinstance(content, str):
                     text.append(content)
+                    if on_delta is not None:
+                        on_delta(content)
         _check_cancel(cancel_event)
         return "".join(text)
     finally:
@@ -78,7 +80,7 @@ def fit_history(messages, token_count, budget):
     return recent
 
 
-def plan(messages, memories, tools, mode, profile=None, cancel_event=None):
+def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
     """Generate a constrained proposal; execution remains in the runtime."""
     profile = normalize_profile(profile)
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
@@ -91,7 +93,9 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None):
         _check_cancel(cancel_event)
         count = lambda text: len(model.tokenize(text.encode("utf-8"), add_bos=False))
         recent = fit_history(messages, count, LLAMA_CONTEXT_SIZE - count(prompt) - max_tokens - 160)
-        raw = _complete(model, cancel_event,
+        from luma.llm.streaming import ReplyTextStream
+        stream = ReplyTextStream(on_text) if on_text is not None else None
+        raw = _complete(model, cancel_event, on_delta=stream.feed if stream else None,
             messages=[{"role": "system", "content": prompt}] + recent,
             response_format={"type": "json_object", "schema": proposal_schema(tools)},
             max_tokens=max_tokens, temperature=0.45, top_p=0.9, repeat_penalty=1.08,

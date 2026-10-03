@@ -1187,3 +1187,27 @@ footer p {
   font-size: 12px;
   background: #fff;
 }
+
+/* Chat composer: a soft message field instead of a form box */
+#command textarea {
+  min-height: 58px;
+  margin-top: 8px;
+  padding: 15px 18px;
+  border: 1px solid #e3e8da;
+  border-radius: 22px;
+  background: #fafbf7;
+  font-size: 16px;
+  line-height: 1.5;
+  resize: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+#command textarea:focus,
+#command textarea:focus-visible {
+  outline: 0;
+  border-color: #c9aa77;
+  background: #fff;
+  box-shadow: 0 0 0 3px #c9aa7726;
+}
+#command .command-bottom {
+  margin-top: 12px;
+}

@@ -196,12 +196,14 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     ctx.say(text)
                     result={'ok':True,'summary':'Speaking on this Mac. Stop interrupts playback.'}
                 elif path=='/api/chat':
+                    from luma.orchestrator import SpeechStream, spoken_reply
                     event=agent.new_turn()
-                    result=agent.chat(data.get('text'),cancel_event=event)
+                    # Start talking at the first sentence while the model is still writing.
+                    stream=SpeechStream(agent,event,allow_muted=True) if data.get('voice') is True and not companion else None
+                    result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None)
                     ctx.publish(result)
-                    if data.get('voice') is True and not companion and not event.is_set():
-                        spoken='Please review the exact details in the action card.' if result.get('state')=='pending' else result.get('text') or result.get('summary') or 'Your result is ready in Luma.'
-                        ctx.say(spoken, event)
+                    if stream and not event.is_set() and not stream.finish(wait=False):
+                        ctx.say(spoken_reply(result), event)
                 elif path=='/api/workflows/start' or path=='/api/workflows/resume':
                     result=agent.chat(data.get('goal'),agent_mode=True,resume_id=data.get('id') if path.endswith('resume') else None)
                     ctx.publish(result)
