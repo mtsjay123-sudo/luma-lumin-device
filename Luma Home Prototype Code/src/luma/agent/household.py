@@ -343,7 +343,7 @@ class Household:
             state = "acknowledged" if args["action"] == "acknowledge" else row["state"]
             return {"timer": row, "summary": f"Your {row['name']} timer is {state}."}
         if name == "household.save":
-            return {"record": self.save_record(**args, mode=mode), "summary": "Household note saved locally. You can edit or delete it in Household."}
+            return {"record": self.save_record(**args, mode=mode), "summary": "Saved. I'll remember that about the house."}
         if name == "household.find":
             rows = self.records(**args, mode=mode)
             summary = " ".join(f"{r['title']}: {r['details'][:400]}" for r in rows[:3]) if rows else "I couldn't find a saved household note matching that."

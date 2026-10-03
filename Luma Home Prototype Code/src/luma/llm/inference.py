@@ -84,6 +84,8 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None):
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
     prompt = build_plan_prompt(memories, tools, mode, profile, now)
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
+    if any("slides" in spec.get("fields", {}).values() for spec in tools.values()):
+        max_tokens = 1800  # a whole deck outline in one constrained answer
     with _model_access(cancel_event):
         model = _load_model()
         _check_cancel(cancel_event)

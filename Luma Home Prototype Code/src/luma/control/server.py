@@ -139,10 +139,23 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path=='/' and not companion)
             if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated()})
             if not self.authenticated(): return self.send({'error':'Pair this phone from the Mac, or reopen the local owner controls.'},401)
+            if path.startswith('/files/'):
+                row = agent.store.get('file', path[len('/files/'):])
+                files = (agent.files_dir).resolve()
+                target = Path(row['path']).resolve() if row else None
+                if not row or files not in target.parents or not target.is_file(): return self.send({'error':'File not found'},404)
+                data = target.read_bytes()
+                self.send_response(200)
+                kind = 'application/vnd.openxmlformats-officedocument.presentationml.presentation' if target.suffix == '.pptx' else 'application/octet-stream'
+                safe = ''.join(c for c in row['name'] if c.isalnum() or c in '-_.') or 'luma-file'
+                for k, v in {'Content-Type': kind, 'Content-Length': str(len(data)), 'Content-Disposition': f'attachment; filename="{safe}"',
+                             'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}.items(): self.send_header(k, v)
+                self.end_headers()
+                return self.wfile.write(data)
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
@@ -204,7 +217,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
-                    elif key in {'web_search','sms','home_assistant','shopping','booking'} and type(value) is bool: agent.enable(key,value)
+                    elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
                     else: raise ValueError('Unsupported setting')
                     result={'ok':True}
                 elif path=='/api/timers/start': result=agent.propose('timers.start',data)
@@ -252,6 +265,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
                     elif path=='/api/contacts/save': result=agent.contacts.save(data)
                     elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
+                    elif path in {'/api/browser/show', '/api/browser/hide'}:
+                        if companion: return self.send({'error':"Sign in to sites on the Mac."},403)
+                        agent._check('browser.open')
+                        result = agent.browser.show_for_sign_in(data.get('url') or 'https://www.instagram.com/') if path.endswith('show') else agent.browser.hide()
+                        if path.endswith('show'): result = {'summary': 'Sign in in the Luma browser window, then tap Done signing in.', 'url': result.get('url')}
                     elif path.startswith('/api/texting/'):
                         if companion and path not in {'/api/texting/account','/api/texting/upgrade'}:
                             return self.send({'error':"Set up Luma's number on the Mac."},403)

@@ -1170,3 +1170,20 @@ footer p {
     display: none;
   }
 }
+
+.browser-signin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+.browser-signin input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #e0e5d8;
+  border-radius: 20px;
+  font-size: 12px;
+  background: #fff;
+}

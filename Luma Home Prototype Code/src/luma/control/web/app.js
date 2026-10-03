@@ -904,6 +904,20 @@ function renderTexting(data) {
   if (a?.plan !== "plus" && a?.plus)
     card.append(make("p", `Luma Plus: ${a.plus.texts_limit} texts a month, your own Luma number, replies forwarded to Luma. Texting from your own number through Messages stays free and unlimited.`, "footnote"));
 }
+$("#browser-show").onclick = async () => {
+  try {
+    toast((await api("/api/browser/show", { url: $("#browser-site").value })).summary);
+  } catch (e) {
+    toast(e.message);
+  }
+};
+$("#browser-hide").onclick = async () => {
+  try {
+    toast((await api("/api/browser/hide", {})).summary);
+  } catch (e) {
+    toast(e.message);
+  }
+};
 $("#message-route-form").onsubmit = async (e) => {
   e.preventDefault();
   try {
