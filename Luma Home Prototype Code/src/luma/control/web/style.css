@@ -966,3 +966,207 @@ footer p {
 }
 
 .voice-settings .footnote { grid-column:1/-1; margin:0; }
+
+/* Conversation thread */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 2px 18px;
+  margin: 6px 0 4px;
+  scroll-behavior: smooth;
+}
+.thread:empty {
+  display: none;
+}
+.msg {
+  display: flex;
+}
+.msg.you {
+  justify-content: flex-end;
+}
+.msg .bubble {
+  max-width: min(78%, 620px);
+  padding: 12px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.msg .bubble > p + p,
+.msg .bubble > p + .text-card,
+.msg .bubble > .text-card + p {
+  margin-top: 8px;
+}
+.msg.you .bubble {
+  background: #3b4c3c;
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+.msg.luma .bubble {
+  background: #f3f5ee;
+  color: #2d3530;
+  border-bottom-left-radius: 6px;
+  position: relative;
+}
+.msg.luma .bubble .remembered {
+  margin-top: 8px;
+}
+.msg .hear {
+  position: absolute;
+  right: -30px;
+  bottom: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 9px;
+  color: #8f9d82;
+  background: #f6f8f1;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.msg.luma:hover .hear,
+.msg .hear:focus-visible {
+  opacity: 1;
+}
+.typing .bubble {
+  display: inline-flex;
+  gap: 5px;
+  padding: 16px 18px;
+}
+.typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a9b39e;
+  animation: luma-dot 1.2s infinite ease-in-out;
+}
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes luma-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing i { animation: none; }
+  .thread { scroll-behavior: auto; }
+}
+.text-card > .eyebrow {
+  display: block;
+}
+.text-card {
+  margin-top: 10px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #e3e8da;
+  border-radius: 16px;
+}
+.text-card h3 {
+  font-size: 15px;
+  margin: 8px 0;
+}
+.text-card textarea {
+  min-height: 70px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid #dfe5d6;
+  border-radius: 14px;
+  font-size: 14px;
+}
+.imsg {
+  display: inline-block;
+  margin-top: 10px;
+  max-width: 100%;
+  padding: 9px 14px;
+  border-radius: 18px;
+  border-bottom-right-radius: 5px;
+  background: #2f80ed;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.text-card .review-actions,
+.plan-offer .review-actions,
+.plan-card .review-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+.plan-offer {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fbf6ea, #f1f5e9);
+  border: 1px solid #eadfc6;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.source {
+  display: block;
+  margin-top: 8px;
+  font-weight: 550;
+  color: #3b4c3c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.file-link {
+  margin-top: 10px;
+}
+
+/* Luma's number */
+.plan-card {
+  margin-top: 23px;
+}
+.plan-card h3 {
+  font-size: 21px;
+  margin: 10px 0 6px;
+}
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.plan-badge {
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  background: #eef2e6;
+  color: #627945;
+}
+.plan-badge.plus {
+  background: #3b4c3c;
+  color: #fff;
+}
+.meter {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 8px;
+  background: #eef1e7;
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #8fb07a, #3b4c3c);
+}
+.plan-card .inline-form {
+  margin-top: 16px;
+}
+@media (max-width: 700px) {
+  .msg .bubble {
+    max-width: 88%;
+  }
+  .msg .hear {
+    display: none;
+  }
+}

@@ -69,6 +69,7 @@
           <h2>What can I take care of?</h2>
           <span id="runtime-mode">Local intelligence</span>
         </div>
+        <div id="results" class="thread" aria-live="polite"></div>
         <form id="command">
           <label class="sr-only" for="message">Ask Luma</label
           ><textarea
@@ -95,9 +96,9 @@
             data-prompt="Search compare prices for Sony WH-1000XM6 headphones"
           >
             Research a price</button
-          ><button data-prompt="Text +19195550123: ">Draft a message</button>
+          ><button data-prompt="Text my mom that I'm on my way">Text someone</button
+          ><button data-prompt="Did anyone text back?">Check replies</button>
         </div>
-        <div id="results" aria-live="polite"></div>
       </section>
       <section id="daily-briefing" class="briefing-strip">
         <div><span class="eyebrow">TODAY, AT A GLANCE</span><p id="briefing-copy">Your saved commitments will appear here.</p></div>
@@ -183,11 +184,16 @@
                   type="tel"
                   placeholder="+1 919 555 0123"
                   required /></label
+              ><label
+                >Nicknames · optional<input
+                  id="contact-aliases"
+                  placeholder="my girl, babe"
+                  maxlength="200" /></label
               ><button class="button">Save contact</button>
             </form>
             <div id="contacts-list"></div>
             <p class="footnote">
-              Luma does not automatically read your phone’s contacts.
+              Luma does not automatically read your phone’s contacts. Nicknames let you say “text my girl…” or “tell babe…”.
             </p>
           </article>
           <article class="card">
@@ -207,6 +213,7 @@
                   <option value="mac_sms">
                     This Mac’s Messages · SMS forwarding
                   </option>
+                  <option value="luma_number">Luma’s number · free texts each month</option>
                   <option value="twilio">A connected Twilio number</option>
                 </select></label
               ><button class="pill">Use this texting route</button>
@@ -237,6 +244,7 @@
             </form>
           </article>
         </div>
+        <article id="luma-number" class="card plan-card owner-only"></article>
         <div id="message-drafts" class="receipt-grid"></div>
         <div id="message-receipts" class="receipt-grid"></div>
       </section>

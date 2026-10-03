@@ -252,6 +252,20 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
                     elif path=='/api/contacts/save': result=agent.contacts.save(data)
                     elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
+                    elif path.startswith('/api/texting/'):
+                        if companion and path not in {'/api/texting/account','/api/texting/upgrade'}:
+                            return self.send({'error':"Set up Luma's number on the Mac."},403)
+                        if path=='/api/texting/start': result=agent.cloud.start_signup(data.get('name'),data.get('phone'))
+                        elif path=='/api/texting/finish':
+                            result=agent.cloud.finish_signup(data.get('code'),device_name='Luma')
+                            agent.set_message_route('luma_number')
+                        elif path=='/api/texting/account': result={'account':agent.cloud.account(refresh=True)}
+                        elif path=='/api/texting/upgrade': result={'url':agent.cloud.upgrade_link()}
+                        elif path=='/api/texting/manage': result={'url':agent.cloud.manage_link()}
+                        elif path=='/api/texting/signout':
+                            result=agent.cloud.sign_out()
+                            if agent.message_route=='luma_number': agent.set_message_route('phone_draft')
+                        else: return self.send({'error':'Not found'},404)
                     elif path=='/api/messages/route':
                         if companion: return self.send({'error':'Choose the sending account on the Mac.'},403)
                         result=agent.set_message_route(data.get('route'))
@@ -285,7 +299,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     event=agent.tick()
                     if event:
                         ctx.events.append(event)
-                        if not agent.muted:
+                        if not agent.muted and not event.get('silent'):
                             from luma.orchestrator import speak
                             speak(event['text'],agent)
                 except Exception: pass

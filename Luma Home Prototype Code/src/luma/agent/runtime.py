@@ -27,6 +27,8 @@ from luma.hardware.device import DeviceController
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
 from luma.agent.conversation import wants_message, style_update, grocery_request
+from luma.agent import texting
+from luma.integrations.luma_cloud import LumaCloud, QuotaReached
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,7 @@ TOOLS = {
     "messages.prepare": Tool("Draft a message to a saved contact name or exact phone number; prepare sending for review", {"recipient": "string", "body": "string"}),
     "mac_messages.send": Tool("Submit a reviewed message through this Mac Messages account", {"to": "string", "body": "string", "transport": "string"}, "sms", True),
     "sms.send": Tool("Send the exact text to an E.164 phone number using Twilio", {"to": "string", "body": "string"}, "sms", True),
+    "luma.send": Tool("Send a reviewed text from Luma's number", {"to": "string", "body": "string"}, "sms", True),
     "booking.availability": Tool("Find real available appointment slots for a configured service", {"service": "string", "start": "string", "end": "string", "time_zone": "string"}, "booking"),
     "booking.create": Tool("Book only a slot selected in the local booking form", {"offer_id": "string", "name": "string", "email": "string"}, "booking", True),
     "home.light": Tool("Control a configured Home Assistant light", {"entity_id": "string", "state": "string", "brightness": "integer"}, "home_assistant", True),
@@ -70,7 +73,7 @@ def validate(name, args):
             raise ValueError(f"{key} must be nonempty text of at most 2000 characters.")
         if typ == "integer" and (type(val) is not int or val < 0): raise ValueError(f"{key} must be a nonnegative integer.")
     reject_payment_secrets(args)
-    if name in {"sms.send", "mac_messages.send"}:
+    if name in {"sms.send", "mac_messages.send", "luma.send"}:
         if not re.fullmatch(r"\+[1-9]\d{7,14}", args["to"]): raise ValueError("Use an exact E.164 recipient such as +19195550123.")
         if len(args["body"]) > 1000: raise ValueError("SMS text must be at most 1000 characters.")
     if name == "mac_messages.send" and args["transport"] not in {"imessage", "sms"}: raise ValueError("Choose iMessage or SMS forwarding explicitly.")
@@ -98,6 +101,10 @@ class Agent:
         self.groceries = GroceryService(env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
         self.bookings = CalBookings(self.store, env=self.providers.env, request=getattr(self.providers, "request", None), clock=self.clock)
         self.device = DeviceController.from_env()
+        self.cloud = LumaCloud(self.store, env=self.providers.env, request=getattr(self.providers, "cloud_request", None), clock=self.clock)
+        self.awaiting = None  # the one text/action the owner can approve by saying "send it"
+        self.awaiting_contact = None  # a text waiting on "what's their number?"
+        self._last_reply_poll = 0
         self.lock = threading.RLock()
         self.history = []  # conversations are RAM-only; explicit memories persist
         self.turn_guard = threading.Lock()
@@ -133,7 +140,7 @@ class Agent:
         if mode not in {"friend", "study", "cofounder", "kids"}: raise ValueError("Choose friend, study, cofounder or kids.")
         self.interrupt()
         with self.lock:
-            self.last_task = self.last_draft = None
+            self.last_task = self.last_draft = self.awaiting = self.awaiting_contact = None
             self.last_reply = ""
             self.store.set_setting("mode", mode)
             self.history.clear()
@@ -230,7 +237,7 @@ class Agent:
 
     def set_message_route(self, route):
         if self.mode == "kids": raise ValueError("Message settings are unavailable in kids mode.")
-        if route not in {"phone_draft", "twilio", "mac_imessage", "mac_sms"}: raise ValueError("Choose a supported texting route.")
+        if route not in {"phone_draft", "twilio", "mac_imessage", "mac_sms", "luma_number"}: raise ValueError("Choose a supported texting route.")
         self.store.set_setting("message_route", route)
         self.enable("sms", route != "phone_draft")
         return {"route": route}
@@ -238,9 +245,9 @@ class Agent:
     def status(self):
         env=self.providers.env
         mac=MacMessages(env=env).readiness()
-        sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else False
+        sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY"))}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY"))}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -272,11 +279,42 @@ class Agent:
             raise ValueError("Approval expired. Create a fresh action and review it again.")
         if not hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), row["approval_hash"]):
             raise ValueError("Incorrect confirmation token.")
-        return self._execute(row, {"pending"})
+        if self.awaiting and self.awaiting["action"] == id: self.awaiting = None
+        return self._humanize(row, self._execute(row, {"pending"}))
 
     def cancel(self, id):
+        if self.awaiting and self.awaiting["action"] == id: self.awaiting = None
         row = self.store.transition(id, {"pending", "ready"}, "cancelled")
         return {"action": id, "state": row["state"]}
+
+    def _humanize(self, row, result):
+        """Say what happened the way a person would, from the verified result."""
+        if row["tool"] not in {"sms.send", "mac_messages.send", "luma.send"} or result.get("text"):
+            return result
+        contact = self.contacts.by_phone(row["arguments"]["to"])
+        name = contact["name"] if contact else row["arguments"]["to"]
+        route = {"luma.send": "luma_number", "sms.send": "twilio"}.get(row["tool"], "mac_" + row["arguments"].get("transport", "imessage"))
+        if result.get("state") == "succeeded":
+            result["text"] = texting.sent_text(name, route, result)
+        elif result.get("state") in {"failed", "unknown"}:
+            result["text"] = result.get("summary")
+        return result
+
+    def _remember_sent(self, to, body):
+        self.store.put("sent_text", {"to": to, "body": body, "created": self.clock()})
+        old = self.store.all("sent_text", 400)[300:]
+        for row in old: self.store.delete("sent_text", row["id"])
+
+    def _examples(self, phone):
+        return [r["body"] for r in self.store.all("sent_text", 300) if r.get("to") == phone][:5][::-1]
+
+    def texting_status(self):
+        account = self.cloud.cached_account()
+        return {"route": self.message_route, "enabled": self.store.setting("integration:sms", False),
+                "luma_number": {"signed_in": self.cloud.signed_in(), "verifying": bool(self.store.setting("luma_cloud_pending")),
+                                "account": account},
+                "sent_this_month": sum(1 for r in self.store.all("sent_text", 300)
+                                       if datetime.fromtimestamp(r["created"], self.zone).strftime("%Y-%m") == datetime.fromtimestamp(self.clock(), self.zone).strftime("%Y-%m"))}
 
     def _execute(self, row, expected):
         name, args = row["tool"], row["arguments"]
@@ -284,12 +322,18 @@ class Agent:
         self._check(name)  # recheck mode/consent at action time
         if name == "sms.send" and self.message_route != "twilio": raise ValueError("The texting route changed. Prepare a fresh message for review.")
         if name == "mac_messages.send" and self.message_route != "mac_"+args["transport"]: raise ValueError("The texting route changed. Prepare a fresh message for review.")
+        if name == "luma.send" and self.message_route != "luma_number": raise ValueError("The texting route changed. Prepare a fresh message for review.")
         self.store.transition(row["id"], expected, "executing", started=self.clock())
         try:
-            result = self._run(name, args)
+            result = self._run(name, args, action_id=row["id"])
             state = "handoff" if result.get("handoff") else "succeeded"
             self.store.transition(row["id"], {"executing"}, state, result=result, finished=self.clock())
+            if name in {"sms.send", "mac_messages.send", "luma.send"}:
+                self._remember_sent(args["to"], args["body"])
             return {"action": row["id"], "state": state, **result}
+        except QuotaReached as e:
+            self.store.transition(row["id"], {"executing"}, "failed", error=str(e))
+            return {"action": row["id"], "state": "failed", "quota": True, "upgrade_url": e.upgrade_url, "summary": texting.quota_text(e), "section": "people"}
         except OutcomeUnknown as e:
             self.store.transition(row["id"], {"executing"}, "unknown", error=str(e))
             return {"action": row["id"], "state": "unknown", "summary": str(e)}
@@ -301,7 +345,7 @@ class Agent:
             self.store.transition(row["id"], {"executing"}, "unknown", error="Unexpected failure; inspect provider state before retrying.")
             raise
 
-    def _run(self, name, args):
+    def _run(self, name, args, action_id=None):
         if name in TOOL_SPECS:
             result = self.household.run(name, args, mode=self.mode)
             result["section"] = "household" if name.startswith("household.") else "cooking" if name.startswith(("timers.", "cooking.")) else "daily-briefing"
@@ -334,6 +378,7 @@ class Agent:
         if name == "booking.create": return self.bookings.create(args)
         if name == "web.search": return self.providers.search(args)
         if name == "sms.send": return self.providers.sms(args)
+        if name == "luma.send": return self.cloud.send(args["to"], args["body"], client_ref=action_id or secrets.token_hex(8))
         if name == "mac_messages.send":
             env={**self.providers.env,"LUMA_MESSAGES_TRANSPORT":args["transport"]}
             return MacMessages(env=env).send({"to":args["to"],"body":args["body"]})
@@ -349,13 +394,150 @@ class Agent:
             simpler = re.sub(r"^(?:my|our)\s+", "", recipient.strip(), flags=re.I)
             if simpler == recipient: raise
             contact = self.contacts.resolve(simpler)
+        if isinstance(body, str):
+            body = texting.mirror_style(body.strip(), self._examples(contact["phone"]))
         args = {"to": contact["phone"], "body": body}
         validate("sms.send", args)
+        name = contact["name"]
         if self.store.setting("integration:sms", False):
-            if self.message_route.startswith("mac_"): return self.propose("mac_messages.send",{**args,"transport":self.message_route[4:]})
-            if self.message_route == "twilio": return self.propose("sms.send", args)
-        draft = self.store.put("phone_draft", {**args, "name": contact["name"], "created": self.clock()})
-        return {"state": "draft", "message_draft": draft, "summary": "Message drafted for your phone. Copy the text, open Messages and tap Send there. Luma has not sent it."}
+            route, account, result = self.message_route, None, None
+            if route == "luma_number":
+                account = self.cloud.cached_account()
+                if account and account.get("texts_left") == 0:
+                    try: account = self.cloud.account(refresh=True)
+                    except ProviderError: pass
+                if account and account.get("texts_left") == 0:
+                    plus = account.get("plus") or {}
+                    error = QuotaReached(f"You've used your {account.get('texts_limit')} free texts from Luma's number this month." if account.get("plan") != "plus"
+                                         else f"You've sent all {account.get('texts_limit')} texts included in Luma Plus this month.", plan=account.get("plan", "free"), plus=plus)
+                    draft = self.store.put("phone_draft", {**args, "name": name, "created": self.clock()})
+                    return {"state": "quota", "quota": True, "message_draft": draft, "section": "people", "upgrade_available": bool(plus.get("available")),
+                            "text": texting.quota_text(error)}
+                result = self.propose("luma.send", args)
+            elif route.startswith("mac_"): result = self.propose("mac_messages.send",{**args,"transport":route[4:]})
+            elif route == "twilio": result = self.propose("sms.send", args)
+            if result:
+                result.update(recipient_name=name, text=texting.pending_text(name, body, route, account))
+                return result
+        draft = self.store.put("phone_draft", {**args, "name": name, "created": self.clock()})
+        return {"state": "draft", "message_draft": draft, "recipient_name": name, "text": texting.draft_text(name, body),
+                "summary": "Message drafted for your phone. Copy the text, open Messages and tap Send there. Luma has not sent it."}
+
+    TEXT_REQUEST = re.compile(
+        r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?"
+        r"(?:(?:text|message|sms|imessage)\s+(?P<r1>.+?)\s+(?P<c1>to say|to tell (?:her|him|them)|and (?:say|tell (?:her|him|them))|to|that|saying)\s+(?P<b1>.+)"
+        r"|let\s+(?P<r2>.+?)\s+know\s+(?:that\s+)?(?P<b2>.+))", re.I | re.S)
+    TELL_REQUEST = re.compile(
+        r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?"
+        r"tell\s+(?!me\b|us\b|him\b|her\b|them\b)((?:my|our)\s+[\w'-]+|[A-Za-z][\w'-]*)\s+(?:that\s+)?(.+)", re.I | re.S)
+
+    def _text_request(self, text):
+        match = self.TEXT_REQUEST.fullmatch(text.strip())
+        if match and match["r1"]:
+            recipient, connector, request = match["r1"], "to" if match["c1"].lower() == "to" else "that", match["b1"]
+        elif match:
+            recipient, connector, request = match["r2"], "that", match["b2"]
+        else:
+            tell = self.TELL_REQUEST.fullmatch(text.strip())
+            if not tell: return None
+            try: self.contacts.resolve(tell[1])  # "tell X" only means a text when X is someone saved
+            except ValueError: return None
+            recipient, connector, request = tell[1], "that", tell[2]
+        if self.mode == "kids":
+            return {"text": "I can't text people in kids mode. Ask a grown-up to help with that one."}
+        recipient = recipient.strip().strip(",")
+        quoted = re.fullmatch(r'\s*["“](.+?)["”]\s*[.!?]?\s*', request, re.S)
+        body = quoted[1] if quoted else texting.template_text(connector, request)
+        try:
+            return self.prepare_message(recipient, body)
+        except ValueError as error:
+            if "multiple contacts" in str(error):
+                return {"text": f"More than one person is saved as {recipient}. Which one did you mean?", "section": "people"}
+            if "contact" not in str(error):
+                return {"text": str(error)}
+            self.awaiting_contact = {"label": recipient, "body": body, "created": self.clock()}
+            label = re.sub(r"^(?:my|our)\s+", "", recipient, flags=re.I).lower()
+            pronoun = "her" if label in {"girl", "girlfriend", "wife", "mom", "mother", "mama", "sister", "sis", "aunt", "grandma", "daughter", "bae"} else \
+                      "his" if label in {"boy", "boyfriend", "husband", "dad", "father", "brother", "bro", "uncle", "grandpa", "son"} else "their"
+            ask = f"Who's {recipient}? Give me {pronoun} name and number" if recipient.lower().startswith(("my ", "our ")) else f"What's {recipient}'s number? Send it"
+            return {"text": ask + " and I'll save it and get the text ready.", "section": "people"}
+
+    @staticmethod
+    def _phone_from_text(text):
+        match = re.search(r"(?<!\d)(\+?\d[\d\s().-]{8,17}\d)(?!\d)", text)
+        if not match: return None, text
+        digits = re.sub(r"\D", "", match[1])
+        if match[1].startswith("+") and 8 <= len(digits) <= 15: phone = "+" + digits
+        elif len(digits) == 10: phone = "+1" + digits
+        elif len(digits) == 11 and digits.startswith("1"): phone = "+" + digits
+        else: return None, text
+        return phone, (text[:match.start()] + " " + text[match.end():]).strip()
+
+    def _contact_followup(self, text):
+        pending = self.awaiting_contact
+        if not pending or self.mode == "kids": return None
+        if self.clock() - pending["created"] > 600:
+            self.awaiting_contact = None
+            return None
+        phone, rest = self._phone_from_text(text)
+        if not phone: return None
+        rest = re.sub(r"(?i)\b(?:her|his|their|my|the)?\s*(?:name\s+is|name's|number\s+is|number's|it's|its|it is|that's|thats|she's|he's|called)\b", " ", rest)
+        words = [w for w in re.findall(r"[A-Za-z][A-Za-z'-]*", rest) if w.lower() not in {"and", "her", "his", "their", "number", "name", "is", "at", "the", "phone", "cell"}]
+        label = re.sub(r"^(?:my|our)\s+", "", pending["label"], flags=re.I)
+        name = " ".join(w[:1].upper() + w[1:] for w in words[:3]) or label[:1].upper() + label[1:]
+        aliases = [label] if label.casefold() != name.casefold() else []
+        self.awaiting_contact = None
+        try:
+            self.contacts.save({"name": name, "phone": phone, "aliases": aliases})
+            result = self.prepare_message(name, pending["body"])
+        except ValueError as error:
+            return {"text": "I couldn't save that: " + str(error), "section": "people"}
+        result["text"] = f"Saved {name}" + (f" as your {label}" if aliases else "") + ". " + result.get("text", "")
+        return result
+
+    SAVE_CONTACT = re.compile(r"(?:please\s+)?(?:save|add)\s+(?P<name>[A-Za-z][\w' -]{0,40}?)(?:'s)?(?:\s+(?:number|cell|phone))?(?:\s*(?:as|is|:|,|-))?\s+(?P<phone>\+?[\d(][\d\s().-]{8,18}\d)(?:\s*(?:,|and)?\s*(?:as|she's|he's|that's)\s+(?P<alias>(?:my|our)\s+[\w' -]{1,30}))?\.?", re.I)
+
+    def _save_contact_request(self, text):
+        match = self.SAVE_CONTACT.fullmatch(text.strip())
+        if not match or self.mode == "kids": return None
+        phone, _ = self._phone_from_text(match["phone"])
+        if not phone: return None
+        name = " ".join(w[:1].upper() + w[1:] for w in match["name"].split())
+        alias = match["alias"]
+        try:
+            record = self.contacts.save({"name": name, "phone": phone, "aliases": [alias] if alias else []})
+        except ValueError as error:
+            return {"text": str(error), "section": "people"}
+        extra = f" — I'll know who you mean by {alias.lower()}" if alias else ""
+        return {"text": f"Got it, {record['name']} is saved{extra}.", "contact": record, "section": "people"}
+
+    def replies_summary(self, text=""):
+        replies = [r for r in self.store.all("sms_reply", 30)]
+        if not replies:
+            if self.message_route != "luma_number":
+                return {"text": "I can only see replies to Luma's number. Texts to your own number show up on your phone."}
+            return {"text": "Nobody's texted back yet."}
+        lowered = text.lower()
+        named = [r for r in replies if r.get("name") and r["name"].lower() in lowered]
+        picks = (named or replies)[:3]
+        for r in picks:
+            if not r.get("announced"): self.store.put("sms_reply", {**r, "announced": True}, r["id"])
+        return {"text": " ".join(f"{r['name']} said: “{r['body']}”" + ("." if not r['body'].endswith(('.', '!', '?')) else "") for r in picks), "replies": picks}
+
+    def _poll_replies(self):
+        """Fetch replies to Luma's number about once a minute. Network happens outside the agent lock."""
+        if self.message_route != "luma_number" or self.mode == "kids" or not self.cloud.signed_in(): return
+        if self.clock() - self._last_reply_poll < max(5, int(self.providers.env.get("LUMA_REPLY_POLL_SECONDS", "60") or 60)): return
+        self._last_reply_poll = self.clock()
+        try: replies = self.cloud.inbox()
+        except ProviderError: return
+        for reply in replies:
+            sender = str(reply.get("from", ""))
+            contact = self.contacts.by_phone(sender)
+            row = {"from": sender, "name": contact["name"] if contact else sender, "body": " ".join(str(reply.get("body", "")).split())[:1600],
+                   "received_at": reply.get("received_at"), "announced": False}
+            try: self.store.put("sms_reply", row, "sms_reply:" + str(reply.get("id")))
+            except ValueError: self.store.put("sms_reply", {**row, "body": "(a message with a long number in it; check your messages)"}, "sms_reply:" + str(reply.get("id")))
 
     def message_status(self, action_id):
         self._check("sms.send")
@@ -372,6 +554,7 @@ class Agent:
         This scheduler never executes an external tool or buys/sends anything.
         It delivers text even with the microphone muted; caller gates audio.
         """
+        self._poll_replies()
         with self.lock:
             timer_events = self.household.timer_events(mode=self.mode, deliver=not self.speaking)
             if timer_events:
@@ -380,6 +563,13 @@ class Agent:
             local = datetime.fromtimestamp(now, self.zone)
             start, end = self.store.setting("quiet_hours", [23, 7])
             quiet = (local.hour >= start or local.hour < end) if start > end else (start <= local.hour < end)
+            # Replies always show up; during quiet hours they arrive silently.
+            if not self.speaking and now >= self.store.setting("hush_until", 0) and self.mode != "kids":
+                fresh = [r for r in self.store.all("sms_reply", 20) if not r.get("announced")][::-1][:3]
+                if fresh:
+                    for r in fresh: self.store.put("sms_reply", {**r, "announced": True}, r["id"])
+                    lines = [f"{r['name']} texted back: “{r['body']}”" for r in fresh]
+                    return {"type": "reply", "text": " ".join(lines), "created": now, "silent": quiet}
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
             due = [r for r in self.store.all("task", 1000) if not r["done"] and not r["notified"] and r["due"] <= now and r.get("mode", "friend") == self.mode]
             routines = [r for r in self.store.all("routine", 1000) if r["enabled"] and r["last_day"] != local.date().isoformat() and r["at"] <= local.strftime("%H:%M") and r.get("mode", "friend") == self.mode]
@@ -405,6 +595,8 @@ class Agent:
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
             raise ValueError("Enter 1–4000 characters.")
         reject_payment_secrets(text)
+        spoken = self._spoken_approval(text)
+        if spoken is not None: return spoken
         if text.strip().lower() in {"wait", "stop talking", "stop speaking", "never mind", "nevermind"}:
             return self.interrupt()
         event = cancel_event or self.new_turn()
@@ -418,6 +610,8 @@ class Agent:
                 if event.is_set() and not result.get("action") and not result.get("workflow"):
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
                 if result.get("task"): self.last_task = result["task"]["id"]
+                if result.get("state") == "pending" and result.get("confirm_token"):
+                    self.awaiting = {"action": result["action"], "token": result["confirm_token"], "expires": result.get("expires", self.clock() + 600)}
                 if result.get("message_draft"): self.last_draft = result["message_draft"]["id"]
                 reply = result.get("text") or result.get("summary") or "Read the verified result in the local controls."
                 self.last_reply = reply
@@ -433,6 +627,29 @@ class Agent:
             finally:
                 self.busy = False
 
+    def _spoken_approval(self, text):
+        """ "Send it" / "don't send it" for the action Luma just proposed. Plain rules, not the model."""
+        if not self.awaiting: return None
+        intent = texting.confirm_intent(text)
+        if intent is None: return None
+        awaiting, self.awaiting = self.awaiting, None
+        with self.lock:
+            self.history.append({"role":"user", "content":text.strip()})
+            if intent == "cancel":
+                try: self.cancel(awaiting["action"])
+                except ValueError: pass
+                result = {"state": "cancelled", "action": awaiting["action"], "text": "Okay, I won't send it."}
+            elif self.clock() > awaiting["expires"]:
+                try: self.store.transition(awaiting["action"], {"pending"}, "expired")
+                except ValueError: pass
+                result = {"state": "expired", "text": "That one sat too long, so I didn't send it. Want me to set it up again?"}
+            else:
+                try: result = self.confirm(awaiting["action"], awaiting["token"])
+                except ValueError as error: result = {"state": "failed", "text": "I didn't send it: " + str(error)}
+            self.history.append({"role":"assistant", "content": result.get("text") or result.get("summary") or ""})
+            self.last_reply = result.get("text") or ""
+            return result
+
     def _chat(self, text, cancel_event):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000: raise ValueError("Enter 1–4000 characters.")
         text = text.strip()
@@ -446,6 +663,8 @@ class Agent:
             # A modest deterministic safety fallback, not a clinical classifier.
             if any(p in lowered for p in ["kill myself", "end my life", "suicide tonight", "hurt myself now"]):
                 return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
+            followup = self._contact_followup(text)
+            if followup is not None: return followup
             if lowered in {"actually tomorrow", "actually, tomorrow", "make that tomorrow", "tomorrow instead"} and self.last_task:
                 row = self.store.get("task", self.last_task)
                 if not row or row["done"] or row.get("mode", "friend") != self.mode: raise ValueError("That reminder is no longer active.")
@@ -483,17 +702,14 @@ class Agent:
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
                 return self.propose("tasks.create", {"title": m[3], "due": datetime.fromtimestamp(self.clock()+delay, self.zone).isoformat()})
             if lowered.startswith("search "): return self.propose("web.search", {"query": text[7:].strip()})
-            # Preserve requested message content for common natural phrasing.
-            # This fast path avoids adding products, prices or promises during paraphrase.
-            natural = re.fullmatch(r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?(?:text|message|sms)\s+(.+?)\s+(to|that|saying)\s+(.+)", text, re.I | re.S)
-            if natural:
-                recipient, connector, body = natural.groups()
-                try:
-                    if connector.lower() == "to": body = "Please " + body.rstrip(".?!") + "."
-                    elif body.startswith('"') and body.endswith('"'): body = body[1:-1]
-                    return self.prepare_message(recipient, body)
-                except ValueError as error:
-                    return {"text": str(error) + " Add or choose the exact person in People & Texts so I do not guess."}
+            # Common ways of asking for a text are drafted by rules, not the model,
+            # so nothing gets added to what the owner said.
+            texted = self._text_request(text)
+            if texted is not None: return texted
+            saved = self._save_contact_request(text)
+            if saved is not None: return saved
+            if re.search(r"\b(?:did|has)\b.{1,40}\b(?:text(?:ed)?|messag(?:e|ed)|repl(?:y|ied)|respond(?:ed)?|write|written|wrote)\b.{0,20}\bback\b|\b(?:any|new)\s+(?:texts|replies|messages)\b|\bwho texted\b", lowered):
+                return self.replies_summary(text)
             m = re.fullmatch(r"(?:please )?text ([^:\n]{1,90}):\s*(.+)", text, re.S | re.I)
             if m: return self.prepare_message(m[1], m[2])
             m = re.fullmatch(r"every day at ((?:[01]\d|2[0-3]):[0-5]\d) (.+)", text, re.I)

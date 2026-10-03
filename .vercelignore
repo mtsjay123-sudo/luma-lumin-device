@@ -1,0 +1,5 @@
+# The website deploys from this folder. Keep device source, tests and dev tools off it.
+Luma Home Prototype Code/
+tests/
+tools/
+supabase/

@@ -41,144 +41,237 @@ async function setting(key, value) {
   }
 }
 const renderedActions = new Set();
+const prettyPhone = (n) => (/^\+1\d{10}$/.test(n || "") ? `(${n.slice(2, 5)}) ${n.slice(5, 8)}-${n.slice(8)}` : n);
+const MESSAGE_TOOLS = ["sms.send", "mac_messages.send", "luma.send"];
+const ROUTE_NAMES = {
+  "luma.send": "Luma’s number",
+  "mac_messages.send": "your number",
+  "sms.send": "your Twilio number",
+};
+function thread() {
+  return $("#results");
+}
+function scrollThread() {
+  const t = thread();
+  t.scrollTop = t.scrollHeight;
+}
+function bubble(role) {
+  const row = make("div", undefined, "msg " + role),
+    b = make("div", undefined, "bubble");
+  row.append(b);
+  thread().querySelector(".typing")?.remove();
+  thread().append(row);
+  while (thread().children.length > 50) thread().firstElementChild.remove();
+  return b;
+}
+function sayYou(text) {
+  bubble("you").append(make("p", text));
+  scrollThread();
+}
+function showTyping() {
+  const row = make("div", undefined, "msg luma typing"),
+    b = make("div", undefined, "bubble");
+  b.append(make("i"), make("i"), make("i"));
+  row.append(b);
+  thread().append(row);
+  scrollThread();
+}
+async function openUpgrade() {
+  try {
+    const { url } = await api("/api/texting/upgrade", {});
+    window.open(url, "_blank", "noopener");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+function upgradeOffer(data) {
+  const offer = make("div", undefined, "plan-offer");
+  offer.append(
+    make("b", "Luma Plus"),
+    make("span", "More texts every month and your own Luma number."),
+  );
+  const actions = make("div", undefined, "review-actions");
+  actions.append(
+    button("Get Luma Plus", openUpgrade, "button"),
+    button("Send from my number instead", () =>
+      $("#people").scrollIntoView({ behavior: "smooth" }),
+    ),
+  );
+  offer.append(actions);
+  return offer;
+}
+function textCard(data) {
+  const name = data.recipient_name || data.arguments.to;
+  const card = make("div", undefined, "text-card");
+  card.append(
+    make("span", `TEXT TO ${name.toUpperCase()} · FROM ${(ROUTE_NAMES[data.tool] || "your phone").toUpperCase()}`, "eyebrow"),
+  );
+  const body = make("div", data.arguments.body, "imsg");
+  card.append(body);
+  const actions = make("div", undefined, "review-actions");
+  const lock = () => actions.querySelectorAll("button").forEach((e) => (e.disabled = true));
+  actions.append(
+    button("Send it", async () => {
+      lock();
+      try {
+        result(await api("/api/confirm", { id: data.action, token: data.confirm_token }));
+        actions.remove();
+      } catch (e) {
+        result({ text: e.message });
+      }
+      await refresh();
+    }, "button"),
+    button("Don’t send", async () => {
+      lock();
+      try {
+        await api("/api/cancel", { id: data.action });
+        actions.remove();
+        result({ text: "Okay, I won’t send it." });
+      } catch (e) {
+        result({ text: e.message });
+      }
+    }, "pill"),
+    button("Edit", async () => {
+      const editor = make("textarea");
+      editor.value = data.arguments.body;
+      editor.maxLength = 1000;
+      editor.rows = 3;
+      body.replaceWith(editor);
+      editor.focus();
+      actions.replaceChildren(
+        button("Use this", async () => {
+          try {
+            await api("/api/cancel", { id: data.action });
+            result(await api("/api/messages/prepare", { recipient: data.arguments.to, body: editor.value }));
+            card.remove();
+          } catch (e) {
+            toast(e.message);
+          }
+        }, "button"),
+      );
+    }),
+  );
+  card.append(actions);
+  return card;
+}
+function reviewCard(data) {
+  const box = make("div", undefined, "text-card");
+  box.append(make("span", "READY FOR YOUR OK", "eyebrow"), make("h3", data.tool.replaceAll(".", " · ")));
+  const review = data.review
+    ? {
+        appointment: data.review.title,
+        start: data.review.local_start || data.review.start,
+        time_zone: data.review.time_zone,
+        attendee: data.review.attendee?.name,
+        email: data.review.attendee?.email,
+        price: "$0 · free appointment",
+      }
+    : data.arguments;
+  for (const [k, v] of Object.entries(review)) {
+    const row = make("p");
+    row.append(make("b", k.replaceAll("_", " ") + ": "), make("span", String(v)));
+    box.append(row);
+  }
+  box.append(make("p", "Nothing happens until you confirm.", "footnote"));
+  const buttons = make("div", undefined, "review-actions");
+  for (const [label, path] of [["Confirm", "/api/confirm"], ["Cancel", "/api/cancel"]]) {
+    const b = make("button", label, label === "Cancel" ? "pill" : "button");
+    b.onclick = async () => {
+      buttons.querySelectorAll("button").forEach((e) => (e.disabled = true));
+      try {
+        result(await api(path, { id: data.action, token: data.confirm_token }));
+      } catch (e) {
+        result({ text: e.message });
+      }
+      await refresh();
+    };
+    buttons.append(b);
+  }
+  box.append(buttons);
+  return box;
+}
+function draftCard(d) {
+  const card = make("div", undefined, "text-card");
+  card.append(make("span", `DRAFT FOR ${(d.name || d.to).toUpperCase()} · NOT SENT`, "eyebrow"), make("div", d.body, "imsg"));
+  const actions = make("div", undefined, "review-actions");
+  actions.append(
+    button("Copy", async () => {
+      await navigator.clipboard.writeText(d.body);
+      toast("Copied. Paste it in Messages and tap Send.");
+    }),
+  );
+  const open = make("a", "Open in Messages", "pill");
+  open.href = `sms:${d.to}&body=${encodeURIComponent(d.body)}`;
+  actions.append(open);
+  card.append(actions);
+  return card;
+}
 function result(data) {
   if (data.event_id && renderedActions.has(data.event_id)) return;
   if (data.event_id) renderedActions.add(data.event_id);
   const identity = data.action && `${data.action}:${data.state}`;
   if (identity && renderedActions.has(identity)) return;
   if (identity) renderedActions.add(identity);
-  const box = make("article", undefined, "result");
-  if (data.state === "pending") {
+  const box = bubble("luma");
+  const pendingText = data.state === "pending" && MESSAGE_TOOLS.includes(data.tool);
+  const text =
+    data.text ||
+    (pendingText ? "" : data.summary) ||
+    (data.memories
+      ? data.memories.length
+        ? "Here’s what you asked me to remember."
+        : "No matching memories yet."
+      : data.tasks
+        ? "Your reminders are below."
+        : data.state === "cancelled"
+          ? "Okay, cancelled."
+          : data.state === "pending"
+            ? "Take a look before I do this."
+            : "Done.");
+  if (text) box.append(make("p", text));
+  if (data.state === "pending") box.append(pendingText ? textCard(data) : reviewCard(data));
+  if (data.message_draft && ["draft", "quota"].includes(data.state)) box.append(draftCard(data.message_draft));
+  if (data.quota) box.append(upgradeOffer(data));
+  if (data.profile) profileLoaded = false;
+  if (data.memories) for (const m of data.memories) box.append(make("p", m.text, "remembered"));
+  if (data.records) for (const r of data.records) box.append(make("p", r.title + ": " + r.details, "remembered"));
+  if (data.results)
+    for (const h of data.results)
+      if (/^https:\/\//.test(h.url)) {
+        const a = make("a", h.title, "source");
+        a.href = h.url;
+        a.target = "_blank";
+        a.rel = "noreferrer";
+        box.append(a, make("p", h.snippet, "footnote"));
+      }
+  if (data.file && /^\/files\//.test(data.file.url || "")) {
+    const a = make("a", "⬇ " + data.file.name, "button file-link");
+    a.href = data.file.url;
+    a.download = data.file.name;
+    box.append(a);
+  }
+  if (data.handoff && /^https:\/\//.test(data.url)) {
+    const a = make("a", "Continue to the store ↗", "button");
+    a.href = data.url;
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    box.append(a, make("p", `List: ${data.items}. Budget: $${(data.budget_cents / 100).toFixed(2)}. You review the cart and pay at the store.`, "footnote"));
+  }
+  if (["groceries", "people"].includes(data.section) && !data.quota && data.state !== "draft")
     box.append(
-      make("span", "READY FOR YOUR REVIEW", "eyebrow"),
-      make("h3", data.tool.replaceAll(".", " · ")),
-    );
-    const review = data.review
-      ? {
-          appointment: data.review.title,
-          start: data.review.local_start || data.review.start,
-          time_zone: data.review.time_zone,
-          attendee: data.review.attendee?.name,
-          email: data.review.attendee?.email,
-          price: "$0 · free appointment",
-        }
-      : data.arguments;
-    for (const [k, v] of Object.entries(review)) {
-      const row = make("p");
-      row.append(
-        make("b", k.replaceAll("_", " ") + ": "),
-        make("span", String(v)),
-      );
-      box.append(row);
-    }
-    box.append(
-      make(
-        "p",
-        "Review these exact details. No message, booking, order or device command has been sent.",
-        "footnote",
+      button(data.section === "groceries" ? "Open groceries" : "Open People & Texts", () =>
+        document.getElementById(data.section).scrollIntoView({ behavior: "smooth" }),
       ),
     );
-    const buttons = make("div", undefined, "review-actions");
-    for (const [label, path] of [
-      ["Confirm action", "/api/confirm"],
-      ["Cancel", "/api/cancel"],
-    ]) {
-      const b = make("button", label, label === "Cancel" ? "pill" : "button");
-      b.onclick = async () => {
-        buttons.querySelectorAll("button").forEach((e) => (e.disabled = true));
-        try {
-          const r = await api(path, {
-            id: data.action,
-            token: data.confirm_token,
-          });
-          result(r);
-        } catch (e) {
-          result({ summary: e.message });
-        }
-        await refresh();
-      };
-      buttons.append(b);
-    }
-    if (["sms.send", "mac_messages.send"].includes(data.tool)) {
-      buttons.append(
-        button("Edit message", async () => {
-          await api("/api/cancel", { id: data.action });
-          buttons
-            .querySelectorAll("button")
-            .forEach((e) => (e.disabled = true));
-          $("#message-recipient").value = data.arguments.to;
-          $("#message-body").value = data.arguments.body;
-          $("#people").scrollIntoView({ behavior: "smooth" });
-          $("#message-body").focus();
-          await refresh();
-        }),
-      );
-    }
-    box.append(buttons);
-  } else {
-    const text =
-      data.text ||
-      data.summary ||
-      (data.memories
-        ? data.memories.length
-          ? "Here’s what you asked me to remember."
-          : "No matching memories yet."
-        : data.tasks
-          ? "Your reminders are below."
-          : data.state === "cancelled"
-            ? "Action cancelled."
-            : "Done.");
-    box.append(make("p", text));
-    if (data.profile) profileLoaded = false;
-    if (["groceries", "people"].includes(data.section)) {
-      box.append(
-        button(
-          data.section === "groceries"
-            ? "Open groceries"
-            : "Open People & Texts",
-          () => {
-            document
-              .getElementById(data.section)
-              .scrollIntoView({ behavior: "smooth" });
-          },
-        ),
-      );
-    }
-    if (data.memories)
-      for (const m of data.memories)
-        box.append(make("p", m.text, "remembered"));
-    if (data.results)
-      for (const h of data.results) {
-        const a = make("a", h.title);
-        if (/^https:\/\//.test(h.url)) {
-          a.href = h.url;
-          a.target = "_blank";
-          a.rel = "noreferrer";
-          box.append(a, make("p", h.snippet, "footnote"));
-        }
-      }
-    if (data.handoff && /^https:\/\//.test(data.url)) {
-      const a = make("a", "Continue to merchant ↗", "button");
-      a.href = data.url;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      box.append(
-        a,
-        make(
-          "p",
-          `List: ${data.items}. Budget: $${(data.budget_cents / 100).toFixed(2)}. Cart and payment still need review at the merchant.`,
-          "footnote",
-        ),
-      );
-    }
+  const spoken = text || (pendingText ? `Text to ${data.recipient_name}: ${data.arguments.body}` : "");
+  if (spoken && state?.viewer !== "phone") {
+    const hear = button("▶", async () => {
+      await api("/api/speak", { text: spoken });
+    }, "hear");
+    hear.setAttribute("aria-label", "Hear this");
+    box.append(hear);
   }
-  if ((data.text || data.summary) && state?.viewer !== "phone") box.append(button("▶ Hear this", async () => {
-    await api("/api/speak", {text: data.text || data.summary});
-  }));
-  if (data.records) for (const r of data.records) box.append(make("p", r.title + ": " + r.details, "remembered"));
-  $("#results").prepend(box);
-  while ($("#results").children.length > 6)
-    $("#results").lastElementChild.remove();
+  scrollThread();
 }
 function empty(target, text) {
   target.replaceChildren(make("p", text, "empty"));
@@ -291,27 +384,36 @@ async function refresh() {
 $("#command").onsubmit = async (e) => {
   e.preventDefault();
   if (busy) return;
+  const text = $("#message").value.trim();
+  if (!text) return;
   busy = true;
   $("#send").disabled = true;
-  $("#send").textContent = "Thinking locally…";
-  const text = $("#message").value;
+  sayYou(text);
+  $("#message").value = "";
+  showTyping();
   try {
     const d = await api("/api/chat", { text, voice: $("#speak-replies").checked });
     result(d);
-    $("#message").value = "";
     await refresh();
   } catch (e) {
-    result({ summary: e.message });
+    result({ text: e.message });
   } finally {
+    thread().querySelector(".typing")?.remove();
     busy = false;
     $("#send").disabled = false;
-    $("#send").textContent = "Ask Luma ↗";
+    $("#message").focus();
   }
 };
+$("#message").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $("#command").requestSubmit();
+  }
+});
 $("#privacy").onclick = () => setting("muted", !state.status.microphone_muted);
 $("#mode").onchange = async (e) => {
   await setting("mode", e.target.value);
-  $("#results").replaceChildren();
+  thread().replaceChildren();
   seen.clear();
 };
 $("#hush").onclick = () => setting("hush", true);
@@ -405,7 +507,7 @@ function renderExtra(data) {
   for (const c of data.contacts || []) {
     const row = make("div", undefined, "memory-row"),
       copy = make("div");
-    copy.append(make("b", c.name), make("p", c.phone));
+    copy.append(make("b", c.name), make("p", prettyPhone(c.phone) + (c.aliases?.length ? " · " + c.aliases.join(", ") : "")));
     row.append(
       copy,
       button("Remove", async () => {
@@ -418,11 +520,15 @@ function renderExtra(data) {
     option.value = c.name;
     $("#contact-options").append(option);
   }
-  $("#message-route").textContent = data.status.integrations.sms
-    ? data.status.message_route === "twilio"
-      ? "Review before sending from the configured Twilio number."
-      : "Review before sending through this Mac’s Messages account. Acceptance is not a delivery receipt."
-    : "Prepare a draft for your own phone number. You will copy the text and tap Send in Messages.";
+  const route = data.status.message_route;
+  $("#message-route").textContent = !data.status.integrations.sms
+    ? "Right now Luma drafts texts for you to send from your phone. Pick a route below to have Luma send them after you say “send it”."
+    : route === "luma_number"
+      ? "Luma sends from its own number after you approve each text. Replies come back to Luma."
+      : route === "twilio"
+        ? "Luma sends from your Twilio number after you approve each text."
+        : "Luma sends from your own number through this Mac’s Messages after you approve each text. It’s free.";
+  renderTexting(data);
   const drafts = $("#message-drafts");
   drafts.replaceChildren();
   for (const d of data.message_drafts || []) {
@@ -585,10 +691,11 @@ function renderExtra(data) {
 $("#contact-form").onsubmit = async (e) => {
   e.preventDefault();
   try {
-    await api("/api/contacts/save", {
-      name: $("#contact-name").value,
-      phone: $("#contact-phone").value.replace(/[\s()-]/g, ""),
-    });
+    const aliases = $("#contact-aliases").value.split(",").map((a) => a.trim()).filter(Boolean);
+    let phone = $("#contact-phone").value.replace(/[\s().-]/g, "");
+    if (/^\d{10}$/.test(phone)) phone = "+1" + phone;
+    else if (/^1\d{10}$/.test(phone)) phone = "+" + phone;
+    await api("/api/contacts/save", { name: $("#contact-name").value, phone, ...(aliases.length ? { aliases } : {}) });
     e.target.reset();
     await refresh();
   } catch (error) {
@@ -715,6 +822,88 @@ $("#booking-form").onsubmit = async (e) => {
   }
 };
 
+function renderTexting(data) {
+  const card = $("#luma-number");
+  if (!card) return;
+  const t = data.status.texting || {},
+    cloud = t.luma_number || {},
+    a = cloud.account;
+  card.replaceChildren();
+  const head = make("div", undefined, "plan-head");
+  head.append(make("span", "LUMA’S NUMBER", "eyebrow"));
+  if (a) head.append(make("span", a.plan === "plus" ? "Luma Plus" : "Free", "plan-badge " + (a.plan === "plus" ? "plus" : "")));
+  card.append(head);
+  if (!cloud.signed_in && !cloud.verifying) {
+    card.append(
+      make("h3", "Text anyone, even without your phone."),
+      make("p", "Luma gets its own number for your texts. Free texts every month; Luma Plus adds more and a number that’s just yours.", "intro"),
+    );
+    const form = make("form", undefined, "inline-form");
+    form.innerHTML = '<label>Your name<input name="name" maxlength="60" required placeholder="Marvin"></label><label>Your mobile<input name="phone" type="tel" required placeholder="+1 919 555 0123"></label><button class="button">Text me a code</button>';
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      let phone = form.phone.value.replace(/[\s().-]/g, "");
+      if (/^\d{10}$/.test(phone)) phone = "+1" + phone;
+      try {
+        toast((await api("/api/texting/start", { name: form.name.value, phone })).summary);
+        await refresh();
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+    card.append(form, make("p", "Your number is only used to verify it’s you and to sign your texts. US and Canada for now.", "footnote"));
+    return;
+  }
+  if (!cloud.signed_in) {
+    const form = make("form", undefined, "inline-form");
+    form.innerHTML = '<label>Code from the text<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required></label><button class="button">Verify</button>';
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        toast((await api("/api/texting/finish", { code: form.code.value.trim() })).summary);
+        await refresh();
+      } catch (error) {
+        toast(error.message);
+      }
+    };
+    card.append(make("h3", "Check your texts."), form);
+    return;
+  }
+  if (a) {
+    const used = a.texts_used ?? 0,
+      limit = a.texts_limit || 1;
+    card.append(make("h3", `${a.texts_left ?? Math.max(0, limit - used)} texts left this month`));
+    const meter = make("div", undefined, "meter"),
+      fill = make("i");
+    fill.style.width = Math.min(100, (100 * used) / limit) + "%";
+    meter.append(fill);
+    card.append(meter, make("p", `${used} of ${limit} used · resets ${a.period_ends ? new Date(a.period_ends).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "monthly"}`, "footnote"));
+    if (a.number) card.append(make("p", (a.dedicated_number ? "Your Luma number: " : "Sending from Luma’s shared number: ") + prettyPhone(a.number), "intro"));
+    else if (a.number_pending) card.append(make("p", "Your own Luma number is on its way.", "intro"));
+  }
+  const actions = make("div", undefined, "review-actions");
+  if (t.route !== "luma_number")
+    actions.append(button("Text from Luma’s number", async () => {
+      await api("/api/messages/route", { route: "luma_number" });
+      await refresh();
+    }, "button"));
+  if (a?.plan === "plus") actions.append(button("Manage Luma Plus", async () => window.open((await api("/api/texting/manage", {})).url, "_blank", "noopener")));
+  else if (a?.plus?.available !== false)
+    actions.append(button(`Get Luma Plus · ${a?.plus?.price || "$9.99/month"}`, openUpgrade, t.route === "luma_number" ? "button" : "pill"));
+  actions.append(
+    button("Refresh", async () => {
+      await api("/api/texting/account", {});
+      await refresh();
+    }),
+    button("Disconnect", async () => {
+      await api("/api/texting/signout", {});
+      await refresh();
+    }),
+  );
+  card.append(actions);
+  if (a?.plan !== "plus" && a?.plus)
+    card.append(make("p", `Luma Plus: ${a.plus.texts_limit} texts a month, your own Luma number, replies forwarded to Luma. Texting from your own number through Messages stays free and unlimited.`, "footnote"));
+}
 $("#message-route-form").onsubmit = async (e) => {
   e.preventDefault();
   try {
