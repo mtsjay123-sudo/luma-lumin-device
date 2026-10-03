@@ -103,6 +103,7 @@ function upgradeOffer(data) {
 function textCard(data) {
   const name = data.recipient_name || data.arguments.to;
   const card = make("div", undefined, "text-card");
+  card.dataset.action = data.action;
   card.append(
     make("span", `TEXT TO ${name.toUpperCase()} · FROM ${(ROUTE_NAMES[data.tool] || "your phone").toUpperCase()}`, "eyebrow"),
   );
@@ -212,7 +213,12 @@ function result(data) {
   const identity = data.action && `${data.action}:${data.state}`;
   if (identity && renderedActions.has(identity)) return;
   if (identity) renderedActions.add(identity);
+  // Approved or cancelled somewhere else (by voice, by text, on the phone): retire the old buttons.
+  if (data.action && data.state !== "pending")
+    for (const old of document.querySelectorAll(`.text-card[data-action="${CSS.escape(data.action)}"] .review-actions`)) old.remove();
+  if (data.you) sayYou("📱 " + data.you);
   const box = bubble("luma");
+  if (data.channel === "sms") box.classList.add("by-text");
   const pendingText = data.state === "pending" && MESSAGE_TOOLS.includes(data.tool);
   const text =
     data.text ||
@@ -234,6 +240,16 @@ function result(data) {
   if (data.quota) box.append(upgradeOffer(data));
   if (data.profile) profileLoaded = false;
   if (data.memories) for (const m of data.memories) box.append(make("p", m.text, "remembered"));
+  for (const n of data.noticed || []) {
+    const chip = make("div", undefined, "noticed");
+    chip.append(make("span", "Noted: " + n.text));
+    chip.append(button("Undo", async () => {
+      await api("/api/memory/delete", { id: n.id });
+      chip.remove();
+      await refresh();
+    }));
+    box.append(chip);
+  }
   if (data.records) for (const r of data.records) box.append(make("p", r.title + ": " + r.details, "remembered"));
   if (data.results)
     for (const h of data.results)

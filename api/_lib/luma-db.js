@@ -55,7 +55,7 @@ export function makeSupabaseDb(env, fetchImpl) {
       return rows.length;
     },
     async hasTexted(accountId, number) {
-      return Boolean(await one(`luma_messages?account_id=eq.${enc(accountId)}&direction=eq.out&to_number=eq.${enc(number)}&status=not.eq.failed&select=id`));
+      return Boolean(await one(`luma_messages?account_id=eq.${enc(accountId)}&direction=eq.out&to_number=eq.${enc(number)}&status=not.eq.failed&kind=eq.reply&select=id`));
     },
     async isOptedOut(number, accountId) {
       const rows = await request("GET", `luma_optouts?number=eq.${enc(number)}&or=(account_id.is.null,account_id.eq.${enc(accountId)})&select=number&limit=1`);
@@ -66,10 +66,10 @@ export function makeSupabaseDb(env, fetchImpl) {
       catch (error) { if (error.status !== 409) throw error; }
     },
     removeOptOut: (number, accountId) => request("DELETE", `luma_optouts?number=eq.${enc(number)}&account_id=${accountId ? "eq." + enc(accountId) : "is.null"}`),
-    inbox: (accountId, afterIso) => request("GET", `luma_messages?account_id=eq.${enc(accountId)}&direction=eq.in&created_at=gt.${enc(afterIso)}&order=created_at.asc&limit=50&select=id,from_number,body,created_at`),
+    inbox: (accountId, afterIso) => request("GET", `luma_messages?account_id=eq.${enc(accountId)}&direction=eq.in&created_at=gt.${enc(afterIso)}&order=created_at.asc&limit=50&select=id,from_number,body,created_at,kind`),
     async lastSenderTo(number, viaNumber) {
       // The pool number Twilio used, or a pool send whose number wasn't reported.
-      const row = await one(`luma_messages?direction=eq.out&to_number=eq.${enc(number)}&or=(from_number.eq.${enc(viaNumber)},from_number.is.null)&order=created_at.desc&select=account_id`);
+      const row = await one(`luma_messages?direction=eq.out&kind=eq.reply&to_number=eq.${enc(number)}&or=(from_number.eq.${enc(viaNumber)},from_number.is.null)&order=created_at.desc&select=account_id`);
       return row ? { id: row.account_id } : null;
     },
     async recordEvent(id) {

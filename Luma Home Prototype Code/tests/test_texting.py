@@ -197,3 +197,63 @@ class TextingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnerTextTests(unittest.TestCase):
+    """Texting Luma's number from your own phone reaches your Luma at home."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "state.db", root / "state.key")
+        self.cloud = FakeCloud()
+        self.cloud.left = 50
+        self.agent = Agent(store=self.store, providers=Providers(self.cloud), use_model=False, now=lambda: 1791043200.0)
+        self.agent.cloud.start_signup("Marvin", "+19195550100")
+        self.agent.cloud.finish_signup("123456")
+        self.agent.contacts.save({"name": "Dana", "phone": "+19195550177", "aliases": ["my sister"]})
+        self.agent.set_message_route("luma_number")
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def owner(self, body, n):
+        return self.agent.answer_owner_text({"id": f"in{n}", "body": body, "kind": "owner"})
+
+    def last_send(self):
+        return [c for c in self.cloud.calls if c[1] == "sms-send"][-1][3]
+
+    def test_a_text_to_luma_gets_answered_by_text(self):
+        out = self.owner("remind me in 20 minutes to grab flowers", 1)
+        self.assertIn("grab flowers", out["reply"])
+        sent = self.last_send()
+        self.assertEqual(sent["to"], "+19195550100")
+        self.assertTrue(sent["to_owner"])
+        self.assertEqual(len(self.store.all("task")), 1)
+
+    def test_sending_from_a_text_needs_the_one_time_code(self):
+        draft = self.owner("text my sister that I'll be late to mom's", 1)
+        code = self.agent.awaiting["code"]
+        self.assertIn(f"Reply YES {code} to send", draft["reply"])
+        self.assertEqual(self.last_send()["to"], "+19195550100", "the draft goes back to the owner, not Dana")
+        plain = self.owner("yes", 2)
+        self.assertIn(f"reply YES {code}", plain["reply"])
+        wrong = self.owner("YES 0000" if code != "0000" else "YES 1111", 3)
+        self.assertIn("reply YES", wrong["reply"])
+        self.assertFalse([c for c in self.cloud.calls if c[1] == "sms-send" and c[3]["to"] == "+19195550177"])
+        done = self.owner(f"yes {code}", 4)
+        to_dana = [c[3] for c in self.cloud.calls if c[1] == "sms-send" and c[3]["to"] == "+19195550177"]
+        self.assertEqual(to_dana[0]["body"], "I'll be late to mom's")
+        self.assertIn("Sent to Dana", done["reply"])
+
+    def test_no_by_text_cancels_without_a_code(self):
+        self.owner("text my sister that dinner's at 6", 1)
+        self.assertIn("won't send", self.owner("no", 2)["reply"])
+        self.assertIsNone(self.agent.awaiting)
+
+    def test_owner_texts_are_picked_up_from_the_inbox(self):
+        self.cloud.replies = [{"id": "o1", "from": "+19195550100", "body": "timers", "kind": "owner", "received_at": "2026-10-03T12:00:00Z"}]
+        self.agent._poll_replies()
+        self.agent._owner_worker.join(10)
+        self.assertEqual(self.last_send()["to"], "+19195550100")
+        self.assertFalse(self.store.all("sms_reply"), "the owner's own texts aren't 'replies from people'")

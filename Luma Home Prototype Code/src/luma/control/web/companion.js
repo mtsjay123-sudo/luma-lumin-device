@@ -40,6 +40,9 @@ $('#read-briefing').onclick = async () => {
 };
 $('#barge-in').onchange = e => setting('barge_in', e.target.checked);
 $('#briefing-enabled').onchange = e => setting('daily_briefing_enabled', e.target.checked);
+$('#learn-from-chat').onchange = e => setting('learn_from_chat', e.target.checked);
+$('#check-ins').onchange = e => setting('check_ins', e.target.checked);
+$('#diary-days').onchange = e => setting('diary_days', Number(e.target.value));
 safeForm($('#quiet-form'), async () => {
   await api('/api/quiet-hours', {start:Number($('#quiet-start').value),end:Number($('#quiet-end').value)});
   await api('/api/setting',{key:'daily_briefing_hour',value:Number($('#briefing-hour').value)});
@@ -119,6 +122,11 @@ function renderCompanion(data) {
   }
   $('#briefing-enabled').checked = s.daily_briefing_enabled;
   $('#barge-in').checked = s.barge_in;
+  if (s.presence && s.presence.learn_from_chat !== undefined) {
+    $('#learn-from-chat').checked = s.presence.learn_from_chat;
+    $('#check-ins').checked = s.presence.check_ins;
+    if (document.activeElement !== $('#diary-days')) $('#diary-days').value = String(s.presence.diary_days);
+  }
   for (const b of document.querySelectorAll('[data-preset]')) b.setAttribute('aria-pressed',String(b.dataset.preset === (s.profile.preset || 'everyday')));
   if (s.physical_privacy?.blocked) $('#device-status').textContent = 'Physical privacy is on · capture blocked.';
   const timers = $('#timer-list'); empty(timers,'Start a timer. Call it pasta, tea, or whatever is on the stove.');

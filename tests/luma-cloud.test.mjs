@@ -219,6 +219,41 @@ test("replies route correctly when a Twilio Messaging Service picks the pool num
   assert.equal((await ctx.call("sms-inbox", { headers, query: {} })).json.replies[0].body, "got it");
 });
 
+async function goPlus(ctx, accountId, evt = "evt_plus") {
+  return stripeEvent(ctx, { id: evt, type: "checkout.session.completed", data: { object: { mode: "subscription", customer: "cus_" + evt, subscription: "sub_" + evt, client_reference_id: accountId, metadata: { app: "luma", account_id: accountId } } } });
+}
+const inbound = (ctx, form) => ctx.call("twilio-inbound", { form, headers: { "x-twilio-signature": twilioSignature("twilio-token", PUBLIC + "/api/luma/twilio-inbound", form) } });
+
+test("texting your own Luma: free gets an upgrade note, Plus reaches your Luma and it answers only you", async () => {
+  const ctx = setup({ LUMA_PROVISION_NUMBERS: "0" });
+  const headers = await signUp(ctx, "+19195550123", "Marvin");
+  const free = await inbound(ctx, { From: "+19195550123", To: "+19195550000", Body: "hey luma what's on today", MessageSid: "SMo1" });
+  assert.match(free.twiml, /part of Luma Plus/);
+  assert.equal((await ctx.call("sms-inbox", { headers, query: {} })).json.replies.length, 0);
+  await rejects(ctx.call("sms-send", { headers, body: { to: "+19195550123", body: "hi", client_ref: "owner-free-1", to_owner: true } }), 402, "plus_required");
+
+  await goPlus(ctx, ctx.db.t.accounts[0].id);
+  await inbound(ctx, { From: "+19195550123", To: "+19195550000", Body: "hey luma what's on today", MessageSid: "SMo2" });
+  const [msg] = (await ctx.call("sms-inbox", { headers, query: {} })).json.replies;
+  assert.equal(msg.kind, "owner");
+  assert.equal(msg.body, "hey luma what's on today");
+  const answer = await ctx.call("sms-send", { headers, body: { to: "+19195550123", body: "Dentist at 3, then Maya's.", client_ref: "owner-ans-1", to_owner: true } });
+  assert.equal(answer.status, 200);
+  assert.equal(sends(ctx.net).at(-1).params.Body, "Dentist at 3, then Maya's.", "no name prefix or opt-out footer for Luma talking to its owner");
+  await rejects(ctx.call("sms-send", { headers, body: { to: "+19195550199", body: "x", client_ref: "owner-ans-2", to_owner: true } }), 403, "not_owner");
+});
+
+test("an owner replying to another owner's text is a reply, not a command", async () => {
+  const ctx = setup();
+  const dana = await signUp(ctx, "+19195550124", "Dana");
+  await signUp(ctx, "+19195550123", "Marvin");
+  await ctx.call("sms-send", { headers: dana, body: { to: "+19195550123", body: "dinner sunday?", client_ref: "dana-to-marvin" } });
+  await inbound(ctx, { From: "+19195550123", To: "+19195550000", Body: "yes!", MessageSid: "SMo3" });
+  const [reply] = (await ctx.call("sms-inbox", { headers: dana, query: {} })).json.replies;
+  assert.equal(reply.kind, "reply");
+  assert.equal(reply.body, "yes!");
+});
+
 test("bursts are rate limited", async () => {
   const ctx = setup({ LUMA_TEXTS_PER_MINUTE: "2", LUMA_FREE_TEXTS_PER_MONTH: "50" });
   const headers = await signUp(ctx);

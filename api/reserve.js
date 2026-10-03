@@ -4,7 +4,16 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { email, phone, timestamp } = req.body;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const email = typeof body.email === 'string' ? body.email.trim().slice(0, 254) : '';
+    const phone = typeof body.phone === 'string' ? body.phone.replace(/[^\d+()\s.-]/g, '').trim().slice(0, 32) : '';
+    if (!/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(email)) {
+        return res.status(400).json({ status: 'error', message: 'Enter a valid email address.' });
+    }
+    if (phone && (phone.replace(/\D/g, '').length < 7 || phone.replace(/\D/g, '').length > 15)) {
+        return res.status(400).json({ status: 'error', message: 'Enter a valid phone number.' });
+    }
+    const timestamp = new Date().toISOString();
 
     // IMPORTANT: For production, you would connect to Supabase/PostgreSQL here.
     // For now, we will return success to allow the UI to work.
@@ -39,10 +48,5 @@ export default async function handler(req, res) {
         }
     }
 
-    // Fallback for demo if no DB is connected yet
-    console.log('Demo mode: Reservation received:', { email, phone });
-    return res.status(200).json({
-        status: 'success',
-        message: 'Reservation received (Demo Mode - No Database Connected)'
-    });
+    return res.status(503).json({ status: 'error', message: 'Reservations are not open yet. Please try again soon.' });
 }

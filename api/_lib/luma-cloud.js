@@ -295,14 +295,17 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       if (!twilio.configured() || !(cfg.sharedNumber || cfg.messagingService)) {
         throw new HttpError(503, "not_configured", "Luma's number isn't connected yet.");
       }
+      const toOwner = body.to_owner === true;
       const to = checkNumber(body.to, cfg.countries);
+      if (toOwner && to !== account.owner_phone) throw new HttpError(403, "not_owner", "Luma can only answer you at your own verified number.");
+      if (toOwner && !isPlus(account)) throw new HttpError(402, "plus_required", "Texting with Luma from your phone is part of Luma Plus.", { plan: "free", plus: { price: cfg.plusPriceLabel, texts_limit: cfg.plusTexts } });
       const text = cleanBody(body.body);
       const ref = String(body.client_ref || "");
       if (!/^[A-Za-z0-9_-]{6,64}$/.test(ref)) throw new HttpError(400, "client_ref", "Missing request reference.");
 
       const existing = await db.findMessageByRef(device.id, ref);
       if (existing) return { status: 200, json: { ...messageView(existing), duplicate: true, ...(await accountView(account)) } };
-      if (await db.isOptedOut(to, account.id)) {
+      if (!toOwner && await db.isOptedOut(to, account.id)) {
         throw new HttpError(403, "opted_out", "That person replied STOP to Luma's number, so Luma can't text them. Text them from your own phone instead.");
       }
       const since = new Date(now() - 60_000).toISOString();
@@ -323,15 +326,15 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
 
       const dedicated = isPlus(account) && account.assigned_number;
       const from = dedicated ? account.assigned_number : cfg.sharedNumber || "";
-      const firstContact = !(await db.hasTexted(account.id, to));
+      const firstContact = !toOwner && !(await db.hasTexted(account.id, to));
       const owner = account.owner_name || "A Luma owner";
-      // Recipients need to know who is texting and how to opt out.
-      let outgoing = dedicated ? text : `${owner}: ${text}`;
+      // Recipients need to know who is texting and how to opt out. Luma answering its owner needs neither.
+      let outgoing = toOwner || dedicated ? text : `${owner}: ${text}`;
       if (firstContact) outgoing += `\n\n(Sent via Luma for ${owner}. Reply STOP to opt out.)`;
 
       let row;
       try {
-        row = await db.insertMessage({ account_id: account.id, device_id: device.id, client_ref: ref, direction: "out", to_number: to, from_number: from || null, body: text, status: "sending" });
+        row = await db.insertMessage({ account_id: account.id, device_id: device.id, client_ref: ref, direction: "out", to_number: to, from_number: from || null, body: text, status: "sending", kind: toOwner ? "luma" : "reply" });
       } catch (error) {
         await db.releaseText(account.id, period(now()));
         const dup = await db.findMessageByRef(device.id, ref);
@@ -369,7 +372,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       const { account } = await authDevice(headers);
       const after = typeof query.after === "string" && !Number.isNaN(Date.parse(query.after)) ? new Date(query.after).toISOString() : new Date(now() - 7 * 86400_000).toISOString();
       const replies = await db.inbox(account.id, after);
-      return { status: 200, json: { replies: replies.map((r) => ({ id: r.id, from: r.from_number, body: r.body, received_at: r.created_at })), cursor: replies.at(-1)?.created_at || after } };
+      return { status: 200, json: { replies: replies.map((r) => ({ id: r.id, from: r.from_number, body: r.body, received_at: r.created_at, kind: r.kind || "reply" })), cursor: replies.at(-1)?.created_at || after } };
     },
 
     async "billing-checkout"({ headers }) {
@@ -439,8 +442,20 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       if (HELP_WORDS.has(word)) {
         return { status: 200, twiml: "Luma sends texts for people who use the Luma home companion. Reply STOP to stop texts from this number." };
       }
-      const account = owner || (await db.lastSenderTo(from, to));
-      if (account) await db.insertMessage({ account_id: account.id, direction: "in", from_number: from, to_number: to, body, status: "received", provider_sid: form.MessageSid || null });
+      // The owner texting their own Luma is a conversation, unless they're answering
+      // another Luma owner who texted them from the shared number.
+      const self = await db.getAccountByPhone(from);
+      const repliedTo = owner ? null : await db.lastSenderTo(from, to);
+      const ownsThisNumber = self && (owner ? owner.id === self.id : to === cfg.sharedNumber || !cfg.sharedNumber);
+      if (self && ownsThisNumber && (!repliedTo || repliedTo.id === self.id)) {
+        if (!isPlus(self)) {
+          return { status: 200, twiml: `Texting with your Luma is part of Luma Plus (${cfg.plusPriceLabel}). Upgrade from People & Texts in the Luma app.` };
+        }
+        await db.insertMessage({ account_id: self.id, direction: "in", from_number: from, to_number: to, body, status: "received", provider_sid: form.MessageSid || null, kind: "owner" });
+        return { status: 200, twiml: "" };
+      }
+      const account = owner || repliedTo;
+      if (account) await db.insertMessage({ account_id: account.id, direction: "in", from_number: from, to_number: to, body, status: "received", provider_sid: form.MessageSid || null, kind: "reply" });
       return { status: 200, twiml: "" };
     },
 

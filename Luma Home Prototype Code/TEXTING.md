@@ -26,6 +26,10 @@ Luma shows the exact text and who it goes to. Say **"send it"** (or tap Send it)
 
 Luma Cloud is the `api/luma/[route].js` function on the website. The [blueprint](docs/LUMA_BLUEPRINT.md#5-texting-and-luma-plus) has the go-live checklist (Supabase, Twilio 10DLC, Stripe) and the cost per text.
 
+## Text Luma from anywhere (Luma Plus)
+
+Text your Luma number from your own phone (the one you verified) and your Luma at home answers by text: "remind me at 6 to grab flowers", "text my sister that I'll be late". When Luma needs your OK to send something, it replies "Reply YES 4821 to send". Only your phone gets that code, so a spoofed caller ID can't approve anything. "NO" cancels. On the free plan, texting Luma gets an automatic note that it's part of Plus.
+
 ## Try the whole flow with no accounts
 
 ```sh
@@ -35,7 +39,7 @@ node tools/luma-cloud-dev.mjs                 # pretend carrier and checkout; th
 LUMA_CLOUD_URL=http://127.0.0.1:8787 .venv/bin/python -m luma.cli serve
 ```
 
-Texts Luma "sends" print in terminal 1. To pretend someone replied:
+Texts Luma "sends" print in terminal 1. To pretend someone replied (or, with `"from"` set to your verified number, that you texted Luma):
 
 ```sh
 curl -X POST http://127.0.0.1:8787/dev/reply -H 'Content-Type: application/json' \

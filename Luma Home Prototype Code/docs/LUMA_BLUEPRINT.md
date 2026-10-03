@@ -1,6 +1,6 @@
 # Luma blueprint: how it works, why it stalled, and the gameplan
 
-*October 3, 2026. Written after reading every file in this repository (device code, docs, tests, the website and its API) and rebuilding the parts that kept Luma from feeling like the product on the site.*
+*October 3, 2026 (updated later the same day; see [DREAM.md](DREAM.md) for the vision). Written after reading every file in this repository (device code, docs, tests, the website and its API) and rebuilding the parts that kept Luma from feeling like the product on the site.*
 
 ---
 
@@ -95,6 +95,17 @@ Every item below has automated tests (202 Python, including real Kokoro speech; 
 - A Luma Plus page on the website for checkout returns.
 - `tools/luma-cloud-dev.mjs` runs the whole relay locally with a pretend carrier and checkout, so you can demo it today with no accounts.
 
+**Dream upgrades (later on October 3)**
+- **Text Luma from anywhere (Luma Plus):** your texts to your Luma number from your own phone reach your Luma at home, and it answers by text. Anything that would send needs "YES 4821", a one-time code only your phone receives, so a spoofed number can't approve anything. Free accounts get an automatic note that this is a Plus feature.
+- **It knows you:** facts you mention in passing ("Maya's birthday is October 18", "I'm allergic to shellfish") are saved as editable memories with an Undo chip. You can turn this off.
+- **It checks back:** "I have a job interview tomorrow" becomes "Hey, how'd the job interview go?" the next evening. Birthdays and anniversaries within 3 days get a nudge. Both respect quiet hours and hush, and stale check-ins are dropped.
+- **Private diary:** opt-in, encrypted, expires after 7, 30 or 90 days, and turning it off erases it. Ask "what did I say about the apartment?" "Forget that" undoes the last thing noticed.
+- **Luma Plus is live in Stripe:** product `prod_VN76B0DKaXCLk9`, price `price_1UMMsMHupQXO7siRSIB6U6z3` ($9.99/month, lookup key `luma_plus_monthly`, metadata `app=luma`).
+- **Website security:**
+  - The admin password is no longer in public JavaScript; `/api/reservations` now requires `LUMA_ADMIN_TOKEN`.
+  - Waitlist emails are no longer rendered as HTML in the admin page (that was a stored-XSS hole).
+  - Sign-ups are validated.
+
 ## 5. Texting and Luma Plus
 
 ### How a text travels
@@ -118,7 +129,7 @@ Defaults are 30 free texts a month and 300 on Plus. Both are environment setting
 
 1. **Supabase:** run `supabase/migrations/20261003120000_luma_cloud_texting.sql`. Add `SUPABASE_SERVICE_ROLE_KEY` to Vercel, server-side only.
 2. **Twilio:** buy one number for the shared pool and create a Verify service. Register **A2P 10DLC** (brand plus a "conversational / mixed" campaign that describes user-composed personal texts with opt-out), or use a verified toll-free number. Put the numbers in a Messaging Service. Point inbound SMS to `https://<site>/api/luma/twilio-inbound`.
-3. **Stripe:** create a "Luma Plus" product with a $9.99/month price. Add a webhook to `https://<site>/api/luma/stripe-webhook` for `checkout.session.completed` and `customer.subscription.*` (plus `invoice.payment_failed`). Turn on the customer portal. Checkout sessions are tagged `metadata.app=luma`, so your OmniShort and AEONHALL events on the same account are ignored.
+3. **Stripe:** the "Luma Plus" product and $9.99/month price already exist (`LUMA_PLUS_PRICE_ID=price_1UMMsMHupQXO7siRSIB6U6z3`). Add a webhook to `https://<site>/api/luma/stripe-webhook` for `checkout.session.completed` and `customer.subscription.*` (plus `invoice.payment_failed`). Turn on the customer portal. Checkout sessions are tagged `metadata.app=luma`, so your OmniShort and AEONHALL events on the same account are ignored.
 4. Fill the variables in the website's `.env.example` in Vercel, and set `LUMA_CLOUD_URL` on the device if the site isn't at the default URL.
 5. Try it with the dev relay first: `node tools/luma-cloud-dev.mjs`, then `LUMA_CLOUD_URL=http://127.0.0.1:8787 .venv/bin/python -m luma.cli serve`. The verification code is 123456.
 
@@ -144,8 +155,8 @@ Defaults are 30 free texts a month and 300 on Plus. Both are environment setting
 4. Record a 60-second demo: "text my girl I'm running late" → "send it" → her reply read aloud; "make me a pitch deck"; "check my instagram".
 
 ### 30 days: a friend that remembers
-- **Text Luma itself:** give each Plus member's Luma number a "talk to Luma" mode, so texting it from your phone reaches your Luma at home (the relay already receives inbound texts).
-- **Offered memories:** when you mention a durable fact ("Maya's birthday is the 18th"), Luma asks "Want me to remember that?"
+- ~~Text Luma itself~~ and ~~remembering what you mention~~: done (see section 4).
+- **Website:** set `LUMA_ADMIN_TOKEN` in Vercel, use the service-role key for `/api/reservations`, and make the `reservations` table insert-only for the public anon key.
 - **Homework mode upgrades:** a photo of a worksheet goes through the phone camera, a local vision model reads it, and study mode tutors from it.
 - **Shopping:** a price comparison across 3 to 5 stores through Luma's browser, with a pick and a checkout handoff.
 

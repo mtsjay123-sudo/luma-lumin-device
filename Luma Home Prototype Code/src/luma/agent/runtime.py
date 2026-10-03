@@ -27,7 +27,7 @@ from luma.hardware.device import DeviceController
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
 from luma.agent.conversation import wants_message, style_update, grocery_request
-from luma.agent import texting
+from luma.agent import texting, presence
 from luma.integrations.luma_cloud import LumaCloud, QuotaReached
 
 
@@ -129,6 +129,10 @@ class Agent:
         self.cloud = LumaCloud(self.store, env=self.providers.env, request=getattr(self.providers, "cloud_request", None), clock=self.clock)
         self.awaiting = None  # the one text/action the owner can approve by saying "send it"
         self.awaiting_contact = None  # a text waiting on "what's their number?"
+        self.last_noticed = []  # memory ids saved from the last turn, for "forget that"
+        self._last_diary_prune = 0
+        self._owner_queue = __import__("queue").Queue()
+        self._owner_worker = None
         self._last_reply_poll = 0
         self.lock = threading.RLock()
         self.history = []  # conversations are RAM-only; explicit memories persist
@@ -277,7 +281,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking","browser"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking","browser"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -675,20 +679,77 @@ class Agent:
             if not r.get("announced"): self.store.put("sms_reply", {**r, "announced": True}, r["id"])
         return {"text": " ".join(f"{r['name']} said: “{r['body']}”" + ("." if not r['body'].endswith(('.', '!', '?')) else "") for r in picks), "replies": picks}
 
+    def _presence_event(self, now, local):
+        """A friend's check-in: how did the thing go, whose birthday is coming. One at a time."""
+        if self.mode == "kids" or not self.store.setting("check_ins", True): return None
+        due = sorted((c for c in self.store.all("checkin", 200) if not c["asked"] and c["ask_at"] <= now and c.get("mode", "friend") == self.mode),
+                     key=lambda c: c["ask_at"])
+        for checkin in due:
+            self.store.put("checkin", {**checkin, "asked": True}, checkin["id"])
+            if now - checkin["ask_at"] > 3 * 86400: continue  # too late to ask naturally
+            text = presence.check_in_line(checkin["topic"], int(checkin["ask_at"]) // 86400)
+            self.store.set_setting("last_proactive", now)
+            self.history.append({"role": "assistant", "content": text})
+            return {"type": "checkin", "text": text, "created": now}
+        today = local.date()
+        if self.store.setting("nudge_day") != today.isoformat() and local.hour >= self.store.setting("daily_briefing_hour", 8):
+            self.store.set_setting("nudge_day", today.isoformat())
+            soon = [b for b in presence.birthdays(self.store.all("memory", 1000), today) if b["days"] <= 3]
+            if soon:
+                text = presence.nudge_line(soon[0])
+                self.store.set_setting("last_proactive", now)
+                self.history.append({"role": "assistant", "content": text})
+                return {"type": "nudge", "text": text, "created": now}
+        return None
+
     def _poll_replies(self):
-        """Fetch replies to Luma's number about once a minute. Network happens outside the agent lock."""
-        if self.message_route != "luma_number" or self.mode == "kids" or not self.cloud.signed_in(): return
+        """Fetch replies (and the owner's own texts to Luma) about once a minute, outside the agent lock."""
+        if not self.cloud.signed_in(): return
         if self.clock() - self._last_reply_poll < max(5, int(self.providers.env.get("LUMA_REPLY_POLL_SECONDS", "60") or 60)): return
         self._last_reply_poll = self.clock()
         try: replies = self.cloud.inbox()
         except ProviderError: return
+        if any(r.get("kind") == "owner" for r in replies) and (self._owner_worker is None or not self._owner_worker.is_alive()):
+            self._owner_worker = threading.Thread(target=self._owner_loop, name="luma-owner-texts", daemon=True)
+            self._owner_worker.start()
         for reply in replies:
+            if reply.get("kind") == "owner":
+                self._owner_queue.put(reply)
+                continue
             sender = str(reply.get("from", ""))
             contact = self.contacts.by_phone(sender)
             row = {"from": sender, "name": contact["name"] if contact else sender, "body": " ".join(str(reply.get("body", "")).split())[:1600],
                    "received_at": reply.get("received_at"), "announced": False}
             try: self.store.put("sms_reply", row, "sms_reply:" + str(reply.get("id")))
             except ValueError: self.store.put("sms_reply", {**row, "body": "(a message with a long number in it; check your messages)"}, "sms_reply:" + str(reply.get("id")))
+
+    def _owner_loop(self):
+        """Answer the owner's texts one at a time, in order."""
+        import queue as _queue
+        while True:
+            try: message = self._owner_queue.get(timeout=2)
+            except _queue.Empty: return
+            try: self.answer_owner_text(message)
+            except Exception as error:
+                if getattr(self, "on_result", None): self.on_result({"text": "I couldn't answer your text: " + str(error)[:200]})
+
+    def answer_owner_text(self, message):
+        """The owner texted Luma's number from their phone: answer like at home, reply by text."""
+        body = " ".join(str(message.get("body", "")).split())[:1600]
+        if not body: return None
+        if self.mode == "kids":
+            result = {"text": "Luma's in kids mode at home right now, so I can't help by text. Switch modes on the Mac."}
+        else:
+            try:
+                result = self.chat(body, channel="sms")
+            except ValueError as error:
+                result = {"text": str(error)}
+        code = result.get("approval_code") or (self.awaiting or {}).get("code") if result.get("state") == "pending" else None
+        reply = texting.for_sms(result, code)
+        sent = self.cloud.send(self.cloud.owner_phone, reply, client_ref="ans-" + str(message.get("id", ""))[:40], to_owner=True)
+        if getattr(self, "on_result", None):
+            self.on_result({**result, "you": body, "channel": "sms", "text": reply})
+        return {"result": result, "reply": reply, "sent": sent}
 
     def message_status(self, action_id):
         self._check("sms.send")
@@ -706,6 +767,7 @@ class Agent:
         It delivers text even with the microphone muted; caller gates audio.
         """
         self._poll_replies()
+        self._prune_diary()
         with self.lock:
             timer_events = self.household.timer_events(mode=self.mode, deliver=not self.speaking)
             if timer_events:
@@ -722,6 +784,8 @@ class Agent:
                     lines = [f"{r['name']} texted back: “{r['body']}”" for r in fresh]
                     return {"type": "reply", "text": " ".join(lines), "created": now, "silent": quiet}
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
+            presence_event = self._presence_event(now, local)
+            if presence_event: return presence_event
             due = [r for r in self.store.all("task", 1000) if not r["done"] and not r["notified"] and r["due"] <= now and r.get("mode", "friend") == self.mode]
             routines = [r for r in self.store.all("routine", 1000) if r["enabled"] and r["last_day"] != local.date().isoformat() and r["at"] <= local.strftime("%H:%M") and r.get("mode", "friend") == self.mode]
             if not due and not routines:
@@ -742,12 +806,16 @@ class Agent:
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
 
-    def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None):
-        """on_text receives a reply's words as the model writes them (for speaking early)."""
+    def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None, channel="local"):
+        """on_text receives a reply's words as the model writes them (for speaking early).
+
+        channel "sms" means the owner texted Luma's number from their phone: approvals
+        then need the one-time code Luma sent back, not just "yes".
+        """
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
             raise ValueError("Enter 1–4000 characters.")
         reject_payment_secrets(text)
-        spoken = self._spoken_approval(text)
+        spoken = self._spoken_approval(text, channel)
         if spoken is not None: return spoken
         if text.strip().lower() in {"wait", "stop talking", "stop speaking", "never mind", "nevermind"}:
             return self.interrupt()
@@ -764,10 +832,16 @@ class Agent:
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
                 if result.get("task"): self.last_task = result["task"]["id"]
                 if result.get("state") == "pending" and result.get("confirm_token"):
-                    self.awaiting = {"action": result["action"], "token": result["confirm_token"], "expires": result.get("expires", self.clock() + 600)}
+                    self.awaiting = {"action": result["action"], "token": result["confirm_token"], "expires": result.get("expires", self.clock() + 600),
+                                     "code": f"{secrets.randbelow(10000):04d}"}
+                    result["approval_code"] = self.awaiting["code"]
                 if result.get("message_draft"): self.last_draft = result["message_draft"]["id"]
                 reply = result.get("text") or result.get("summary") or "Read the verified result in the local controls."
                 self.last_reply = reply
+                if self.mode != "kids" and not agent_mode and not result.get("forgotten"):
+                    noticed = self._notice(text)
+                    if noticed: result["noticed"] = noticed
+                    self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
                 self.history.append({"role":"assistant", "content":observation(result)})
                 return result
@@ -835,11 +909,86 @@ class Agent:
         text = answer.get("text") if isinstance(answer, dict) and answer.get("type", "reply") == "reply" else None
         return text.strip()[:1200] if isinstance(text, str) and text.strip() else None
 
-    def _spoken_approval(self, text):
+    @property
+    def presence_settings(self):
+        return {"learn_from_chat": self.store.setting("learn_from_chat", True), "check_ins": self.store.setting("check_ins", True),
+                "diary_days": self.store.setting("diary_days", 0), "diary_entries": len(self.store.all("diary", 5000))}
+
+    def set_presence(self, key, value):
+        if self.mode == "kids": raise ValueError("Change this in adult mode.")
+        if key in {"learn_from_chat", "check_ins"} and type(value) is bool:
+            self.store.set_setting(key, value)
+        elif key == "diary_days" and value in {0, 7, 30, 90}:
+            self.store.set_setting(key, value)
+            if value == 0:
+                for row in self.store.all("diary", 5000): self.store.delete("diary", row["id"])
+        else:
+            raise ValueError("Unsupported setting.")
+        return self.presence_settings
+
+    def _notice(self, text):
+        """Keep durable facts the owner mentions, and plan to check back on things coming up."""
+        self.last_noticed = []
+        saved = []
+        if self.store.setting("learn_from_chat", True):
+            existing = [m["text"].casefold() for m in self.store.all("memory", 1000)]
+            for fact in presence.notice_facts(text):
+                if any(fact.casefold() in e or e in fact.casefold() for e in existing):
+                    continue
+                try: row = self.store.put("memory", {"text": fact, "source": "noticed_in_conversation"})
+                except ValueError: continue
+                self.last_noticed.append(row["id"])
+                saved.append({"id": row["id"], "text": fact})
+        if self.store.setting("check_ins", True):
+            now = datetime.fromtimestamp(self.clock(), self.zone)
+            planned = {(c["topic"], c["day"]) for c in self.store.all("checkin", 200)}
+            for loop in presence.notice_open_loops(text, now):
+                if (loop["topic"], loop["day"]) not in planned:
+                    self.store.put("checkin", {**loop, "asked": False, "mode": self.mode})
+        return saved
+
+    def _write_diary(self, text, reply, channel):
+        days = self.store.setting("diary_days", 0)
+        if not days: return
+        try: self.store.put("diary", {"you": text.strip()[:2000], "luma": (reply or "")[:1000], "created": self.clock(), "channel": channel})
+        except ValueError: pass  # never keep payment-like numbers, even in the diary
+
+    def _prune_diary(self):
+        days = self.store.setting("diary_days", 0)
+        if self.clock() - self._last_diary_prune < 3600: return
+        self._last_diary_prune = self.clock()
+        cutoff = self.clock() - days * 86400
+        for row in self.store.all("diary", 5000):
+            if not days or row["created"] < cutoff: self.store.delete("diary", row["id"])
+
+    def diary_recall(self, text, cancel_event=None):
+        days = self.store.setting("diary_days", 0)
+        if not days:
+            return {"text": "The diary's off, so I don't keep past conversations. You can turn it on under Your rhythm."}
+        hits = presence.diary_matches(self.store.all("diary", 5000), text)
+        if not hits:
+            return {"text": f"I don't see that in the last {days} days of the diary."}
+        records = [{"title": datetime.fromtimestamp(h["created"], self.zone).strftime("%A %b %-d"), "details": "You said: " + h["you"]} for h in hits]
+        result = {"records": records, "text": " ".join(f"On {r['title']}, {r['details'][0].lower() + r['details'][1:]}" for r in records[:2])}
+        if self.use_model and cancel_event is not None:
+            spoken = self._answer_from(text, "diary", result, cancel_event)
+            if spoken: result["text"] = spoken
+        return result
+
+    def forget_last(self):
+        removed = [self.store.delete("memory", ident) for ident in self.last_noticed]
+        self.last_noticed = []
+        diary = self.store.all("diary", 1)
+        if diary and self.clock() - diary[0]["created"] < 900: self.store.delete("diary", diary[0]["id"])
+        return {"forgotten": True, "text": "Forgotten." if any(removed) or diary else "There was nothing new to forget."}
+
+    def _spoken_approval(self, text, channel="local"):
         """ "Send it" / "don't send it" for the action Luma just proposed. Plain rules, not the model."""
         if not self.awaiting: return None
-        intent = texting.confirm_intent(text)
+        intent = texting.sms_code_reply(text, self.awaiting.get("code")) if channel == "sms" else texting.confirm_intent(text)
         if intent is None: return None
+        if channel == "sms" and intent != "cancel" and (intent == "wrong_code" or not texting.APPROVE_BY_TEXT.match(text)):
+            return {"state": "awaiting_code", "text": f"To send from a text, reply YES {self.awaiting['code']}. (That code only goes to your phone.)"}
         awaiting, self.awaiting = self.awaiting, None
         with self.lock:
             self.history.append({"role":"user", "content":text.strip()})
@@ -873,6 +1022,10 @@ class Agent:
                 return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
             followup = self._contact_followup(text)
             if followup is not None: return followup
+            if lowered.rstrip(".!") in {"forget that", "forget what i just said", "don't remember that", "do not remember that", "scratch that"}:
+                return self.forget_last()
+            if re.search(r"\bwhat (?:did|have) (?:i|we) (?:say|said|tell you|told you|talk|talked|mention|mentioned)\b", lowered):
+                return self.diary_recall(text, cancel_event)
             if lowered in {"actually tomorrow", "actually, tomorrow", "make that tomorrow", "tomorrow instead"} and self.last_task:
                 row = self.store.get("task", self.last_task)
                 if not row or row["done"] or row.get("mode", "friend") != self.mode: raise ValueError("That reminder is no longer active.")

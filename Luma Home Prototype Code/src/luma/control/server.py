@@ -218,6 +218,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif key=='hush': agent.hush()
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
+                    elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
                     elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
                     else: raise ValueError('Unsupported setting')

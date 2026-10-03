@@ -27,17 +27,17 @@ export function memoryDb(clock = null) {
     findMessageByRef: async (d, r) => t.messages.find((m) => m.device_id === d && m.client_ref === r) || null,
     insertMessage: async (row) => {
       if (row.client_ref && t.messages.some((m) => m.device_id === row.device_id && m.client_ref === row.client_ref)) throw Object.assign(new Error("dup"), { status: 409 });
-      const m = { id: id(), created_at: at(), ...row }; t.messages.push(m); return m;
+      const m = { id: id(), created_at: at(), kind: "reply", ...row }; t.messages.push(m); return m;
     },
     updateMessage: async (x, patch) => Object.assign(t.messages.find((m) => m.id === x), patch),
     updateMessageBySid: async (sid, patch) => { const m = t.messages.find((r) => r.provider_sid === sid); return m ? Object.assign(m, patch) : null; },
     recentOutbound: async (a) => t.messages.filter((m) => m.account_id === a && m.direction === "out").length,
-    hasTexted: async (a, n) => t.messages.some((m) => m.account_id === a && m.direction === "out" && m.to_number === n && m.status !== "failed"),
+    hasTexted: async (a, n) => t.messages.some((m) => m.account_id === a && m.direction === "out" && m.kind === "reply" && m.to_number === n && m.status !== "failed"),
     isOptedOut: async (n, a) => t.optouts.some((o) => o.number === n && (o.account_id === null || o.account_id === a)),
     addOptOut: async (n, a) => { if (!t.optouts.some((o) => o.number === n && o.account_id === a)) t.optouts.push({ number: n, account_id: a }); },
     removeOptOut: async (n, a) => { t.optouts = t.optouts.filter((o) => !(o.number === n && o.account_id === a)); },
     inbox: async (a, after) => t.messages.filter((m) => m.account_id === a && m.direction === "in" && m.created_at > after),
-    lastSenderTo: async (n, via) => { const m = [...t.messages].reverse().find((r) => r.direction === "out" && r.to_number === n && (r.from_number === via || r.from_number === null)); return m ? { id: m.account_id } : null; },
+    lastSenderTo: async (n, via) => { const m = [...t.messages].reverse().find((r) => r.direction === "out" && r.kind === "reply" && r.to_number === n && (r.from_number === via || r.from_number === null)); return m ? { id: m.account_id } : null; },
     recordEvent: async (e) => (t.events.has(e) ? false : (t.events.add(e), true)),
   };
 }

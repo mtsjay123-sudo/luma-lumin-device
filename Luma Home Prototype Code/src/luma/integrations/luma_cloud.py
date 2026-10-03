@@ -159,8 +159,14 @@ class LumaCloud:
         return body["url"]
 
     # -- texting -------------------------------------------------------------
-    def send(self, to, body, client_ref):
-        status, result = self._call("POST", "/api/luma/sms-send", {"to": to, "body": body, "client_ref": client_ref}, side_effect=True)
+    @property
+    def owner_phone(self):
+        creds = self.credentials
+        return creds.get("phone") if creds else None
+
+    def send(self, to, body, client_ref, to_owner=False):
+        payload = {"to": to, "body": body, "client_ref": client_ref, **({"to_owner": True} if to_owner else {})}
+        status, result = self._call("POST", "/api/luma/sms-send", payload, side_effect=True)
         account = {k: result[k] for k in ("plan", "texts_used", "texts_limit", "texts_left", "number", "dedicated_number", "period_ends", "plus") if k in result}
         self._cache({**(self.store.setting("luma_cloud_account") or {}), **account})
         if status == 202 or result.get("status") == "unknown":

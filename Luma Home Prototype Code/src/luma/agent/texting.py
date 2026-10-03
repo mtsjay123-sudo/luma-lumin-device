@@ -157,3 +157,27 @@ def mirror_style(body, examples):
     if not any(re.search(r"[.!]$", e.strip()) for e in examples):
         body = re.sub(r"\.$", "", body.strip())
     return body
+
+
+APPROVE_BY_TEXT = re.compile(r"^\s*(?:yes|y|yeah|yep|send|send it|ok|okay|confirm|do it)\s*[,:!.-]?\s*(\d{4})\b", re.I)
+
+
+def sms_code_reply(text, code):
+    """Over SMS, approval needs the one-time code (caller ID can be spoofed; the code can't)."""
+    match = APPROVE_BY_TEXT.match(text or "")
+    if match:
+        return "confirm" if match[1] == code else "wrong_code"
+    return confirm_intent(text)
+
+
+def for_sms(result, code=None):
+    """Turn a Luma result into a text message back to the owner."""
+    text = result.get("text") or result.get("summary") or "Done."
+    text = re.sub(r"\*\*|`|^#+\s*", "", text, flags=re.M)
+    if result.get("state") == "pending" and code:
+        text += f" Reply YES {code} to send, or NO to cancel."
+    if result.get("file"):
+        text += " It's in the Luma app to download."
+    if len(text) > 600:
+        text = text[:590].rsplit(" ", 1)[0] + "…"
+    return text

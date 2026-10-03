@@ -7,25 +7,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Check if already logged in (optional persistence)
     // sessionStorage.setItem('isAdmin', 'true') could be used, but let's keep it simple: always ask or simple session.
-    if (sessionStorage.getItem('lumaAdminLoggedIn') === 'true') {
+    if (sessionStorage.getItem('lumaAdminToken')) {
         showData();
     }
 
+    // The token is checked by the server (/api/reservations), never in this file.
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const password = document.getElementById('adminPassword').value;
-
-        if (password === 'Amiri Johnson') {
-            sessionStorage.setItem('lumaAdminLoggedIn', 'true');
-            showData();
-            loginForm.reset();
-        } else {
-            alert('Incorrect Password');
-        }
+        sessionStorage.setItem('lumaAdminToken', document.getElementById('adminPassword').value);
+        loginForm.reset();
+        showData();
     });
 
     logoutBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('lumaAdminLoggedIn');
+        sessionStorage.removeItem('lumaAdminToken');
         loginSection.style.display = 'block';
         dataSection.style.display = 'none';
     });
@@ -38,7 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function renderTable() {
         try {
-            const response = await fetch('/api/reservations');
+            const response = await fetch('/api/reservations', {
+                headers: { Authorization: 'Bearer ' + (sessionStorage.getItem('lumaAdminToken') || '') }
+            });
+            if (response.status === 401) {
+                sessionStorage.removeItem('lumaAdminToken');
+                loginSection.style.display = 'block';
+                dataSection.style.display = 'none';
+                alert('That admin token was not accepted.');
+                return;
+            }
             if (!response.ok) {
                 throw new Error('Failed to fetch data');
             }
@@ -60,11 +64,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Format Date
                 const dateStr = new Date(entry.timestamp).toLocaleString();
 
-                tr.innerHTML = `
-                    <td>${dateStr}</td>
-                    <td>${entry.email}</td>
-                    <td>${entry.phone}</td>
-                `;
+                // textContent, never innerHTML: these values come from the public form.
+                for (const value of [dateStr, entry.email, entry.phone]) {
+                    const td = document.createElement('td');
+                    td.textContent = value || '';
+                    tr.appendChild(td);
+                }
                 tableBody.appendChild(tr);
             });
         } catch (err) {
