@@ -181,6 +181,14 @@ class TextingTests(unittest.TestCase):
         draft = self.agent.chat("text Maya that I'm Running Late.")
         self.assertEqual(draft["arguments"]["body"], "i'm running late")
 
+    def test_lumas_number_not_set_up_yet_keeps_a_draft_and_says_why(self):
+        self.agent.contacts.save({"name": "Maya", "phone": "+19195550123"})
+        self.agent.set_message_route("luma_number")
+        result = self.agent.chat("text Maya that I'm here")
+        self.assertEqual(result["state"], "draft")
+        self.assertIn("isn't set up yet", result["text"])
+        self.assertFalse(self.sends())
+
     def test_kids_mode_cannot_text(self):
         self.agent.contacts.save({"name": "Maya", "phone": "+19195550123"})
         self.agent.set_mode("kids")

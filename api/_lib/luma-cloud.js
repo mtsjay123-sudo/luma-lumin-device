@@ -360,8 +360,9 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
           : "The carrier didn't accept that text. Nothing was sent, and it didn't count against your texts.";
         throw new HttpError(422, "rejected", reason);
       }
-      await db.updateMessage(row.id, { status: result.data.status || "queued", provider_sid: result.data.sid });
-      return { status: 200, json: { message_id: row.id, status: result.data.status || "queued", from: from || null, first_contact: firstContact, ...(await accountView(account)) } };
+      const usedNumber = result.data.from || from || null; // a Messaging Service picks the pool number
+      await db.updateMessage(row.id, { status: result.data.status || "queued", provider_sid: result.data.sid, from_number: usedNumber });
+      return { status: 200, json: { message_id: row.id, status: result.data.status || "queued", from: usedNumber, first_contact: firstContact, ...(await accountView(account)) } };
     },
 
     async "sms-inbox"({ headers, query }) {

@@ -68,7 +68,8 @@ export function makeSupabaseDb(env, fetchImpl) {
     removeOptOut: (number, accountId) => request("DELETE", `luma_optouts?number=eq.${enc(number)}&account_id=${accountId ? "eq." + enc(accountId) : "is.null"}`),
     inbox: (accountId, afterIso) => request("GET", `luma_messages?account_id=eq.${enc(accountId)}&direction=eq.in&created_at=gt.${enc(afterIso)}&order=created_at.asc&limit=50&select=id,from_number,body,created_at`),
     async lastSenderTo(number, viaNumber) {
-      const row = await one(`luma_messages?direction=eq.out&to_number=eq.${enc(number)}&from_number=eq.${enc(viaNumber)}&order=created_at.desc&select=account_id`);
+      // The pool number Twilio used, or a pool send whose number wasn't reported.
+      const row = await one(`luma_messages?direction=eq.out&to_number=eq.${enc(number)}&or=(from_number.eq.${enc(viaNumber)},from_number.is.null)&order=created_at.desc&select=account_id`);
       return row ? { id: row.account_id } : null;
     },
     async recordEvent(id) {

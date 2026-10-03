@@ -1,3 +1,5 @@
+> **October 3, 2026:** start with [docs/LUMA_BLUEPRINT.md](docs/LUMA_BLUEPRINT.md): how every piece works, what changed (human voice, texting from your number or Luma's, Luma Plus, pitch decks, Luma's browser, streaming speech) and the gameplan. Texting setup: [TEXTING.md](TEXTING.md).
+
 > Current local model: **Qwen3-4B-Instruct-2507 Q4_K_M** on this Mac, with the original Llama retained. See [the measured evaluation](MODEL_EVALUATION.md) and [current capabilities](RUNTIME.md). Historical model and future-training references below belong to the original roadmap.
 
 # LUMA — MVP repository

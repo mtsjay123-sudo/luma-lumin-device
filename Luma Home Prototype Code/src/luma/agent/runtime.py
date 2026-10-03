@@ -548,6 +548,10 @@ class Agent:
         name = contact["name"]
         if self.store.setting("integration:sms", False):
             route, account, result = self.message_route, None, None
+            if route == "luma_number" and not self.cloud.signed_in():
+                draft = self.store.put("phone_draft", {**args, "name": name, "created": self.clock()})
+                return {"state": "draft", "message_draft": draft, "recipient_name": name, "section": "people",
+                        "text": f"Here's the text for {name}: “{body}”. Luma's number isn't set up yet, so verify your phone in People & Texts and I'll send the next one. You can copy this one now."}
             if route == "luma_number":
                 account = self.cloud.cached_account()
                 if account and account.get("texts_left") == 0:

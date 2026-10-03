@@ -37,7 +37,7 @@ export function memoryDb(clock = null) {
     addOptOut: async (n, a) => { if (!t.optouts.some((o) => o.number === n && o.account_id === a)) t.optouts.push({ number: n, account_id: a }); },
     removeOptOut: async (n, a) => { t.optouts = t.optouts.filter((o) => !(o.number === n && o.account_id === a)); },
     inbox: async (a, after) => t.messages.filter((m) => m.account_id === a && m.direction === "in" && m.created_at > after),
-    lastSenderTo: async (n, via) => { const m = [...t.messages].reverse().find((r) => r.direction === "out" && r.to_number === n && r.from_number === via); return m ? { id: m.account_id } : null; },
+    lastSenderTo: async (n, via) => { const m = [...t.messages].reverse().find((r) => r.direction === "out" && r.to_number === n && (r.from_number === via || r.from_number === null)); return m ? { id: m.account_id } : null; },
     recordEvent: async (e) => (t.events.has(e) ? false : (t.events.add(e), true)),
   };
 }

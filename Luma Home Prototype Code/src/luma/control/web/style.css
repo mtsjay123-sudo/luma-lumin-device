@@ -1211,3 +1211,6 @@ footer p {
 #command .command-bottom {
   margin-top: 12px;
 }
+.msg .bubble > p {
+  white-space: pre-line;
+}

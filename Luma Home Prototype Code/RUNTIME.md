@@ -1,3 +1,5 @@
+October 3, 2026 build: Luma now talks like a person, texts friends and family from your number (free) or Luma's own number (free monthly texts, then Luma Plus), builds pitch decks, checks Instagram in its own browser, and starts speaking at the first sentence. See [docs/LUMA_BLUEPRINT.md](docs/LUMA_BLUEPRINT.md) and [TEXTING.md](TEXTING.md).
+
 Voice delivery was revised September 9: connected phrasing, native voice presets, a higher-precision Mac speech model and continuous prefetched playback. See [voice tuning and validation](docs/VOICE_TUNING_2026-09-09.md).
 
 # Latest companion build — September 8, 2026

@@ -208,6 +208,17 @@ test("events from other Lumin apps on the same Stripe account are ignored", asyn
   assert.equal(ctx.db.t.accounts[0].plan, "free");
 });
 
+test("replies route correctly when a Twilio Messaging Service picks the pool number", async () => {
+  const ctx = setup({ LUMA_SHARED_NUMBER: "", TWILIO_MESSAGING_SERVICE_SID: "MG123" });
+  const headers = await signUp(ctx);
+  const sent = await ctx.call("sms-send", { headers, body: { to: "+19195550199", body: "pool test", client_ref: "pool-send-1" } });
+  assert.equal(sends(ctx.net)[0].params.MessagingServiceSid, "MG123");
+  assert.equal(sent.json.from, null);
+  const form = { From: "+19195550199", To: "+19195550777", Body: "got it", MessageSid: "SMin9" };
+  await ctx.call("twilio-inbound", { form, headers: { "x-twilio-signature": twilioSignature("twilio-token", PUBLIC + "/api/luma/twilio-inbound", form) } });
+  assert.equal((await ctx.call("sms-inbox", { headers, query: {} })).json.replies[0].body, "got it");
+});
+
 test("bursts are rate limited", async () => {
   const ctx = setup({ LUMA_TEXTS_PER_MINUTE: "2", LUMA_FREE_TEXTS_PER_MONTH: "50" });
   const headers = await signUp(ctx);
