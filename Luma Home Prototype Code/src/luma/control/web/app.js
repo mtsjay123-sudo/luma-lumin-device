@@ -838,6 +838,75 @@ $("#booking-form").onsubmit = async (e) => {
   }
 };
 
+// "Pick your Luma number": kept outside renderTexting so the 4-second refresh doesn't wipe a choice.
+let numberPicker = null;
+function makeNumberPicker() {
+  const box = make("div", undefined, "number-picker");
+  const head = make("div", undefined, "picker-head");
+  const area = make("input");
+  area.inputMode = "numeric";
+  area.maxLength = 3;
+  area.placeholder = "Area code";
+  area.setAttribute("aria-label", "Area code");
+  const list = make("div", undefined, "number-list");
+  const note = make("p", "", "footnote");
+  const go = make("button", "Pick a number above", "button");
+  go.type = "button";
+  go.disabled = true;
+  let chosen = null;
+  async function load() {
+    list.replaceChildren(make("p", "Finding numbers…", "footnote"));
+    try {
+      const found = await api("/api/texting/numbers", area.value ? { area_code: area.value } : {});
+      if (!area.value && found.area_code) area.value = found.area_code;
+      note.textContent = found.note || "";
+      list.replaceChildren();
+      chosen = null;
+      go.disabled = true;
+      go.textContent = "Pick a number above";
+      for (const n of found.numbers) {
+        const option = make("button", undefined, "number-option");
+        option.type = "button";
+        option.append(make("b", prettyPhone(n.number)), make("small", [n.locality, n.region].filter(Boolean).join(", ")));
+        option.onclick = () => {
+          list.querySelectorAll(".number-option").forEach((o) => o.classList.remove("chosen"));
+          option.classList.add("chosen");
+          chosen = n.number;
+          go.disabled = false;
+          go.textContent = box.dataset.mode === "claim" ? `Make ${prettyPhone(n.number)} mine` : `Get Luma Plus with ${prettyPhone(n.number)}`;
+        };
+        list.append(option);
+      }
+      if (!found.numbers.length) list.replaceChildren(make("p", "No numbers free there right now. Try another area code.", "footnote"));
+    } catch (e) {
+      list.replaceChildren(make("p", e.message, "footnote"));
+    }
+  }
+  const search = button("Show numbers", load, "pill");
+  head.append(area, search);
+  go.onclick = async () => {
+    if (!chosen) return;
+    go.disabled = true;
+    try {
+      if (box.dataset.mode === "claim") {
+        await api("/api/texting/claim", { number: chosen });
+        toast(`${prettyPhone(chosen)} is your Luma number now.`);
+        numberPicker = null;
+        await refresh();
+      } else {
+        const { url } = await api("/api/texting/upgrade", { number: chosen });
+        window.open(url, "_blank", "noopener");
+      }
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      go.disabled = false;
+    }
+  };
+  box.append(make("h4", "Pick your Luma number"), make("p", "A real local number, just yours. Friends see it when Luma texts them.", "intro"), head, list, note, go);
+  setTimeout(load, 0);
+  return box;
+}
 function renderTexting(data) {
   const card = $("#luma-number");
   if (!card) return;
@@ -903,9 +972,15 @@ function renderTexting(data) {
       await api("/api/messages/route", { route: "luma_number" });
       await refresh();
     }, "button"));
+  const pickMode = a?.can_pick_number ? (a.plan === "plus" ? "claim" : a?.plus?.available !== false ? "upgrade" : null) : null;
   if (a?.plan === "plus") actions.append(button("Manage Luma Plus", async () => window.open((await api("/api/texting/manage", {})).url, "_blank", "noopener")));
-  else if (a?.plus?.available !== false)
+  else if (a?.plus?.available !== false && !pickMode)
     actions.append(button(`Get Luma Plus · ${a?.plus?.price || "$9.99/month"}`, openUpgrade, t.route === "luma_number" ? "button" : "pill"));
+  if (pickMode) {
+    numberPicker ||= makeNumberPicker();
+    numberPicker.dataset.mode = pickMode;
+    card.append(numberPicker);
+  }
   actions.append(
     button("Refresh", async () => {
       await api("/api/texting/account", {});

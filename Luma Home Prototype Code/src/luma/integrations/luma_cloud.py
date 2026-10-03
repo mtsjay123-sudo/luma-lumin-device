@@ -150,9 +150,26 @@ class LumaCloud:
     def cached_account(self):
         return self.store.setting("luma_cloud_account") if self.signed_in() else None
 
-    def upgrade_link(self):
-        _, body = self._call("POST", "/api/luma/billing-checkout", {})
+    def number_options(self, area_code=None):
+        """A few real local numbers to pick from (area code defaults to the owner's own)."""
+        area = re.sub(r"\D", "", str(area_code or ""))
+        if area and not re.fullmatch(r"[2-9]\d{2}", area):
+            raise ValueError("Use a 3-digit US area code, like 919.")
+        _, body = self._call("GET", "/api/luma/number-options" + (f"?area_code={area}" if area else ""))
+        return body
+
+    def upgrade_link(self, number=None):
+        if number is not None and not PHONE.fullmatch(str(number)):
+            raise ValueError("Pick one of the numbers shown.")
+        _, body = self._call("POST", "/api/luma/billing-checkout", {"number": number} if number else {})
         return body["url"]
+
+    def claim_number(self, number=None):
+        if number is not None and not PHONE.fullmatch(str(number)):
+            raise ValueError("Pick one of the numbers shown.")
+        _, body = self._call("POST", "/api/luma/number-claim", {"number": number} if number else {})
+        self._cache(body)
+        return self.store.setting("luma_cloud_account")
 
     def manage_link(self):
         _, body = self._call("POST", "/api/luma/billing-portal", {})

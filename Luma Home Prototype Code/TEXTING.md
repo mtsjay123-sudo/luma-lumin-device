@@ -24,6 +24,8 @@ Luma shows the exact text and who it goes to. Say **"send it"** (or tap Send it)
 3. When the allowance runs out, Luma says so and offers **Luma Plus** ($9.99/month by default): 300 texts a month, your own local Luma number, and replies forwarded. Or it can send from your own number for free.
 4. Replies are announced ("Maya texted back: …"). During quiet hours they show silently.
 
+Upgrading shows **Pick your Luma number**: real local numbers in your area code (or any area code you type). You tap one, pay, and that number is yours. Going live (Supabase, Twilio, Stripe, Vercel) is one checklist: [docs/GO_LIVE.md](docs/GO_LIVE.md).
+
 Luma Cloud is the `api/luma/[route].js` function on the website. The [blueprint](docs/LUMA_BLUEPRINT.md#5-texting-and-luma-plus) has the go-live checklist (Supabase, Twilio 10DLC, Stripe) and the cost per text.
 
 ## Text Luma from anywhere (Luma Plus)

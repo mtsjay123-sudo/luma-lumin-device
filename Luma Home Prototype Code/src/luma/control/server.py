@@ -274,14 +274,16 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         result = agent.browser.show_for_sign_in(data.get('url') or 'https://www.instagram.com/') if path.endswith('show') else agent.browser.hide()
                         if path.endswith('show'): result = {'summary': 'Sign in in the Luma browser window, then tap Done signing in.', 'url': result.get('url')}
                     elif path.startswith('/api/texting/'):
-                        if companion and path not in {'/api/texting/account','/api/texting/upgrade'}:
+                        if companion and path not in {'/api/texting/account','/api/texting/upgrade','/api/texting/numbers'}:
                             return self.send({'error':"Set up Luma's number on the Mac."},403)
                         if path=='/api/texting/start': result=agent.cloud.start_signup(data.get('name'),data.get('phone'))
                         elif path=='/api/texting/finish':
                             result=agent.cloud.finish_signup(data.get('code'),device_name='Luma')
                             agent.set_message_route('luma_number')
                         elif path=='/api/texting/account': result={'account':agent.cloud.account(refresh=True)}
-                        elif path=='/api/texting/upgrade': result={'url':agent.cloud.upgrade_link()}
+                        elif path=='/api/texting/numbers': result=agent.cloud.number_options(data.get('area_code'))
+                        elif path=='/api/texting/upgrade': result={'url':agent.cloud.upgrade_link(data.get('number'))}
+                        elif path=='/api/texting/claim': result={'account':agent.cloud.claim_number(data.get('number'))}
                         elif path=='/api/texting/manage': result={'url':agent.cloud.manage_link()}
                         elif path=='/api/texting/signout':
                             result=agent.cloud.sign_out()

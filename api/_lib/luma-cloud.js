@@ -49,6 +49,7 @@ export function settings(env) {
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || "",
     provisionNumbers: env.LUMA_PROVISION_NUMBERS === "1",
     releaseNumbers: env.LUMA_RELEASE_NUMBERS_ON_CANCEL === "1",
+    portalConfig: env.LUMA_STRIPE_PORTAL_CONFIG || "",
   };
 }
 
@@ -156,6 +157,30 @@ export function makeTwilio(cfg, fetchImpl) {
     async checkVerify(phone, code) {
       return call("POST", `https://verify.twilio.com/v2/Services/${cfg.verifyService}/VerificationCheck`, { To: phone, Code: code });
     },
+    async searchNumbers(areaCode, limit = 5) {
+      const query = `SmsEnabled=true&PageSize=${limit}${areaCode ? "&AreaCode=" + areaCode : ""}`;
+      const found = await call("GET", `${base}/AvailablePhoneNumbers/US/Local.json?${query}`);
+      if (!found.ok) return [];
+      return (found.data.available_phone_numbers || []).filter((n) => NANP.test(n.phone_number || "")).slice(0, limit)
+        .map((n) => ({ number: n.phone_number, locality: n.locality || null, region: n.region || null }));
+    },
+    // Buy the number the customer picked; if someone else got it first, the nearest one.
+    async buyNumber(desired, ownerPhone, smsUrl) {
+      if (desired && NANP.test(desired)) {
+        const exact = await this.purchase(desired, smsUrl);
+        if (exact) return exact;
+        return this.buyNumberNear("+1" + desired.slice(2, 5), smsUrl);
+      }
+      return this.buyNumberNear(ownerPhone, smsUrl);
+    },
+    async purchase(number, smsUrl) {
+      const bought = await call("POST", `${base}/IncomingPhoneNumbers.json`, { PhoneNumber: number, SmsUrl: smsUrl, SmsMethod: "POST" });
+      if (!bought.ok) return null;
+      if (cfg.messagingService) {
+        await call("POST", `https://messaging.twilio.com/v1/Services/${cfg.messagingService}/PhoneNumbers`, { PhoneNumberSid: bought.data.sid });
+      }
+      return { number: bought.data.phone_number, sid: bought.data.sid };
+    },
     async buyNumberNear(phone, smsUrl) {
       const area = /^\+1(\d{3})/.exec(phone)?.[1];
       const search = await call("GET", `${base}/AvailablePhoneNumbers/US/Local.json?SmsEnabled=true&PageSize=1${area ? "&AreaCode=" + area : ""}`);
@@ -165,12 +190,7 @@ export function makeTwilio(cfg, fetchImpl) {
         candidate = any.ok ? any.data.available_phone_numbers?.[0] : null;
       }
       if (!candidate) return null;
-      const bought = await call("POST", `${base}/IncomingPhoneNumbers.json`, { PhoneNumber: candidate.phone_number, SmsUrl: smsUrl, SmsMethod: "POST" });
-      if (!bought.ok) return null;
-      if (cfg.messagingService) {
-        await call("POST", `https://messaging.twilio.com/v1/Services/${cfg.messagingService}/PhoneNumbers`, { PhoneNumberSid: bought.data.sid });
-      }
-      return { number: bought.data.phone_number, sid: bought.data.sid };
+      return this.purchase(candidate.phone_number, smsUrl);
     },
     async releaseNumber(sid) {
       return call("DELETE", `${base}/IncomingPhoneNumbers/${sid}.json`);
@@ -191,7 +211,7 @@ export function makeStripe(cfg, fetchImpl) {
   }
   return {
     configured: () => Boolean(cfg.stripeKey && cfg.stripePrice),
-    async checkout(account) {
+    async checkout(account, desiredNumber = null) {
       const back = cfg.publicUrl + "/luma-plus.html";
       const session = await call("checkout/sessions", {
         mode: "subscription",
@@ -201,13 +221,14 @@ export function makeStripe(cfg, fetchImpl) {
         client_reference_id: account.id,
         allow_promotion_codes: "true",
         customer: account.stripe_customer_id || undefined,
-        metadata: { app: "luma", account_id: account.id },
+        metadata: { app: "luma", account_id: account.id, ...(desiredNumber ? { desired_number: desiredNumber } : {}) },
         subscription_data: { metadata: { app: "luma", account_id: account.id } },
       });
       return session.url;
     },
     async portal(account) {
-      const session = await call("billing_portal/sessions", { customer: account.stripe_customer_id, return_url: cfg.publicUrl + "/luma-plus.html" });
+      const session = await call("billing_portal/sessions", { customer: account.stripe_customer_id, return_url: cfg.publicUrl + "/luma-plus.html",
+        configuration: cfg.portalConfig || undefined });
       return session.url;
     },
   };
@@ -248,6 +269,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       number: isPlus(account) && account.assigned_number ? account.assigned_number : cfg.sharedNumber || null,
       dedicated_number: Boolean(isPlus(account) && account.assigned_number),
       number_pending: Boolean(isPlus(account) && !account.assigned_number && cfg.provisionNumbers),
+      can_pick_number: Boolean(cfg.provisionNumbers && twilio.configured() && !account.assigned_number),
       replies: true,
       owner_name: account.owner_name,
       plus: { price: cfg.plusPriceLabel, texts_limit: cfg.plusTexts, available: stripe.configured() },
@@ -375,11 +397,50 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       return { status: 200, json: { replies: replies.map((r) => ({ id: r.id, from: r.from_number, body: r.body, received_at: r.created_at, kind: r.kind || "reply" })), cursor: replies.at(-1)?.created_at || after } };
     },
 
-    async "billing-checkout"({ headers }) {
+    // A few real, available local numbers to choose from before upgrading.
+    async "number-options"({ headers, query }) {
+      const { account } = await authDevice(headers);
+      if (!cfg.provisionNumbers || !twilio.configured()) throw new HttpError(503, "not_configured", "Picking a number isn't available yet.");
+      const area = String(query.area_code || /^\+1(\d{3})/.exec(account.owner_phone)?.[1] || "").replace(/\D/g, "");
+      if (area && !/^[2-9]\d{2}$/.test(area)) throw new HttpError(400, "area_code", "Use a 3-digit US area code, like 919.");
+      let numbers = await twilio.searchNumbers(area, 5);
+      const nearby = !numbers.length && area;
+      if (nearby) numbers = await twilio.searchNumbers("", 5);
+      return { status: 200, json: { area_code: area || null, numbers, note: nearby ? `Nothing free in ${area} right now, so here are some others.` : null } };
+    },
+
+    async "billing-checkout"({ headers, body }) {
       const { account } = await authDevice(headers);
       if (!stripe.configured() || !cfg.publicUrl) throw new HttpError(503, "not_configured", "Luma Plus checkout isn't set up yet.");
       if (isPlus(account)) throw new HttpError(409, "already_plus", "You already have Luma Plus.");
-      return { status: 200, json: { url: await stripe.checkout(account) } };
+      const desired = body?.number ? checkNumber(body.number, ["1"]) : null;
+      return { status: 200, json: { url: await stripe.checkout(account, desired) } };
+    },
+
+    // A Plus member without a number yet (or whose pick was taken) chooses one now.
+    async "number-claim"({ headers, body }) {
+      const { account } = await authDevice(headers);
+      if (!isPlus(account)) throw new HttpError(402, "plus_required", "Your own Luma number comes with Luma Plus.");
+      if (account.assigned_number) throw new HttpError(409, "has_number", "You already have a Luma number.");
+      if (!cfg.provisionNumbers || !twilio.configured() || !cfg.publicUrl) throw new HttpError(503, "not_configured", "Picking a number isn't available yet.");
+      const desired = body?.number ? checkNumber(body.number, ["1"]) : null;
+      const bought = await twilio.buyNumber(desired, account.owner_phone, cfg.publicUrl + "/api/luma/twilio-inbound");
+      if (!bought) throw new HttpError(502, "number", "Couldn't get that number. Pick another one.");
+      const updated = await db.updateAccount(account.id, { assigned_number: bought.number, assigned_number_sid: bought.sid });
+      return { status: 200, json: await accountView(updated) };
+    },
+
+    // What's configured (never the values), so setup can be checked from a browser.
+    async health() {
+      let database = false;
+      try { await db.getAccount("00000000-0000-0000-0000-000000000000"); database = true; } catch { database = false; }
+      const checks = {
+        public_url: Boolean(cfg.publicUrl), database,
+        twilio: twilio.configured(), phone_verification: Boolean(cfg.verifyService),
+        sending_number: Boolean(cfg.sharedNumber || cfg.messagingService), messaging_service: Boolean(cfg.messagingService),
+        stripe: stripe.configured(), stripe_webhook: Boolean(cfg.stripeWebhookSecret), numbers_for_plus: cfg.provisionNumbers,
+      };
+      return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks } };
     },
 
     async "billing-portal"({ headers }) {
@@ -405,7 +466,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       if (event.type === "checkout.session.completed" && object.mode === "subscription") {
         account = await db.updateAccount(account.id, { plan: "plus", subscription_status: "active", stripe_customer_id: object.customer, stripe_subscription_id: object.subscription });
         if (cfg.provisionNumbers && !account.assigned_number && twilio.configured() && cfg.publicUrl) {
-          const bought = await twilio.buyNumberNear(account.owner_phone, cfg.publicUrl + "/api/luma/twilio-inbound").catch(() => null);
+          const bought = await twilio.buyNumber(object.metadata?.desired_number || null, account.owner_phone, cfg.publicUrl + "/api/luma/twilio-inbound").catch(() => null);
           if (bought) await db.updateAccount(account.id, { assigned_number: bought.number, assigned_number_sid: bought.sid });
         }
       } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
@@ -517,7 +578,7 @@ export function createHandler(makeDeps) {
     try {
       const { routes } = createService(makeDeps());
       const run = routes[route];
-      const getRoutes = new Set(["account", "sms-inbox"]);
+      const getRoutes = new Set(["account", "sms-inbox", "number-options", "health"]);
       if (!run) return reply(404, { error: "not_found" });
       if (getRoutes.has(route) ? req.method !== "GET" : req.method !== "POST") return reply(405, { error: "method" });
       const headers = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));

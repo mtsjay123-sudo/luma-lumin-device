@@ -44,10 +44,19 @@ async function pretendProviders(url, init = {}) {
     return json(201, { status: "pending" });
   }
   if (url.includes("/VerificationCheck")) return json(200, { status: params.Code === "123456" ? "approved" : "pending" });
-  if (url.includes("checkout/sessions")) return json(200, { url: `${base}/fake-checkout?account=${params.client_reference_id}` });
+  if (url.includes("checkout/sessions")) return json(200, { url: `${base}/fake-checkout?account=${params.client_reference_id}${params["metadata[desired_number]"] ? "&number=" + encodeURIComponent(params["metadata[desired_number]"]) : ""}` });
   if (url.includes("billing_portal")) return json(200, { url: `${base}/fake-portal` });
-  if (url.includes("AvailablePhoneNumbers")) return json(200, { available_phone_numbers: [{ phone_number: `+1919555${String(1000 + ++numbers)}` }] });
-  if (url.includes("IncomingPhoneNumbers.json")) return json(201, { sid: "PN" + numbers, phone_number: params.PhoneNumber });
+  if (url.includes("AvailablePhoneNumbers")) {
+    const area = new URL(url).searchParams.get("AreaCode") || "919";
+    const towns = { 919: ["Raleigh", "Durham", "Cary"], 704: ["Charlotte", "Gastonia", "Concord"], 212: ["New York", "New York", "New York"] };
+    const list = Array.from({ length: 4 }, (_, i) => ({ phone_number: `+1${area}555${String(2000 + numbers * 10 + i * 37).slice(-4)}`, locality: (towns[area] || ["Local"])[i % 3], region: "NC" }));
+    return json(200, { available_phone_numbers: list });
+  }
+  if (url.includes("IncomingPhoneNumbers.json")) {
+    numbers += 1;
+    console.log(`\n☎️  bought ${params.PhoneNumber} for a Luma Plus member`);
+    return json(201, { sid: "PN" + numbers, phone_number: params.PhoneNumber });
+  }
   return json(404, {});
 }
 
@@ -69,7 +78,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/fake-checkout") {
     const account = url.searchParams.get("account");
     const event = JSON.stringify({ id: "evt_" + crypto.randomUUID(), type: "checkout.session.completed",
-      data: { object: { mode: "subscription", customer: "cus_" + account.slice(0, 8), subscription: "sub_" + account.slice(0, 8), client_reference_id: account, metadata: { app: "luma", account_id: account } } } });
+      data: { object: { mode: "subscription", customer: "cus_" + account.slice(0, 8), subscription: "sub_" + account.slice(0, 8), client_reference_id: account, metadata: { app: "luma", account_id: account, ...(url.searchParams.get("number") ? { desired_number: url.searchParams.get("number") } : {}) } } } });
     const t = Math.floor(Date.now() / 1000);
     const v1 = crypto.createHmac("sha256", env.STRIPE_WEBHOOK_SECRET).update(`${t}.${event}`).digest("hex");
     await routes["stripe-webhook"]({ headers: { "stripe-signature": `t=${t},v1=${v1}` }, raw: event });

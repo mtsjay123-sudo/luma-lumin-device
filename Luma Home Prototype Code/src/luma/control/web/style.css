@@ -1242,3 +1242,56 @@ footer p {
   border: 1px solid #e0e5d8;
   background: #fff;
 }
+
+/* Pick your Luma number */
+.number-picker {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fbf6ea, #f1f5e9);
+  border: 1px solid #eadfc6;
+}
+.number-picker h4 {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+.picker-head {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+.picker-head input {
+  width: 110px;
+  padding: 10px 14px;
+  border: 1px solid #e0e5d8;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 15px;
+}
+.number-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.number-option {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid #e3e8da;
+  border-radius: 14px;
+  background: #fff;
+}
+.number-option b {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.number-option small {
+  font-size: 11px;
+  color: #8f9d82;
+}
+.number-option.chosen {
+  border-color: #3b4c3c;
+  box-shadow: 0 0 0 2px #3b4c3c22;
+}

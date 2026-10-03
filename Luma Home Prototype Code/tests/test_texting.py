@@ -30,6 +30,11 @@ class FakeCloud:
                              "upgrade_url": "https://checkout.stripe.com/c/pay/test", "plus": account["plus"]}
             self.left -= 1
             return 200, {"message_id": "m1", "status": "queued", "from": "+19195550000", **account, "texts_left": self.left, "texts_used": self.limit - self.left}
+        if path.startswith("number-options"):
+            area = path.split("area_code=")[1] if "area_code=" in path else "919"
+            return 200, {"area_code": area, "numbers": [{"number": f"+1{area}5552000", "locality": "Raleigh", "region": "NC"}]}
+        if path == "billing-checkout":
+            return 200, {"url": "https://checkout.stripe.com/c/pay/x" + ("?n=" + payload["number"] if payload.get("number") else "")}
         if path.startswith("sms-inbox"):
             replies, self.replies = self.replies, []
             return 200, {"replies": replies, "cursor": "2026-10-03T12:00:00Z"}
@@ -188,6 +193,17 @@ class TextingTests(unittest.TestCase):
         self.assertEqual(result["state"], "draft")
         self.assertIn("isn't set up yet", result["text"])
         self.assertFalse(self.sends())
+
+    def test_picking_a_number_before_upgrading(self):
+        self.agent.cloud.start_signup("Marvin", "+19195550100")
+        self.agent.cloud.finish_signup("123456")
+        self.assertEqual(self.agent.cloud.number_options()["numbers"][0]["number"], "+19195552000")
+        self.assertEqual(self.agent.cloud.number_options("704")["numbers"][0]["number"], "+17045552000")
+        with self.assertRaises(ValueError):
+            self.agent.cloud.number_options("12")
+        self.assertTrue(self.agent.cloud.upgrade_link("+17045552000").endswith("?n=+17045552000"))
+        with self.assertRaises(ValueError):
+            self.agent.cloud.upgrade_link("not a number")
 
     def test_kids_mode_cannot_text(self):
         self.agent.contacts.save({"name": "Maya", "phone": "+19195550123"})

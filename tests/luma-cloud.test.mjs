@@ -32,8 +32,15 @@ function fakeNetwork() {
     if (url.includes("/VerificationCheck")) return json(200, { status: params.Code === "123456" ? behavior.verifyStatus : "pending" });
     if (url.includes("checkout/sessions")) return json(200, { url: "https://checkout.stripe.com/c/pay/test" });
     if (url.includes("billing_portal")) return json(200, { url: "https://billing.stripe.com/p/test" });
-    if (url.includes("AvailablePhoneNumbers")) return json(200, { available_phone_numbers: [{ phone_number: "+19195551234" }] });
-    if (url.includes("IncomingPhoneNumbers.json")) return json(201, { sid: "PN1", phone_number: params.PhoneNumber });
+    if (url.includes("AvailablePhoneNumbers")) {
+      const area = new URL(url).searchParams.get("AreaCode");
+      if (area === "999") return json(200, { available_phone_numbers: [] });
+      return json(200, { available_phone_numbers: [{ phone_number: `+1${area || "919"}5551234`, locality: "Raleigh", region: "NC" }, { phone_number: `+1${area || "919"}5554321`, locality: "Cary", region: "NC" }] });
+    }
+    if (url.includes("IncomingPhoneNumbers.json")) {
+      if (params.PhoneNumber === behavior.takenNumber) return json(400, { code: 21422 });
+      return json(201, { sid: "PN1", phone_number: params.PhoneNumber });
+    }
     return json(404, {});
   };
   return { fetch, calls, behavior };
@@ -219,8 +226,8 @@ test("replies route correctly when a Twilio Messaging Service picks the pool num
   assert.equal((await ctx.call("sms-inbox", { headers, query: {} })).json.replies[0].body, "got it");
 });
 
-async function goPlus(ctx, accountId, evt = "evt_plus") {
-  return stripeEvent(ctx, { id: evt, type: "checkout.session.completed", data: { object: { mode: "subscription", customer: "cus_" + evt, subscription: "sub_" + evt, client_reference_id: accountId, metadata: { app: "luma", account_id: accountId } } } });
+async function goPlus(ctx, accountId, evt = "evt_plus", desired = null) {
+  return stripeEvent(ctx, { id: evt, type: "checkout.session.completed", data: { object: { mode: "subscription", customer: "cus_" + evt, subscription: "sub_" + evt, client_reference_id: accountId, metadata: { app: "luma", account_id: accountId, ...(desired ? { desired_number: desired } : {}) } } } });
 }
 const inbound = (ctx, form) => ctx.call("twilio-inbound", { form, headers: { "x-twilio-signature": twilioSignature("twilio-token", PUBLIC + "/api/luma/twilio-inbound", form) } });
 
@@ -252,6 +259,54 @@ test("an owner replying to another owner's text is a reply, not a command", asyn
   const [reply] = (await ctx.call("sms-inbox", { headers: dana, query: {} })).json.replies;
   assert.equal(reply.kind, "reply");
   assert.equal(reply.body, "yes!");
+});
+
+test("customers pick their Luma number before paying and get exactly that one", async () => {
+  const ctx = setup();
+  const headers = await signUp(ctx);
+  const options = await ctx.call("number-options", { headers, query: {} });
+  assert.equal(options.json.area_code, "919", "defaults to the owner's own area code");
+  assert.deepEqual(options.json.numbers.map((n) => n.locality), ["Raleigh", "Cary"]);
+  const charlotte = await ctx.call("number-options", { headers, query: { area_code: "704" } });
+  assert.equal(charlotte.json.numbers[0].number, "+17045551234");
+  await rejects(ctx.call("number-options", { headers, query: { area_code: "12" } }), 400, "area_code");
+  const pick = charlotte.json.numbers[1].number;
+  await ctx.call("billing-checkout", { headers, body: { number: pick } });
+  const checkout = ctx.net.calls.find((c) => c.url.includes("checkout/sessions"));
+  assert.equal(checkout.params["metadata[desired_number]"], pick);
+  const accountId = ctx.db.t.accounts[0].id;
+  await goPlus(ctx, accountId, "evt_pick", pick);
+  assert.equal((await ctx.call("account", { headers })).json.number, pick);
+});
+
+test("if the picked number was taken meanwhile, a nearby one is bought instead", async () => {
+  const ctx = setup();
+  const headers = await signUp(ctx);
+  ctx.net.behavior.takenNumber = "+17045559999";
+  await goPlus(ctx, ctx.db.t.accounts[0].id, "evt_taken", "+17045559999");
+  assert.equal((await ctx.call("account", { headers })).json.number, "+17045551234");
+});
+
+test("a Plus member without a number can claim one; free members can't", async () => {
+  const ctx = setup({ LUMA_PROVISION_NUMBERS: "1" });
+  const headers = await signUp(ctx);
+  await rejects(ctx.call("number-claim", { headers, body: { number: "+19195554321" } }), 402);
+  ctx.net.behavior.takenNumber = "+19195551234";  // auto-provisioning at checkout fails...
+  ctx.net.behavior.takenAll = true;
+  const accountId = ctx.db.t.accounts[0].id;
+  await ctx.db.updateAccount(accountId, { plan: "plus", subscription_status: "active" });
+  const view = await ctx.call("number-claim", { headers, body: { number: "+19195554321" } });
+  assert.equal(view.json.number, "+19195554321");
+  await rejects(ctx.call("number-claim", { headers, body: { number: "+19195554321" } }), 409);
+});
+
+test("the health page reports what's set up without revealing anything", async () => {
+  const ctx = setup({ STRIPE_WEBHOOK_SECRET: "", TWILIO_MESSAGING_SERVICE_SID: "" });
+  const health = await ctx.call("health");
+  assert.equal(health.json.ready, false);
+  assert.equal(health.json.checks.twilio, true);
+  assert.equal(health.json.checks.stripe_webhook, false);
+  assert.doesNotMatch(JSON.stringify(health.json), /twilio-token|sk_test|whsec/);
 });
 
 test("bursts are rate limited", async () => {
