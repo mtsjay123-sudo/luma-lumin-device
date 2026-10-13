@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Luma">
+  <defs>
+    <linearGradient id="lm-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#efece4"/>
+    </linearGradient>
+    <radialGradient id="lm-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="0.6" stop-color="#ffe7b3" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#fff3d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lm-halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe2a0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffe2a0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="60" cy="62" rx="52" ry="52" fill="url(#lm-halo)"/>
+  <ellipse cx="60" cy="108" rx="24" ry="4" fill="#000" opacity="0.08"/>
+  <rect x="30" y="18" width="60" height="86" rx="28" fill="url(#lm-body)" stroke="#e4e0d6" stroke-width="1.2"/>
+  <ellipse cx="60" cy="84" rx="26" ry="18" fill="url(#lm-glow)"/>
+  <path d="M33 44 Q60 50 87 44" fill="none" stroke="#e2ddd1" stroke-width="1.6" stroke-linecap="round"/>
+  <ellipse cx="60" cy="27" rx="7" ry="2.6" fill="#f3f1ec" stroke="#e2ddd1" stroke-width="1"/>
+  <g>
+    <ellipse cx="49" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
+    <ellipse cx="71" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
+    <circle cx="50.4" cy="59" r="1.4" fill="#fff"/>
+    <circle cx="72.4" cy="59" r="1.4" fill="#fff"/>
+  </g>
+  <ellipse cx="42" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity="0.6"/>
+  <ellipse cx="78" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity="0.6"/>
+  <path d="M55.5 71 Q60 75 64.5 71" fill="none" stroke="#28302b" stroke-width="2" stroke-linecap="round"/>
+</svg>

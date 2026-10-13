@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Luma</title>
+  <link rel="icon" href="/desktop/logo" />
+  <link rel="stylesheet" href="/desktop/desktop.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Left rail -->
+    <nav class="rail" aria-label="Luma">
+      <div class="drag"></div>
+      <img class="rail-logo" src="/desktop/logo" alt="Luma" width="34" height="34" />
+      <button class="rail-btn active" data-view="chat" aria-label="Talk" title="Talk">
+        <svg viewBox="0 0 24 24"><path d="M4 11.5C4 7.4 7.6 4 12 4s8 3.4 8 7.5S16.4 19 12 19c-1 0-1.9-.2-2.8-.4L5 20l1.2-3.4C4.8 15.3 4 13.5 4 11.5Z"/></svg>
+      </button>
+      <button class="rail-btn" data-view="library" aria-label="Things Luma made" title="Library">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+      </button>
+      <button class="rail-btn" data-view="today" aria-label="Today" title="Today">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>
+      </button>
+      <button class="rail-btn" data-view="people" aria-label="People" title="People">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M15.2 12v1.3a2.3 2.3 0 0 0 4.6 0V12a7.8 7.8 0 1 0-3 6.1"/></svg>
+      </button>
+      <span class="rail-space"></span>
+      <button class="rail-btn" data-view="settings" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>
+      </button>
+    </nav>
+
+    <!-- Conversation -->
+    <main class="stage" id="stage">
+      <div class="drag top-drag"></div>
+      <section class="view" id="view-chat">
+        <header class="buddy" aria-live="polite">
+          <div class="mascot idle" id="mascot" aria-hidden="true">
+            <svg viewBox="0 0 120 120">
+              <defs>
+                <linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#eeebe3"/></linearGradient>
+                <radialGradient id="g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffd98a" stop-opacity=".95"/><stop offset=".6" stop-color="#ffe7b3" stop-opacity=".45"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0"/></radialGradient>
+                <radialGradient id="h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffe2a0" stop-opacity=".6"/><stop offset="1" stop-color="#ffe2a0" stop-opacity="0"/></radialGradient>
+              </defs>
+              <ellipse class="halo" cx="60" cy="62" rx="54" ry="54" fill="url(#h)"/>
+              <ellipse class="shadow" cx="60" cy="110" rx="24" ry="4" fill="#000" opacity=".08"/>
+              <g class="body">
+                <rect x="30" y="18" width="60" height="86" rx="28" fill="url(#b)" stroke="#e4e0d6" stroke-width="1.2"/>
+                <ellipse class="glow" cx="60" cy="84" rx="26" ry="18" fill="url(#g)"/>
+                <path d="M33 44 Q60 50 87 44" fill="none" stroke="#e2ddd1" stroke-width="1.6" stroke-linecap="round"/>
+                <ellipse cx="60" cy="27" rx="7" ry="2.6" fill="#f3f1ec" stroke="#e2ddd1"/>
+                <g class="eyes open">
+                  <ellipse cx="49" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
+                  <ellipse cx="71" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
+                  <circle cx="50.4" cy="59" r="1.4" fill="#fff"/>
+                  <circle cx="72.4" cy="59" r="1.4" fill="#fff"/>
+                </g>
+                <g class="eyes happy" fill="none" stroke="#28302b" stroke-width="2.6" stroke-linecap="round">
+                  <path d="M44.5 62 Q49 56 53.5 62"/><path d="M66.5 62 Q71 56 75.5 62"/>
+                </g>
+                <g class="eyes sleepy" fill="none" stroke="#28302b" stroke-width="2.4" stroke-linecap="round">
+                  <path d="M45 61 Q49 64 53 61"/><path d="M67 61 Q71 64 75 61"/>
+                </g>
+                <ellipse cx="42" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity=".6"/>
+                <ellipse cx="78" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity=".6"/>
+                <path class="mouth" d="M55.5 71 Q60 75 64.5 71" fill="none" stroke="#28302b" stroke-width="2" stroke-linecap="round"/>
+              </g>
+            </svg>
+          </div>
+          <div class="nametag" id="nametag">Luma</div>
+          <div class="doing" id="doing">Here with you</div>
+        </header>
+
+        <div class="thread" id="thread" aria-label="Conversation with Luma"></div>
+
+        <form class="composer" id="composer" autocomplete="off">
+          <textarea id="input" rows="1" maxlength="4000" placeholder="Send a message" aria-label="Message to Luma"></textarea>
+          <button type="button" class="round ghost" id="mic" aria-label="Talk out loud" title="Talk out loud">
+            <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg>
+          </button>
+          <button type="submit" class="round send" id="send" aria-label="Send" disabled>
+            <svg viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg>
+          </button>
+        </form>
+      </section>
+
+      <section class="view page" id="view-library" hidden>
+        <h1>Things Luma made</h1>
+        <p class="lede">Decks, drafts and texts waiting on you.</p>
+        <div class="grid" id="library"></div>
+      </section>
+
+      <section class="view page" id="view-today" hidden>
+        <h1>Today</h1>
+        <p class="lede" id="today-brief"></p>
+        <div class="list" id="today"></div>
+      </section>
+
+      <section class="view page" id="view-people" hidden>
+        <h1>People</h1>
+        <p class="lede">Say “text my sister…” and Luma knows who you mean.</p>
+        <form class="inline-form" id="person-form">
+          <input name="name" placeholder="Name" required maxlength="60" />
+          <input name="phone" placeholder="+1 919 555 0123" required maxlength="20" />
+          <input name="nicknames" placeholder="Also called (sis, babe…)" maxlength="80" />
+          <button class="pill primary" type="submit">Save</button>
+        </form>
+        <div class="list" id="people"></div>
+      </section>
+
+      <section class="view page" id="view-settings" hidden>
+        <h1>Settings</h1>
+        <div class="list" id="settings"></div>
+      </section>
+    </main>
+
+    <!-- The work: what Luma is making or wants you to approve -->
+    <aside class="panel" id="panel" hidden aria-label="Luma's work">
+      <div class="drag"></div>
+      <div class="panel-head">
+        <span class="panel-title" id="panel-title">Work</span>
+        <button class="round ghost small" id="panel-close" aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </aside>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/desktop/desktop.js"></script>
+</body>
+</html>

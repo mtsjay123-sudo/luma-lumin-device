@@ -132,13 +132,26 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             self.end_headers()
             self.wfile.write(encoded)
 
+        def redirect(self, location):
+            self.send_response(302)
+            self.send_header('Location', location)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+
         def do_GET(self):
             if not self.valid_host(): return self.send({'error':'Invalid device host'},403)
             path = urlsplit(self.path).path
-            static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css')}
-            if path in static:
+            static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css'),
+                      '/desktop/':('desktop/index.html','text/html'), '/desktop/desktop.js':('desktop/desktop.js','text/javascript'), '/desktop/desktop.css':('desktop/desktop.css','text/css')}
+            if path=='/desktop': return self.redirect('/desktop/')
+            if path=='/desktop/logo':
+                # Drop your own logo at web/desktop/brand/logo.png and Luma Desktop uses it everywhere.
+                custom = ROOT/'desktop'/'brand'/'logo.png'
+                if custom.is_file(): return self.send(custom.read_bytes(),kind='image/png')
+                return self.send((ROOT/'desktop'/'mascot.svg').read_bytes(),kind='image/svg+xml')
+            if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
-                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path=='/' and not companion)
+                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion)
             if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated()})
             if not self.authenticated(): return self.send({'error':'Pair this phone from the Mac, or reopen the local owner controls.'},401)
             if path.startswith('/files/'):
@@ -157,7 +170,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'created':f.get('created')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):

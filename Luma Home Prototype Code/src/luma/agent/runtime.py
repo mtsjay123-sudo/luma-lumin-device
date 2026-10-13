@@ -461,8 +461,21 @@ class Agent:
         name = safe_filename(spec["title"])
         path = self.files_dir / f"{ident}-{name}"
         count = build_deck(spec, path)
-        row = self.store.put("file", {"name": name, "path": str(path), "kind": "deck", "slides": count, "title": spec["title"], "created": self.clock()}, ident)
-        return {"file": {"id": row["id"], "name": name, "url": "/files/" + row["id"], "slides": count},
+        # A light outline (no speaker notes) so screens can preview the slides.
+        def preview(s):
+            points = [s.get("caption")] if s.get("caption") else []
+            points += list(s.get("bullets") or [])
+            if s.get("layout") == "two_column":
+                points = [f"{s['left_title']}: {s['left_bullets'][0]}", f"{s['right_title']}: {s['right_bullets'][0]}"]
+            if s.get("attribution"):
+                points.append("— " + s["attribution"])
+            return {"layout": s.get("layout"), "title": str(s.get("title") or "")[:90],
+                    "big": str(s.get("number") or s.get("quote") or "")[:140], "points": [str(p)[:80] for p in points if p][:4]}
+        outline = [preview(s) for s in spec["slides"]][:24]
+        row = self.store.put("file", {"name": name, "path": str(path), "kind": "deck", "slides": count, "title": spec["title"],
+                                      "theme": spec.get("theme", "midnight"), "outline": outline, "created": self.clock()}, ident)
+        return {"file": {"id": row["id"], "name": name, "url": "/files/" + row["id"], "slides": count, "title": spec["title"],
+                         "theme": spec.get("theme", "midnight"), "outline": outline},
                 "summary": f"Your deck's ready: {count} slides on {spec['title']}. Download it below; the speaker notes have what to say."}
 
     FEEDS = {"instagram": ("Instagram", "https://www.instagram.com/"), "insta": ("Instagram", "https://www.instagram.com/"), "ig": ("Instagram", "https://www.instagram.com/"),
@@ -555,7 +568,7 @@ class Agent:
             if route == "luma_number" and not self.cloud.signed_in():
                 draft = self.store.put("phone_draft", {**args, "name": name, "created": self.clock()})
                 return {"state": "draft", "message_draft": draft, "recipient_name": name, "section": "people",
-                        "text": f"Here's the text for {name}: “{body}”. Luma's number isn't set up yet, so verify your phone in People & Texts and I'll send the next one. You can copy this one now."}
+                        "text": f"Here's the text for {name}: “{body}”. Luma's number isn't set up yet, so verify your phone in Settings and I'll send the next one. This one's ready for you to send."}
             if route == "luma_number":
                 account = self.cloud.cached_account()
                 if account and account.get("texts_left") == 0:
@@ -1118,7 +1131,7 @@ class Agent:
                     if name == "deck.create" or name.startswith("browser."):
                         return {"text": "That didn't work: " + str(error)}
                     if name != "messages.prepare": raise
-                    return {"text": str(error) + " Choose the exact person and message in People & Texts.", "section": "people"}
+                    return {"text": str(error) + " Tell me their name and number, or add them under People.", "section": "people"}
                 # Do not include confirmation token or raw provider content in the LLM context.
                 if name in READ_TOOLS and not cancel_event.is_set():
                     return self._follow_up(text, name, result, allowed, cancel_event)

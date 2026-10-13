@@ -1,0 +1,83 @@
+{
+  "name": "luma-desktop",
+  "productName": "Luma",
+  "version": "0.1.0",
+  "description": "Luma on your computer: talk to it, watch it work, approve what goes out.",
+  "main": "main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Lumin",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "43.7.9",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.lumin.luma",
+    "productName": "Luma",
+    "copyright": "Lumin",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "splash.css",
+      "splash.js",
+      "assets/**",
+      "build/icon.png"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "darkModeSupport": true,
+      "identity": "-",
+      "artifactName": "Luma-${version}-mac-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Luma",
+      "artifactName": "Luma-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "artifactName": "Luma-${version}-windows-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "shortcutName": "Luma"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "artifactName": "Luma-${version}-linux.${ext}"
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mtsjay123-sudo/luma-lumin-device"
+  }
+}

@@ -118,8 +118,8 @@ def pending_text(name, body, route, account=None):
 
 
 def draft_text(name, body):
-    return (f"Here's the text for {name}: “{body}”. Texting isn't connected yet, so tap Copy and send it from your phone. "
-            "To have me send it, set up your number or Luma's number in People & Texts.")
+    return (f"Here's the text for {name}: “{body}”. I can't send texts myself yet, so it's ready for you to send. "
+            "Want me to handle them? Turn on texting in Settings.")
 
 
 def quota_text(error):

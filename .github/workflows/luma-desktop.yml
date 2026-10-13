@@ -1,0 +1,61 @@
+# Builds Luma Desktop on real Macs (and Windows) and attaches the installers to
+# the run: Actions → "Luma Desktop" → the latest run → Artifacts.
+name: Luma Desktop
+
+on:
+  push:
+    paths:
+      - "desktop/**"
+      - "Luma Home Prototype Code/src/luma/control/web/desktop/**"
+      - ".github/workflows/luma-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      # Ad-hoc signed. With an Apple Developer ID, add CSC_LINK / CSC_KEY_PASSWORD
+      # and APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID secrets to notarize.
+      - run: npm run dist:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Luma-for-Mac
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Luma-for-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
