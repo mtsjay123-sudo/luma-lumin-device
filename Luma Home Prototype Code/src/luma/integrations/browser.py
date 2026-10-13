@@ -269,6 +269,43 @@ class BrowserSession:
             raise ValueError("Nothing is open yet. Open a page first.")
         return page.evaluate(PRODUCTS_JS)
 
+    def _do_press_cart(self, page, learned=None):
+        """Find and press the product's Add to cart button the way a person would: the store's own
+        button first (or the one that worked here before), then anything that says Add to cart,
+        then Amazon's other-sellers panel, scrolling and trying again a few times.
+        Returns which button worked (so Luma can remember it) and the page afterwards."""
+        def press(locator):
+            try:
+                target = locator.first
+                if target.count() == 0:
+                    return False
+                target.scroll_into_view_if_needed(timeout=3000)
+                if not (target.is_visible() and target.is_enabled()):
+                    return False
+                target.click(timeout=6000)
+                page.wait_for_timeout(2500)
+                check_url(page.url, self.allow_local)
+                return True
+            except Exception:
+                return False
+        tries = ([learned] if learned else []) + [s for s in CART_SELECTORS if s != learned]
+        for _ in range(3):
+            for selector in tries:
+                if press(page.locator(selector)):
+                    return {"pressed": selector, **self._snapshot(page)}
+            for role in ("button", "link"):
+                if press(page.get_by_role(role, name=CART_WORDS)):
+                    return {"pressed": f"role={role}", **self._snapshot(page)}
+            if press(page.locator("input[type=submit], input[type=button]").filter(has=page.locator("xpath=self::*[contains(translate(@value,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'add to cart')]"))):
+                return {"pressed": "input-value", **self._snapshot(page)}
+            # Amazon pages with no buy box: open "See all buying options" and take the first offer.
+            if press(page.locator("#buybox-see-all-buying-choices a, a[title='See All Buying Options'], #aod-ingress-link")):
+                if press(page.locator("#aod-pinned-offer input[name='submit.addToCart'], #aod-offer input[name='submit.addToCart'], input[name='submit.addToCart']")):
+                    return {"pressed": "amazon-offers", **self._snapshot(page)}
+            page.mouse.wheel(0, 800)
+            page.wait_for_timeout(1200)
+        return {"pressed": None, **self._snapshot(page)}
+
     def _do_search_results(self, page):
         """Results from a search page: title, real address and snippet for each."""
         return page.evaluate(SEARCH_RESULTS_JS)
@@ -299,6 +336,7 @@ class BrowserSession:
     def products(self): return self._call("products")
     def pictures(self, ids): return self._call("pictures", list(ids))
     def search_results(self): return self._call("search_results")
+    def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)
 
     def show_for_sign_in(self, url):
         """Reopen visibly so the owner can sign in themselves; Luma never handles passwords."""
@@ -313,6 +351,18 @@ class BrowserSession:
     def hide(self):
         self._call("_relaunch", True)
         return {"summary": "Browser is back in the background."}
+
+
+# Stores' own Add to cart buttons, most-used first.
+CART_SELECTORS = [
+    "#add-to-cart-button", "#add-to-cart-button-ubb", "input[name='submit.add-to-cart']",          # Amazon
+    "button[data-automation-id='atc']", "[data-testid='add-to-cart-section'] button",              # Walmart
+    "button[data-test='shippingButton']", "button[id^='addToCartButtonOrTextIdFor']",              # Target
+    "button.add-to-cart-button", "button[data-button-state='ADD_TO_CART']",                        # Best Buy
+    "#atcBtn_btn_1", "#atcRedesignId_btn", "a[data-testid='x-atc-action']",                         # eBay
+    "form[action*='/cart/add'] button[type='submit']", "button[name='add']",                       # Shopify stores
+]
+CART_WORDS = re.compile(r"add (?:it )?to (?:my |your )?(?:cart|bag|basket|trolley)", re.I)
 
 
 SEARCH_RESULTS_JS = r"""

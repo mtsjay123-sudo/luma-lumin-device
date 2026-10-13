@@ -164,7 +164,7 @@ class BrowserTests(unittest.TestCase):
         result = self.agent.chat("check my instagram")
         self.assertIn("rooftop bar", result["page"])
         self.agent.enable("browser", False)
-        self.assertIn("Turn it on in Connections", self.agent.chat("scroll my instagram")["text"])
+        self.assertIn("Turn it on in Apps", self.agent.chat("scroll my instagram")["text"])
 
     def test_home_network_and_file_urls_are_refused(self):
         from luma.integrations.browser import check_url

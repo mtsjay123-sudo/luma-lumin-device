@@ -89,6 +89,19 @@
     b.addEventListener("click", onClick);
     return b;
   }
+  // Web pages open in Luma's own browser (signed in as you, and Luma can keep helping there).
+  function webLink(label, href, cls, iconName) {
+    const b = el("button", cls);
+    b.type = "button";
+    if (iconName) b.append(icon(iconName));
+    if (label) b.append(document.createTextNode(label));
+    b.title = href;
+    b.addEventListener("click", async () => {
+      try { await api("/api/browser/show", { url: href }); toast("Opened in Luma's browser. You're in control."); }
+      catch (_) { window.open(href, "_blank", "noopener"); }
+    });
+    return b;
+  }
   function linkOut(label, href, cls, iconName) {
     const a = el("a", cls);
     if (iconName) a.append(icon(iconName));
@@ -350,9 +363,31 @@
     if (r.events) return agendaCard(r.events);
     if (r.message_draft && ["draft", "quota"].includes(r.state)) return draftCard(r.message_draft, r.state === "quota");
     if (r.helper) return helperChip(r.helper);
-    if (r.cart && r.url) { const a = el("div", "actions"); a.append(linkOut("Open your cart", r.url, "pill soft small", "cart")); return a; }
+    if (r.cart && r.url) { const a = el("div", "actions"); a.append(webLink("Open your cart", r.url, "pill soft small", "cart")); return a; }
+    if (r.sign_in) {
+      const a = el("div", "actions");
+      a.append(btn("I'm signed in", "pill primary small", () => send("done"), "check"), webLink(`Open ${r.sign_in}`, r.url, "pill soft small", "globe"));
+      return a;
+    }
+    if (r.handoff && r.url) {
+      const a = el("div", "actions");
+      a.append(btn("Done, I added it", "pill primary small", () => send("done"), "check"), webLink("Show me the page", r.url, "pill soft small", "globe"));
+      return a;
+    }
+    if (r.results && r.results.length) {
+      const a = el("div", "sources");
+      for (const hit of r.results.slice(0, 4)) {
+        const h = host(hit.url) || "source";
+        const chipEl = webLink(h, hit.url, "source-chip");
+        const mark = brandFor(h.split(".").slice(-2, -1)[0]);
+        chipEl.prepend(mark ? brand(mark) : icon("globe"));
+        chipEl.title = hit.title || hit.url;
+        a.append(chipEl);
+      }
+      return a;
+    }
     if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Apps", "pill soft small", () => go("apps"), "apps")); return a; }
-    if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(linkOut(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
+    if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(webLink(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
     return null;
   }
 
@@ -382,7 +417,7 @@
     info.append(el("div", "store", o.store), el("div", "name", o.title), el("div", "price", money(o.price)));
     const row = el("div", "row");
     row.append(btn("Add", "pill primary", () => addToCart(o), "cart"));
-    if (safeUrl(o.url)) row.append(linkOut("View", o.url, "pill soft"));
+    if (safeUrl(o.url)) row.append(webLink("View", o.url, "pill soft"));
     info.append(row);
     p.append(pic, info);
     return p;

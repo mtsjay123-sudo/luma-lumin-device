@@ -289,10 +289,20 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("luma:retry", (event) => { if (!trusted(event)) return false; boot(); return true; });
     session.defaultSession.on("will-download", (_event, item) => {
       item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename()));
-      item.once("done", (_e, state) => {
+      item.once("done", async (_e, state) => {
         if (state !== "completed") return;
-        if (Notification.isSupported()) new Notification({ title: "Saved to Downloads", body: path.basename(item.getSavePath()) }).show();
-        shell.showItemInFolder(item.getSavePath());
+        const file = item.getSavePath();
+        if (Notification.isSupported()) new Notification({ title: "Saved to Downloads", body: path.basename(file) }).show();
+        // Decks and documents open right away: PowerPoint if it's installed, otherwise Keynote on a Mac.
+        if (/\.(pptx|key|docx|pdf|xlsx)$/i.test(file)) {
+          const keynote = "/Applications/Keynote.app", powerpoint = "/Applications/Microsoft PowerPoint.app";
+          if (process.platform === "darwin" && /\.pptx$/i.test(file) && !fs.existsSync(powerpoint) && fs.existsSync(keynote)) {
+            spawn("open", ["-a", keynote, file], { detached: true, stdio: "ignore" }).unref();
+            return;
+          }
+          if (!(await shell.openPath(file))) return; // opened with its usual app
+        }
+        shell.showItemInFolder(file);
       });
     });
     createWindow();

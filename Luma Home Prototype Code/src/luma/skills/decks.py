@@ -111,9 +111,27 @@ def build_deck(spec, path):
     inch = 914400
 
     def background(slide):
+        # A soft vertical gradient instead of a flat fill, like Keynote's themes.
         fill = slide.background.fill
-        fill.solid()
-        fill.fore_color.rgb = rgb("bg")
+        fill.gradient()
+        fill.gradient_angle = 90
+        stops = fill.gradient_stops
+        stops[0].position, stops[0].color.rgb = 0.0, rgb("bg")
+        stops[1].position, stops[1].color.rgb = 1.0, rgb("panel")
+
+    def glow(slide, cx, cy, d, color, alpha=28):
+        """A blurred circle of light in the theme's color (alpha in percent)."""
+        from lxml import etree
+        from pptx.oxml.ns import qn
+        shape = slide.shapes.add_shape(MSO_SHAPE.OVAL, int(cx - d / 2), int(cy - d / 2), int(d), int(d))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = rgb(color)
+        shape.line.fill.background()
+        clr = shape.fill._xPr.find(qn("a:solidFill")).find(qn("a:srgbClr"))
+        etree.SubElement(clr, qn("a:alpha")).set("val", str(alpha * 1000))
+        effects = etree.SubElement(shape._element.spPr, qn("a:effectLst"))
+        etree.SubElement(effects, qn("a:softEdge")).set("rad", str(int(d * 0.32)))
+        return shape
 
     def box(slide, x, y, w, h, text, size, color="text", bold=False, font=BODY_FONT, align=PP_ALIGN.LEFT,
             anchor=MSO_ANCHOR.TOP, spacing=1.1):
@@ -184,6 +202,9 @@ def build_deck(spec, path):
         slide = deck.slides.add_slide(blank)
         background(slide)
         layout = s["layout"]
+        if layout in {"title", "section", "closing", "big_number"}:
+            glow(slide, W * 0.86, H * 0.18, 5.2 * inch, "accent", 42)
+            glow(slide, W * 0.70, H * 0.95, 4.2 * inch, "accent2", 26)
         if layout == "title":
             rect(slide, 0, 0, 0.18 * inch, H, "accent")
             box(slide, 1.0 * inch, 2.2 * inch, W - 2.0 * inch, 1.6 * inch, s["title"], 54, bold=True, font=HEAD_FONT, anchor=MSO_ANCHOR.BOTTOM, spacing=0.95)

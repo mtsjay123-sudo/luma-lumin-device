@@ -411,6 +411,22 @@ class RealBrowserShoppingTests(unittest.TestCase):
         self.assertIn("Added to cart", page)
         self.assertNotIn("ORDER PLACED", page)
 
+    def test_add_to_cart_finds_the_button_far_down_a_busy_page_and_remembers_it(self):
+        args = {"store": "Amazon", "title": "Apple AirPods Pro (2nd Generation)", "price": "$129.35",
+                "url": self.base + "/product-amazonish.html"}
+        done = self.agent._add_to_cart(args)
+        self.assertTrue(done["verified"], done)
+        self.assertEqual(self.agent.store.setting("cart_buttons")["127.0.0.1"], "#add-to-cart-button")
+        again = self.agent._add_to_cart(args)  # tries what worked first
+        self.assertTrue(again["verified"])
+
+    def test_add_to_cart_hands_over_instead_of_giving_up(self):
+        done = self.agent._add_to_cart({"store": "Shoe Shop", "title": "Running Shoes", "price": "$80",
+                                        "url": self.base + "/product-nobutton.html"})
+        self.assertTrue(done["handoff"])
+        self.assertIn("couldn't press Add to cart on Shoe Shop", done["text"])  # (no screen here to show the page on)
+        self.assertEqual(self.agent.pending_handoff["store"], "Shoe Shop")
+
     def test_search_the_web_for_free_in_lumas_browser(self):
         self.agent.providers.env["LUMA_SEARCH_URL"] = self.base + "/search.html?q={q}"
         result = self.agent.search_web("raleigh weather")
