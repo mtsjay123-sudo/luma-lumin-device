@@ -1550,7 +1550,8 @@ class Agent:
             log.append({"role": "you", "text": text.strip()[:4000], "at": self.clock()})
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
-                                                                       "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified") if k in result}})
+                                                                       "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
+                                                                       "sign_in", "handoff", "results") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
