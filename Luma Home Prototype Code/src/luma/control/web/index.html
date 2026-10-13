@@ -358,8 +358,30 @@
           </div>
         </div>
         <div class="dashboard">
+          <article class="card" id="luma-app-card">
+            <h3>The Luma app, from anywhere.</h3>
+            <p class="intro">
+              Text Luma from your phone wherever you are. Approve texts with a
+              tap, hear when someone texts back, get your reminders.
+              Encrypted between your phone and this Luma; Luma Cloud only
+              passes it along.
+            </p>
+            <div class="stack-form">
+              <button id="app-connect" class="button">Connect a phone</button>
+            </div>
+            <div id="app-invite" hidden>
+              <img id="app-qr" alt="One-time code to connect your phone to Luma" />
+              <p class="footnote">
+                Point your phone's camera at this code. It works once, for 10
+                minutes. Then tap Share › Add to Home Screen on iPhone (or
+                Install on Android) so Luma lives with your other apps.
+              </p>
+              <a id="app-link" class="text-button" target="_blank" rel="noopener">Open the link instead</a>
+            </div>
+            <div id="app-phones"></div>
+          </article>
           <article class="card">
-            <h3>Pair over your home Wi-Fi.</h3>
+            <h3>Or: home Wi-Fi only.</h3>
             <p class="intro" id="phone-status">
               Checking this Mac’s local connection…
             </p>
@@ -383,9 +405,9 @@
               <a id="pair-link" class="text-button">Open pairing link</a>
             </div>
             <p class="footnote">
-              This development connection uses a local certificate that your
-              phone must explicitly trust. It works while this Mac is running on
-              the same network. Away-from-home access is not connected.
+              This direct connection never touches the internet. It uses a
+              local certificate your phone must trust, and works only on the
+              same network as this Mac.
             </p>
           </article>
           <article class="card">

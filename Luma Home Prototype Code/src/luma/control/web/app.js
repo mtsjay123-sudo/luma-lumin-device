@@ -219,6 +219,7 @@ function result(data) {
   if (data.you) sayYou("📱 " + data.you);
   const box = bubble("luma");
   if (data.channel === "sms") box.classList.add("by-text");
+  if (data.channel === "app") box.classList.add("by-app");
   const pendingText = data.state === "pending" && MESSAGE_TOOLS.includes(data.tool);
   const text =
     data.text ||
@@ -645,6 +646,28 @@ function renderExtra(data) {
     );
     bookings.append(card);
   }
+  if (!phone && data.phone_app) {
+    const phones = $("#app-phones");
+    phones.replaceChildren();
+    for (const p of data.phone_app.phones) {
+      const row = make("div", undefined, "memory-row");
+      const seen = p.last_seen ? ` · last used ${new Date(p.last_seen).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "";
+      row.append(make("p", `${p.name}${seen}${p.notifications ? " · notifications on" : ""}`));
+      row.append(
+        button("Remove", async () => {
+          try {
+            await api("/api/phone-app/remove", { id: p.id });
+            toast(`${p.name} can't reach Luma anymore.`);
+            await refresh();
+          } catch (e) {
+            toast(e.message);
+          }
+        }),
+      );
+      phones.append(row);
+    }
+    if (data.phone_app.phones.length && !$("#app-invite").hidden && !data.phone_app.waiting) $("#app-invite").hidden = true;
+  }
   if (!phone) {
     const conn = data.phone,
       active = !!conn.origin,
@@ -731,6 +754,25 @@ $("#message-form").onsubmit = async (e) => {
     $("#results").scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
     toast(error.message);
+  }
+};
+$("#app-connect").onclick = async () => {
+  try {
+    $("#app-connect").disabled = true;
+    const d = await api("/api/phone-app/pair", {});
+    $("#app-invite").hidden = false;
+    $("#app-qr").src = d.qr;
+    $("#app-link").href = d.url;
+    const ends = Date.parse(d.expires_at) || Date.now() + 600000;
+    setTimeout(() => {
+      $("#app-invite").hidden = true;
+      $("#app-qr").removeAttribute("src");
+      $("#app-link").removeAttribute("href");
+    }, Math.max(0, ends - Date.now()));
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    $("#app-connect").disabled = false;
   }
 };
 $("#phone-start").onclick = async () => {

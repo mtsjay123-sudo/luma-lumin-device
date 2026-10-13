@@ -1214,6 +1214,24 @@ footer p {
 .msg .bubble > p {
   white-space: pre-line;
 }
+.msg.luma .bubble.by-app::before {
+  content: "Answered in the Luma app";
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #999d8c;
+}
+#app-qr {
+  display: block;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  margin: 12px 0;
+  background: #fff;
+  padding: 10px;
+  border-radius: 12px;
+}
 .msg.luma .bubble.by-text::before {
   content: "Answered by text";
   display: block;

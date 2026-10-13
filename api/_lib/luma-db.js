@@ -76,5 +76,36 @@ export function makeSupabaseDb(env, fetchImpl) {
       try { await request("POST", "luma_stripe_events", { id }); return true; }
       catch (error) { if (error.status === 409) return false; throw error; }
     },
+
+    // ---- the Luma app (payloads are end-to-end encrypted; never readable here)
+    updateDevice: (id, patch) => update("luma_devices", `id=eq.${enc(id)}`, patch),
+    insertPairing: (row) => insert("luma_app_pairings", row),
+    getPairing: (id) => one(`luma_app_pairings?id=eq.${enc(id)}&select=*`),
+    // Conditional update: only one phone can ever redeem a pairing.
+    usePairing: (id, at) => update("luma_app_pairings", `id=eq.${enc(id)}&used_at=is.null`, { used_at: at }),
+    async openPairings(deviceId, nowIso) {
+      const rows = await request("GET", `luma_app_pairings?device_id=eq.${enc(deviceId)}&used_at=is.null&expires_at=gt.${enc(nowIso)}&select=id&limit=20`);
+      return rows.length;
+    },
+    insertAppLink: (row) => insert("luma_app_links", row),
+    getAppLink: (id) => one(`luma_app_links?id=eq.${enc(id)}&select=*`),
+    updateAppLink: (id, patch) => update("luma_app_links", `id=eq.${enc(id)}`, patch),
+    touchAppLink: (id, at) => request("PATCH", `luma_app_links?id=eq.${enc(id)}`, { last_seen_at: at }),
+    listAppLinks: (deviceId) => request("GET", `luma_app_links?device_id=eq.${enc(deviceId)}&revoked_at=is.null&order=created_at.asc&limit=20&select=*`),
+    async insertAppMessage(row) {
+      try { return await insert("luma_app_messages", row); }
+      catch (error) {
+        if (error.status !== 409) throw error;
+        return one(`luma_app_messages?link_id=eq.${enc(row.link_id)}&client_ref=eq.${enc(row.client_ref)}&select=*`);
+      }
+    },
+    findAppMessage: (linkId, ref) => one(`luma_app_messages?link_id=eq.${enc(linkId)}&client_ref=eq.${enc(ref)}&select=*`),
+    async recentAppMessages(linkId, direction, sinceIso) {
+      const rows = await request("GET", `luma_app_messages?link_id=eq.${enc(linkId)}&direction=eq.${enc(direction)}&created_at=gte.${enc(sinceIso)}&select=id&limit=60`);
+      return rows.length;
+    },
+    appMessagesForLink: (linkId, afterIso, beforeIso) => request("GET", `luma_app_messages?link_id=eq.${enc(linkId)}&direction=eq.down&created_at=gt.${enc(afterIso)}&created_at=lte.${enc(beforeIso)}&order=created_at.asc&limit=50&select=id,payload,created_at`),
+    appMessagesForDevice: (deviceId, afterIso, beforeIso) => request("GET", `luma_app_messages?device_id=eq.${enc(deviceId)}&direction=eq.up&created_at=gt.${enc(afterIso)}&created_at=lte.${enc(beforeIso)}&order=created_at.asc&limit=50&select=id,link_id,payload,created_at`),
+    pruneAppMessages: (deviceId, beforeIso) => request("DELETE", `luma_app_messages?device_id=eq.${enc(deviceId)}&created_at=lt.${enc(beforeIso)}`),
   };
 }

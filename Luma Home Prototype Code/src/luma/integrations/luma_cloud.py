@@ -73,8 +73,14 @@ class LumaCloud:
     def credentials(self):
         return self.store.setting("luma_cloud_device")
 
-    def signed_in(self):
+    def connected(self):
+        """This Luma has a Luma Cloud credential (needed for the phone app)."""
         return bool(self.credentials)
+
+    def signed_in(self):
+        """Texting from Luma's number is set up: the owner verified their phone."""
+        creds = self.credentials
+        return bool(creds and creds.get("phone"))
 
     def _auth(self):
         creds = self.credentials
@@ -82,10 +88,13 @@ class LumaCloud:
             raise CloudError("Set up Luma's number first: verify your phone in People & Texts.", "auth", 401)
         return {"Authorization": "Bearer " + base64.b64decode(creds["token_b64"]).decode()}
 
-    def _call(self, method, path, payload=None, auth=True, side_effect=False):
+    def _call(self, method, path, payload=None, auth=True, side_effect=False, timeout=None):
         headers = self._auth() if auth else {}
         try:
-            status, body = self.request(method, self.base_url + path, headers, payload)
+            if timeout is None:
+                status, body = self.request(method, self.base_url + path, headers, payload)
+            else:
+                status, body = self.request(method, self.base_url + path, headers, payload, timeout=timeout)
         except (OSError, ValueError, TimeoutError):
             if side_effect:
                 raise OutcomeUnknown("I lost the connection while sending, so I'm not sure it went out. Check before sending again.") from None
@@ -118,21 +127,59 @@ class LumaCloud:
             raise ValueError("Start by entering your phone number.")
         if not isinstance(code, str) or not re.fullmatch(r"\d{4,10}", code.strip()):
             raise ValueError("Enter the code from the text.")
+        # A Luma already registered for the phone app keeps its credential; the phone attaches to it.
+        registered = self.connected()
         _, body = self._call("POST", "/api/luma/verify-check",
-                             {"phone": pending["phone"], "name": pending["name"], "code": code.strip(), "device_name": str(device_name)[:60]}, auth=False)
+                             {"phone": pending["phone"], "name": pending["name"], "code": code.strip(), "device_name": str(device_name)[:60]}, auth=registered)
         token = body.get("device_token")
-        if not isinstance(token, str) or "." not in token:
+        if registered and token is None and body.get("linked") and self.credentials:
+            self.store.set_setting("luma_cloud_device", {**self.credentials, "phone": pending["phone"], "name": pending["name"]})
+        elif not isinstance(token, str) or "." not in token:
             raise ProviderError("Luma Cloud didn't return a device credential.")
-        # Encoded so the store's card-number guard doesn't mistake the credential's digits for a card.
-        self.store.set_setting("luma_cloud_device", {"token_b64": base64.b64encode(token.encode()).decode(), "phone": pending["phone"], "name": pending["name"]})
+        else:
+            # Encoded so the store's card-number guard doesn't mistake the credential's digits for a card.
+            self.store.set_setting("luma_cloud_device", {"token_b64": base64.b64encode(token.encode()).decode(), "phone": pending["phone"], "name": pending["name"]})
         self.store.set_setting("luma_cloud_pending", None)
         self._cache(body.get("account") or {})
         return {"account": self.store.setting("luma_cloud_account"), "summary": "You're set. Luma can text from its number now."}
 
     def sign_out(self):
-        self.store.set_setting("luma_cloud_device", None)
+        # Texting stops; a phone paired with this Luma keeps working.
+        creds = self.credentials
+        keep = creds and self.store.setting("phone_app_b64")
+        self.store.set_setting("luma_cloud_device", {"token_b64": creds["token_b64"], "phone": None, "name": None} if keep else None)
         self.store.set_setting("luma_cloud_account", None)
         return {"summary": "Luma's number is disconnected on this device."}
+
+    def register(self, device_name="Luma"):
+        """Get a Luma Cloud credential without a phone number, for the phone app."""
+        if self.connected():
+            return
+        _, body = self._call("POST", "/api/luma/device-register", {"device_name": str(device_name)[:60]}, auth=False)
+        token = body.get("device_token")
+        if not isinstance(token, str) or "." not in token:
+            raise ProviderError("Luma Cloud didn't return a device credential.")
+        self.store.set_setting("luma_cloud_device", {"token_b64": base64.b64encode(token.encode()).decode(), "phone": None, "name": None})
+
+    # -- the Luma app on the owner's phone (payloads are end-to-end encrypted) ----
+    def app_pair_start(self, secret_hash):
+        _, body = self._call("POST", "/api/luma/app-pair-start", {"secret_hash": secret_hash})
+        return body
+
+    def app_inbox(self, cursor=None, wait=25):
+        query = {"wait": str(int(wait))}
+        if cursor:
+            query["after"] = cursor
+        _, body = self._call("GET", "/api/luma/app-inbox?" + urllib.parse.urlencode(query), timeout=wait + 15)
+        return body
+
+    def app_reply(self, messages):
+        _, body = self._call("POST", "/api/luma/app-reply", {"messages": messages})
+        return body
+
+    def app_unpair(self, link_id):
+        _, body = self._call("POST", "/api/luma/app-unpair", {"link_id": link_id})
+        return body
 
     # -- account -------------------------------------------------------------
     def _cache(self, account):

@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 
 export function memoryDb(clock = null) {
-  const t = { accounts: [], devices: [], messages: [], usage: new Map(), optouts: [], events: new Set() };
+  const t = { accounts: [], devices: [], messages: [], usage: new Map(), optouts: [], events: new Set(), pairings: [], links: [], appMessages: [] };
   const id = () => crypto.randomUUID();
   // Strictly increasing timestamps, so "replies after <cursor>" behaves like Postgres.
   let last = 0;
@@ -13,7 +13,7 @@ export function memoryDb(clock = null) {
   return {
     t,
     getDevice: async (x) => t.devices.find((d) => d.id === x) || null,
-    touchDevice: async () => {},
+    touchDevice: async (x, when) => { const d = t.devices.find((r) => r.id === x); if (d) d.last_seen_at = when; },
     insertDevice: async (row) => { const d = { id: id(), revoked_at: null, ...row }; t.devices.push(d); return d; },
     getAccount: async (x) => t.accounts.find((a) => a.id === x) || null,
     getAccountByPhone: async (p) => t.accounts.find((a) => a.owner_phone === p) || null,
@@ -39,6 +39,26 @@ export function memoryDb(clock = null) {
     inbox: async (a, after) => t.messages.filter((m) => m.account_id === a && m.direction === "in" && m.created_at > after),
     lastSenderTo: async (n, via) => { const m = [...t.messages].reverse().find((r) => r.direction === "out" && r.kind === "reply" && r.to_number === n && (r.from_number === via || r.from_number === null)); return m ? { id: m.account_id } : null; },
     recordEvent: async (e) => (t.events.has(e) ? false : (t.events.add(e), true)),
+    updateDevice: async (x, patch) => Object.assign(t.devices.find((d) => d.id === x), patch),
+    insertPairing: async (row) => { const p = { id: id(), used_at: null, created_at: at(), ...row }; t.pairings.push(p); return p; },
+    getPairing: async (x) => t.pairings.find((p) => p.id === x) || null,
+    usePairing: async (x, when) => { const p = t.pairings.find((r) => r.id === x && !r.used_at); if (!p) return null; p.used_at = when; return p; },
+    openPairings: async (d, nowIso) => t.pairings.filter((p) => p.device_id === d && !p.used_at && p.expires_at > nowIso).length,
+    insertAppLink: async (row) => { const l = { id: id(), created_at: at(), last_seen_at: null, revoked_at: null, push_subscription: null, ...row }; t.links.push(l); return l; },
+    getAppLink: async (x) => t.links.find((l) => l.id === x) || null,
+    updateAppLink: async (x, patch) => Object.assign(t.links.find((l) => l.id === x), patch),
+    touchAppLink: async (x, when) => { const l = t.links.find((r) => r.id === x); if (l) l.last_seen_at = when; },
+    listAppLinks: async (d) => t.links.filter((l) => l.device_id === d && !l.revoked_at),
+    insertAppMessage: async (row) => {
+      const dup = t.appMessages.find((m) => m.link_id === row.link_id && m.client_ref === row.client_ref);
+      if (dup) return dup;
+      const m = { id: id(), created_at: at(), ...row }; t.appMessages.push(m); return m;
+    },
+    findAppMessage: async (l, ref) => t.appMessages.find((m) => m.link_id === l && m.client_ref === ref) || null,
+    recentAppMessages: async (l, dir, since) => t.appMessages.filter((m) => m.link_id === l && m.direction === dir && m.created_at >= since).length,
+    appMessagesForLink: async (l, after, before) => t.appMessages.filter((m) => m.link_id === l && m.direction === "down" && m.created_at > after && m.created_at <= before).slice(0, 50),
+    appMessagesForDevice: async (d, after, before) => t.appMessages.filter((m) => m.device_id === d && m.direction === "up" && m.created_at > after && m.created_at <= before).slice(0, 50),
+    pruneAppMessages: async (d, before) => { t.appMessages = t.appMessages.filter((m) => !(m.device_id === d && m.created_at < before)); },
   };
 }
 

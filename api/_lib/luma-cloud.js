@@ -7,8 +7,14 @@
 // network.
 //
 // Device routes authenticate with "Authorization: Bearer <device_id>.<secret>".
+// The Luma app on a phone authenticates with "Authorization: LumaApp <link_id>.<secret>".
 // Webhook routes authenticate with the provider's signature.
+//
+// The app and the device talk end to end encrypted (AES-GCM with a key that
+// only travels in the pairing link's #fragment), so Luma Cloud stores and
+// forwards ciphertext it cannot read.
 import crypto from "node:crypto";
+import { sendPush, vapidReady } from "./web-push.js";
 
 const STOP_WORDS = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE", "OPTOUT"]);
 const START_WORDS = new Set(["START", "UNSTOP", "OPTIN"]);
@@ -16,6 +22,11 @@ const HELP_WORDS = new Set(["HELP", "INFO"]);
 const E164 = /^\+[1-9]\d{7,14}$/;
 const NANP = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
 const MAX_BODY = 640; // four SMS segments at most
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const PAYLOAD = /^[A-Za-z0-9_-]{24,24000}$/; // base64url of iv + AES-GCM ciphertext
+const REF = /^[A-Za-z0-9_-]{6,64}$/;
+const APP_RETENTION_DAYS = 30;
+const MAX_LINKS = 8;
 
 export class HttpError extends Error {
   constructor(status, code, message, extra = {}) {
@@ -50,6 +61,7 @@ export function settings(env) {
     provisionNumbers: env.LUMA_PROVISION_NUMBERS === "1",
     releaseNumbers: env.LUMA_RELEASE_NUMBERS_ON_CANCEL === "1",
     portalConfig: env.LUMA_STRIPE_PORTAL_CONFIG || "",
+    vapid: { publicKey: env.LUMA_VAPID_PUBLIC_KEY || "", privateKey: env.LUMA_VAPID_PRIVATE_KEY || "", subject: env.LUMA_VAPID_SUBJECT || "" },
   };
 }
 
@@ -236,7 +248,19 @@ export function makeStripe(cfg, fetchImpl) {
 
 // ----------------------------------------------------------------- service ---
 
-export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(), random = (n) => crypto.randomBytes(n) }) {
+// Best effort, per server instance: enough to blunt scripted sign-ups.
+const recentByIp = new Map();
+export function ipAllowed(key, limit, windowMs, now) {
+  const hits = (recentByIp.get(key) || []).filter((t) => now - t < windowMs);
+  if (recentByIp.size > 5000) recentByIp.clear();
+  if (hits.length >= limit) { recentByIp.set(key, hits); return false; }
+  hits.push(now);
+  recentByIp.set(key, hits);
+  return true;
+}
+
+export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(), random = (n) => crypto.randomBytes(n),
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), push = sendPush }) {
   const cfg = settings(env);
   const twilio = makeTwilio(cfg, fetchImpl);
   const stripe = makeStripe(cfg, fetchImpl);
@@ -257,6 +281,52 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     return { device, account };
   }
 
+  // The Luma app on the owner's phone, paired to one Luma device.
+  async function authApp(headers) {
+    const match = /^LumaApp\s+([0-9a-f-]{36})\.([A-Za-z0-9_-]{20,})$/.exec(headers.authorization || "");
+    const unpaired = () => new HttpError(401, "unpaired", "This phone isn't connected to a Luma anymore. Pair it again from your Luma.");
+    if (!match) throw unpaired();
+    const link = await db.getAppLink(match[1]);
+    if (!link || link.revoked_at || !safeEqual(link.secret_hash, sha256(match[2]))) throw unpaired();
+    const device = await db.getDevice(link.device_id);
+    if (!device || device.revoked_at) throw unpaired();
+    return { link, device };
+  }
+
+  function lumaStatus(device) {
+    const seen = device.last_seen_at ? Date.parse(device.last_seen_at) : 0;
+    return { name: device.name || "Luma", online: now() - seen < 90_000, last_seen_at: device.last_seen_at || null };
+  }
+
+  function checkPayload(payload) {
+    if (typeof payload !== "string" || !PAYLOAD.test(payload)) throw new HttpError(400, "payload", "That message couldn't be read.");
+    return payload;
+  }
+
+  function waitSeconds(query) {
+    const n = Number.parseInt(query.wait ?? "0", 10);
+    return Number.isFinite(n) ? Math.max(0, Math.min(25, n)) : 0;
+  }
+
+  function cursorFrom(query, fallbackMs) {
+    return typeof query.after === "string" && !Number.isNaN(Date.parse(query.after)) ? new Date(query.after).toISOString() : new Date(now() - fallbackMs).toISOString();
+  }
+
+  // Only hand out messages older than this, so one whose transaction commits a
+  // moment late can't slip behind a reader's cursor and be skipped.
+  const horizon = () => new Date(now() - 750).toISOString();
+
+  // Hold the request open until something arrives (or the wait runs out), so
+  // phones and devices hear about new messages in about a second without polling hard.
+  async function longPoll(fetchRows, seconds) {
+    const until = now() + seconds * 1000;
+    for (;;) {
+      const rows = await fetchRows();
+      if (rows.length || now() >= until) return rows;
+      await sleep(Math.min(1500, Math.max(0, until - now())));
+    }
+  }
+
   async function accountView(account) {
     const used = await db.usage(account.id, period(now()));
     return {
@@ -271,6 +341,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       number_pending: Boolean(isPlus(account) && !account.assigned_number && cfg.provisionNumbers),
       can_pick_number: Boolean(cfg.provisionNumbers && twilio.configured() && !account.assigned_number),
       replies: true,
+      verified: Boolean(account.owner_phone),
       owner_name: account.owner_name,
       plus: { price: cfg.plusPriceLabel, texts_limit: cfg.plusTexts, available: stripe.configured() },
     };
@@ -289,16 +360,28 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     },
 
     // Step 2: check the code, create or reuse the account, and issue a device credential.
-    async "verify-check"({ body }) {
+    // A Luma that already registered (for the phone app) keeps its credential:
+    // verifying just attaches the owner's phone to it.
+    async "verify-check"({ headers, body }) {
       if (!cfg.verifyService || !twilio.configured()) throw new HttpError(503, "not_configured", "Luma Cloud texting isn't set up yet.");
       const phone = checkNumber(body.phone, cfg.countries);
       const code = String(body.code || "").trim();
       if (!/^\d{4,10}$/.test(code)) throw new HttpError(400, "code", "Enter the code from the text.");
+      const registered = headers.authorization ? await authDevice(headers) : null;
       const check = await twilio.checkVerify(phone, code);
       if (!check.ok || check.data.status !== "approved") throw new HttpError(403, "code", "That code didn't work. Try again or request a new one.");
       const name = String(body.name || "").trim().slice(0, 60) || "Luma owner";
       let account = await db.getAccountByPhone(phone);
       const stamp = new Date(now()).toISOString();
+      if (registered) {
+        if (account && account.id !== registered.account.id) {
+          await db.updateDevice(registered.device.id, { account_id: account.id });
+          account = await db.updateAccount(account.id, { owner_name: name, phone_verified_at: stamp });
+        } else {
+          account = await db.updateAccount(registered.account.id, { owner_phone: phone, owner_name: name, phone_verified_at: stamp });
+        }
+        return { status: 200, json: { device_token: null, linked: true, account: await accountView(account) } };
+      }
       if (!account) account = await db.insertAccount({ owner_phone: phone, owner_name: name, plan: "free", phone_verified_at: stamp });
       else account = await db.updateAccount(account.id, { owner_name: name, phone_verified_at: stamp });
       const secret = random(32).toString("base64url");
@@ -314,6 +397,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     // Send one reviewed text from Luma's number. client_ref makes retries safe.
     async "sms-send"({ headers, body }) {
       const { device, account } = await authDevice(headers);
+      if (!account.owner_phone) throw new HttpError(403, "verify_phone", "Verify your phone in People & Texts first, so people know who's texting.");
       if (!twilio.configured() || !(cfg.sharedNumber || cfg.messagingService)) {
         throw new HttpError(503, "not_configured", "Luma's number isn't connected yet.");
       }
@@ -397,11 +481,148 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       return { status: 200, json: { replies: replies.map((r) => ({ id: r.id, from: r.from_number, body: r.body, received_at: r.created_at, kind: r.kind || "reply" })), cursor: replies.at(-1)?.created_at || after } };
     },
 
+    // ---- The Luma app: your Luma on your phone, from anywhere -------------
+
+    // A Luma registers itself so a phone can pair with it. No phone number
+    // needed; texting from Luma's number still requires verify-start/check.
+    async "device-register"({ body, ip }) {
+      if (!ipAllowed("register:" + ip, 5, 3600_000, now())) throw new HttpError(429, "slow_down", "Too many new Lumas from here. Try again in an hour.");
+      const account = await db.insertAccount({ owner_phone: null, owner_name: "Luma owner", plan: "free" });
+      const secret = random(32).toString("base64url");
+      const device = await db.insertDevice({ account_id: account.id, secret_hash: sha256(secret), name: String(body.device_name || "Luma").trim().slice(0, 60) || "Luma" });
+      return { status: 200, json: { device_token: `${device.id}.${secret}` } };
+    },
+
+    // The device opens a 10-minute pairing window. It sends only a hash of the
+    // pairing secret; the secret and the encryption key stay in the QR link.
+    async "app-pair-start"({ headers, body }) {
+      const { device } = await authDevice(headers);
+      if (typeof body.secret_hash !== "string" || !/^[0-9a-f]{64}$/.test(body.secret_hash)) throw new HttpError(400, "secret_hash", "Missing pairing secret.");
+      const stamp = new Date(now()).toISOString();
+      if ((await db.openPairings(device.id, stamp)) >= 5) throw new HttpError(429, "slow_down", "Use one of the pairing codes already showing, or wait a few minutes.");
+      if ((await db.listAppLinks(device.id)).length >= MAX_LINKS) throw new HttpError(409, "too_many", `A Luma can connect to ${MAX_LINKS} phones. Remove one first.`);
+      const pairing = await db.insertPairing({ device_id: device.id, secret_hash: body.secret_hash, expires_at: new Date(now() + 600_000).toISOString() });
+      return { status: 200, json: { pair_id: pairing.id, expires_at: pairing.expires_at } };
+    },
+
+    // The phone redeems the pairing link and gets its own credential.
+    async "app-pair"({ body, ip }) {
+      if (!ipAllowed("pair:" + ip, 20, 600_000, now())) throw new HttpError(429, "slow_down", "Too many tries. Wait a few minutes.");
+      const pairId = String(body.pair_id || "");
+      const secret = String(body.secret || "");
+      const expired = () => new HttpError(410, "pairing", "That pairing code expired or was already used. Make a new one on your Luma.");
+      if (!UUID.test(pairId) || !/^[A-Za-z0-9_-]{20,100}$/.test(secret)) throw expired();
+      const pairing = await db.getPairing(pairId);
+      if (!pairing || pairing.used_at || Date.parse(pairing.expires_at) < now() || !safeEqual(pairing.secret_hash, sha256(secret))) throw expired();
+      if (!(await db.usePairing(pairId, new Date(now()).toISOString()))) throw expired(); // single use, even under a race
+      const device = await db.getDevice(pairing.device_id);
+      if (!device || device.revoked_at) throw expired();
+      const linkSecret = random(32).toString("base64url");
+      const name = String(body.name || "").replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 40) || "Phone";
+      const link = await db.insertAppLink({ device_id: device.id, pairing_id: pairId, secret_hash: sha256(linkSecret), name });
+      return { status: 200, json: { app_token: `${link.id}.${linkSecret}`, link_id: link.id, luma: lumaStatus(device), push_key: vapidReady(cfg.vapid) ? cfg.vapid.publicKey : null } };
+    },
+
+    // Phone → Luma. Idempotent per client_ref, so a flaky connection can't double-send.
+    async "app-send"({ headers, body }) {
+      const { link, device } = await authApp(headers);
+      const ref = String(body.client_ref || "");
+      if (!REF.test(ref)) throw new HttpError(400, "client_ref", "Missing request reference.");
+      const existing = await db.findAppMessage(link.id, ref);
+      if (existing) return { status: 200, json: { id: existing.id, created_at: existing.created_at, duplicate: true, luma: lumaStatus(device) } };
+      if ((await db.recentAppMessages(link.id, "up", new Date(now() - 60_000).toISOString())) >= 30) throw new HttpError(429, "slow_down", "That's a lot at once. Give Luma a second.");
+      const row = await db.insertAppMessage({ device_id: device.id, link_id: link.id, direction: "up", payload: checkPayload(body.payload), client_ref: ref });
+      return { status: 200, json: { id: row.id, created_at: row.created_at, luma: lumaStatus(device) } };
+    },
+
+    // Luma → phone, read by the phone. ?wait=25 holds until something arrives.
+    async "app-thread"({ headers, query }) {
+      const { link, device } = await authApp(headers);
+      await db.touchAppLink(link.id, new Date(now()).toISOString()).catch(() => {});
+      const after = cursorFrom(query, 7 * 86400_000);
+      const rows = await longPoll(() => db.appMessagesForLink(link.id, after, horizon()), waitSeconds(query));
+      const fresh = rows.length ? device : (await db.getDevice(device.id)) || device;
+      return { status: 200, json: { messages: rows.map((r) => ({ id: r.id, payload: r.payload, created_at: r.created_at })), cursor: rows.at(-1)?.created_at || after, luma: lumaStatus(fresh) } };
+    },
+
+    // The phone's Web Push subscription, so Luma can reach it when the app is closed.
+    async "app-push"({ headers, body }) {
+      const { link } = await authApp(headers);
+      const sub = body.subscription;
+      if (sub === null) { await db.updateAppLink(link.id, { push_subscription: null }); return { status: 200, json: { push: false } }; }
+      const endpoint = String(sub?.endpoint || "");
+      if (!/^https:\/\/[^\s]{10,900}$/.test(endpoint) || typeof sub?.keys?.p256dh !== "string" || typeof sub?.keys?.auth !== "string" || sub.keys.p256dh.length > 200 || sub.keys.auth.length > 64) {
+        throw new HttpError(400, "subscription", "That notification setup didn't look right.");
+      }
+      await db.updateAppLink(link.id, { push_subscription: { endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } } });
+      return { status: 200, json: { push: true } };
+    },
+
+    // A phone leaves (from the phone), or the owner removes it (from the Luma).
+    async "app-unpair"({ headers, body }) {
+      if (/^LumaApp\s/.test(headers.authorization || "")) {
+        const { link } = await authApp(headers);
+        await db.updateAppLink(link.id, { revoked_at: new Date(now()).toISOString(), push_subscription: null });
+        return { status: 200, json: { removed: link.id } };
+      }
+      const { device } = await authDevice(headers);
+      const link = UUID.test(String(body.link_id || "")) ? await db.getAppLink(body.link_id) : null;
+      if (!link || link.device_id !== device.id) throw new HttpError(404, "not_found", "That phone isn't connected.");
+      await db.updateAppLink(link.id, { revoked_at: new Date(now()).toISOString(), push_subscription: null });
+      return { status: 200, json: { removed: link.id } };
+    },
+
+    // What phones said to this Luma, plus which phones are connected. ?wait=25 holds.
+    async "app-inbox"({ headers, query }) {
+      const { device } = await authDevice(headers);
+      const after = cursorFrom(query, 86400_000);
+      const rows = await longPoll(() => db.appMessagesForDevice(device.id, after, horizon()), waitSeconds(query));
+      const links = await db.listAppLinks(device.id);
+      if (random(1)[0] < 8) await db.pruneAppMessages(device.id, new Date(now() - APP_RETENTION_DAYS * 86400_000).toISOString()).catch(() => {});
+      return { status: 200, json: {
+        messages: rows.map((r) => ({ id: r.id, link_id: r.link_id, payload: r.payload, created_at: r.created_at })),
+        cursor: rows.at(-1)?.created_at || after,
+        links: links.map((l) => ({ id: l.id, pairing_id: l.pairing_id, name: l.name, created_at: l.created_at, last_seen_at: l.last_seen_at || null, push: Boolean(l.push_subscription) })),
+      } };
+    },
+
+    // Luma → phone(s). Each message is encrypted for one phone's key.
+    // notify: true also wakes the phone with a notification if the app isn't open.
+    async "app-reply"({ headers, body }) {
+      const { device } = await authDevice(headers);
+      const items = Array.isArray(body.messages) ? body.messages : [];
+      if (!items.length || items.length > 10) throw new HttpError(400, "messages", "Send between 1 and 10 messages.");
+      const links = new Map((await db.listAppLinks(device.id)).map((l) => [l.id, l]));
+      const results = [];
+      for (const item of items) {
+        const link = links.get(String(item?.link_id || ""));
+        if (!link) { results.push({ link_id: item?.link_id || null, error: "not_connected" }); continue; }
+        const ref = String(item.client_ref || "");
+        if (!REF.test(ref)) throw new HttpError(400, "client_ref", "Missing request reference.");
+        const payload = checkPayload(item.payload);
+        let row = await db.findAppMessage(link.id, ref);
+        const duplicate = Boolean(row);
+        if (!row) row = await db.insertAppMessage({ device_id: device.id, link_id: link.id, direction: "down", payload, client_ref: ref });
+        let pushed = null;
+        const appOpen = link.last_seen_at && now() - Date.parse(link.last_seen_at) < 30_000;
+        if (!duplicate && item.notify === true && link.push_subscription && !appOpen && vapidReady(cfg.vapid)) {
+          pushed = await push(link.push_subscription, { id: row.id, payload: payload.length <= 3000 ? payload : null }, cfg.vapid, { fetch: fetchImpl, now: now() });
+          if (pushed === "gone") await db.updateAppLink(link.id, { push_subscription: null }).catch(() => {});
+        }
+        results.push({ link_id: link.id, id: row.id, duplicate, pushed });
+      }
+      return { status: 200, json: { results } };
+    },
+
+    async "app-config"() {
+      return { status: 200, json: { push_key: vapidReady(cfg.vapid) ? cfg.vapid.publicKey : null } };
+    },
+
     // A few real, available local numbers to choose from before upgrading.
     async "number-options"({ headers, query }) {
       const { account } = await authDevice(headers);
       if (!cfg.provisionNumbers || !twilio.configured()) throw new HttpError(503, "not_configured", "Picking a number isn't available yet.");
-      const area = String(query.area_code || /^\+1(\d{3})/.exec(account.owner_phone)?.[1] || "").replace(/\D/g, "");
+      const area = String(query.area_code || /^\+1(\d{3})/.exec(account.owner_phone || "")?.[1] || "").replace(/\D/g, "");
       if (area && !/^[2-9]\d{2}$/.test(area)) throw new HttpError(400, "area_code", "Use a 3-digit US area code, like 919.");
       let numbers = await twilio.searchNumbers(area, 5);
       const nearby = !numbers.length && area;
@@ -411,6 +632,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
 
     async "billing-checkout"({ headers, body }) {
       const { account } = await authDevice(headers);
+      if (!account.owner_phone) throw new HttpError(403, "verify_phone", "Verify your phone in People & Texts first.");
       if (!stripe.configured() || !cfg.publicUrl) throw new HttpError(503, "not_configured", "Luma Plus checkout isn't set up yet.");
       if (isPlus(account)) throw new HttpError(409, "already_plus", "You already have Luma Plus.");
       const desired = body?.number ? checkNumber(body.number, ["1"]) : null;
@@ -440,7 +662,9 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
         sending_number: Boolean(cfg.sharedNumber || cfg.messagingService), messaging_service: Boolean(cfg.messagingService),
         stripe: stripe.configured(), stripe_webhook: Boolean(cfg.stripeWebhookSecret), numbers_for_plus: cfg.provisionNumbers,
       };
-      return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks } };
+      // The phone app needs only the database; notifications need the VAPID keys.
+      const app = { pairing: database, notifications: vapidReady(cfg.vapid) };
+      return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks, app } };
     },
 
     async "billing-portal"({ headers }) {
@@ -578,7 +802,7 @@ export function createHandler(makeDeps) {
     try {
       const { routes } = createService(makeDeps());
       const run = routes[route];
-      const getRoutes = new Set(["account", "sms-inbox", "number-options", "health"]);
+      const getRoutes = new Set(["account", "sms-inbox", "number-options", "health", "app-thread", "app-inbox", "app-config"]);
       if (!run) return reply(404, { error: "not_found" });
       if (getRoutes.has(route) ? req.method !== "GET" : req.method !== "POST") return reply(405, { error: "method" });
       const headers = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));
@@ -591,7 +815,8 @@ export function createHandler(makeDeps) {
         try { body = JSON.parse(raw); } catch { return reply(400, { error: "bad_json" }); }
         if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { error: "bad_json" });
       }
-      const result = await run({ headers, body, form, raw, query: req.query || {} });
+      const ip = String(headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
+      const result = await run({ headers, body, form, raw, query: req.query || {}, ip });
       if ("twiml" in result) return reply(result.status, result.twiml, true);
       return reply(result.status, result.json);
     } catch (error) {

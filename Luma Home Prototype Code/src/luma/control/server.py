@@ -13,6 +13,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlsplit
 from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
+from luma.integrations.phone_app import PhoneApp
 
 ROOT = Path(__file__).parent / 'web'
 
@@ -47,6 +48,7 @@ class ControlContext:
         self.owner_session = secrets.token_urlsafe(32)
         self.lock = threading.RLock()
         self.limits = {}
+        self.phone_app = PhoneApp(agent)
         agent.on_result = self.publish
 
     def publish(self, result):
@@ -155,7 +157,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
@@ -173,7 +175,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 if pairing:
                     result = ctx.pairing.pair(data.get('token'),data.get('name'))
                     return self.send({'paired':True,'device':result['device']},phone_token=result['token'])
-                if path.startswith('/api/phone/'):
+                if path.startswith('/api/phone-app/'):
+                    if companion or agent.mode=='kids': return self.send({'error':'Connect phones from Luma itself, in adult mode.'},403)
+                    if path=='/api/phone-app/pair': result=ctx.phone_app.start_pairing(agent.profile.get('name') or 'Luma')
+                    elif path=='/api/phone-app/remove': result=ctx.phone_app.remove(str(data.get('id','')))
+                    else: return self.send({'error':'Not found'},404)
+                elif path.startswith('/api/phone/'):
                     if companion or agent.mode=='kids': return self.send({'error':'Phone management is available only on the Mac owner controls.'},403)
                     if path=='/api/phone/start': result={'origin':ctx.start_phone(data.get('host'))}
                     elif path=='/api/phone/invite':
@@ -316,12 +323,14 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
     server.agent_stop=ctx.stop
     server.control_context=ctx
     if root_context:
+        ctx.phone_app.start()
         def clock_loop():
             while not ctx.stop.wait(1):
                 try:
                     event=agent.tick()
                     if event:
                         ctx.events.append(event)
+                        threading.Thread(target=ctx.phone_app.notify,args=(event,),daemon=True).start()
                         if not agent.muted and not event.get('silent'):
                             from luma.orchestrator import speak
                             speak(event['text'],agent)
@@ -349,7 +358,7 @@ def serve(agent,port,phone_host=None,phone_port=8096):
     try: server.serve_forever()
     except KeyboardInterrupt: pass
     finally:
-        ctx.stop.set(); agent.set_muted(True)
+        ctx.stop.set(); agent.set_muted(True); ctx.phone_app.stop()
         if ctx.phone_server: ctx.phone_server.shutdown(); ctx.phone_server.server_close()
         for signum, previous in previous_signals.items(): signal.signal(signum, previous)
         agent.interrupt(); agent.device.close()
