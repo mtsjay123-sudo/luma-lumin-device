@@ -12,14 +12,16 @@
   <div class="canvas" aria-hidden="true"></div>
 
   <div class="app" id="app">
-    <!-- Sidebar: tabs, side chats, and settings / search / compose at the bottom (like Muse) -->
+    <!-- Sidebar, like ChatGPT's: new chat and search on top, the tabs, your chats, then you -->
     <aside class="sidebar" aria-label="Luma">
       <div class="drag"></div>
       <div class="side-head">
-        <img src="/desktop/logo" alt="" width="28" height="28" />
-        <span>Luma</span>
+        <span class="wordmark" aria-label="Luma">Luma</span>
       </div>
-      <div class="side-label">Tabs</div>
+      <nav class="nav" id="nav-top">
+        <button class="nav-item" id="new-chat" title="New chat (⌘N)" data-icon="compose">New chat</button>
+        <button class="nav-item" id="open-search" title="Search (⌘K)" data-icon="search">Search<kbd>⌘K</kbd></button>
+      </nav>
       <nav class="nav" id="nav-main">
         <button class="nav-item active" data-view="chat" data-icon="chat">Main chat</button>
         <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
@@ -27,12 +29,10 @@
         <button class="nav-item" data-view="goals" data-icon="goals">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
         <button class="nav-item" data-view="library" data-icon="library">Library</button>
       </nav>
-      <div class="side-label">Side chats</div>
+      <div class="side-label">Chats</div>
       <div class="threads" id="threads"></div>
       <div class="side-foot">
-        <button class="round-btn" id="open-settings" aria-label="Settings" title="Settings" data-icon="settings"></button>
-        <button class="search-pill" id="open-search" aria-label="Search (⌘K)" data-icon="search"><span>Search</span><kbd>⌘K</kbd></button>
-        <button class="round-btn" id="new-chat" aria-label="New side chat" title="New side chat (⌘N)" data-icon="compose"></button>
+        <button class="me" id="open-settings" type="button" title="Settings"><span class="initial" id="me-initial">L</span><span class="me-text"><b id="me-name">You</b><small>Settings</small></span></button>
       </div>
     </aside>
 
@@ -41,37 +41,17 @@
       <header class="topbar">
         <div class="drag"></div>
         <div class="top-left" id="top-left">
+          <button class="who" id="who" type="button" aria-live="polite">
+            <b class="wordmark" id="chat-title">Luma</b>
+            <span class="status"><span class="avatar idle" id="mascot" aria-hidden="true"></span><small id="doing">Here with you</small></span>
+          </button>
           <h1 class="top-title" id="top-title" hidden></h1>
         </div>
-        <button class="who" id="who" type="button" aria-live="polite">
-          <span class="avatar idle" id="mascot" aria-hidden="true">
-<svg viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="av-base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7bd6a"/><stop offset=".46" stop-color="#d48cc4"/><stop offset="1" stop-color="#6a67f4"/></linearGradient>
-                <radialGradient id="av-pink" cx=".95" cy=".05" r=".8"><stop offset="0" stop-color="#f2478f"/><stop offset="1" stop-color="#f2478f" stop-opacity="0"/></radialGradient>
-                <radialGradient id="av-blue" cx=".02" cy=".98" r=".85"><stop offset="0" stop-color="#4cc6ff"/><stop offset="1" stop-color="#4cc6ff" stop-opacity="0"/></radialGradient>
-                <radialGradient id="av-violet" cx="1" cy="1" r=".62"><stop offset="0" stop-color="#8a4dff"/><stop offset="1" stop-color="#8a4dff" stop-opacity="0"/></radialGradient>
-                <linearGradient id="av-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".5" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-                <clipPath id="av-tile"><rect width="100" height="100" rx="23"/></clipPath>
-              </defs>
-              <g clip-path="url(#av-tile)">
-                <rect width="100" height="100" fill="url(#av-base)"/>
-                <rect width="100" height="100" fill="url(#av-pink)" class="shimmer a"/>
-                <rect width="100" height="100" fill="url(#av-blue)" class="shimmer b"/>
-                <rect width="100" height="100" fill="url(#av-violet)"/>
-                <rect width="100" height="100" fill="url(#av-gloss)"/>
-              </g>
-              <path class="loop" pathLength="100" d="M52.56 63.32 C51.96 62.00 51.50 60.59 51.15 59.17 C50.81 57.76 50.62 56.27 50.51 54.81 C50.39 53.34 50.38 51.86 50.45 50.39 C50.51 48.91 50.67 47.44 50.90 45.98 C51.13 44.53 51.44 43.07 51.82 41.65 C52.20 40.22 52.65 38.81 53.18 37.43 C53.70 36.05 54.29 34.69 54.95 33.37 C55.62 32.06 56.35 30.76 57.16 29.54 C57.98 28.32 58.87 27.11 59.86 26.05 C60.86 24.98 61.95 23.95 63.14 23.15 C64.33 22.36 65.67 21.66 67.02 21.26 C68.38 20.86 69.89 20.65 71.27 20.75 C72.65 20.86 74.14 21.24 75.32 21.90 C76.50 22.55 77.63 23.57 78.36 24.69 C79.09 25.81 79.53 27.25 79.69 28.61 C79.85 29.98 79.64 31.49 79.32 32.88 C79.00 34.27 78.40 35.66 77.75 36.97 C77.11 38.28 76.30 39.54 75.47 40.75 C74.64 41.97 73.71 43.13 72.76 44.26 C71.82 45.40 70.81 46.49 69.80 47.56 C68.78 48.64 67.73 49.68 66.67 50.71 C65.60 51.74 64.52 52.75 63.43 53.75 C62.33 54.75 61.23 55.73 60.11 56.71 C59.00 57.69 57.88 58.66 56.76 59.62 C55.63 60.59 54.50 61.54 53.37 62.49 C52.23 63.45 51.09 64.39 49.95 65.33 C48.80 66.27 47.66 67.21 46.51 68.15 C45.36 69.08 44.22 70.02 43.05 70.93 C41.88 71.84 40.71 72.76 39.50 73.60 C38.29 74.45 37.06 75.30 35.78 76.00 C34.49 76.69 33.15 77.38 31.77 77.78 C30.40 78.17 28.91 78.46 27.54 78.36 C26.17 78.26 24.69 77.88 23.57 77.19 C22.44 76.51 21.39 75.41 20.80 74.25 C20.20 73.09 19.93 71.58 20.00 70.25 C20.07 68.91 20.55 67.45 21.23 66.25 C21.90 65.06 22.94 63.95 24.04 63.08 C25.14 62.21 26.50 61.54 27.84 61.02 C29.19 60.50 30.65 60.16 32.10 59.94 C33.54 59.71 35.03 59.65 36.49 59.68 C37.96 59.70 39.44 59.87 40.89 60.11 C42.34 60.34 43.78 60.70 45.21 61.08 C46.63 61.47 48.03 61.98 49.43 62.43 C50.84 62.88 52.23 63.42 53.65 63.80 C55.07 64.18 56.51 64.49 57.97 64.71 C59.42 64.93 60.91 65.00 62.38 65.11 C63.86 65.22 65.35 65.22 66.81 65.36 C68.28 65.49 69.78 65.59 71.20 65.91 C72.61 66.24 74.08 66.63 75.30 67.31 C76.52 67.98 77.75 68.90 78.53 69.97 C79.32 71.04 79.92 72.47 80.00 73.73 C80.08 74.98 79.72 76.48 79.04 77.50 C78.36 78.52 77.13 79.40 75.92 79.85 C74.71 80.30 73.16 80.32 71.78 80.17 C70.39 80.02 68.94 79.52 67.61 78.95 C66.29 78.39 65.01 77.60 63.81 76.76 C62.61 75.93 61.49 74.94 60.43 73.93 C59.37 72.91 58.38 71.80 57.43 70.67 C56.49 69.54 55.57 68.36 54.76 67.13 C53.95 65.91 53.16 64.65 52.56 63.32 Z"/>
-            </svg>
-            <span class="ring"></span>
-          </span>
-          <span class="who-text"><b id="chat-title">Luma</b><small id="doing">Here with you</small></span>
-        </button>
         <div class="top-right">
-          <button class="round-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
-          <button class="round-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
-          <button class="round-btn" id="top-theme" aria-label="Light or dark" title="Light or dark" data-icon="moon"></button>
-          <button class="pill primary" id="top-new" data-icon="plus">New chat</button>
+          <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
+          <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
+          <button class="icon-btn" id="top-theme" aria-label="Light or dark" title="Light or dark" data-icon="moon"></button>
+          <button class="icon-btn" id="top-panel" aria-label="At a glance" title="At a glance" aria-pressed="false" data-icon="panel"></button>
         </div>
       </header>
 
@@ -79,10 +59,11 @@
         <div class="thread" id="thread" aria-label="Conversation with Luma" aria-live="polite"></div>
         <form class="composer" id="composer" autocomplete="off">
           <button type="button" class="round-btn ghost" id="add" aria-label="Ideas" title="Ideas" data-icon="plus"></button>
-          <textarea id="input" rows="1" maxlength="4000" placeholder="Message Luma" aria-label="Message to Luma"></textarea>
+          <textarea id="input" rows="1" maxlength="4000" placeholder="Ask Luma anything" aria-label="Message to Luma"></textarea>
           <button type="button" class="round-btn ghost" id="mic" aria-label="Talk out loud" title="Talk out loud" data-icon="mic"></button>
           <button type="submit" class="send" id="send" aria-label="Send" disabled data-icon="up"></button>
         </form>
+        <div class="starters" id="starters" hidden></div>
         <p class="fineprint">Luma runs on this computer. Nothing is sent or bought without your OK.</p>
       </section>
 

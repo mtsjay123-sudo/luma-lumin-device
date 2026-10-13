@@ -185,6 +185,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 svg = ROOT/'desktop'/'brand'/'logo.svg'
                 if svg.is_file(): return self.send(svg.read_bytes(),kind='image/svg+xml')
                 return self.send((ROOT/'desktop'/'mascot.svg').read_bytes(),kind='image/svg+xml')
+            if path in {'/desktop/fonts/geist.woff2','/desktop/fonts/instrument-serif.woff2','/desktop/fonts/instrument-serif-italic.woff2'}:
+                return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='font/woff2')
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
                 return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion)

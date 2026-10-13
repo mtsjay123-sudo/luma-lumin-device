@@ -54,6 +54,7 @@
     card: '<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
     list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
     reply: '<path d="M9.5 6.5 4 12l5.5 5.5M4.5 12H14a6 6 0 0 1 6 6v.5"/>',
+    panel: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/>',
   };
   function icon(name) {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -187,19 +188,7 @@
     if (/homework|study|quiz|explain|math|essay/.test(t)) return "Working through it";
     return "Thinking";
   }
-  let bigCount = 0;
-  function bigAvatar() {
-    // A copy of Luma's face; its gradient ids are renamed so they don't collide with the original.
-    const a = $("mascot").cloneNode(true);
-    a.removeAttribute("id");
-    a.className = "avatar big idle";
-    const tag = "b" + (++bigCount) + "-";
-    a.querySelectorAll("[id]").forEach((n) => { n.id = tag + n.id; });
-    a.querySelectorAll("[fill^='url(#'], [clip-path^='url(#']").forEach((n) => {
-      for (const attr of ["fill", "clip-path"]) { const v = n.getAttribute(attr); if (v && v.startsWith("url(#")) n.setAttribute(attr, "url(#" + tag + v.slice(5)); }
-    });
-    return a;
-  }
+  function bigAvatar() { return el("span", "wordmark big", "Luma"); }
 
   // -------------------------------------------------------------- chat ---
   function items(thread) {
@@ -226,9 +215,13 @@
     const box = $("thread");
     const list = items(state.thread);
     $("chat-title").textContent = state.thread === "main" ? "Luma" : (threadTitle(state.thread) || "Side chat");
+    $("chat-title").classList.toggle("wordmark", state.thread === "main");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.replaceChildren();
-    if (!list.length && !state.busy) { box.append(emptyChat()); return; }
+    const empty = !list.length && !state.busy;
+    $("view-chat").classList.toggle("is-empty", empty);
+    $("starters").hidden = !empty;
+    if (empty) { box.append(emptyChat()); return; }
     for (const m of list) {
       if (m.role === "notice") {
         const n = el("div", "notice");
@@ -288,23 +281,24 @@
     ["people", "message", "Text my mom I'm on my way", "You approve every text", "text my mom I'm on my way"],
   ];
   function emptyChat() {
+    // ChatGPT's first screen: one line of type, the composer right under it, a few ideas below.
     const e = el("div", "empty");
     const h = new Date().getHours();
     const name = state.home?.profile?.name;
-    e.append(bigAvatar());
-    e.append(el("h2", null, `${h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}${name ? ", " + name : ""}`));
-    e.append(el("p", null, state.thread === "main" ? "What should I take off your plate?" : "A fresh side chat. What's this one about?"));
-    const grid = el("div", "starters");
+    const hello = el("h2");
+    hello.append(h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+    if (name) hello.append(", ", el("em", null, name));
+    e.append(hello, el("p", null, state.thread === "main" ? "What should I take off your plate?" : "A fresh chat. What's this one about?"));
+    const row = $("starters");
+    row.replaceChildren();
     for (const [k, ic, title, sub, say] of STARTERS) {
-      const b = el("button", "starter");
+      const b = el("button", "starter " + k);
       b.type = "button";
-      const t = el("span");
-      t.append(el("b", null, title), el("span", null, sub));
-      b.append(chip(k, ic, "ic"), t);
+      b.title = sub;
+      b.append(icon(ic), el("span", null, title));
       b.addEventListener("click", () => send(say));
-      grid.append(b);
+      row.append(b);
     }
-    e.append(grid);
     return e;
   }
 
@@ -679,6 +673,7 @@
       w.className = c.className.replace("card", "widget");
       w.replaceChildren(...c.childNodes);
       w.hidden = false;
+      if (running && state.panelFor !== a.title) { state.panelFor = a.title; setPanel(true, false); }
     } else w.hidden = true;
     if (state.busy && state.view === "chat") renderChat();
     if (running) $("doing").textContent = (a.background ? "In the background: " : "") + a.title;
@@ -758,7 +753,14 @@
   $("top-apps").addEventListener("click", () => go("apps"));
   $("top-rules").addEventListener("click", () => go("rules"));
   $("top-theme").addEventListener("click", () => setTheme(darkNow(theme) ? "light" : "dark"));
-  $("top-new").addEventListener("click", newChat);
+  // The right panel (Luma's computer, waiting on you, up next) opens like ChatGPT's canvas.
+  function setPanel(on, remember = true) {
+    document.body.classList.toggle("panel-open", on);
+    $("top-panel").setAttribute("aria-pressed", String(on));
+    if (remember) try { localStorage.setItem("luma-panel", on ? "1" : "0"); } catch (_) { /* private */ }
+  }
+  try { setPanel(localStorage.getItem("luma-panel") === "1", false); } catch (_) { setPanel(false, false); }
+  $("top-panel").addEventListener("click", () => setPanel(!document.body.classList.contains("panel-open")));
   $("new-chat").addEventListener("click", newChat);
   $("who").addEventListener("click", () => { if (state.view !== "chat") go("chat"); });
   $("add").addEventListener("click", () => openPalette(""));
@@ -1462,6 +1464,9 @@
       handleEvents(h.events || []);
       renderThreads();
       renderWidgets();
+      const me = (h.profile?.name || "").trim();
+      $("me-name").textContent = me || "You";
+      $("me-initial").textContent = (me || "You")[0].toUpperCase();
       paintActivity();
       if (h.activity && ["running", "paused"].includes(h.activity.state) && !activityTimer) watchActivity(true);
       const after = JSON.stringify([h.cards?.length, h.helpers, h.ideas, h.connections, h.rules, h.approvals?.length]);

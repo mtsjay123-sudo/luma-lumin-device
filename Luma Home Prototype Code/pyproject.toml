@@ -38,4 +38,4 @@ luma = "luma.cli:main"
 markers = ["integration: requires local audio or model files"]
 
 [tool.setuptools.package-data]
-"luma.control" = ["web/*.html", "web/*.css", "web/*.js", "web/desktop/*", "web/desktop/brand/*"]
+"luma.control" = ["web/*.html", "web/*.css", "web/*.js", "web/desktop/*", "web/desktop/brand/*", "web/desktop/fonts/*"]
