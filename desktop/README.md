@@ -9,6 +9,7 @@ Luma as a real app on your computer. It's an AI that works for you: it finds the
 - **Apps**: connect email (with an app password), your calendar (private iCal link), Instagram and stores (Luma's own browser), texts, and your phone. All free.
 - **Rules**: what Luma just does, asks about, or never does. Checkout and payment are always yours.
 - **⌘K** searches everything; **⌥Space** brings Luma up from anywhere; light and dark.
+- **Always on**: closing the window doesn't stop Luma. It stays in the menu bar (Mac) or the system tray (Windows) and starts when you log in, so your Goals run every day. Use that icon to quit Luma or to turn off Start Luma When I Log In.
 
 ## Get it
 

@@ -4,8 +4,10 @@
 // of its own. It starts Luma's runtime (Python, local model) if it isn't
 // running, opens its desktop page, and gives it what a real app needs: a dock
 // icon, ⌥Space to summon, downloads, and links that open the right Mac app.
+// Closing the window doesn't stop Luma: it stays in the menu bar (or the system
+// tray on Windows) and starts at login, so your Goals keep running.
 "use strict";
-const { app, BrowserWindow, Menu, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -19,6 +21,8 @@ const HOME_URL = `${ORIGIN}/desktop/`;
 const SUMMON = process.platform === "darwin" ? "Alt+Space" : "Control+Alt+Space";
 
 let win = null;
+let tray = null;
+let startHidden = false; // opened at login: work quietly until someone asks for the window
 let runtime = null; // only set when this app started Luma, so quitting stops only what we started
 let quitting = false;
 
@@ -130,12 +134,16 @@ function createWindow() {
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 18, y: 18 },
     icon: path.join(__dirname, "build", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
+    // backgroundThrottling off: Luma's page keeps checking in while hidden, so news still notifies you.
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
   });
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => { if (!startHidden) win.show(); });
   win.on("close", (event) => {
-    // Closing the window keeps Luma around (⌥Space brings it back), like a Mac app.
-    if (process.platform === "darwin" && !quitting) { event.preventDefault(); win.hide(); }
+    // Closing the window keeps Luma working in the menu bar or tray (⌥Space brings it back).
+    if (quitting || !(tray || process.platform === "darwin")) return;
+    event.preventDefault();
+    win.hide();
+    stillHereOnce();
   });
 
   // Only Luma's own pages load in the window. Everything else opens where it belongs:
@@ -153,6 +161,7 @@ function createWindow() {
 }
 
 function summon() {
+  startHidden = false;
   if (!win) return createWindow();
   if (win.isVisible() && win.isFocused()) return win.hide();
   win.show();
@@ -169,16 +178,20 @@ function uniquePath(dir, name) {
 }
 
 // ----------------------------------------------------------------- menu ---
+// Luma Desktop switches views by its address hash, without reloading.
+const showView = (view) => () => {
+  startHidden = false;
+  if (!win) createWindow();
+  win.show();
+  win.focus();
+  if (win.webContents.getURL().startsWith(HOME_URL)) win.webContents.executeJavaScript(`location.hash = ${JSON.stringify(view)}`);
+  else if (!booting) win.loadURL(HOME_URL + "#" + view);
+};
+
 function buildMenu() {
   const isMac = process.platform === "darwin";
   const go = (url) => () => { if (win) { win.show(); win.loadURL(url); } };
-  // Luma Desktop switches views by its address hash, without reloading.
-  const show = (view) => () => {
-    if (!win) return;
-    win.show();
-    if (win.webContents.getURL().startsWith(HOME_URL)) win.webContents.executeJavaScript(`location.hash = ${JSON.stringify(view)}`);
-    else win.loadURL(HOME_URL + "#" + view);
-  };
+  const show = showView;
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(isMac ? [{ role: "appMenu" }] : []),
     { label: "File", submenu: [{ label: "New Conversation", accelerator: "CmdOrCtrl+N", click: () => win?.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown',{key:'n',metaKey:true,ctrlKey:true}))") }, { type: "separator" }, isMac ? { role: "close" } : { role: "quit" }] },
@@ -204,6 +217,49 @@ function buildMenu() {
   ]));
 }
 
+// ----------------------------------------------------- menu bar / tray ---
+const LOGIN_ARGS = ["--hidden"];
+const canStartAtLogin = process.platform === "darwin" || process.platform === "win32";
+const startsAtLogin = () => canStartAtLogin && app.getLoginItemSettings({ args: LOGIN_ARGS }).openAtLogin;
+function setStartAtLogin(on) {
+  if (!canStartAtLogin) return;
+  app.setLoginItemSettings({ openAtLogin: on, args: LOGIN_ARGS });
+  writeConfig({ loginChosen: true });
+}
+
+function createTray() {
+  const isMac = process.platform === "darwin";
+  try {
+    const image = nativeImage.createFromPath(path.join(__dirname, "build", isMac ? "trayTemplate.png" : "tray.png"));
+    if (isMac) image.setTemplateImage(true);
+    tray = new Tray(image);
+  } catch (error) {
+    console.warn("No menu bar icon:", error.message);
+    tray = null;
+    return;
+  }
+  tray.setToolTip("Luma");
+  const refresh = () => tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Open Luma", accelerator: SUMMON, registerAccelerator: false, click: showView("chat") },
+    { label: "Feed", click: showView("feed") },
+    { label: "Goals", click: showView("goals") },
+    { type: "separator" },
+    ...(canStartAtLogin ? [{ label: "Start Luma When I Log In", type: "checkbox", checked: startsAtLogin(), click: (item) => { setStartAtLogin(item.checked); refresh(); } }] : []),
+    { type: "separator" },
+    { label: "Quit Luma", click: () => app.quit() },
+  ]));
+  refresh();
+  // Windows and Linux: a click on the tray icon opens Luma (on a Mac it opens the menu).
+  if (!isMac) tray.on("click", summon);
+}
+
+function stillHereOnce() {
+  // The first time the window closes on Windows, say where Luma went.
+  if (process.platform === "darwin" || readConfig().trayHintShown) return;
+  writeConfig({ trayHintShown: true });
+  if (Notification.isSupported()) new Notification({ title: "Luma is still here", body: "It keeps working on your Goals. Click Luma in the tray, or press Ctrl+Alt+Space." }).show();
+}
+
 async function chooseFolder() {
   const result = await dialog.showOpenDialog(win, { title: "Where is Luma?", message: "Choose the luma-lumin-device folder (or its “Luma Home Prototype Code” folder).", properties: ["openDirectory"] });
   if (result.canceled || !result.filePaths[0]) return false;
@@ -223,6 +279,10 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     app.setName("Luma");
     buildMenu();
+    // First launch: start at login, so Goals run every day (switch it off from the menu bar icon).
+    if (canStartAtLogin && app.isPackaged && !readConfig().loginChosen) setStartAtLogin(true);
+    startHidden = process.argv.includes("--hidden") || (process.platform === "darwin" && app.getLoginItemSettings().wasOpenedAtLogin);
+    createTray();
     // Only Luma's own pages (the splash and the local desktop page) may ask for these.
     const trusted = (event) => { const url = event.senderFrame?.url || ""; return url.startsWith("file://") || url.startsWith(ORIGIN + "/"); };
     ipcMain.handle("luma:choose-folder", (event) => trusted(event) && chooseFolder());
@@ -244,5 +304,6 @@ if (!app.requestSingleInstanceLock()) {
     globalShortcut.unregisterAll();
     if (runtime) runtime.kill("SIGTERM");
   });
-  app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+  // With a menu bar or tray icon Luma keeps working after its window closes; Quit Luma stops it.
+  app.on("window-all-closed", () => { if (!tray && process.platform !== "darwin") app.quit(); });
 }
