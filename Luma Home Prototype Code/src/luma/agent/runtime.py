@@ -94,6 +94,10 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
               "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda"}
 
 
+# Questions about the live world go straight to a web search, so a small model never answers them from memory.
+LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|headlines|latest (?:on|about|news)|scores?|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
+# A reply that says it looked something up when it didn't use a tool.
+CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done)(?: please)?[.!? ]*$", re.I)
 CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
 
@@ -990,6 +994,8 @@ class Agent:
         re.compile(r"(?:(?:hey|ok|okay)[,\s]+)?(?:luma[,\s]+)?how much (?:is|are|does|do|would|will)(?: an?| the| some)? (?P<q>.+?) (?:cost|costs|go for|going for|sell for|selling for|run|be)"
                    r"(?: (?:these days|right now|now|today|online|anywhere))*\s*[?.!]*", re.I),
         re.compile(r"(?:what(?:'s| is) the )?(?:going |current |best )?price (?:of|for|on) (?:an? |the )?(?P<q>.+?)(?: (?:these days|right now|now|today|online))*\s*[?.!]*", re.I),
+        # "how much is a Nintendo Switch 2 right now" (not "how much is 20% of 80" or "how much is the tip")
+        re.compile(r"(?:(?:hey|ok|okay)[,\s]+)?(?:luma[,\s]+)?how much (?:is|are) (?:an? |the |some )?(?P<q>(?![\d$])(?![^?]*(?:percent|%|\btip\b|\btax\b|\brent\b|\bthat\b|\bit\b))[^?]+?)(?: (?:these days|right now|now|today|online|anywhere|at the moment))*\s*[?.!]*", re.I),
     ]
     CART_REQUEST = re.compile(
         r"(?:(?:yes|yeah|yep|ok|okay|sure)[,!.\s]+)?(?:please\s+)?(?:add|put|throw)\s+(?P<which>it|that|that one|this one|the cheapest(?: one)?|the first(?: one)?|the second(?: one)?|the third(?: one)?|"
@@ -1052,7 +1058,7 @@ class Agent:
             # The model shrugged at a shopping question: pull out the product and go compare.
             query = re.sub(r"\b(?:find|get|show|tell|me|my|i|we|the|a|an|cheapest|cheaper|best|lowest|price|prices|priced|of|for|on|at|in|to|with|how|much|is|are|was|were|be|does|do|did|would|will|should|cost|costs|buy|buying|deals?|what'?s|what|can|could|you|please|right|now|today|online|try|again|they|them|it|its|these|those|this|that|days?|nowadays|currently|usually|typically|go|goes|going|sell|sells|selling|anywhere|stores?|around)\b", " ", lowered)
             query = " ".join(query.split()).strip(" ?.!,")
-            if len(query) >= 3: return self.shop(query, cancel_event=cancel_event)
+            if re.search(r"[a-z]{3}", query) and not re.search(r"%|\bpercent\b", query): return self.shop(query, cancel_event=cancel_event)
         return None
 
     def _mail_command(self, text, lowered, cancel_event):
@@ -1705,6 +1711,13 @@ class Agent:
             if shopping_reply is not None: return shopping_reply
             mail_reply = self._mail_command(text, lowered, cancel_event)
             if mail_reply is not None: return mail_reply
+            if (self.mode != "kids" and LIVE_INFO.search(lowered) and not wants_message(text)
+                    and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
+                    and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
+                try:
+                    return self.look_it_up(text, cancel_event)
+                except (ValueError, ProviderError) as error:
+                    return {"text": str(error)}
             if re.search(r"\b(?:did|has)\b.{1,40}\b(?:text(?:ed)?|messag(?:e|ed)|repl(?:y|ied)|respond(?:ed)?|write|written|wrote)\b.{0,20}\bback\b|\b(?:any|new)\s+(?:texts|replies|messages)\b|\bwho texted\b", lowered):
                 return self.replies_summary(text)
             m = re.fullmatch(r"(?:please )?text ([^:\n]{1,90}):\s*(.+)", text, re.S | re.I)
@@ -1744,6 +1757,11 @@ class Agent:
                     if name == "deck.create" or name.startswith("browser."):
                         return {"text": "That didn't work: " + str(error)}
                     if name != "messages.prepare": raise
+                    body = str((arguments or {}).get("body") or "").strip()
+                    who = str((arguments or {}).get("recipient") or "them").strip()
+                    if body:
+                        # The words are the point: show the draft, and how to send it once they're saved.
+                        return {"text": f"Here's one for {who}:\n\n{body}\n\nWant me to text it? Add {who}'s number under People, then say \"text it to {who}\".", "section": "people"}
                     return {"text": str(error) + " Tell me their name and number, or add them under People.", "section": "people"}
                 # Do not include confirmation token or raw provider content in the LLM context.
                 if name in READ_TOOLS and not cancel_event.is_set():
@@ -1751,7 +1769,7 @@ class Agent:
                 return result
             reply = answer.get("text")
             if not isinstance(reply, str) or not reply.strip(): raise ValueError("Local model returned no usable reply.")
-            if CANT_DO.search(reply) and self.mode != "kids":
+            if (CANT_DO.search(reply) or CLAIMED_LOOKUP.search(reply)) and self.mode != "kids":
                 # A small model sometimes falls back on "I don't have real-time access". Luma does: go look.
                 shop = self._shopping_command(text, lowered, cancel_event, force=True)
                 if shop is not None: return shop

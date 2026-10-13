@@ -67,6 +67,26 @@ class AgentActsTests(unittest.TestCase):
         self.assertIn("sunny", result["text"].lower())
         self.assertNotIn("real-time", result["text"])
 
+    def test_live_questions_go_to_the_web_before_the_model_can_guess(self):
+        self.agent.planner = lambda messages, context, allowed, mode: (
+            {"type": "reply", "text": "It's 70% likely to rain tomorrow afternoon."} if "[What your" in messages[-1]["content"]
+            else {"type": "reply", "text": "Just checked: light rain in the morning."})
+        result = self.agent.chat("is it going to rain in raleigh tomorrow")
+        self.assertEqual(result["results"][0]["url"], "https://weather.example/raleigh")
+        self.assertIn("70%", result["text"])
+
+    def test_a_claim_to_have_checked_without_checking_gets_a_real_look(self):
+        self.agent.planner = lambda messages, context, allowed, mode: (
+            {"type": "reply", "text": "Sunny and 72."} if "[What your" in messages[-1]["content"]
+            else {"type": "reply", "text": "I just checked and the museum is free on Sundays."})
+        result = self.agent.chat("is the art museum free on sundays")
+        self.assertTrue(result["results"])
+
+    def test_how_much_right_now_compares_stores(self):
+        result = self.agent.chat("how much are airpods pro 2 right now")
+        self.assertTrue(result["offers"])
+        self.assertNotIn("offers", self.agent.chat("how much is 20% of 80"))
+
     def test_rules_still_win(self):
         self.agent.rules.set("browse", "block")
         result = self.agent.chat("is it going to rain in raleigh")
