@@ -9,6 +9,12 @@ Lumin does this once. Customers never see Twilio, Supabase or Stripe. They verif
 3. When checkout finishes, that exact number is theirs. If someone grabbed it in the same instant, they get the nearest free one instead. Friends see it when Luma texts them, and they can text it back.
 4. Prefer their own number? **Your number** (Mac Messages) is free and unlimited, with no setup on Lumin's side.
 
+## Where it lives now
+
+Luma Cloud and the Luma phone app live in **`mtsjay123-sudo/lumin-holdings-site`**, the repo behind lumin-holdings-site.vercel.app (the address every Luma talks to). They're on the branch `claude/hopeful-feynman-z2294x`. Merging it to `main` deploys them. The copies under this repo's `api/` stay in sync for the local dev relay (`node tools/luma-cloud-dev.mjs`).
+
+The **phone app** needs only Supabase (step 4) and the merge: phones pair with a QR code from Luma (Settings › Luma on your phone) and work right away, with no Twilio or Stripe. For notifications when the app is closed, run `node tools/vapid-keys.mjs` in the site repo and add its three `LUMA_VAPID_*` lines to Vercel.
+
 ## Your checklist, in order
 
 | # | Where | What to do | Status |
@@ -16,7 +22,7 @@ Lumin does this once. Customers never see Twilio, Supabase or Stripe. They verif
 | 1 | Stripe | Luma Plus product + $9.99/mo price | **Done** (`price_1UMMsMHupQXO7siRSIB6U6z3`) |
 | 2 | Stripe | Billing portal for cancel/card/invoices | **Done** (`bpc_1UMY6oHupQXO7siRRIf19lm0`) |
 | 3 | Stripe | Webhook to `/api/luma/stripe-webhook` | **Created, switched off** (`we_1UMY6xHupQXO7siRLbmiIXYu`); turn it on in step 8 |
-| 4 | Supabase | SQL Editor → paste [`supabase/SETUP.sql`](../../supabase/SETUP.sql) → Run | Tested on Postgres here; safe to run twice |
+| 4 | Supabase | SQL Editor → paste `supabase/migrations/20261013120000_luma_cloud.sql` from the **site repo** → Run | Tested on Postgres here; safe to run twice; every table locked to the server |
 | 5 | Twilio | Make an account, then run `node tools/twilio-setup.mjs --site https://<your-site> --area 919` | Script tested against a pretend Twilio |
 | 6 | Twilio | Carrier registration (A2P 10DLC): see below | You; about 1–3 weeks for approval |
 | 7 | Vercel | Paste the variables (list below), then redeploy | You |
@@ -34,6 +40,7 @@ Lumin does this once. Customers never see Twilio, Supabase or Stripe. They verif
 | `LUMA_PLUS_PRICE_ID` | `price_1UMMsMHupQXO7siRSIB6U6z3` |
 | `LUMA_STRIPE_PORTAL_CONFIG` | `bpc_1UMY6oHupQXO7siRRIf19lm0` |
 | `STRIPE_WEBHOOK_SECRET` | Stripe → Webhooks → Luma Plus → Reveal (step 8) |
+| `LUMA_VAPID_PUBLIC_KEY`, `LUMA_VAPID_PRIVATE_KEY`, `LUMA_VAPID_SUBJECT` | `node tools/vapid-keys.mjs` in the site repo (phone notifications) |
 
 ## Carrier registration (A2P 10DLC)
 
