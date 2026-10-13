@@ -22,7 +22,7 @@ const get = (p) => new Promise((resolve) => {
   }, { skipModel: true });
   console.log("python:", python);
   console.log("browser:", env.LUMA_BROWSER_EXECUTABLE || "private Chromium");
-  console.log(execFileSync(python, ["-c", "import llama_cpp, playwright, pptx, cryptography, qrcode; print('llama_cpp', llama_cpp.__version__)"], { env: { ...process.env, ...env } }).toString().trim());
+  console.log(execFileSync(python, ["-c", "import llama_cpp, playwright, pptx, cryptography, qrcode, faster_whisper; print('llama_cpp', llama_cpp.__version__)"], { env: { ...process.env, ...env } }).toString().trim());
 
   // Luma's own browser can open a real page (skippable where the network is fenced off).
   if (!process.env.LUMA_SMOKE_SKIP_WEB) {
