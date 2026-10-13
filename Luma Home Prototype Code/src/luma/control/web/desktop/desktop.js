@@ -1659,6 +1659,15 @@
     you.append(yg, yb);
     box.append(you);
 
+    // About you: what Luma knows about who it's talking to.
+    const au = el("div", "item");
+    const aug = el("div", "grow");
+    const done = state.home?.about_done;
+    aug.append(el("div", "title", "About you"), el("div", "sub", done ? "Your birthday, your people, what you're into — Luma uses this everywhere." : "Tell Luma about you once, so it actually knows you."));
+    au.append(aug, btn(done ? "Edit" : "Set it up", "pill " + (done ? "soft" : "primary") + " small", () => aboutSheet(), "people"));
+    box.append(au);
+    box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
+
     const look = el("div", "item");
     const lg = el("div", "grow");
     lg.append(el("div", "title", "Appearance"), el("div", "sub", "Light, dark, or follow your computer."));
@@ -1703,6 +1712,58 @@
     full.href = "/";
     about.append(ag, full);
     box.append(about);
+  }
+
+  // A friendly get-to-know-you form. Everything stays encrypted on this computer.
+  async function aboutSheet() {
+    let a = state.home?.about || {};
+    try { const d = await api("/api/state"); a = d.about || a; } catch (_) { /* use what we have */ }
+    const body = el("div", "about-form");
+    const field = (label, key, placeholder, val) => {
+      const f = el("label", "field wide");
+      f.append(el("span", null, label));
+      const i = el(key === "interests" || key === "goals" || key === "notes" ? "textarea" : "input");
+      if (i.tagName === "TEXTAREA") i.rows = 2;
+      i.value = val ?? (a[key] || ""); i.placeholder = placeholder; i.dataset.key = key;
+      f.append(i); body.append(f); return i;
+    };
+    field("What should I call you?", "name", "Xiena", state.home?.profile?.name || "");
+    field("Your birthday", "birthday", "2001-10-14 (or 10-14)", a.birthday ? (a.birth_year ? a.birth_year + "-" : "") + a.birthday : "");
+    field("Pronouns", "pronouns", "she/her, he/him, they/them");
+    field("Where you live", "home", "Raleigh, NC");
+    field("Work or school", "work", "Studying design at NC State");
+    field("What you're into", "interests", "rock climbing, lo-fi, startups, good coffee");
+    field("What you're working toward", "goals", "launch Luma, get fit, save for a trip");
+    field("Food — loves, hates, allergies", "food", "vegetarian, allergic to peanuts, loves ramen");
+    field("Anything else I should know", "notes", "I'm an early bird; keep replies short");
+    const peopleWrap = el("div", "people");
+    peopleWrap.append(el("div", "side-label", "Your people"));
+    const rows = el("div", "people-rows");
+    const addRow = (person = {}) => {
+      const r = el("div", "person-row");
+      const n = el("input"); n.placeholder = "Name"; n.value = person.name || ""; n.className = "p-name";
+      const rel = el("input"); rel.placeholder = "who they are"; rel.value = person.relation || ""; rel.className = "p-rel";
+      const b = el("input"); b.placeholder = "birthday 03-02"; b.value = person.birthday || ""; b.className = "p-bday";
+      const x = btn("", "icon-btn small", () => r.remove(), "x");
+      r.append(n, rel, b, x); rows.append(r);
+    };
+    (a.people || []).forEach(addRow);
+    if (!(a.people || []).length) { addRow(); addRow(); }
+    peopleWrap.append(rows, btn("Add someone", "pill quiet small", () => addRow(), "plus"));
+    body.append(peopleWrap);
+    const save = btn("Save", "pill primary", async () => {
+      const data = { people: [] };
+      for (const el2 of body.querySelectorAll("[data-key]")) data[el2.dataset.key] = el2.value.trim();
+      for (const r of rows.querySelectorAll(".person-row")) {
+        const name = r.querySelector(".p-name").value.trim();
+        if (name) data.people.push({ name, relation: r.querySelector(".p-rel").value.trim(), birthday: r.querySelector(".p-bday").value.trim() });
+      }
+      try { await api("/api/about", data); closeSheet(); await refreshHome(); toast("Got it. I know you a little better now."); if (state.view === "settings") renderSettings(); }
+      catch (e) { toast(e.message); }
+    });
+    const acts = el("div", "actions"); acts.append(save);
+    body.append(acts);
+    openSheet("About you", body);
   }
 
   // ------------------------------------------------------------ browser ---

@@ -130,6 +130,7 @@ def home_payload(agent, owner=True):
         },
         'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or '')},
         'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
+        'about_done': bool((agent.store.setting('about') or {}).get('asked')) if agent.mode != 'kids' else True,
         'model': {'on': agent.use_model},
     }
 
@@ -244,7 +245,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'created':f.get('created')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None})
+                about_data = (agent.store.setting('about') or {}) if adult and not companion else {}
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'created':f.get('created')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
@@ -363,6 +365,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
                         if set(data)=={'name'}: data={**(agent.store.setting('personality') or {}),'name':data['name']}
                         result={'profile':agent.set_profile(data)}
+                    elif path=='/api/about':
+                        if companion: return self.send({'error':'Set this up on the Mac.'},403)
+                        result={'about':agent.set_about(data)}
                     elif path=='/api/photo':
                         # Your picture, shrunk on this computer first. Only a small JPEG is kept.
                         photo=data.get('photo')

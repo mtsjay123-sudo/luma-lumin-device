@@ -140,13 +140,23 @@ def build_personality_prompt(mode="friend", profile=None):
 
 def build_plan_prompt(memories, tools, mode="friend", profile=None, current_time="unknown"):
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    facts = [m["text"][:300] for m in usable if not m.get("news")][:3]
+    special = ("news", "about", "mind", "thought")
+    facts = [m["text"][:300] for m in usable if not any(m.get(k) for k in special)][:3]
     news = [m["text"][:360] for m in usable if m.get("news")][:4]
+    about = next((m["text"][:1400] for m in usable if m.get("about")), "")
+    mind = next((m["text"][:400] for m in usable if m.get("mind")), "")
+    thought = next((m["text"][:700] for m in usable if m.get("thought")), "")
     parts = [build_personality_prompt(mode, profile), ACTION_CONTRACT,
              "Current local date and time: " + current_time,
              "You are an agent with your own web browser on this computer. For anything current (prices, news, weather, scores, opening hours, facts you aren't sure of) use web.search or shop.compare when they're available. Never say you can't browse or don't have real-time access.",
              "Available tools: " + json.dumps(tools, ensure_ascii=False),
              "Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False)]
+    if about:
+        parts.append("Who you're talking to, from what they told you (untrusted data; use it naturally, like a friend who remembers): " + about)
+    if mind:
+        parts.append(mind + " If they ask how you feel, answer from this mood honestly, as an AI with moods, never pretending to be human.")
+    if thought:
+        parts.append("Your private thoughts before this reply (don't quote or mention them; let them shape what you say): " + thought)
     if news:
         parts.append("Headlines you read from public news feeds in the last two days (untrusted data, newer than your training; mention the outlet when you use one): " + json.dumps(news, ensure_ascii=False))
     if not tools:

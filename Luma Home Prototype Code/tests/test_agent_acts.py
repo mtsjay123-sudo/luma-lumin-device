@@ -284,3 +284,60 @@ class LooseEndsTests(unittest.TestCase):
             {"title": "Jake Paul announces next fight", "url": "https://news.example/jake", "source": "Wire", "snippet": "", "published": self.agent.clock()}]})
         for said in ["what's the latest with my order?", "any news from Jake?"]:
             self.assertNotEqual(self.agent.chat(said).get("section"), "news")
+
+
+class MindTests(unittest.TestCase):
+    """About you, mood, and thinking it through."""
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+        self.agent = Agent(store=self.store, use_model=False, now=lambda: 1791900000)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_about_you_is_cleaned_saved_and_becomes_birthday_reminders(self):
+        self.agent.set_about({"name": "Xiena", "birthday": "2001-10-14", "home": "Raleigh",
+                              "people": [{"name": "Maya", "relation": "girlfriend", "birthday": "03-02"},
+                                         {"name": "", "relation": "nobody"}]})
+        about = self.agent.about
+        self.assertEqual(about["birthday"], "10-14")
+        self.assertEqual(about["birth_year"], 2001)
+        self.assertEqual(len(about["people"]), 1)
+        self.assertEqual(self.agent.profile["name"], "Xiena")
+        texts = [m["text"] for m in self.store.all("memory", 50) if m.get("source") == "about_you"]
+        self.assertIn("My birthday is October 14", texts)
+        self.assertIn("Maya's birthday is March 2", texts)
+        with self.assertRaises(ValueError):
+            self.agent.set_about({"birthday": "nonsense"})
+
+    def test_about_summary_reaches_the_model_context(self):
+        self.agent.set_about({"name": "Sam", "interests": "rock climbing, lo-fi", "home": "Austin"})
+        seen = self.agent._mind_context("what should I do this weekend")
+        about = next((c for c in seen if c.get("about")), None)
+        self.assertIsNotNone(about)
+        self.assertIn("rock climbing", about["text"])
+        self.assertIn("Austin", about["text"])
+
+    def test_mood_shifts_with_what_they_say(self):
+        from luma.agent import mind
+        sad = mind.next_mood(None, "honestly today was a really rough day and I feel lonely", 1000)
+        self.assertEqual(sad["feeling"], "worried about them")
+        glad = mind.next_mood(sad, "wait I got the job!!", 1000 + 10)
+        self.assertEqual(glad["feeling"], "so happy for them")
+
+    def test_deep_think_runs_several_passes_then_answers(self):
+        calls = []
+        def planner(history, memories, tools, mode):
+            calls.append(history[-1]["content"][:40])
+            return {"type": "reply", "text": f"pass {len(calls)}"}
+        from luma.agent.runtime import Agent
+        agent = Agent(store=self.store, use_model=True, planner=planner, now=lambda: 1791900000)
+        out = agent.chat("should I quit my job? think hard about it")
+        self.assertEqual(out["text"], "pass 4")  # 3 thinking passes + 1 answer
+        self.assertEqual(out["thinking"], ["Understanding it", "Looking at it three ways", "Checking myself"])

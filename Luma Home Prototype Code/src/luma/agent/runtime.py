@@ -1195,6 +1195,68 @@ class Agent:
             return {"events": events, "kind": "agenda", "section": "today", "text": self.calendar.describe(events, label)}
         return None
 
+    # -- who they are, how Luma feels, how it thinks ----------------------------------------------------
+    @property
+    def about(self):
+        return self.store.setting("about") or {}
+
+    def set_about(self, data):
+        from luma.agent import mind
+        if self.mode == "kids": raise ValueError("Ask a grown-up to set this up.")
+        about = mind.clean_about(data)
+        name = " ".join(str(data.get("name") or "").split())[:60]
+        if name or "name" in data:
+            self.set_profile({**(self.store.setting("personality") or {}), "name": name})
+        self.store.set_setting("about", about)
+        # Birthdays become the same sentences Luma's reminders already understand (and show up in Memories).
+        for old in self.store.all("memory", 1000):
+            if old.get("source") == "about_you": self.store.delete("memory", old["id"])
+        for i, line in enumerate(mind.birthday_memories(about)):
+            self.store.put("memory", {"text": line, "source": "about_you", "created": self.clock()}, f"about-{i}")
+        if not self.store.setting("first_seen"): self.store.set_setting("first_seen", self.clock())
+        return about
+
+    def _mind_context(self, text, cancel_event=None):
+        """Who they are, how Luma feels, and (when it matters) what Luma thought before answering."""
+        from luma.agent import mind
+        out = []
+        summary = mind.about_summary(self.about, self.profile.get("name") or "")
+        if summary: out.append({"about": True, "text": summary})
+        together = mind.days_together(self.store.setting("first_seen"), self.clock())
+        out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
+        if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
+            try:
+                with self.lock:
+                    note = self.call_planner([{"role": "user", "content": mind.reflect_prompt(text, summary, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
+                note = note.get("text") if isinstance(note, dict) else None
+                if isinstance(note, str) and note.strip(): out.append({"thought": True, "text": note.strip()[:700]})
+            except Exception:
+                pass
+        return out
+
+    def think_deep(self, text, cancel_event=None):
+        """Several passes before answering: understand it, look at it three ways, check itself, then answer."""
+        from luma.agent import mind
+        summary = mind.about_summary(self.about, self.profile.get("name") or "")
+        notes = []
+        self.activity.start("think", "Thinking it through")
+        try:
+            for step, (label, _) in enumerate(mind.DEEP_PASSES):
+                if cancel_event is not None and cancel_event.is_set(): return {"text": "Stopped thinking.", "state": "stopped"}
+                self.activity.step(label)
+                with self.lock:
+                    out = self.call_planner([{"role": "user", "content": mind.deep_prompt(step, text, summary, notes)}], [], {}, cancel_event or threading.Event())
+                said = out.get("text") if isinstance(out, dict) else None
+                if isinstance(said, str) and said.strip(): notes.append(f"{label}: {said.strip()[:600]}")
+            self.activity.step("Answering")
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": mind.final_prompt(text, summary, notes, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
+            answer = out.get("text") if isinstance(out, dict) else None
+        finally:
+            self.activity.finish("Thought it through.")
+        return {"text": (answer or "I thought about it, but I couldn't land on a good answer. Can you tell me a bit more?").strip()[:1500],
+                "thinking": [n.split(":", 1)[0] for n in notes]}
+
     # -- tasks the owner taught Luma by doing them once ---------------------------------------------
     def _taught_request(self, text, cancel_event=None):
         if self.mode == "kids": return None
@@ -1913,6 +1975,8 @@ class Agent:
             if saved is not None: return saved
             taught = self._taught_request(text, cancel_event)
             if taught is not None: return taught
+            from luma.agent.mind import DEEP
+            if self.use_model and self.mode != "kids" and DEEP.search(lowered): return self.think_deep(text, cancel_event)
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new|happening|going on) on)\s+(?:my\s+|the\s+)?(instagram|insta|ig|tiktok|twitter|x|facebook|fb|reddit|linkedin|youtube)\b", lowered)
             if feed: return self.check_feed(feed[1], text, cancel_event)
             shopping_reply = self._shopping_command(text, lowered, cancel_event)
@@ -1959,7 +2023,7 @@ class Agent:
                     return {"text": f"{hello}! What can I take off your plate? I can find the cheapest price on something, go through your email, set a reminder, or make a deck."}
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             context = [] if self.mode == "kids" else (self.store.recall(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]]
-                                                      + self._news_context(text))
+                                                      + self._news_context(text) + self._mind_context(text, cancel_event))
             allowed = self.available_tools(text)
             answer = self.call_planner(self.history, context, allowed, cancel_event)
             if cancel_event.is_set(): return {"state":"interrupted", "text":"Stopped before taking another action."}
