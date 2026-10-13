@@ -182,6 +182,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 # Drop your own logo at web/desktop/brand/logo.png and Luma Desktop uses it everywhere.
                 custom = ROOT/'desktop'/'brand'/'logo.png'
                 if custom.is_file(): return self.send(custom.read_bytes(),kind='image/png')
+                svg = ROOT/'desktop'/'brand'/'logo.svg'
+                if svg.is_file(): return self.send(svg.read_bytes(),kind='image/svg+xml')
                 return self.send((ROOT/'desktop'/'mascot.svg').read_bytes(),kind='image/svg+xml')
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
@@ -211,6 +213,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
                 payload['connections']['phone_app']=ctx.phone_app.status() if not companion else None
+                payload['events']=list(ctx.events)[-20:]
+                payload['status']=agent.status()
                 return self.send(payload)
             if path.startswith('/api/threads/'):
                 ident=path[len('/api/threads/'):]
@@ -428,6 +432,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         agent._check('food.checkout'); result=agent.groceries.create_list(data)
                         agent.store.put('grocery_receipt',result,result['local_receipt_id'])
                     elif path=='/api/messages/prepare': result=agent.prepare_message(data.get('recipient'),data.get('body'))
+                    elif path=='/api/mail/compose':
+                        result=agent.propose('mail.send',{'to':str(data.get('to','')),'subject':str(data.get('subject','')),'body':str(data.get('body','')),'reply_to_id':str(data.get('reply_to_id') or '')})
+                        result['text']='Here it is with your changes. Send it?'
                     elif path=='/api/messages/status': result=agent.message_status(data.get('action_id'))
                     elif path=='/api/messages/delete-draft': result={'deleted':agent.store.delete('phone_draft',str(data.get('id','')))}
                     elif path=='/api/booking/availability': result=agent.propose('booking.availability',data)

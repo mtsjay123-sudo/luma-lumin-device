@@ -102,7 +102,7 @@ function createWindow() {
     minHeight: 560,
     title: "Luma",
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#161917" : "#ffffff",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0b0a12" : "#f3f1ee",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 18, y: 18 },
     icon: path.join(__dirname, "build", "icon.png"),
@@ -148,13 +148,27 @@ function uniquePath(dir, name) {
 function buildMenu() {
   const isMac = process.platform === "darwin";
   const go = (url) => () => { if (win) { win.show(); win.loadURL(url); } };
+  // Luma Desktop switches views by its address hash, without reloading.
+  const show = (view) => () => {
+    if (!win) return;
+    win.show();
+    if (win.webContents.getURL().startsWith(HOME_URL)) win.webContents.executeJavaScript(`location.hash = ${JSON.stringify(view)}`);
+    else win.loadURL(HOME_URL + "#" + view);
+  };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(isMac ? [{ role: "appMenu" }] : []),
     { label: "File", submenu: [{ label: "New Conversation", accelerator: "CmdOrCtrl+N", click: () => win?.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown',{key:'n',metaKey:true,ctrlKey:true}))") }, { type: "separator" }, isMac ? { role: "close" } : { role: "quit" }] },
     { role: "editMenu" },
     { label: "View", submenu: [
-      { label: "Luma", accelerator: "CmdOrCtrl+1", click: go(HOME_URL) },
-      { label: "All Controls", accelerator: "CmdOrCtrl+2", click: go(`${ORIGIN}/`) },
+      { label: "Main Chat", accelerator: "CmdOrCtrl+1", click: show("chat") },
+      { label: "Feed", accelerator: "CmdOrCtrl+2", click: show("feed") },
+      { label: "Ideas", accelerator: "CmdOrCtrl+3", click: show("ideas") },
+      { label: "Goals", accelerator: "CmdOrCtrl+4", click: show("goals") },
+      { label: "Library", accelerator: "CmdOrCtrl+5", click: show("library") },
+      { type: "separator" },
+      { label: "Apps", accelerator: "CmdOrCtrl+,", click: show("apps") },
+      { label: "Rules", click: show("rules") },
+      { label: "All Controls", accelerator: "CmdOrCtrl+9", click: go(`${ORIGIN}/`) },
       { type: "separator" }, { role: "reload" }, { role: "togglefullscreen" },
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" }]),
     ] },

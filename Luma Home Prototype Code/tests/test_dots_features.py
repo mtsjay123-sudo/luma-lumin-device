@@ -111,6 +111,11 @@ class ShoppingTests(unittest.TestCase):
         self.assertEqual(self.agent.activity.view()["state"], "stopped")
         self.assertFalse(any("c.example" in u for u in self.agent._browser.opened))
 
+    def test_everyday_price_questions_go_to_the_stores(self):
+        for text in ["How much are AirPods Pro 2 going for these days?", "what's the price of airpods pro 2 right now?"]:
+            self.assertEqual(self.agent.chat(text)["kind"], "shopping", text)
+        self.assertIsNone(next((p.fullmatch("how much is 15% of 80") for p in Agent.SHOP_PATTERNS if p.fullmatch("how much is 15% of 80")), None))
+
     def test_pause_holds_the_job_until_resume(self):
         activity = Activity()
         activity.start("shopping", "x")
@@ -257,6 +262,14 @@ class MailAndCalendarTests(unittest.TestCase):
         sent = FakeSMTP.sent[0]
         self.assertEqual(sent["To"], "sam@example.com")
         self.assertEqual(sent["In-Reply-To"], "<m1@example.com>")
+
+    def test_emails_never_get_signed_with_a_made_up_name(self):
+        self.agent.use_model = True
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Hey Sam,\nYes, see you at 7!\nBest, Alex"}
+        self.assertTrue(self.agent.write_email("Sam", "yes see you at 7").endswith("Best,"))
+        self.agent.set_profile({**self.agent.profile, "name": "Xiena"})
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Hey Sam,\nYes!\nBest, Xiena"}
+        self.assertTrue(self.agent.write_email("Sam", "yes").endswith("Best, Xiena"))
 
     def test_inbox_helper_only_buzzes_for_new_mail(self):
         self.agent.mail.connect("me@gmail.com", "abcdabcdabcdabcd")

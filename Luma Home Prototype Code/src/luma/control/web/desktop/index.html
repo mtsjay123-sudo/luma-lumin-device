@@ -3,129 +3,148 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <title>Luma</title>
   <link rel="icon" href="/desktop/logo" />
   <link rel="stylesheet" href="/desktop/desktop.css" />
 </head>
 <body>
-  <div class="app" id="app">
-    <!-- Left rail -->
-    <nav class="rail" aria-label="Luma">
-      <div class="drag"></div>
-      <img class="rail-logo" src="/desktop/logo" alt="Luma" width="34" height="34" />
-      <button class="rail-btn active" data-view="chat" aria-label="Talk" title="Talk">
-        <svg viewBox="0 0 24 24"><path d="M4 11.5C4 7.4 7.6 4 12 4s8 3.4 8 7.5S16.4 19 12 19c-1 0-1.9-.2-2.8-.4L5 20l1.2-3.4C4.8 15.3 4 13.5 4 11.5Z"/></svg>
-      </button>
-      <button class="rail-btn" data-view="library" aria-label="Things Luma made" title="Library">
-        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
-      </button>
-      <button class="rail-btn" data-view="today" aria-label="Today" title="Today">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>
-      </button>
-      <button class="rail-btn" data-view="people" aria-label="People" title="People">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M15.2 12v1.3a2.3 2.3 0 0 0 4.6 0V12a7.8 7.8 0 1 0-3 6.1"/></svg>
-      </button>
-      <span class="rail-space"></span>
-      <button class="rail-btn" data-view="settings" aria-label="Settings" title="Settings">
-        <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>
-      </button>
-    </nav>
+  <div class="wallpaper" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><i class="blob b4"></i></div>
 
-    <!-- Conversation -->
-    <main class="stage" id="stage">
+  <div class="app" id="app">
+    <!-- Sidebar: Muse-style tabs, side chats, apps and rules -->
+    <aside class="sidebar glass" aria-label="Luma">
+      <div class="drag"></div>
+      <div class="brand">
+        <img src="/desktop/logo" alt="" width="30" height="30" />
+        <span>Luma</span>
+      </div>
+      <nav class="nav" id="nav-main">
+        <button class="nav-item active" data-view="chat" data-icon="chat">Main chat</button>
+        <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
+        <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
+        <button class="nav-item" data-view="goals" data-icon="goals">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
+        <button class="nav-item" data-view="library" data-icon="library">Library</button>
+      </nav>
+      <div class="nav-section">
+        <span>Chats</span>
+        <button class="icon-btn" id="new-chat" aria-label="New chat" title="New chat (⌘N)" data-icon="plus"></button>
+      </div>
+      <div class="threads" id="threads"></div>
+      <div class="grow"></div>
+      <nav class="nav small" id="nav-more">
+        <button class="nav-item" data-view="apps" data-icon="apps">Apps</button>
+        <button class="nav-item" data-view="rules" data-icon="rules">Rules</button>
+        <button class="nav-item" data-view="settings" data-icon="settings">Settings</button>
+      </nav>
+      <div class="presence" id="presence"><span class="pulse"></span><span id="presence-text">Luma is here</span></div>
+    </aside>
+
+    <!-- Center -->
+    <main class="center" id="center">
       <div class="drag top-drag"></div>
-      <section class="view" id="view-chat">
-        <header class="buddy" aria-live="polite">
-          <div class="mascot idle" id="mascot" aria-hidden="true">
-            <svg viewBox="0 0 120 120">
+
+      <section class="view chat-view" id="view-chat">
+        <header class="hero">
+          <div class="avatar idle" id="mascot" aria-hidden="true">
+            <svg viewBox="0 0 100 100">
               <defs>
-                <linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#eeebe3"/></linearGradient>
-                <radialGradient id="g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffd98a" stop-opacity=".95"/><stop offset=".6" stop-color="#ffe7b3" stop-opacity=".45"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0"/></radialGradient>
-                <radialGradient id="h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffe2a0" stop-opacity=".6"/><stop offset="1" stop-color="#ffe2a0" stop-opacity="0"/></radialGradient>
+                <linearGradient id="av-base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5b860"/><stop offset=".45" stop-color="#c58fc8"/><stop offset="1" stop-color="#6d6cf5"/></linearGradient>
+                <radialGradient id="av-pink" cx="1" cy="0" r=".85"><stop offset="0" stop-color="#f0468f"/><stop offset="1" stop-color="#f0468f" stop-opacity="0"/></radialGradient>
+                <radialGradient id="av-blue" cx="0" cy="1" r=".85"><stop offset="0" stop-color="#4fc3ff"/><stop offset="1" stop-color="#4fc3ff" stop-opacity="0"/></radialGradient>
+                <radialGradient id="av-violet" cx="1" cy="1" r=".6"><stop offset="0" stop-color="#8c52ff"/><stop offset="1" stop-color="#8c52ff" stop-opacity="0"/></radialGradient>
+                <clipPath id="av-tile"><rect width="100" height="100" rx="23"/></clipPath>
               </defs>
-              <ellipse class="halo" cx="60" cy="62" rx="54" ry="54" fill="url(#h)"/>
-              <ellipse class="shadow" cx="60" cy="110" rx="24" ry="4" fill="#000" opacity=".08"/>
-              <g class="body">
-                <rect x="30" y="18" width="60" height="86" rx="28" fill="url(#b)" stroke="#e4e0d6" stroke-width="1.2"/>
-                <ellipse class="glow" cx="60" cy="84" rx="26" ry="18" fill="url(#g)"/>
-                <path d="M33 44 Q60 50 87 44" fill="none" stroke="#e2ddd1" stroke-width="1.6" stroke-linecap="round"/>
-                <ellipse cx="60" cy="27" rx="7" ry="2.6" fill="#f3f1ec" stroke="#e2ddd1"/>
-                <g class="eyes open">
-                  <ellipse cx="49" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
-                  <ellipse cx="71" cy="61" rx="4.4" ry="5.6" fill="#28302b"/>
-                  <circle cx="50.4" cy="59" r="1.4" fill="#fff"/>
-                  <circle cx="72.4" cy="59" r="1.4" fill="#fff"/>
-                </g>
-                <g class="eyes happy" fill="none" stroke="#28302b" stroke-width="2.6" stroke-linecap="round">
-                  <path d="M44.5 62 Q49 56 53.5 62"/><path d="M66.5 62 Q71 56 75.5 62"/>
-                </g>
-                <g class="eyes sleepy" fill="none" stroke="#28302b" stroke-width="2.4" stroke-linecap="round">
-                  <path d="M45 61 Q49 64 53 61"/><path d="M67 61 Q71 64 75 61"/>
-                </g>
-                <ellipse cx="42" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity=".6"/>
-                <ellipse cx="78" cy="71" rx="5" ry="2.8" fill="#ffab98" opacity=".6"/>
-                <path class="mouth" d="M55.5 71 Q60 75 64.5 71" fill="none" stroke="#28302b" stroke-width="2" stroke-linecap="round"/>
+              <g clip-path="url(#av-tile)" class="tile">
+                <rect width="100" height="100" fill="url(#av-base)"/>
+                <rect width="100" height="100" fill="url(#av-pink)" class="shimmer a"/>
+                <rect width="100" height="100" fill="url(#av-blue)" class="shimmer b"/>
+                <rect width="100" height="100" fill="url(#av-violet)"/>
               </g>
+              <path class="loop" pathLength="100" d="M51 63 C46 50 52 33 60 26 C67 20 77 23 77 31 C77 41 64 52 51 63 C41 71 33 79 26 77 C18 75 19 64 27 61 C36 57 46 61 51 63 C58 66 68 63 74 67 C80 71 78 80 70 79 C62 78 56 71 51 63 Z"/>
             </svg>
+            <span class="ring"></span>
           </div>
-          <div class="nametag" id="nametag">Luma</div>
-          <div class="doing" id="doing">Here with you</div>
+          <div class="hero-text">
+            <h1 id="chat-title">Luma</h1>
+            <p id="doing">Here with you</p>
+          </div>
         </header>
 
-        <div class="thread" id="thread" aria-label="Conversation with Luma"></div>
+        <div class="thread" id="thread" aria-label="Conversation with Luma" aria-live="polite"></div>
 
-        <form class="composer" id="composer" autocomplete="off">
-          <textarea id="input" rows="1" maxlength="4000" placeholder="Send a message" aria-label="Message to Luma"></textarea>
-          <button type="button" class="round ghost" id="mic" aria-label="Talk out loud" title="Talk out loud">
-            <svg viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg>
-          </button>
-          <button type="submit" class="round send" id="send" aria-label="Send" disabled>
-            <svg viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg>
-          </button>
+        <form class="composer glass" id="composer" autocomplete="off">
+          <textarea id="input" rows="1" maxlength="4000" placeholder="Ask Luma to do anything" aria-label="Message to Luma"></textarea>
+          <button type="button" class="icon-btn" id="mic" aria-label="Talk out loud" title="Talk out loud" data-icon="mic"></button>
+          <button type="submit" class="send" id="send" aria-label="Send" disabled data-icon="up"></button>
         </form>
+        <p class="fineprint">Luma runs on this computer. Nothing is sent or bought without your OK.</p>
+      </section>
+
+      <section class="view feed-view" id="view-feed" hidden>
+        <div class="feed-list glass" id="feed-list" aria-label="Feed"></div>
+        <article class="reader glass" id="reader" aria-live="polite"></article>
+      </section>
+
+      <section class="view page" id="view-ideas" hidden>
+        <div class="page-head"><h1>Ideas</h1><p class="lede">Things I could take off your plate. Pick one and I'll get going.</p></div>
+        <div class="idea-grid" id="ideas"></div>
+      </section>
+
+      <section class="view page" id="view-goals" hidden>
+        <div class="page-head"><h1>Goals</h1><p class="lede">Standing jobs I keep doing on my own. I only read and prepare; anything that goes out still waits for you.</p></div>
+        <form class="glass new-goal" id="goal-form"></form>
+        <div class="goal-list" id="goals"></div>
       </section>
 
       <section class="view page" id="view-library" hidden>
-        <h1>Things Luma made</h1>
-        <p class="lede">Decks, drafts and texts waiting on you.</p>
-        <div class="grid" id="library"></div>
+        <div class="page-head"><h1>Library</h1><p class="lede">Decks, deals and drafts I've made for you.</p></div>
+        <div class="library" id="library"></div>
       </section>
 
-      <section class="view page" id="view-today" hidden>
-        <h1>Today</h1>
-        <p class="lede" id="today-brief"></p>
-        <div class="list" id="today"></div>
+      <section class="view page" id="view-apps" hidden>
+        <div class="page-head"><h1>Apps</h1><p class="lede">Connect the things you use. All free, all private, all on this computer.</p></div>
+        <div class="app-grid" id="apps"></div>
       </section>
 
-      <section class="view page" id="view-people" hidden>
-        <h1>People</h1>
-        <p class="lede">Say “text my sister…” and Luma knows who you mean.</p>
-        <form class="inline-form" id="person-form">
-          <input name="name" placeholder="Name" required maxlength="60" />
-          <input name="phone" placeholder="+1 919 555 0123" required maxlength="20" />
-          <input name="nicknames" placeholder="Also called (sis, babe…)" maxlength="80" />
-          <button class="pill primary" type="submit">Save</button>
-        </form>
-        <div class="list" id="people"></div>
+      <section class="view page" id="view-rules" hidden>
+        <div class="page-head"><h1>Rules</h1><p class="lede">What I just do, what I ask about first, and what I never do. Sending, posting and paying can never run on their own.</p></div>
+        <div class="glass list" id="rules"></div>
+        <h2 class="sub-head">What I've learned about you</h2>
+        <div class="glass list" id="learned"></div>
       </section>
 
       <section class="view page" id="view-settings" hidden>
-        <h1>Settings</h1>
-        <div class="list" id="settings"></div>
+        <div class="page-head"><h1>Settings</h1></div>
+        <div class="glass list" id="settings"></div>
       </section>
     </main>
 
-    <!-- The work: what Luma is making or wants you to approve -->
-    <aside class="panel" id="panel" hidden aria-label="Luma's work">
+    <!-- Right: Luma's computer, approvals, today, goals -->
+    <aside class="widgets" id="widgets" aria-label="At a glance">
       <div class="drag"></div>
-      <div class="panel-head">
-        <span class="panel-title" id="panel-title">Work</span>
-        <button class="round ghost small" id="panel-close" aria-label="Close">
-          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-      <div class="panel-body" id="panel-body"></div>
+      <section class="widget glass computer" id="w-computer" hidden aria-label="Luma's computer"></section>
+      <section class="widget glass" id="w-approvals" hidden aria-label="Waiting on you">
+        <h2>Waiting on you</h2>
+        <div id="approvals"></div>
+      </section>
+      <section class="widget glass" id="w-today" aria-label="Today">
+        <h2 id="today-date">Today</h2>
+        <div id="today-events"></div>
+        <div id="today-tasks"></div>
+      </section>
+      <section class="widget glass" id="w-goals" aria-label="Goals">
+        <h2>Goals <button class="link" id="w-goals-open">See all</button></h2>
+        <div id="mini-goals"></div>
+      </section>
     </aside>
+  </div>
+
+  <div class="sheet-backdrop" id="sheet" hidden>
+    <div class="sheet glass" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-head"><h2 id="sheet-title"></h2><button class="icon-btn" id="sheet-close" aria-label="Close" data-icon="x"></button></div>
+      <div class="sheet-body" id="sheet-body"></div>
+    </div>
   </div>
   <div class="toast" id="toast" role="status"></div>
   <script src="/desktop/desktop.js"></script>
