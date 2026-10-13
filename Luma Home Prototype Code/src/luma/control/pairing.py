@@ -7,7 +7,6 @@ does not start a listener or authorize any assistant action by itself.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import hmac
 import ipaddress
@@ -40,6 +39,17 @@ _PRIVATE_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
 class PairingError(ValueError):
     """A pairing request cannot be completed; messages contain no credentials."""
 
+
+def _lock_exclusive(file) -> None:
+    """Hold an exclusive lock on an open file until it closes (Mac and Linux: flock; Windows: msvcrt)."""
+    try:
+        import fcntl
+    except ImportError:  # Windows
+        import msvcrt
+        file.seek(0)
+        msvcrt.locking(file.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    fcntl.flock(file, fcntl.LOCK_EX)
 
 def _hash(token):
     return hashlib.sha256(token.encode("ascii")).hexdigest()
@@ -225,9 +235,9 @@ def ensure_local_certificate(directory, private_ip, clock=time.time):
     for path in (certificate_path, key_path, lock_path):
         if path.is_symlink():
             raise ValueError("Luma certificate files cannot be symbolic links.")
-    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
     with os.fdopen(fd, "rb") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        _lock_exclusive(lock)
         now = datetime.fromtimestamp(clock(), timezone.utc)
         try:
             certificate = x509.load_pem_x509_certificate(certificate_path.read_bytes())
