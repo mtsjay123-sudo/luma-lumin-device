@@ -21,6 +21,7 @@ KINDS = {
     "agenda": "Morning agenda",
     "goal": "Goal",
     "ideas": "Ideas",
+    "news": "News",
 }
 FEED_KEEP = 200
 
@@ -122,6 +123,8 @@ class Helpers:
             title = title or "My day, every morning"
         elif kind == "ideas":
             title = title or "Ideas for me"
+        elif kind == "news":
+            title = title or "Read the news"
         now = self.agent.clock()
         row = {"kind": kind, "title": str(title)[:120], "params": params, "every": every, "at": at, "enabled": True, "system": system,
                "created": now, "last_run": None, "last_result": None, "last_error": None, "runs": 0, "history": [], "seen": [], "low": None}
@@ -151,6 +154,9 @@ class Helpers:
         """The daily ideas pass, so the Ideas tab has fresh things to suggest."""
         if not any(r.get("kind") == "ideas" for r in self.store.all("helper", 60)):
             self.create("ideas", every="daily", at="07:20", system=True, run_now=False)
+        # Read the news every few hours, so Luma knows what happened after its training.
+        if not any(r.get("kind") == "news" for r in self.store.all("helper", 60)):
+            self.create("news", every="every_6h", system=True, run_now=True)
 
     # -- running ---------------------------------------------------------------
     def due(self, now):
@@ -271,6 +277,18 @@ class Helpers:
         if result.get("state") == "pending":
             card["action"] = result.get("action")
         return {"card": card, "notify": text[:240]}
+
+    def _run_news(self, row):
+        from luma.skills import news
+        result = self.agent.read_news(force=True)
+        today = datetime.fromtimestamp(self.agent.clock(), self.agent.zone).date().isoformat()
+        if not result.get("items") or row.get("carded") == today:
+            return {}
+        # Once a day, the morning's biggest stories as a card in the feed.
+        picks = news.top(result["items"], 6)
+        body = "\n".join(f"{p['source']}: {p['title']}" for p in picks)
+        return {"card": {"kind": "update", "title": "Today's news", "body": body, "items": [], "url": picks[0]["url"] if picks else None},
+                "state": {"carded": today}}
 
     def _run_ideas(self, row):
         items = self.agent.model_ideas()

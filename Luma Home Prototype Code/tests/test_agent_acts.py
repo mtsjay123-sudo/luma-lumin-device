@@ -153,3 +153,64 @@ class ChatsAreKeptTests(unittest.TestCase):
                 self.assertNotIn(side["id"], {t["id"] for t in Agent(store=store, use_model=False).thread_list()})
             finally:
                 store.close()
+
+
+class NewsTests(unittest.TestCase):
+    """Luma reads free public news feeds so a model trained earlier still knows what happened today."""
+    @classmethod
+    def setUpClass(cls):
+        import functools, http.server, threading
+        from pathlib import Path
+        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(Path(__file__).parent / "fixtures" / "web"))
+        handler.log_message = lambda *a: None
+        cls.site = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=cls.site.serve_forever, daemon=True).start()
+        cls.base = f"http://127.0.0.1:{cls.site.server_port}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.site.shutdown()
+
+    def setUp(self):
+        import json, os, tempfile
+        from pathlib import Path
+        from unittest import mock
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+        feeds = json.dumps([["Test Wire", self.base + "/news-rss.xml"], ["Tech Daily", self.base + "/news-atom.xml"], ["Broken", self.base + "/nope.xml"]])
+        self.env = mock.patch.dict(os.environ, {"LUMA_NEWS_FEEDS": feeds})
+        self.env.start()
+        self.agent = Agent(store=self.store, use_model=False, now=lambda: 1791900000)  # Tue 13 Oct 2026
+        self.agent.news_allow_local = True
+
+    def tearDown(self):
+        self.env.stop()
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_reads_every_feed_drops_old_and_duplicate_stories(self):
+        result = self.agent.read_news(force=True)
+        titles = [i["title"] for i in result["items"]]
+        self.assertEqual(len(titles), 3)
+        self.assertEqual(titles.count("Fed holds interest rates steady, signals one more cut this year"), 1)
+        self.assertNotIn("Old story from last month", titles)
+        self.assertEqual(result["failed"], ["Broken"])
+        self.assertEqual(result["items"][0]["snippet"] if result["items"][0]["source"] == "Test Wire" else "", "The Federal Reserve left rates unchanged on Tuesday.")
+
+    def test_news_questions_are_answered_from_todays_headlines_with_sources(self):
+        reply = self.agent.chat("what's the news today")
+        self.assertIn("Fed holds interest rates steady", reply["text"])
+        self.assertEqual(reply["section"], "news")
+        self.assertTrue(all(r["url"].startswith("https://") for r in reply["results"]))
+        topic = self.agent.chat("what's the latest on starship")
+        self.assertEqual([r["url"] for r in topic["results"]], ["https://news.example/starship"])
+
+    def test_matching_headlines_reach_the_model_as_background(self):
+        self.agent.read_news(force=True)
+        seen = self.agent._news_context("should I buy the new M6 MacBook Pro")
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0]["news"])
+        self.assertIn("Tech Daily: Apple announces M6 MacBook Pro", seen[0]["text"])
+        self.assertEqual(self.agent._news_context("help me write a poem"), [])

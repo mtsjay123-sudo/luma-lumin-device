@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Tech Daily</title>
+<entry><title>Apple announces M6 MacBook Pro with on-device AI chip</title><link href="https://tech.example/m6"/><updated>2026-10-13T08:00:00Z</updated><summary>The new laptops ship next week.</summary></entry>
+<entry><title>Fed holds interest rates steady, signals one more cut this year</title><link href="https://tech.example/fed-dup"/><updated>2026-10-13T11:00:00Z</updated></entry>
+</feed>
