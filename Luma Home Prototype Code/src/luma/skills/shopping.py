@@ -33,6 +33,38 @@ PRODUCTS_JS = r"""
     seen.add(key); out.push(o);
   };
   const firstImage = (img) => { img = [].concat(img || [])[0]; return abs(img && typeof img === 'object' ? img.url : img); };
+  // The product's own picture, as the store shows it. Stores lazy-load pictures, so look past
+  // placeholder src values to data-src / srcset, and pick the biggest image in the listing.
+  let picIndex = 0;
+  const fromSrcset = (v) => { const parts = String(v || '').split(',').map((x) => x.trim().split(/\s+/)[0]).filter(Boolean); return parts[parts.length - 1]; };
+  const imgUrl = (img) => {
+    if (!img) return null;
+    if (img.getAttribute('content')) return abs(img.getAttribute('content'));
+    const lazy = img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || img.getAttribute('data-original') || fromSrcset(img.getAttribute('data-srcset'));
+    const src = img.currentSrc || img.getAttribute('src') || '';
+    const placeholder = !src || /^data:|blank|spacer|placeholder|transparent|\.gif(\?|$)/i.test(src);
+    const source = img.closest('picture') && img.closest('picture').querySelector('source[srcset]');
+    return abs(placeholder ? (lazy || fromSrcset(img.getAttribute('srcset')) || (source && fromSrcset(source.getAttribute('srcset')))) : src);
+  };
+  const bestImg = (scope) => {
+    let best = null, area = 0;
+    for (const img of scope.querySelectorAll('img')) {
+      const r = img.getBoundingClientRect(), a = Math.max(r.width * r.height, (img.naturalWidth || 0) * (img.naturalHeight || 0));
+      if (a > area && r.width >= 40 && r.height >= 40) { best = img; area = a; }
+    }
+    return best || scope.querySelector('img');
+  };
+  const pic = (img) => {
+    if (!img) return { image: null };
+    const image = imgUrl(img);
+    // Mark it so Luma can take a picture of it straight off the page if the address doesn't work.
+    const id = String(picIndex++);
+    img.setAttribute('data-luma-pic', id);
+    // Weak: no address, or the picture on screen is itself the placeholder (nothing better found).
+    const shown = abs(img.currentSrc || img.getAttribute('src') || '');
+    const weak = !image || (image === shown && (!img.complete || (img.naturalWidth || 0) < 40));
+    return { image, pic: id, image_weak: weak };
+  };
   // 1. schema.org JSON-LD (most stores publish this)
   for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
     let data; try { data = JSON.parse(s.textContent) } catch (e) { continue }
@@ -57,10 +89,12 @@ PRODUCTS_JS = r"""
   // 2. schema.org microdata
   for (const el of document.querySelectorAll('[itemtype*="schema.org/Product"]')) {
     const name = el.querySelector('[itemprop="name"]'), price = el.querySelector('[itemprop="price"]');
-    const link = el.querySelector('a[href]'), img = el.querySelector('[itemprop="image"], img');
+    const link = el.querySelector('a[href]'), meta = el.querySelector('meta[itemprop="image"]'), img = bestImg(el);
+    const shown = pic(img);
+    if (meta && !shown.image) { shown.image = abs(meta.getAttribute('content')); }
     if (name && price) push({ title: clean(name.getAttribute('content') || name.textContent).slice(0, 200),
       price: parseFloat(String(price.getAttribute('content') || price.textContent).replace(/[^0-9.]/g, '')), currency: 'USD',
-      url: abs(link && link.getAttribute('href')), image: abs(img && (img.getAttribute('content') || img.currentSrc || img.src)), source: 'microdata' });
+      url: abs(link && link.getAttribute('href')), ...shown, source: 'microdata' });
   }
   // 3. visible product tiles: a price, near a link and a picture
   const PRICE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/;
@@ -83,9 +117,8 @@ PRODUCTS_JS = r"""
     const titleEl = card.querySelector('h2, h3, h4, [data-testid*="title" i], [class*="title" i], [class*="name" i]') || link;
     const title = clean(titleEl.getAttribute('title') || titleEl.getAttribute('aria-label') || titleEl.textContent);
     const m = PRICE.exec(priceEl.textContent);
-    const img = card.querySelector('img');
     if (title.length > 8 && m) push({ title: title.slice(0, 200), price: parseFloat(m[1].replace(/,/g, '')), currency: 'USD',
-      url: abs(link.getAttribute('href')), image: abs(img && (img.currentSrc || img.src)), source: 'page' });
+      url: abs(link.getAttribute('href')), ...pic(bestImg(card)), source: 'page' });
   }
   return out.slice(0, 60);
 }
@@ -195,6 +228,10 @@ def compare(query, browser, activity, stores, max_price=None, per_store=12, chec
         for item in listings[:60]:
             found.append({**item, "store": store["name"], "store_id": store["id"]})
         good = rank(query, [f for f in found if f["store_id"] == store["id"]], max_price)[:per_store]
+        shots = page_pictures(browser, good[:3])
+        for item in found:
+            if item["store_id"] == store["id"] and item.get("pic") in shots:
+                item["image_shot"] = shots[item["pic"]]
         activity.step(f"{store['name']}: {len(good)} match{'es' if len(good) != 1 else ''}" + (f", from {money(good[0]['price'])}" if good else ""), done=True)
     offers = rank(query, found, max_price)
     # Keep the list readable: the best few, at most three per store.
@@ -206,8 +243,23 @@ def compare(query, browser, activity, stores, max_price=None, per_store=12, chec
         per[offer["store"]] = per.get(offer["store"], 0) + 1
         trimmed.append(offer)
     trimmed = trimmed[:12]
+    for offer in trimmed:
+        offer.pop("pic", None)
+        offer.pop("image_weak", None)
     activity.results(trimmed)
     return {"query": query, "offers": trimmed, "best": trimmed[0] if trimmed else None, "checked": checked, "skipped": skipped}
+
+
+def page_pictures(browser, offers):
+    """Where a listing's picture is missing or still a placeholder, take it straight off the store's page."""
+    wanted = [o["pic"] for o in offers if o.get("pic") and (o.get("image_weak") or not o.get("image"))]
+    if not wanted or not hasattr(browser, "pictures"):
+        return {}
+    try:
+        shots = browser.pictures(wanted) or {}
+    except Exception:  # a picture is nice to have; never fail the search over it
+        return {}
+    return {pic: "data:image/jpeg;base64," + data for pic, data in shots.items() if data}
 
 
 def summary(result):

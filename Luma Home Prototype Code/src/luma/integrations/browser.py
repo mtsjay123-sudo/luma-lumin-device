@@ -269,6 +269,19 @@ class BrowserSession:
             raise ValueError("Nothing is open yet. Open a page first.")
         return page.evaluate(PRODUCTS_JS)
 
+    def _do_pictures(self, page, ids):
+        """Small JPEGs of product pictures, taken straight from the page Luma is looking at."""
+        import base64
+        shots = {}
+        for pic_id in [str(i) for i in ids if str(i).isdigit()][:6]:
+            try:
+                data = page.locator(f'[data-luma-pic="{pic_id}"]').first.screenshot(type="jpeg", quality=72, timeout=3000)
+            except Exception:
+                continue
+            if data and len(data) < 400_000:
+                shots[pic_id] = base64.b64encode(data).decode()
+        return shots
+
     # -- public API ----------------------------------------------------------
     def open(self, url): return self._call("open", url)
     def read(self): return self._call("read")
@@ -280,6 +293,7 @@ class BrowserSession:
     def type(self, ref, text, submit=False, expected_label=None): return self._call("type", int(ref), text, bool(submit), expected_label)
     def screenshot(self): return self._call("screenshot")
     def products(self): return self._call("products")
+    def pictures(self, ids): return self._call("pictures", list(ids))
 
     def show_for_sign_in(self, url):
         """Reopen visibly so the owner can sign in themselves; Luma never handles passwords."""

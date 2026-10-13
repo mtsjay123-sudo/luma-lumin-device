@@ -121,6 +121,8 @@ def home_payload(agent, owner=True):
             'browser': {'on': agent.store.setting('integration:browser', False), 'available': agent._browser_available()},
             'texting': {'route': agent.message_route, 'enabled': agent.store.setting('integration:sms', False)},
             'phone_app': None,
+            'apps': agent.connectors.list() if owner else [],
+            'app_presets': agent.connectors.presets(),
         },
         'profile': {'name': agent.profile.get('name') or ''},
         'model': {'on': agent.use_model},
@@ -396,6 +398,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         elif what=='calendar':
                             result={'calendar':agent.calendar.connect(data.get('url'))}
                             agent.enable('calendar',True)
+                        elif what=='app':
+                            result={'app':agent.connectors.add(data.get('name'),url=data.get('url') or '',command=data.get('command') or '',
+                                                               token=data.get('token') or '',preset=data.get('preset'),folder=data.get('folder') or '')}
+                            agent.enable('connectors',True)
+                        elif what=='app_remove':
+                            result=agent.connectors.remove(str(data.get('id','')))
                         elif what=='disconnect':
                             service=data.get('service')
                             if service=='mail': result={'mail':agent.mail.disconnect()}; agent.enable('mail',False)

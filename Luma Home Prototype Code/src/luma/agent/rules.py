@@ -20,6 +20,8 @@ CATEGORIES = {
     "posts": {"label": "Post, like, follow or comment", "default": "ask", "choices": ("ask", "block")},
     "bookings": {"label": "Book appointments", "default": "ask", "choices": ("ask", "block")},
     "home": {"label": "Control lights and devices", "default": "ask", "choices": ("ask", "block")},
+    "apps_read": {"label": "Look things up in your connected apps", "default": "allow", "choices": ("allow", "block")},
+    "apps_act": {"label": "Make changes in your connected apps", "default": "ask", "choices": ("ask", "block")},
     "spend": {"label": "Checkout and payment", "default": "block", "choices": ("block",)},
 }
 
@@ -43,6 +45,7 @@ VERBS = {
     "browse": "read websites", "reminders": "save reminders or notes", "drafts": "write drafts", "inbox": "read your email or calendar",
     "cart": "add things to carts", "texts": "send texts", "email": "send emails", "posts": "post, like, follow or comment",
     "bookings": "book appointments", "home": "control devices", "spend": "check out or pay",
+    "apps_read": "look things up in your connected apps", "apps_act": "make changes in your connected apps",
 }
 
 

@@ -128,10 +128,15 @@
   function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }
   const safeUrl = (u) => /^https?:\/\//i.test(String(u || "")) ? u : null;
   const safeImg = (u) => /^(?:https:\/\/|data:image\/(?:png|jpeg|webp|gif|svg\+xml)[;,])/i.test(String(u || "")) ? u : null;
-  function picture(src, alt = "") {
-    if (!safeImg(src)) return null;
+  // A product's own picture from the store: its address first, then the copy Luma took
+  // straight off the page if the address doesn't load.
+  function picture(src, alt = "", fallback = null) {
+    const sources = [src, fallback].filter(safeImg);
+    if (!sources.length) return null;
     const img = el("img");
-    img.src = src; img.alt = alt; img.loading = "lazy"; img.referrerPolicy = "no-referrer";
+    img.alt = alt; img.loading = "lazy"; img.referrerPolicy = "no-referrer";
+    img.src = sources.shift();
+    img.addEventListener("error", () => { if (sources.length) img.src = sources.shift(); else img.dispatchEvent(new Event("luma-nopic")); });
     return img;
   }
 
@@ -336,8 +341,8 @@
     const p = el("div", "product");
     if (best) p.append(el("span", "tag", "Cheapest"));
     const pic = el("div", "pic");
-    const img = picture(o.image);
-    if (img) { img.addEventListener("error", () => img.replaceWith(el("div", "ph", (o.store || "?")[0]))); pic.append(img); }
+    const img = picture(o.image, o.title, o.image_shot);
+    if (img) { img.addEventListener("luma-nopic", () => img.replaceWith(el("div", "ph", (o.store || "?")[0]))); pic.append(img); }
     else pic.append(el("div", "ph", (o.store || "?")[0]));
     const info = el("div", "info");
     info.append(el("div", "store", o.store), el("div", "name", o.title), el("div", "price", money(o.price)));
@@ -377,7 +382,10 @@
   // Muse-style: "Checkout · Luma wants to…", the item as it looks on the store, then Deny / Allow.
   function approval(r) {
     const a = r.arguments || {};
-    const [kind, verb] = WANTS[r.tool] || ["Action", "do this"];
+    // A connected app's tool: "GitHub · Luma wants to use “create issue”".
+    const app = String(r.tool).startsWith("mcp.") ? (state.home?.connections?.apps || []).find((x) => r.tool.startsWith(`mcp.${x.id}.`)) : null;
+    const [kind, verb] = app ? [app.name, `use “${r.tool.split(".").pop().replace(/_/g, " ")}”`]
+      : String(r.tool).startsWith("mcp.") ? ["Connected app", "make a change"] : WANTS[r.tool] || ["Action", "do this"];
     const c = el("div", "card checkout");
     const head = el("div", "co-head");
     const hic = el("span", "chip-ic");
@@ -393,7 +401,7 @@
       "shop.add_to_cart": "Check the item and price before you allow it. Checkout and payment always stay with you.",
       "mail.send": "These are the exact words that will go out. It's in your Drafts too.",
       "browser.act": a.reason ? `Why I'm asking: ${a.reason}.` : "Nothing happens on the site until you allow it.",
-    }[r.tool] || (TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
+    }[r.tool] || (String(r.tool).startsWith("mcp.") ? `This changes something in ${app ? app.name : "a connected app"}. Check the details first.` : TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
     c.append(el("div", "co-sub", sub));
 
     if (r.tool === "shop.add_to_cart") {
@@ -403,7 +411,7 @@
       bar.append(el("span", "fav", (a.store || "?")[0]), el("b", null, a.store || host(a.url)), document.createTextNode(host(a.url) ? "  ·  " + host(a.url) : ""));
       const body = el("div", "co-body");
       const pic = el("div", "co-pic");
-      pic.append(picture(o.image, a.title) || el("div", "ph", (a.store || "?")[0]));
+      pic.append(picture(o.image, a.title, o.image_shot) || el("div", "ph", (a.store || "?")[0]));
       const info = el("div", "co-info");
       const press = el("span", "press");
       press.append(icon("cart"), document.createTextNode("Luma will press Add to cart"));
@@ -828,7 +836,7 @@
       const o = state.offers.get(args.url) || {};
       const ph = el("span", "ph");
       ph.append(icon(a.tool === "mail.send" ? "mail" : TEXTY.includes(a.tool) ? "message" : "cart"));
-      card.append(picture(o.image) || ph);
+      card.append(picture(o.image, "", o.image_shot) || ph);
       const g = el("div", "grow");
       const what = WANTS[a.tool] || ["Action", "do this"];
       g.append(el("div", "t", what[0] === "Checkout" ? `Add to cart${args.price ? " · " + args.price : ""}` : what[0] === "Email" ? `Email to ${a.recipient_name || args.to}` : what[0] === "Text" ? `Text to ${a.recipient_name || args.to}` : what[0]),
@@ -910,7 +918,7 @@
   }
 
   // -------------------------------------------------------------- feed ---
-  function cardImage(c) { return (c.items || []).map((i) => i.image).find(safeImg); }
+  function cardImage(c) { const i = (c.items || []).find((x) => safeImg(x.image) || safeImg(x.image_shot)); return i ? [i.image, i.image_shot] : null; }
   function renderFeed() {
     const list = $("feed-list");
     const cards = state.home?.cards || [];
@@ -933,7 +941,7 @@
       const img = cardImage(c);
       if (img) {
         const pv = el("div", "preview");
-        pv.append(picture(img));
+        pv.append(picture(img[0], "", img[1]));
         if (c.items?.[0]?.price) pv.append(el("span", "price-chip", money(c.items[0].price) + " · " + c.items[0].store));
         b.append(pv);
       } else if (c.body) b.append(el("div", "snip", c.body));
@@ -1155,7 +1163,7 @@
         tile.type = "button";
         const best = c.items[0];
         const thumb = el("div", "thumb");
-        thumb.append(picture(best.image) || el("span", "checked", best.store));
+        thumb.append(picture(best.image, "", best.image_shot) || el("span", "checked", best.store));
         const cap = el("div", "cap");
         cap.append(el("div", "t", c.title), el("div", "s", `${best.store}: ${best.title}`));
         tile.append(thumb, cap);
@@ -1294,6 +1302,58 @@
     }));
     pc.append(pact);
     box.append(pc);
+
+    // Connected apps (MCP): any app with an MCP connector, the standard other assistants use too.
+    for (const app of con.apps || []) {
+      const reads = app.tools.filter((t) => t.read_only).length;
+      const ac = appCard(app.name, app.connected ? `${app.tools.length} tools · ${reads} only read` : (app.error || "Reconnecting…"), "linear-gradient(135deg,#15141c,#6a67f4)", (app.name || "?")[0].toUpperCase(), app.connected);
+      const list = el("div", "tool-chips");
+      for (const t of app.tools.slice(0, 12)) {
+        const c = el("span", "tool-chip" + (t.read_only ? "" : " asks"), t.name.replace(/_/g, " "));
+        c.title = (t.read_only ? "Runs on its own: " : "Asks you first: ") + t.description;
+        list.append(c);
+      }
+      if (app.tools.length > 12) list.append(el("span", "tool-chip more", `+${app.tools.length - 12} more`));
+      ac.append(list, el("div", "help", "Look-ups run on their own. Anything that changes something in " + app.name + " asks you first."));
+      const aa = el("div", "actions");
+      aa.append(btn("Remove", "pill quiet small danger", async () => { await api("/api/connect/app_remove", { id: app.id }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
+      ac.append(aa);
+      box.append(ac);
+    }
+    const presets = con.app_presets || [];
+    const nc = appCard("Connect any app", "GitHub, Notion, Slack, your files and thousands more, over MCP", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
+    const f2 = el("form");
+    const pick = el("select");
+    for (const p of presets) { const o = el("option", null, p.name); o.value = p.id; pick.append(o); }
+    const about = el("div", "help");
+    const name2 = el("input"); name2.placeholder = "Name, e.g. Notion";
+    const where = el("input"); where.placeholder = "MCP address (https://…) or the command from the app's docs";
+    const folder = el("input"); folder.placeholder = "Folder, e.g. ~/Documents";
+    const token = el("input"); token.type = "password"; token.placeholder = "Access token (if the app gave you one)"; token.autocomplete = "off";
+    const go2 = el("button", "pill primary", "Connect"); go2.type = "submit";
+    const sync = () => {
+      const p = presets.find((x) => x.id === pick.value) || {};
+      about.textContent = p.about || "";
+      name2.hidden = where.hidden = p.id !== "custom";
+      folder.hidden = p.needs !== "folder";
+      token.hidden = !(p.needs === "token" || p.id === "custom");
+    };
+    pick.addEventListener("change", sync);
+    sync();
+    f2.append(pick, name2, where, folder, token, go2, about);
+    f2.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const v = where.value.trim();
+      go2.disabled = true; go2.textContent = "Connecting…";
+      try {
+        await api("/api/connect/app", { preset: pick.value === "custom" ? null : pick.value, name: name2.value.trim(), url: /^https?:\/\//i.test(v) ? v : "", command: /^https?:\/\//i.test(v) ? "" : v, token: token.value, folder: folder.value.trim() });
+        token.value = "";
+        toast("Connected. Ask me to use it by name.");
+        await refreshHome(); renderApps();
+      } catch (err) { toast(err.message); go2.disabled = false; go2.textContent = "Connect"; }
+    });
+    nc.append(f2);
+    box.append(nc);
 
     const model = state.status?.model_name || "";
     const pretty = /qwen3-4b/i.test(model) ? "Qwen3 4B" : /llama-3\.2-3b/i.test(model) ? "Llama 3.2 3B" : model.replace(/[-_]Q\d.*$|\.gguf$/gi, "").replace(/[-_]/g, " ") || "Local model";

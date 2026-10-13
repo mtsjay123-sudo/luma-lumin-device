@@ -676,3 +676,9 @@ body.panel-open .widgets { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Connected apps: each tool as a chip; ones that change something are marked */
+.tool-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tool-chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--line); color: var(--ink-2); }
+.tool-chip.asks { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.tool-chip.more { color: var(--muted); }

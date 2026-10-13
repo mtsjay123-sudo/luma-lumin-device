@@ -411,6 +411,25 @@ class RealBrowserShoppingTests(unittest.TestCase):
         self.assertIn("Added to cart", page)
         self.assertNotIn("ORDER PLACED", page)
 
+    def test_pictures_come_from_the_store_page(self):
+        from luma.skills import shopping
+
+        class Steps:
+            def step(self, *args, **kwargs): pass
+            def shot(self, *args, **kwargs): pass
+            def results(self, *args, **kwargs): pass
+
+        stores = [{"id": "lazy", "name": "Lazy Store", "search": self.base + "/store-lazy.html?q={q}"}]
+        result = shopping.compare("airpods pro 2", self.agent.browser, Steps(), stores)
+        offers = {o["title"]: o for o in result["offers"]}
+        lazy = offers["Apple AirPods Pro 2 Lazy Loaded"]
+        self.assertEqual(lazy["image"], self.base + "/pic.png")  # the real picture behind the lazy-load placeholder
+        self.assertNotIn("image_shot", lazy)
+        bare = offers["Apple AirPods Pro 2 No Picture Address"]
+        self.assertTrue(bare["image_shot"].startswith("data:image/jpeg;base64,/9j/"))  # taken straight off the page
+        self.assertNotIn("pic", bare)
+        self.assertNotIn("image_weak", bare)
+
 
 if __name__ == "__main__":
     unittest.main()
