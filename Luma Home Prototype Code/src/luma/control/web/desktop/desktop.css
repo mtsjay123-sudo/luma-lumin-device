@@ -546,9 +546,14 @@ kbd { font: 600 10.5px var(--font); color: var(--muted); background: var(--card-
 
 /* ---------- smaller windows ---------- */
 @media (max-width: 1280px) {
-  .app { grid-template-columns: 220px minmax(0, 1fr); }
+  .app { grid-template-columns: 216px minmax(0, 1fr) 268px; }
+  .feed-list { width: 280px; }
+  body[data-view="feed"] .app { grid-template-columns: 216px minmax(0, 1fr); }
+  body[data-view="feed"] .widgets { display: none; }
+}
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 216px minmax(0, 1fr); }
   .widgets { display: none; }
-  .feed-list { width: 290px; }
 }
 @media (max-width: 900px) {
   .app { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px; }

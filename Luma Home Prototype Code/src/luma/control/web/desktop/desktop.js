@@ -739,6 +739,7 @@
   // -------------------------------------------------------------- nav ---
   function go(view) {
     state.view = view;
+    document.body.dataset.view = view;
     if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "chat" ? location.pathname : "#" + view);
     for (const b of document.querySelectorAll(".nav-item")) b.classList.toggle("active", b.dataset.view === view && (view !== "chat" || state.thread === "main"));
     for (const b of document.querySelectorAll(".thread-item")) b.classList.toggle("active", view === "chat" && b.dataset.id === state.thread);
