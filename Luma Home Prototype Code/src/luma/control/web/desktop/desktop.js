@@ -15,11 +15,13 @@
     goals: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/>',
     library: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
-    apps: '<circle cx="7.5" cy="7.5" r="3"/><circle cx="16.5" cy="7.5" r="3"/><circle cx="7.5" cy="16.5" r="3"/><circle cx="16.5" cy="16.5" r="3"/>',
+    compose: '<path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.6 3.9a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5 8.3-8.3Z"/>',
+    apps: '<path d="M9 7V4M15 7V4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v4"/>',
     rules: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>',
-    settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>',
     up: '<path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/>',
+    down: '<path d="M12 5v13M6.5 12.5 12 18l5.5-5.5"/>',
     x: '<path d="M6 6l12 12M18 6 6 18"/>',
     cart: '<circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17.5" cy="19.5" r="1.4"/><path d="M3 4h2.5l2.2 10.6a1.6 1.6 0 0 0 1.6 1.3h8.1a1.6 1.6 0 0 0 1.6-1.2L20.5 8H6.3"/>',
     mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4.5 7.2 7.5 5.8 7.5-5.8"/>',
@@ -34,7 +36,7 @@
     up_t: '<path d="M7 10.5v9H4.5v-9H7Zm0 0 4-7c1.4 0 2.3 1.2 2 2.5L12.3 9H18a2 2 0 0 1 2 2.3l-1.2 6.5a2 2 0 0 1-2 1.7H7"/>',
     down_t: '<path d="M17 13.5v-9h2.5v9H17Zm0 0-4 7c-1.4 0-2.3-1.2-2-2.5l.7-3H6a2 2 0 0 1-2-2.3l1.2-6.5a2 2 0 0 1 2-1.7H17"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
-    external: '<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+    external: '<path d="M7 17 17 7M9 7h8v8"/>',
     trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
     phone: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/>',
@@ -46,8 +48,12 @@
     people: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.8-3 3-4.6 5.5-4.6s4.7 1.6 5.5 4.6M16 5.6a3 3 0 0 1 0 5.8M18 14.6c1.3.6 2.2 2 2.6 4.4"/>',
     message: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3v-3H5A1.5 1.5 0 0 1 3.5 16V7A1.5 1.5 0 0 1 5 5.5Z"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+    card: '<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
+    list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+    reply: '<path d="M9.5 6.5 4 12l5.5 5.5M4.5 12H14a6 6 0 0 1 6 6v.5"/>',
   };
   function icon(name) {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -83,11 +89,16 @@
   function linkOut(label, href, cls, iconName) {
     const a = el("a", cls);
     if (iconName) a.append(icon(iconName));
-    a.append(document.createTextNode(label));
+    if (label) a.append(document.createTextNode(label));
     a.href = href;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     return a;
+  }
+  function chip(kind, iconName, cls = "mini-ic") {
+    const c = el("span", `${cls} k-${kind}`);
+    c.append(icon(iconName));
+    return c;
   }
   function toast(text) {
     const t = $("toast");
@@ -102,8 +113,8 @@
     if (!seconds) return "";
     const d = Date.now() / 1000 - seconds;
     if (d < 60) return "now";
-    if (d < 3600) return Math.round(d / 60) + "m";
-    if (d < 86400) return Math.round(d / 3600) + "h";
+    if (d < 3600) return Math.round(d / 60) + "m ago";
+    if (d < 86400) return Math.round(d / 3600) + "h ago";
     return new Date(seconds * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
   function until(seconds) {
@@ -116,24 +127,34 @@
   function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }
   const safeUrl = (u) => /^https?:\/\//i.test(String(u || "")) ? u : null;
   const safeImg = (u) => /^(?:https:\/\/|data:image\/(?:png|jpeg|webp|gif|svg\+xml)[;,])/i.test(String(u || "")) ? u : null;
+  function picture(src, alt = "") {
+    if (!safeImg(src)) return null;
+    const img = el("img");
+    img.src = src; img.alt = alt; img.loading = "lazy"; img.referrerPolicy = "no-referrer";
+    return img;
+  }
 
   // ------------------------------------------------------------- theme ---
+  const darkNow = (choice) => choice === "dark" || (choice !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
   function applyTheme(choice) {
     if (choice === "light" || choice === "dark") document.documentElement.dataset.theme = choice;
     else delete document.documentElement.dataset.theme;
+    $("top-theme").replaceChildren(icon(darkNow(choice) ? "sun" : "moon"));
   }
   let theme = "system";
   try { theme = localStorage.getItem("luma-theme") || "system"; } catch (_) { /* private window */ }
   applyTheme(theme);
+  function setTheme(v) { theme = v; try { localStorage.setItem("luma-theme", v); } catch (_) { /* private */ } applyTheme(v); }
 
   // ------------------------------------------------------------- state ---
   const state = {
     view: "chat", thread: "main", transcripts: {}, local: {}, home: null, status: null, data: null,
     busy: false, activity: null, tokens: {}, outcomes: {}, seen: new Set(), firstPoll: true, feedSel: null, offers: new Map(),
+    shown: new Set(), // messages already on screen, so only new ones animate in
   };
   const KIND = {
-    deal: { icon: "tag", label: "Deal" }, inbox: { icon: "mail", label: "Inbox" }, feed: { icon: "insta", label: "Feed" },
-    today: { icon: "calendar", label: "Today" }, update: { icon: "spark", label: "Update" }, idea: { icon: "ideas", label: "Idea" },
+    deal: { icon: "tag", label: "Price check" }, inbox: { icon: "mail", label: "Inbox" }, feed: { icon: "insta", label: "Feed" },
+    today: { icon: "calendar", label: "Your day" }, update: { icon: "spark", label: "Update" }, idea: { icon: "ideas", label: "Idea" },
     approval: { icon: "rules", label: "Needs you" }, setup: { icon: "apps", label: "Set up" }, people: { icon: "people", label: "People" },
   };
   const HELPER = {
@@ -142,23 +163,20 @@
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
   const EVERY = { hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
+  const TITLES = { feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Apps", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
   function mood(name, doing, holdMs) {
     $("mascot").className = "avatar " + name;
-    $("doing").textContent = doing || "";
-    const p = $("presence");
-    p.classList.toggle("working", name === "working" || name === "thinking");
-    p.classList.toggle("offline", name === "sleepy");
-    $("presence-text").textContent = name === "sleepy" ? "Can't reach Luma" : name === "working" || name === "thinking" ? (doing || "Working") : name === "waiting" ? "Waiting on you" : "Luma is here";
+    $("doing").textContent = name === "sleepy" ? "Can't reach Luma" : doing || "";
     clearTimeout(moodTimer);
     if (holdMs) moodTimer = setTimeout(() => mood("idle", "Here with you"), holdMs);
   }
   function guessDoing(text) {
     const t = text.toLowerCase();
     let m;
-    if (/cheap|price|deal|compare|buy|shop/.test(t)) return "Checking stores";
+    if (/cheap|price|deal|compare|buy|shop|how much/.test(t)) return "Checking stores";
     if ((m = /(?:text|tell|message)\s+(?:my\s+)?([a-z]+)/i.exec(text))) return `Writing to ${m[1][0].toUpperCase() + m[1].slice(1)}`;
     if (/e-?mail|inbox|gmail|reply/.test(t)) return "Going through your email";
     if (/calendar|schedule|today|tomorrow/.test(t)) return "Checking your calendar";
@@ -167,7 +185,20 @@
     if (/instagram|tiktok|feed|scroll/.test(t)) return "Scrolling your feed";
     if (/search|look up|find|research/.test(t)) return "Looking it up";
     if (/homework|study|quiz|explain|math|essay/.test(t)) return "Working through it";
-    return "Thinking it through";
+    return "Thinking";
+  }
+  let bigCount = 0;
+  function bigAvatar() {
+    // A copy of Luma's face; its gradient ids are renamed so they don't collide with the original.
+    const a = $("mascot").cloneNode(true);
+    a.removeAttribute("id");
+    a.className = "avatar big idle";
+    const tag = "b" + (++bigCount) + "-";
+    a.querySelectorAll("[id]").forEach((n) => { n.id = tag + n.id; });
+    a.querySelectorAll("[fill^='url(#'], [clip-path^='url(#']").forEach((n) => {
+      for (const attr of ["fill", "clip-path"]) { const v = n.getAttribute(attr); if (v && v.startsWith("url(#")) n.setAttribute(attr, "url(#" + tag + v.slice(5)); }
+    });
+    return a;
   }
 
   // -------------------------------------------------------------- chat ---
@@ -179,7 +210,7 @@
   function pushLocal(thread, item) {
     (state.local[thread] = state.local[thread] || []).push({ at: Date.now(), ...item });
     state.stick = true;
-    if (thread === state.thread) renderChat();
+    if (thread === state.thread && state.view === "chat") renderChat();
   }
   async function loadThread(thread) {
     try {
@@ -189,28 +220,28 @@
       if (e.status === 404 && thread !== "main") { state.thread = "main"; return loadThread("main"); }
     }
   }
+  function threadTitle(id) { return (state.home?.threads || []).find((t) => t.id === id)?.title; }
 
   function renderChat() {
     const box = $("thread");
     const list = items(state.thread);
-    $("view-chat").classList.toggle("talking", list.length > 0 || state.busy);
-    const title = state.thread === "main" ? "Luma" : (threadTitle(state.thread) || "Side chat");
-    $("chat-title").textContent = title;
+    $("chat-title").textContent = state.thread === "main" ? "Luma" : (threadTitle(state.thread) || "Side chat");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.replaceChildren();
     if (!list.length && !state.busy) { box.append(emptyChat()); return; }
     for (const m of list) {
       if (m.role === "notice") {
-        const n = el("div", "notice glass");
+        const n = el("div", "notice");
         n.append(el("b", null, m.label || "Luma"), document.createTextNode(m.text));
         box.append(n);
         continue;
       }
-      const row = el("div", "msg " + (m.role === "you" ? "you" : "luma"));
-      if (m.role === "you") row.append(el("div", "bubble", m.text));
-      else {
-        if (m.text) row.append(el("div", "text", m.text));
-        const extra = m.result ? rich(m.result, m) : null;
+      const key = `${state.thread}|${m.role}|${Math.round(m.at / 1000)}|${String(m.text || "").slice(0, 40)}`;
+      const row = el("div", "msg " + (m.role === "you" ? "you" : "luma") + (state.shown.has(key) ? " seen" : ""));
+      state.shown.add(key);
+      if (m.text) row.append(el("div", "bubble", m.text));
+      if (m.role !== "you") {
+        const extra = m.result ? rich(m.result) : null;
         if (extra) row.append(extra);
         row.append(replyTools(m));
       }
@@ -227,56 +258,49 @@
 
   function replyTools(m) {
     const tools = el("div", "tools");
-    tools.append(btn("", "", async () => { await navigator.clipboard.writeText(m.text || "").catch(() => {}); toast("Copied"); }, "copy"));
-    tools.lastChild.title = "Copy";
-    tools.append(btn("", "", () => api("/api/feedback", { id: "reply", value: "up" }).then(() => toast("Thanks!")).catch(() => {}), "up_t"));
-    tools.lastChild.title = "Good reply";
-    tools.append(btn("", "", () => teach(m.text), "down_t"));
-    tools.lastChild.title = "Not quite";
+    const add = (name, title, fn) => { const b = btn("", "", fn, name); b.title = title; b.setAttribute("aria-label", title); tools.append(b); };
+    add("copy", "Copy", async () => { await navigator.clipboard.writeText(m.text || "").catch(() => {}); toast("Copied"); });
+    add("up_t", "Good reply", () => api("/api/feedback", { id: "reply", value: "up" }).then(() => toast("Thanks! I'll keep doing that.")).catch(() => {}));
+    add("down_t", "Not quite", () => teach());
     return tools;
   }
-  function teach(text) {
+  function teach() {
     const body = el("div");
+    body.style.display = "flex"; body.style.flexDirection = "column"; body.style.gap = "12px";
     body.append(el("p", "lede", "What should I do differently? I'll remember it."));
     const input = el("textarea");
     Object.assign(input, { rows: 3, maxLength: 300, placeholder: "e.g. Keep replies shorter, and never use emojis in my emails." });
-    input.className = "field-text";
-    input.style.cssText = "";
-    input.style.width = "100%"; input.style.borderRadius = "14px"; input.style.padding = "10px 12px"; input.style.border = "1px solid var(--hairline)"; input.style.background = "var(--glass-strong)";
-    const save = btn("Teach Luma", "pill primary", async () => {
+    const actions = el("div", "actions");
+    actions.append(btn("Teach Luma", "pill primary", async () => {
       try { const r = await api("/api/feedback", { id: "reply", value: "down", note: input.value }); closeSheet(); toast(r.summary); } catch (e) { toast(e.message); }
-    });
-    body.append(input, el("div", "actions"));
-    body.lastChild.append(save);
+    }));
+    body.append(input, actions);
     openSheet("Teach Luma", body);
     input.focus();
   }
 
-  function threadTitle(id) { return (state.home?.threads || []).find((t) => t.id === id)?.title; }
-
   const STARTERS = [
-    ["cart", "Find the cheapest AirPods Pro 2", "I'll check five stores and line them up", "find me the cheapest AirPods Pro 2"],
-    ["mail", "Go through my inbox", "What matters, and drafts for the rest", "check my email"],
-    ["insta", "Catch me up on Instagram", "I scroll it so you don't have to", "catch me up on instagram"],
-    ["deck", "Make a pitch deck", "Ten slides with speaker notes", "make a pitch deck for a dog-walking startup"],
-    ["calendar", "What's on today?", "Your calendar and to-dos", "what's on my calendar today?"],
-    ["message", "Text my mom I'm on my way", "You approve every text", "text my mom I'm on my way"],
+    ["deal", "cart", "Find the cheapest AirPods Pro 2", "I'll check five stores and line them up", "find me the cheapest AirPods Pro 2"],
+    ["inbox", "mail", "Go through my inbox", "What matters, and drafts for the rest", "check my email"],
+    ["feed", "insta", "Catch me up on Instagram", "I scroll it so you don't have to", "catch me up on instagram"],
+    ["update", "deck", "Make a pitch deck", "Ten slides with speaker notes", "make a pitch deck for a dog-walking startup"],
+    ["today", "calendar", "What's on today?", "Your calendar and to-dos", "what's on my calendar today?"],
+    ["people", "message", "Text my mom I'm on my way", "You approve every text", "text my mom I'm on my way"],
   ];
   function emptyChat() {
     const e = el("div", "empty");
     const h = new Date().getHours();
     const name = state.home?.profile?.name;
+    e.append(bigAvatar());
     e.append(el("h2", null, `${h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}${name ? ", " + name : ""}`));
     e.append(el("p", null, state.thread === "main" ? "What should I take off your plate?" : "A fresh side chat. What's this one about?"));
     const grid = el("div", "starters");
-    for (const [ic, title, sub, say] of STARTERS) {
-      const b = el("button", "starter glass");
+    for (const [k, ic, title, sub, say] of STARTERS) {
+      const b = el("button", "starter");
       b.type = "button";
-      const i = el("span", "ic");
-      i.append(icon(ic));
       const t = el("span");
       t.append(el("b", null, title), el("span", null, sub));
-      b.append(i, t);
+      b.append(chip(k, ic, "ic"), t);
       b.addEventListener("click", () => send(say));
       grid.append(b);
     }
@@ -284,8 +308,8 @@
     return e;
   }
 
-  // A runtime result becomes a card: products, an approval, a deck, email, agenda.
-  function rich(r, m) {
+  // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
+  function rich(r) {
     if (r.state === "pending" && r.action) return approval(r);
     if (r.kind === "shopping" && r.offers) return products(r);
     if (r.file && r.file.url) return deckCard(r.file);
@@ -293,30 +317,22 @@
     if (r.events) return agendaCard(r.events);
     if (r.message_draft && ["draft", "quota"].includes(r.state)) return draftCard(r.message_draft, r.state === "quota");
     if (r.helper) return helperChip(r.helper);
-    if (r.cart && r.url) { const a = el("div", "actions"); a.append(linkOut("Open your cart", r.url, "pill soft", "cart")); return a; }
-    if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Apps", "pill soft", () => go("apps"), "apps")); return a; }
-    if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(linkOut(host(r.url) || "Open page", r.url, "pill soft", "globe")); return a; }
+    if (r.cart && r.url) { const a = el("div", "actions"); a.append(linkOut("Open your cart", r.url, "pill soft small", "cart")); return a; }
+    if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Apps", "pill soft small", () => go("apps"), "apps")); return a; }
+    if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(linkOut(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
     return null;
   }
 
   function products(r) {
-    const c = el("div", "card glass");
+    const c = el("div", "card box");
     const head = el("div", "card-head");
-    const ic = el("span", "ic k-deal");
-    ic.style.cssText = "";
-    ic.className = "mini-logo k-deal";
-    ic.style.display = "grid"; ic.style.placeItems = "center"; ic.style.color = "#fff";
-    ic.append(icon("tag"));
     const t = el("div");
-    t.append(el("div", "title", r.query ? `Cheapest ${r.query}` : "Price check"), el("div", "sub", (r.checked || []).length ? `Checked ${(r.checked || []).join(", ")}` : ""));
-    head.append(ic, t, el("span", "spacer"));
-    if (r.query) head.append(btn("Watch price", "pill soft", () => send(`watch the price of ${r.query}`), "eye"));
+    t.append(el("div", "t", r.query ? `Cheapest ${r.query}` : "Price check"), el("div", "s", (r.checked || []).length ? `Checked ${(r.checked || []).join(", ")}` : ""));
+    head.append(chip("deal", "tag", "chip-ic"), t, el("span", "spacer"));
+    if (r.query) head.append(btn("Watch price", "pill soft small", () => send(`watch the price of ${r.query}`), "eye"));
     c.append(head);
     const grid = el("div", "products");
-    (r.offers || []).slice(0, 9).forEach((o, i) => {
-      if (o.url) state.offers.set(o.url, o);
-      grid.append(productTile(o, i === 0));
-    });
+    (r.offers || []).slice(0, 9).forEach((o, i) => { if (o.url) state.offers.set(o.url, o); grid.append(productTile(o, i === 0)); });
     if (!(r.offers || []).length) grid.append(el("p", "checked", "No real matches this time."));
     c.append(grid);
     if ((r.skipped || []).length) c.append(el("div", "checked", "Couldn't load: " + r.skipped.map((s) => s.store).join(", ")));
@@ -326,12 +342,9 @@
     const p = el("div", "product");
     if (best) p.append(el("span", "tag", "Cheapest"));
     const pic = el("div", "pic");
-    if (safeImg(o.image)) {
-      const img = el("img");
-      img.src = o.image; img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer";
-      img.addEventListener("error", () => img.replaceWith(el("div", "ph", (o.store || "?")[0])));
-      pic.append(img);
-    } else pic.append(el("div", "ph", (o.store || "?")[0]));
+    const img = picture(o.image);
+    if (img) { img.addEventListener("error", () => img.replaceWith(el("div", "ph", (o.store || "?")[0]))); pic.append(img); }
+    else pic.append(el("div", "ph", (o.store || "?")[0]));
     const info = el("div", "info");
     info.append(el("div", "store", o.store), el("div", "name", o.title), el("div", "price", money(o.price)));
     const row = el("div", "row");
@@ -345,9 +358,9 @@
     try {
       const r = await api("/api/shop/add", { offer: { store: o.store, title: o.title, price: o.price, url: o.url } });
       remember(r);
+      if (state.view !== "chat") go("chat");
       if (r.state === "pending") {
-        if (state.view !== "chat") go("chat");
-        pushLocal(state.thread, { role: "luma", text: `Want me to add ${o.title.slice(0, 70)} to your ${o.store} cart?`, result: r });
+        pushLocal(state.thread, { role: "luma", text: `Want me to add this to your ${o.store} cart?`, result: r });
         mood("waiting", "Waiting for your OK");
       } else {
         pushLocal(state.thread, { role: "luma", text: r.summary || "Done.", result: r });
@@ -360,100 +373,133 @@
   function pendingIds() { return new Set((state.home?.approvals || []).map((a) => a.id)); }
 
   const WANTS = {
-    "shop.add_to_cart": "add this to your cart", "mail.send": "send this email", "luma.send": "send this text", "sms.send": "send this text",
-    "mac_messages.send": "send this text", "browser.act": "do this on a website", "booking.create": "book this", "home.light": "change your lights",
-    "food.checkout": "set up this checkout",
+    "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "luma.send": ["Text", "send this text"],
+    "sms.send": ["Text", "send this text"], "mac_messages.send": ["Text", "send this text"], "browser.act": ["Website", "do this on a website"],
+    "booking.create": ["Booking", "book this"], "home.light": ["Home", "change your lights"], "food.checkout": ["Groceries", "set up this checkout"],
   };
   const ROUTES = { luma_number: "From Luma's number", mac_imessage: "From your iMessage", mac_sms: "From your number (SMS)", twilio: "From your Twilio number" };
+  const TEXTY = ["luma.send", "sms.send", "mac_messages.send"];
 
-  // Muse-style: "Luma wants to…" with Deny and Allow.
+  // Muse-style: "Checkout · Luma wants to…", the item as it looks on the store, then Deny / Allow.
   function approval(r) {
     const a = r.arguments || {};
-    const c = el("div", "card glass approve");
-    const head = el("div", "card-head");
-    const logo = el("img");
-    logo.src = "/desktop/logo"; logo.alt = "";
-    const want = el("div", "want", "Luma wants to " + (WANTS[r.tool] || "do this"));
-    if (r.tool === "shop.add_to_cart") want.append(el("small", null, "Checkout and payment stay with you."));
-    if (["luma.send", "sms.send", "mac_messages.send"].includes(r.tool)) want.append(el("small", null, ROUTES[state.status?.message_route] || "Every text waits for you"));
-    if (r.tool === "browser.act") want.append(el("small", null, a.reason || ""));
-    head.append(logo, want);
+    const [kind, verb] = WANTS[r.tool] || ["Action", "do this"];
+    const c = el("div", "card checkout");
+    const head = el("div", "co-head");
+    const hic = el("span", "chip-ic");
+    hic.append(icon(r.tool === "shop.add_to_cart" ? "cart" : r.tool === "mail.send" ? "mail" : TEXTY.includes(r.tool) ? "message" : "rules"));
+    const where = r.tool === "shop.add_to_cart" ? ` at ${host(a.url) || a.store}`
+      : (r.tool === "mail.send" || TEXTY.includes(r.tool)) ? ` to ${r.recipient_name || a.to}`
+      : r.tool === "browser.act" ? ` on ${host(String(a.page || "").split(" — ").pop()) || "a website"}` : "";
+    const line = el("div");
+    line.append(el("b", null, kind), el("span", "muted", ` · Luma wants to ${verb}${where}`));
+    head.append(hic, line);
     c.append(head);
+    const sub = {
+      "shop.add_to_cart": "Check the item and price before you allow it. Checkout and payment always stay with you.",
+      "mail.send": "These are the exact words that will go out. It's in your Drafts too.",
+      "browser.act": a.reason ? `Why I'm asking: ${a.reason}.` : "Nothing happens on the site until you allow it.",
+    }[r.tool] || (TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
+    c.append(el("div", "co-sub", sub));
 
     if (r.tool === "shop.add_to_cart") {
       const o = state.offers.get(a.url) || {};
-      const what = el("div", "what");
-      if (safeImg(o.image)) { const img = el("img"); img.src = o.image; img.alt = ""; img.referrerPolicy = "no-referrer"; what.append(img); } else what.append(el("div", "ph"));
-      const g = el("div", "grow");
-      g.append(el("div", "t", a.title), el("div", "s", a.store));
-      what.append(g, el("div", "price", a.price));
-      c.append(what);
+      const page = el("div", "co-page");
+      const bar = el("div", "co-bar");
+      bar.append(el("span", "fav", (a.store || "?")[0]), el("b", null, a.store || host(a.url)), document.createTextNode(host(a.url) ? "  ·  " + host(a.url) : ""));
+      const body = el("div", "co-body");
+      const pic = el("div", "co-pic");
+      pic.append(picture(o.image, a.title) || el("div", "ph", (a.store || "?")[0]));
+      const info = el("div", "co-info");
+      const press = el("span", "press");
+      press.append(icon("cart"), document.createTextNode("Luma will press Add to cart"));
+      info.append(el("div", "store", a.store), el("div", "title", a.title), el("div", "price", a.price), press);
+      body.append(pic, info);
+      page.append(bar, body);
+      c.append(page);
+      const rows = el("div", "co-rows");
+      const row = (ic, label, value) => { const r2 = el("div", "co-row"); r2.append(icon(ic), el("span", "grow", label), el("span", "v", value)); rows.append(r2); };
+      row("card", "Payment", "You check out yourself");
+      row("tag", "Item price", a.price);
+      c.append(rows);
     } else if (r.tool === "mail.send") {
-      const mail = el("div", "mail");
-      for (const [k, v] of [["To", r.recipient_name ? `${r.recipient_name} <${a.to}>` : a.to], ["Subject", a.subject]]) {
+      const mail = el("div", "co-mail");
+      for (const [k, v] of [["To", r.recipient_name ? `${r.recipient_name} <${a.to}>` : a.to], ["Subject", a.subject || "(no subject)"]]) {
         const row = el("div", "row");
         row.append(el("b", null, k), el("span", null, v));
         mail.append(row);
       }
       mail.append(el("div", "body", a.body));
       c.append(mail);
-    } else if (["luma.send", "sms.send", "mac_messages.send"].includes(r.tool)) {
+    } else if (TEXTY.includes(r.tool)) {
       c.append(phone(r.recipient_name || a.to, a.body));
     } else if (r.tool === "browser.act") {
-      const what = el("div", "what");
-      const g = el("div", "grow");
-      g.append(el("div", "t", (a.kind === "type" ? `Type “${a.text}” into ` : "Press ") + `“${a.label || "this button"}”`), el("div", "s", a.page || ""));
-      what.append(g);
-      c.append(what);
+      const rows = el("div", "co-rows");
+      const r1 = el("div", "co-row");
+      r1.append(icon("hand"), el("span", "grow", a.kind === "type" ? `Type “${a.text}” into “${a.label}”` : `Press “${a.label || "this button"}”`));
+      const r2 = el("div", "co-row");
+      r2.append(icon("globe"), el("span", "grow", a.page || ""));
+      rows.append(r1, r2);
+      c.append(rows);
     } else {
-      const ul = el("ul");
-      for (const [k, v] of Object.entries(r.review || a)) if (typeof v === "string" || typeof v === "number") ul.append(el("li", null, `${k.replace(/_/g, " ")}: ${v}`));
-      c.append(ul);
+      const rows = el("div", "co-rows");
+      for (const [k, v] of Object.entries(r.review || a)) if (typeof v === "string" || typeof v === "number") { const rr = el("div", "co-row"); rr.append(el("span", "grow", k.replace(/_/g, " ")), el("span", "v", String(v))); rows.append(rr); }
+      c.append(rows);
     }
 
-    const line = el("div", "state-line");
-    const actions = el("div", "actions");
+    const lineEl = el("span", "state-line");
+    const foot = el("div", "co-foot");
+    foot.append(lineEl);
+    const actions = el("div", "co-actions");
     const finish = (text, ok) => {
       state.outcomes[r.action] = { text, ok };
       c.classList.add("done");
-      line.textContent = text;
-      line.classList.toggle("ok", Boolean(ok));
+      lineEl.textContent = text;
+      lineEl.classList.toggle("ok", Boolean(ok));
     };
     const token = r.confirm_token || state.tokens[r.action] || (state.home?.approvals || []).find((x) => x.id === r.action)?.confirm_token;
-    const outcome = state.outcomes[r.action];
-    if (outcome) finish(outcome.text, outcome.ok);
-    else if (!token && state.home && !pendingIds().has(r.action)) finish("No longer waiting", false);
-    else if (r.expires && r.expires * 1000 < Date.now()) finish("This one expired. Ask me again.", false);
-
-    actions.append(btn("Deny", "pill soft", async () => {
+    const deny = btn("Deny", "pill deny", async () => {
       try { await api("/api/cancel", { id: r.action }); } catch (_) { /* already gone */ }
       finish("Denied. Nothing went out.", false);
       mood("idle", "Here with you");
       refreshHome();
-    }));
-    if (["luma.send", "sms.send", "mac_messages.send", "mail.send"].includes(r.tool)) actions.append(btn("Edit", "pill quiet", () => edit(c, r)));
-    actions.append(btn("Allow", "pill primary", async () => {
+    });
+    const allow = btn("Allow", "pill blue", async () => {
       if (!token) { finish("Ask me again to get a fresh approval.", false); return; }
-      line.textContent = "Working on it…";
+      allow.disabled = deny.disabled = true;
+      lineEl.textContent = "Working on it…";
       mood("working", r.tool === "shop.add_to_cart" ? "Adding to your cart" : "Sending");
       try {
         const done = await api("/api/confirm", { id: r.action, token });
         const ok = done.state === "succeeded";
-        finish(ok ? (done.verified === false ? "Pressed, but couldn't confirm" : "Done ✓") : done.state === "handoff" ? "Over to you" : done.state === "unknown" ? "Not sure it went through" : "Didn't go through", ok);
+        finish(ok ? (done.verified === false ? "Pressed, but couldn't confirm it landed" : "Done ✓") : done.state === "handoff" ? "Over to you" : done.state === "unknown" ? "Not sure it went through" : "Didn't go through", ok);
         pushLocal(state.thread, { role: "luma", text: done.text || done.summary || (ok ? "Done." : "That didn't go through."), result: { cart: done.cart, url: done.url } });
         mood(ok ? "happy" : "idle", ok ? "Done" : "Here with you", ok ? 3500 : 0);
         refreshHome();
-      } catch (e) { line.textContent = e.message; mood("idle", "Here with you"); }
-    }));
-    c.append(actions, line);
+      } catch (e) { allow.disabled = deny.disabled = false; lineEl.textContent = e.message; mood("idle", "Here with you"); }
+    });
+    actions.append(deny, allow);
+    if (TEXTY.includes(r.tool) || r.tool === "mail.send") {
+      const spacer = el("span");
+      spacer.style.flex = "1";
+      foot.append(spacer, btn("Edit", "pill quiet small", () => edit(c, r), "compose"));
+    }
+    c.append(actions, foot);
+
+    const outcome = state.outcomes[r.action];
+    if (outcome) finish(outcome.text, outcome.ok);
+    else if (!token && state.home && !pendingIds().has(r.action)) finish("No longer waiting", false);
+    else if (r.expires && r.expires * 1000 < Date.now()) finish("This one expired. Ask me again.", false);
     return c;
   }
 
   function edit(card, r) {
     const a = r.arguments || {};
+    const box = el("div", "co-edit");
     const area = el("textarea");
     area.value = a.body || "";
-    const save = btn("Use this", "pill primary", async () => {
+    const actions = el("div", "actions");
+    actions.append(btn("Use this", "pill primary", async () => {
       try {
         await api("/api/cancel", { id: r.action }).catch(() => {});
         const next = r.tool === "mail.send"
@@ -463,9 +509,11 @@
         state.outcomes[r.action] = { text: "Edited", ok: false };
         pushLocal(state.thread, { role: "luma", text: next.text || "Here's the new version.", result: { ...next, recipient_name: r.recipient_name } });
       } catch (e) { toast(e.message); }
-    });
-    card.replaceChildren(el("span", "label", "Edit before it goes out"), area, el("div", "actions"));
-    card.lastChild.append(save, btn("Cancel", "pill quiet", () => renderChat()));
+    }), btn("Cancel", "pill quiet", () => renderChat()));
+    box.append(el("span", "label", "Edit before it goes out"), area, actions);
+    card.querySelector(".co-mail, .phone")?.replaceWith(box);
+    card.querySelector(".co-actions")?.remove();
+    card.querySelector(".co-foot")?.remove();
     area.focus();
   }
 
@@ -475,22 +523,25 @@
     return p;
   }
   function draftCard(d, quota) {
-    const c = el("div", "card glass");
-    c.append(el("span", "label", quota ? "Out of free texts this month: send it yourself" : "Ready for you to send"), phone(d.name || d.to, d.body));
+    const c = el("div", "card box");
+    c.append(el("span", "label", quota ? "Out of free texts this month: send it yourself" : "Ready for you to send"));
+    const p = phone(d.name || d.to, d.body);
+    p.style.margin = "0";
+    c.append(p);
     const actions = el("div", "actions");
-    if (d.to) { const a = el("a", "pill primary", "Open in Messages"); a.href = `sms:${d.to}&body=${encodeURIComponent(d.body)}`; actions.append(a); }
-    actions.append(btn("Copy", "pill soft", async () => { await navigator.clipboard.writeText(d.body).catch(() => {}); toast("Copied"); }, "copy"));
+    if (d.to) { const a = el("a", "pill primary small", "Open in Messages"); a.href = `sms:${d.to}&body=${encodeURIComponent(d.body)}`; actions.append(a); }
+    actions.append(btn("Copy", "pill soft small", async () => { await navigator.clipboard.writeText(d.body).catch(() => {}); toast("Copied"); }, "copy"));
     c.append(actions);
     return c;
   }
   function deckCard(f) {
-    const c = el("div", "card glass");
+    const c = el("div", "card box");
     const head = el("div", "card-head");
     const t = el("div");
-    t.append(el("div", "title", f.title || f.name), el("div", "sub", `${f.slides || (f.outline || []).length} slides · speaker notes included`));
-    head.append(t, el("span", "spacer"));
-    const dl = el("a", "pill primary");
-    dl.append(icon("deck"), document.createTextNode("Download .pptx"));
+    t.append(el("div", "t", f.title || f.name), el("div", "s", `${f.slides || (f.outline || []).length} slides · speaker notes included`));
+    head.append(chip("update", "deck", "chip-ic"), t, el("span", "spacer"));
+    const dl = el("a", "pill primary small");
+    dl.append(icon("down"), document.createTextNode("Download"));
     dl.href = f.url;
     head.append(dl);
     c.append(head, slides(f));
@@ -508,22 +559,29 @@
     });
     return box;
   }
+  function initials(name) { return String(name || "?").replace(/<.*>/, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?"; }
+  const FACE = ["k-inbox", "k-deal", "k-feed", "k-today", "k-people"];
+  function face(name) {
+    let h = 0;
+    for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return el("span", "face " + FACE[h % FACE.length], initials(name));
+  }
+  function replyTo(from) { go("chat"); $("input").value = `reply to ${String(from).split(" ")[0]} saying `; resize(); $("input").focus(); }
   function mailCard(messages) {
-    const c = el("div", "card glass");
+    const c = el("div", "card box");
     const rows = el("div", "rows");
     for (const m of messages.slice(0, 8)) {
       const r = el("div", "r");
-      r.append(el("span", "dot" + (m.unread === false ? " read" : "")));
       const g = el("div", "grow");
       g.append(el("div", "t", `${m.from} · ${m.subject}`), el("div", "s", m.snippet || ""));
-      r.append(g, btn("Reply", "pill quiet", () => { $("input").value = `reply to ${String(m.from).split(" ")[0]} saying `; resize(); $("input").focus(); }));
+      r.append(face(m.from), g, btn("Reply", "pill quiet small", () => replyTo(m.from), "reply"));
       rows.append(r);
     }
     c.append(rows);
     return c;
   }
   function agendaCard(events) {
-    const c = el("div", "card glass");
+    const c = el("div", "card box");
     if (!events.length) { c.append(el("div", "checked", "Nothing on the calendar.")); return c; }
     const rows = el("div", "rows");
     for (const e of events.slice(0, 10)) {
@@ -538,30 +596,34 @@
     return c;
   }
   function helperChip(h) {
-    const c = el("div", "card glass");
+    const c = el("div", "card box");
     const head = el("div", "card-head");
     const meta = HELPER[h.kind] || HELPER.goal;
-    const ic = el("span", `mini-logo k-${meta.k}`);
-    ic.style.display = "grid"; ic.style.placeItems = "center"; ic.style.color = "#fff";
-    ic.append(icon(meta.icon));
     const t = el("div");
-    t.append(el("div", "title", h.title), el("div", "sub", `${meta.label} · ${EVERY[h.every] || ""}${h.at ? " at " + h.at : ""}`));
-    head.append(ic, t, el("span", "spacer"), btn("See Goals", "pill soft", () => go("goals")));
+    t.append(el("div", "t", h.title), el("div", "s", `${meta.label} · ${EVERY[h.every] || ""}${h.at ? " at " + h.at : ""}`));
+    head.append(chip(meta.k, meta.icon, "chip-ic"), t, el("span", "spacer"), btn("See Goals", "pill soft small", () => go("goals")));
     c.append(head);
     return c;
   }
 
   // ------------------------------------------------- Luma's computer ---
   function computer(a, big) {
-    const c = el("section", "computer glass card" + (big ? " big" : "") + (a.state === "paused" ? " paused" : ["done", "failed", "stopped"].includes(a.state) ? " done" : ""));
-    const bar = el("div", "bar");
-    const live = el("span", "live" + (a.state === "paused" ? " paused" : ["done", "stopped", "failed"].includes(a.state) ? " done" : ""));
-    live.append(el("i"), document.createTextNode({ running: "Live", paused: "Paused", stopping: "Stopping", done: "Done", stopped: "Stopped", failed: "Stopped" }[a.state] || "Live"));
-    bar.append(live, el("span", "t", a.title));
-    c.append(bar);
+    const finished = ["done", "failed", "stopped"].includes(a.state);
+    const c = el("section", "card computer" + (big ? " big" : "") + (a.state === "paused" ? " paused" : finished ? " done" : ""));
+    const chrome = el("div", "chrome");
+    const lights = el("span", "lights");
+    lights.append(el("i"), el("i"), el("i"));
     const url = el("div", "url");
-    url.append(icon("lock"), document.createTextNode(a.url ? host(a.url) + new URL(a.url).pathname.slice(0, 40) : "Starting Luma's browser…"));
-    c.append(url);
+    url.append(icon("lock"));
+    if (a.url) {
+      let path = "";
+      try { const u = new URL(a.url); path = u.pathname + u.search; } catch (_) { /* odd url */ }
+      url.append(el("b", null, host(a.url)), document.createTextNode(path.slice(0, 48)));
+    } else url.append(document.createTextNode("Opening Luma's browser…"));
+    const live = el("span", "live" + (a.state === "paused" ? " paused" : finished ? " done" : ""));
+    live.append(el("i"), document.createTextNode({ running: "Live", paused: "Paused", stopping: "Stopping", done: "Done", stopped: "Stopped", failed: "Stopped" }[a.state] || "Live"));
+    chrome.append(lights, url, live);
+    c.append(chrome);
     const screen = el("div", "screen");
     if (a.shot) {
       const img = el("img");
@@ -571,23 +633,26 @@
     }
     screen.append(el("span", "cursor"));
     c.append(screen);
+    const below = el("div", "below");
+    below.append(el("div", "title", a.title));
     const steps = el("div", "steps");
     const all = a.steps || [];
     all.forEach((s, i) => {
-      const live = ["running", "paused"].includes(a.state) && i === all.length - 1 && !s.done;
-      const row = el("div", "step" + (s.done ? " done" : live ? " now" : ""));
+      const now = ["running", "paused"].includes(a.state) && i === all.length - 1 && !s.done;
+      const row = el("div", "step" + (s.done ? " done" : now ? " now" : ""));
       row.append(el("span", "s"), el("span", null, s.text));
       steps.append(row);
     });
-    c.append(steps);
+    below.append(steps);
     if (["running", "paused", "stopping"].includes(a.state)) {
       const controls = el("div", "controls");
       if (a.state === "paused") controls.append(btn("Resume", "pill soft", () => control("resume"), "play"));
       else controls.append(btn("Pause", "pill soft", () => control("pause"), "pause"));
       controls.append(btn("Stop", "pill soft", () => control("stop"), "stop"));
       controls.append(btn("Take over", "pill soft", () => control("show"), "hand"));
-      c.append(controls);
-    } else if (a.summary) c.append(el("div", "checked", a.summary));
+      below.append(controls);
+    } else if (a.summary) below.append(el("div", "checked", a.summary));
+    c.append(below);
     requestAnimationFrame(() => { steps.scrollTop = steps.scrollHeight; });
     return c;
   }
@@ -596,30 +661,32 @@
       const r = await api("/api/activity/control", { action });
       state.activity = r.activity;
       if (r.summary) toast(r.summary);
-      paintActivity();
+      paintActivity(true);
     } catch (e) { toast(e.message); }
   }
   let lastPaint = "";
-  function paintActivity() {
+  function paintActivity(force) {
     const a = state.activity;
     const key = a ? [a.id, a.state, a.shot, (a.steps || []).length, (a.steps || []).filter((s) => s.done).length].join(":") : "";
-    if (key === lastPaint) return;
+    if (key === lastPaint && !force) return;
     lastPaint = key;
-    const recent = a && (["running", "paused", "stopping"].includes(a.state) || (a.finished && Date.now() / 1000 - a.finished < 45));
-    const inline = state.busy && a && !a.background && ["running", "paused", "stopping"].includes(a.state);
+    const running = a && ["running", "paused", "stopping"].includes(a.state);
+    const recent = a && (running || (a.finished && Date.now() / 1000 - a.finished < 45));
+    const inline = state.busy && a && !a.background && running;
     const w = $("w-computer");
-    if (recent && !inline) { w.hidden = false; w.replaceChildren(...computer(a, false).childNodes); w.className = "widget glass computer" + (a.state === "paused" ? " paused" : ""); }
-    else w.hidden = true;
+    if (recent && !inline) {
+      const c = computer(a, false);
+      w.className = c.className.replace("card", "widget");
+      w.replaceChildren(...c.childNodes);
+      w.hidden = false;
+    } else w.hidden = true;
     if (state.busy && state.view === "chat") renderChat();
-    if (a && ["running", "paused"].includes(a.state)) {
-      const verb = a.background ? "In the background: " : "";
-      $("presence-text").textContent = verb + a.title;
-      $("presence").classList.add("working");
-    }
+    if (running) $("doing").textContent = (a.background ? "In the background: " : "") + a.title;
   }
   let activityTimer = null;
   function watchActivity(on) {
     clearInterval(activityTimer);
+    activityTimer = null;
     if (!on) return;
     activityTimer = setInterval(async () => {
       try {
@@ -676,6 +743,9 @@
     for (const b of document.querySelectorAll(".nav-item")) b.classList.toggle("active", b.dataset.view === view && (view !== "chat" || state.thread === "main"));
     for (const b of document.querySelectorAll(".thread-item")) b.classList.toggle("active", view === "chat" && b.dataset.id === state.thread);
     for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== "view-" + view;
+    $("center").classList.toggle("page-mode", view !== "chat");
+    $("top-title").hidden = view === "chat";
+    $("top-title").textContent = TITLES[view] || "";
     if (view === "chat") { renderChat(); $("input").focus(); }
     else renderView(view);
   }
@@ -683,8 +753,14 @@
     if (b.dataset.view === "chat" && state.thread !== "main") { state.thread = "main"; loadThread("main").then(() => go("chat")); return; }
     go(b.dataset.view);
   });
-  $("w-goals-open").addEventListener("click", () => go("goals"));
+  $("open-settings").addEventListener("click", () => go("settings"));
+  $("top-apps").addEventListener("click", () => go("apps"));
+  $("top-rules").addEventListener("click", () => go("rules"));
+  $("top-theme").addEventListener("click", () => setTheme(darkNow(theme) ? "light" : "dark"));
+  $("top-new").addEventListener("click", newChat);
   $("new-chat").addEventListener("click", newChat);
+  $("who").addEventListener("click", () => { if (state.view !== "chat") go("chat"); });
+  $("add").addEventListener("click", () => openPalette(""));
   async function newChat() {
     try {
       const t = await api("/api/threads/new", {});
@@ -697,17 +773,18 @@
   function renderThreads() {
     const box = $("threads");
     box.replaceChildren();
-    if (!(state.home?.threads || []).some((x) => x.id !== "main")) {
+    const threads = (state.home?.threads || []).filter((x) => x.id !== "main");
+    if (!threads.length) {
       const hint = el("button", "thread-item hint", "Start a side chat for anything you want to keep separate.");
       hint.type = "button";
       hint.addEventListener("click", newChat);
       box.append(hint);
     }
-    for (const t of (state.home?.threads || []).filter((x) => x.id !== "main")) {
+    for (const t of threads) {
       const b = el("button", "thread-item" + (state.view === "chat" && state.thread === t.id ? " active" : ""));
       b.type = "button";
       b.dataset.id = t.id;
-      b.append(icon("chat"), el("span", null, t.title));
+      b.append(el("span", null, t.title));
       const x = el("span", "x");
       x.append(icon("x"));
       x.title = "Delete chat";
@@ -722,75 +799,105 @@
   }
 
   // ----------------------------------------------------------- widgets ---
+  function wHead(iconName, title, opts = {}) {
+    const h = el("div", "w-head");
+    h.append(icon(iconName), el("b", null, title));
+    if (opts.meta) h.append(el("span", "meta", opts.meta));
+    if (opts.go) { const g = btn("", "go", opts.go, "external"); g.title = opts.goTitle || "Open"; g.setAttribute("aria-label", g.title); h.append(g); }
+    return h;
+  }
   function renderWidgets() {
     const h = state.home;
     if (!h) return;
     const today = h.today || {};
-    $("today-date").textContent = today.date || "Today";
-    const ev = $("today-events");
-    ev.replaceChildren();
-    if (!h.connections?.calendar?.connected) {
-      const n = el("div", "none");
-      n.append(document.createTextNode("Connect your calendar to see your day. "), btn("Apps", "link", () => go("apps")));
-      ev.append(n);
-    } else if (!(today.events || []).length) ev.append(el("div", "none", "Nothing on the calendar today."));
-    for (const e of (today.events || []).slice(0, 5)) {
-      const m = el("div", "mini");
-      m.append(el("div", "when", e.all_day ? "All day" : e.time || clock.format(new Date(e.start * 1000))), el("span", "bar"));
-      const g = el("div", "grow");
-      g.append(el("div", "t", e.title));
-      if (e.location) g.append(el("div", "s", e.location));
-      m.append(g);
-      ev.append(m);
-    }
-    const tasks = $("today-tasks");
-    tasks.replaceChildren();
-    for (const t of (today.tasks || []).slice(0, 5)) {
-      const m = el("div", "mini");
-      const check = btn("", "check", async () => { try { await api("/api/task/complete", { id: t.id }); m.remove(); } catch (e) { toast(e.message); } });
-      check.title = "Done";
-      const g = el("div", "grow");
-      g.append(el("div", "t", t.title), el("div", "s", t.when || ""));
-      m.append(check, g);
-      tasks.append(m);
-    }
-    if (tasks.children.length) tasks.style.marginTop = "10px";
+    const now = Date.now() / 1000;
 
-    const ap = $("approvals");
-    ap.replaceChildren();
-    for (const a of (h.approvals || []).slice(0, 4)) {
+    // Waiting on you: Muse's approvals, small
+    const ap = $("w-approvals");
+    const approvals = h.approvals || [];
+    ap.hidden = !approvals.length;
+    ap.replaceChildren(wHead("rules", "Waiting on you", { meta: String(approvals.length) }));
+    for (const a of approvals.slice(0, 3)) {
       if (a.confirm_token) state.tokens[a.id] = a.confirm_token;
-      const it = el("div", "item");
       const args = a.arguments || {};
-      it.append(el("div", "t", "Luma wants to " + (WANTS[a.tool] || "do this")), el("div", "s", args.title || args.subject || args.body || args.label || ""));
-      const act = el("div", "actions");
-      act.append(btn("Review", "pill soft", () => {
+      const card = el("button", "wait-card");
+      card.type = "button";
+      const o = state.offers.get(args.url) || {};
+      const ph = el("span", "ph");
+      ph.append(icon(a.tool === "mail.send" ? "mail" : TEXTY.includes(a.tool) ? "message" : "cart"));
+      card.append(picture(o.image) || ph);
+      const g = el("div", "grow");
+      const what = WANTS[a.tool] || ["Action", "do this"];
+      g.append(el("div", "t", what[0] === "Checkout" ? `Add to cart${args.price ? " · " + args.price : ""}` : what[0] === "Email" ? `Email to ${a.recipient_name || args.to}` : what[0] === "Text" ? `Text to ${a.recipient_name || args.to}` : what[0]),
+               el("div", "s", args.title || args.subject || args.body || args.label || ""));
+      card.append(g, el("span", "status blue", "Review"));
+      card.addEventListener("click", () => {
         go("chat");
         pushLocal(state.thread, { role: "luma", text: "Here's what's waiting on you.", result: { ...a, state: "pending", action: a.id, confirm_token: a.confirm_token } });
-      }));
-      it.append(act);
-      ap.append(it);
+      });
+      ap.append(card);
     }
-    $("w-approvals").hidden = !(h.approvals || []).length;
 
-    const goals = $("mini-goals");
-    goals.replaceChildren();
+    // Up next: two big time tiles (Muse's "Webinars")
+    const next = $("w-next");
+    next.replaceChildren(wHead("calendar", today.date || "Today", { go: () => send("what's on my calendar today?"), goTitle: "Ask Luma about today" }));
+    const upcoming = (today.events || []).filter((e) => e.all_day || e.end > now);
+    const tiles = el("div", "tiles2");
+    const two = upcoming.slice(0, 2).map((e) => ({ big: e.all_day ? "All day" : e.time || clock.format(new Date(e.start * 1000)), t: e.title, s: e.location || "Calendar" }));
+    for (const t of (today.tasks || [])) { if (two.length >= 2) break; two.push({ big: clock.format(new Date(t.due * 1000)), t: t.title, s: "Reminder" }); }
+    for (const it of two) { const tile = el("div", "ttile"); tile.append(el("div", "big", it.big), el("div", "t", it.t), el("div", "s", it.s)); tiles.append(tile); }
+    if (two.length < 2) {
+      const tile = el("div", "ttile empty-tile");
+      if (h.connections?.calendar?.connected) tile.append(document.createTextNode("Nothing else today"));
+      else { tile.append(document.createTextNode("Connect your calendar")); tile.append(btn("Apps", "link", () => go("apps"))); }
+      tiles.append(tile);
+    }
+    next.append(tiles);
+    for (const e of upcoming.slice(2, 5)) {
+      const r = el("div", "wrow");
+      const g = el("div", "grow");
+      g.append(el("div", "t", e.title), el("div", "s", e.location || ""));
+      r.append(g, el("span", "status grey", e.all_day ? "All day" : e.time || ""));
+      next.append(r);
+    }
+
+    // Tasks with toggles and status pills (Muse's dashboard)
+    const tw = $("w-tasks");
+    const tasks = today.tasks || [];
+    tw.replaceChildren(wHead("list", "Tasks", { go: () => { go("chat"); $("input").value = "remind me "; resize(); $("input").focus(); }, goTitle: "Add a reminder" }));
+    if (!tasks.length) tw.append(el("div", "none", "Nothing due. Try “remind me at 6 to grab flowers.”"));
+    for (const t of tasks.slice(0, 5)) {
+      const r = el("div", "wrow");
+      const sw = el("button", "switch small");
+      sw.setAttribute("role", "switch");
+      sw.setAttribute("aria-checked", "false");
+      sw.setAttribute("aria-label", "Done: " + t.title);
+      sw.addEventListener("click", async () => { sw.setAttribute("aria-checked", "true"); try { await api("/api/task/complete", { id: t.id }); setTimeout(() => r.remove(), 300); } catch (e) { sw.setAttribute("aria-checked", "false"); toast(e.message); } });
+      const g = el("div", "grow");
+      g.append(el("div", "t", t.title), el("div", "s", t.when || ""));
+      const overdue = t.due < now;
+      const soon = t.due - now < 3 * 3600;
+      r.append(sw, g, el("span", "status " + (overdue ? "red" : soon ? "amber" : "grey"), overdue ? "Overdue" : soon ? "Soon" : "To-do"));
+      tw.append(r);
+    }
+
+    // Goals
+    const gw = $("w-goals");
+    gw.replaceChildren(wHead("goals", "Goals", { go: () => go("goals"), goTitle: "See all goals" }));
     for (const g of (h.helpers || []).slice(0, 4)) {
       const meta = HELPER[g.kind] || HELPER.goal;
-      const m = el("div", "mini");
-      const ic = el("span", `k-${meta.k}`);
-      ic.style.width = "26px"; ic.style.height = "26px"; ic.style.borderRadius = "8px"; ic.style.display = "grid"; ic.style.placeItems = "center"; ic.style.color = "#fff"; ic.style.flex = "none";
-      ic.append(icon(meta.icon));
+      const r = el("div", "wrow");
       const t = el("div", "grow");
-      t.append(el("div", "t", g.title), el("div", "s", g.enabled ? (g.last_result || "Next " + until(g.next_run)) : "Paused"));
-      m.append(ic, t);
-      goals.append(m);
+      t.append(el("div", "t", g.title), el("div", "s", g.last_error ? "Hit a snag" : g.last_result || (g.enabled ? "Next " + until(g.next_run) : "Paused")));
+      r.append(chip(meta.k, meta.icon), t, el("span", "status " + (!g.enabled ? "grey" : g.last_error ? "red" : "green"), !g.enabled ? "Paused" : g.last_error ? "Check" : "On"));
+      gw.append(r);
     }
-    if (!goals.children.length) {
+    if (!(h.helpers || []).length) {
       const n = el("div", "none");
       n.append(document.createTextNode("Nothing running on its own yet. "), btn("Add a goal", "link", () => go("goals")));
-      goals.append(n);
+      gw.append(n);
     }
+
     const unread = (h.cards || []).filter((c) => !c.read).length;
     $("feed-badge").hidden = !unread;
     $("feed-badge").textContent = unread;
@@ -800,26 +907,33 @@
   }
 
   // -------------------------------------------------------------- feed ---
-  function kindIcon(kind, size) {
-    const meta = KIND[kind] || KIND.update;
-    const ic = el("span", `ic k-${kind in KIND ? kind : "update"}`);
-    if (size) { ic.style.width = size; ic.style.height = size; }
-    ic.append(icon(meta.icon));
-    return ic;
-  }
+  function cardImage(c) { return (c.items || []).map((i) => i.image).find(safeImg); }
   function renderFeed() {
     const list = $("feed-list");
     const cards = state.home?.cards || [];
-    list.replaceChildren(el("h1", null, "Feed"));
+    list.replaceChildren();
     if (!state.feedSel || !cards.some((c) => c.id === state.feedSel)) state.feedSel = cards[0]?.id || null;
     for (const c of cards) {
-      const b = el("button", "feed-item" + (c.id === state.feedSel ? " active" : "") + (c.read ? "" : " unread"));
+      const meta = KIND[c.kind] || KIND.update;
+      const b = el("button", "fcard" + (c.id === state.feedSel ? " active" : ""));
       b.type = "button";
+      const who = el("div", "who-row");
       const g = el("div", "grow");
-      const top = el("div", "top");
-      top.append(el("span", "t", c.title), el("span", "time", ago(c.created)));
-      g.append(top, el("div", "s", c.body));
-      b.append(kindIcon(c.kind), g);
+      const src = el("div", "src");
+      if (!c.read) src.append(el("span", "unread-dot"));
+      src.append(document.createTextNode(meta.label));
+      g.append(src, el("div", "time", ago(c.created)));
+      const arrow = el("span", "arrow");
+      arrow.append(icon("external"));
+      who.append(chip(c.kind in KIND ? c.kind : "update", meta.icon, "face"), g, arrow);
+      b.append(who, el("div", "ttl", c.title));
+      const img = cardImage(c);
+      if (img) {
+        const pv = el("div", "preview");
+        pv.append(picture(img));
+        if (c.items?.[0]?.price) pv.append(el("span", "price-chip", money(c.items[0].price) + " · " + c.items[0].store));
+        b.append(pv);
+      } else if (c.body) b.append(el("div", "snip", c.body));
       b.addEventListener("click", () => { state.feedSel = c.id; renderFeed(); });
       list.append(b);
     }
@@ -831,22 +945,32 @@
     r.replaceChildren();
     if (!c) {
       const e = el("div", "empty-reader");
-      const img = el("img");
-      img.src = "/desktop/logo"; img.alt = "";
-      e.append(img, el("h2", null, "Your feed"), el("p", null, "Deals I find, inbox summaries and catch-ups land here."));
+      e.append(bigAvatar(), el("h2", null, "Your feed"), el("p", null, "Deals I find, inbox summaries and catch-ups land here."));
       e.append(btn("Set up a goal", "pill primary", () => go("goals")));
       r.append(e);
       return;
     }
     if (!c.read) api("/api/cards/read", { id: c.id }).then(() => { c.read = true; renderWidgets(); }).catch(() => {});
-    const kicker = el("div", "kicker");
-    kicker.append(kindIcon(c.kind), document.createTextNode(`${(KIND[c.kind] || KIND.update).label} · ${new Date(c.created * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`));
-    r.append(kicker, el("h1", null, c.title));
-    if (c.body) r.append(el("div", "body", c.body));
+    const meta = KIND[c.kind] || KIND.update;
+    const top = el("div", "r-top");
+    top.append(btn("Remove", "", async () => { try { await api("/api/cards/delete", { id: c.id }); state.feedSel = null; await refreshHome(); renderFeed(); } catch (e) { toast(e.message); } }, "trash"));
+    top.append(el("span", null, new Date(c.created * 1000).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })));
+    const hero = el("div", "r-hero");
+    hero.append(chip(c.kind in KIND ? c.kind : "update", meta.icon, "face"), el("h1", null, c.title), el("div", "s", `${meta.label} · ${ago(c.created)}`));
+    const acts = el("div", "r-acts");
+    acts.append(btn("Ask Luma", "r-act", () => { go("chat"); $("input").value = `About “${c.title}”: `; resize(); $("input").focus(); }, "chat"));
+    if (safeUrl(c.url)) acts.append(linkOut("Open", c.url, "r-act", "external"));
+    const upB = btn("", "r-act icon-only" + (c.feedback === "up" ? " on" : ""), () => rate("up"), "up_t");
+    const downB = btn("", "r-act icon-only" + (c.feedback === "down" ? " on" : ""), () => rate("down"), "down_t");
+    upB.title = "Useful"; downB.title = "Not for me";
+    upB.setAttribute("aria-label", "Useful"); downB.setAttribute("aria-label", "Not for me");
+    acts.append(upB, downB);
+    const body = el("div", "r-body");
+    if (c.body) body.append(el("div", "r-text", c.body));
     if (c.kind === "deal" && (c.items || []).length) {
       const grid = el("div", "products");
       c.items.forEach((o, i) => { if (o.url) state.offers.set(o.url, o); grid.append(productTile(o, i === 0)); });
-      r.append(grid);
+      body.append(grid);
     }
     if (c.kind === "inbox" && (c.items || []).length) {
       const rows = el("div", "rows");
@@ -854,31 +978,31 @@
         const row = el("div", "r");
         const g = el("div", "grow");
         g.append(el("div", "t", `${m.from} · ${m.title}`), el("div", "s", m.snippet || ""));
-        row.append(g, btn("Reply", "pill quiet", () => { go("chat"); $("input").value = `reply to ${String(m.from).split(" ")[0]} saying `; resize(); $("input").focus(); }));
+        row.append(face(m.from), g, btn("Reply", "pill quiet small", () => replyTo(m.from), "reply"));
         rows.append(row);
       }
-      r.append(rows);
+      body.append(rows);
     }
-    const actions = el("div", "actions");
-    if (safeUrl(c.url)) actions.append(linkOut("Open " + host(c.url), c.url, "pill soft", "external"));
-    actions.append(btn("Ask Luma about this", "pill soft", () => { go("chat"); $("input").value = `About “${c.title}”: `; resize(); $("input").focus(); }, "chat"));
-    actions.append(btn("", "pill quiet", async () => { try { await api("/api/cards/delete", { id: c.id }); state.feedSel = null; await refreshHome(); renderFeed(); } catch (e) { toast(e.message); } }, "trash"));
-    actions.lastChild.title = "Remove";
-    r.append(actions);
-
-    const fb = el("div", "feedback");
-    fb.append(el("span", "label", "Was this useful?"));
-    const row = el("div", "row");
-    const up = btn("", "thumb" + (c.feedback === "up" ? " on" : ""), () => rate("up"), "up_t");
-    const down = btn("", "thumb" + (c.feedback === "down" ? " on" : ""), () => rate("down"), "down_t");
-    up.title = "Useful"; down.title = "Not useful";
+    if (safeUrl(c.url)) {
+      const at = el("div", "attach");
+      const a = linkOut("", c.url, "", "globe");
+      const t = el("span");
+      t.append(document.createTextNode(host(c.url)), el("small", null, "Open the page"));
+      a.append(t);
+      at.append(a);
+      body.append(at);
+    }
+    const reply = el("form", "r-reply");
     const note = el("input");
-    note.placeholder = "Tell me what you'd rather see…";
+    note.placeholder = "Tell Luma what you'd rather see…";
     note.maxLength = 300;
-    const teachBtn = btn("Teach", "pill primary", () => rate(c.feedback || "down", note.value));
-    row.append(up, down, note, teachBtn);
-    fb.append(row);
-    r.append(fb);
+    const sendB = el("button", "send");
+    sendB.type = "submit";
+    sendB.setAttribute("aria-label", "Teach Luma");
+    sendB.append(icon("up"));
+    reply.append(note, sendB);
+    reply.addEventListener("submit", (e) => { e.preventDefault(); if (note.value.trim()) rate(c.feedback || "down", note.value); });
+    r.append(top, hero, acts, body, reply);
     async function rate(value, text) {
       try {
         const res = await api("/api/feedback", { id: c.id, value, note: text || "" });
@@ -894,11 +1018,11 @@
     const box = $("ideas");
     box.replaceChildren();
     for (const i of state.home?.ideas || []) {
-      const c = el("div", "idea glass");
-      c.append(kindIcon(i.kind in KIND ? i.kind : "idea"), el("h3", null, i.title), el("p", null, i.why));
-      c.firstChild.className = `ic k-${i.kind in KIND ? i.kind : "idea"}`;
+      const k = i.kind in KIND ? i.kind : "idea";
+      const c = el("div", "idea card");
+      c.append(chip(k, (KIND[k] || KIND.idea).icon, "ic"), el("h3", null, i.title), el("p", null, i.why));
       const setup = /^connect my (email|calendar)$/.test(i.say);
-      c.append(btn(setup ? "Set it up" : "Do it", "pill " + (setup ? "soft" : "primary"), () => setup ? go("apps") : send(i.say)));
+      c.append(btn(setup ? "Set it up" : "Do it", "pill small " + (setup ? "soft" : "primary"), () => setup ? go("apps") : send(i.say)));
       box.append(c);
     }
   }
@@ -908,11 +1032,12 @@
   function renderGoals() {
     const form = $("goal-form");
     form.replaceChildren();
-    form.append(el("span", "label", "New goal"));
+    const head = el("div", "card-head");
+    head.append(chip("update", "plus", "chip-ic"), el("div", "t", "New goal"));
+    form.append(head);
     const seg = el("div", "segmented");
     for (const [k, label] of [["price_watch", "Price watch"], ["inbox_digest", "Inbox"], ["feed_digest", "Feed"], ["agenda", "Morning agenda"], ["goal", "Anything"]]) {
-      const b = btn(label, goalKind === k ? "on" : "", () => { goalKind = k; renderGoals(); });
-      seg.append(b);
+      seg.append(btn(label, goalKind === k ? "on" : "", () => { goalKind = k; renderGoals(); }));
     }
     form.append(seg);
     const fields = el("div", "fields");
@@ -925,16 +1050,16 @@
       for (const s of ["instagram", "tiktok", "x", "reddit", "linkedin", "youtube", "facebook"]) { const o = el("option", null, s[0].toUpperCase() + s.slice(1)); o.value = s; site.append(o); }
       field("Site", site);
     }
-    if (goalKind === "goal") goal = field("What should I keep working on?", text("goal", "Find a cheaper phone plan than my $85 Verizon one"), true);
+    if (goalKind === "goal") goal = field("What should I keep working on?", text("goal", "Find a cheaper phone plan than my $85 one"), true);
     const every = el("select");
     for (const [v, label] of Object.entries(EVERY)) { const o = el("option", null, label); o.value = v; every.append(o); }
-    every.value = goalKind === "price_watch" || goalKind === "inbox_digest" || goalKind === "agenda" ? "daily" : "daily";
+    every.value = "daily";
     field("How often", every);
     const at = el("input");
     at.type = "time"; at.value = goalKind === "feed_digest" ? "18:00" : "08:00";
     field("At", at);
     every.addEventListener("change", () => { at.disabled = !["daily", "weekly"].includes(every.value); });
-    fields.append(btn("Start", "pill brand", async () => {
+    fields.append(btn("Start", "pill primary", async () => {
       try {
         const body = { kind: goalKind, every: every.value, at: at.disabled ? null : at.value };
         if (q) body.query = q.value.trim();
@@ -953,11 +1078,9 @@
     box.replaceChildren();
     for (const g of state.home?.helpers || []) {
       const meta = HELPER[g.kind] || HELPER.goal;
-      const c = el("div", "goal glass" + (g.enabled ? "" : " off"));
+      const c = el("div", "goal card" + (g.enabled ? "" : " off"));
       const top = el("div", "top");
-      const ic = el("span", `ic k-${meta.k}`);
-      ic.append(icon(meta.icon));
-      const t = el("div", "grow");
+      const t = el("div");
       t.style.flex = "1"; t.style.minWidth = "0";
       t.append(el("div", "t", g.title), el("div", "s", `${meta.label} · ${EVERY[g.every] || ""}${g.at ? " at " + g.at : ""}`));
       const sw = el("button", "switch");
@@ -965,17 +1088,21 @@
       sw.setAttribute("aria-checked", String(Boolean(g.enabled)));
       sw.setAttribute("aria-label", "On");
       sw.addEventListener("click", async () => { try { await api("/api/helpers/update", { id: g.id, enabled: !g.enabled }); await refreshHome(); renderGoals(); } catch (e) { toast(e.message); } });
-      top.append(ic, t, sw);
+      top.append(chip(meta.k, meta.icon, "ic"), t, sw);
       c.append(top);
       if (g.last_error) c.append(el("div", "result err", g.last_error));
       else if (g.last_result) c.append(el("div", "result", g.last_result));
-      const prices = (g.history || []).map((h) => h.price).filter((p) => typeof p === "number");
+      const prices = (g.history || []).map((x) => x.price).filter((p) => typeof p === "number");
       if (prices.length > 1) c.append(spark(prices));
       const foot = el("div", "actions");
-      foot.append(el("span", "s", g.enabled ? (g.runs ? `Ran ${g.runs}× · next ${until(g.next_run)}` : "Starting…") : "Paused"));
-      foot.lastChild.style.flex = "1"; foot.lastChild.style.color = "var(--muted)"; foot.lastChild.style.fontSize = "12.5px";
-      foot.append(btn("Run now", "pill quiet", async () => { try { await api("/api/helpers/update", { id: g.id, run_now: true }); toast("Running it now."); refreshHome(); } catch (e) { toast(e.message); } }, "refresh"));
-      foot.append(btn("", "pill quiet", async () => { try { await api("/api/helpers/delete", { id: g.id }); await refreshHome(); renderGoals(); } catch (e) { toast(e.message); } }, "trash"));
+      const firstRun = g.next_run - Date.now() / 1000 > 60 ? "First run " + until(g.next_run) : "Starting…";
+      const when = el("span", "s", g.enabled ? (g.runs ? `Ran ${g.runs}× · next ${until(g.next_run)}` : firstRun) : "Paused");
+      when.style.flex = "1"; when.style.color = "var(--muted)"; when.style.fontSize = "12.5px";
+      foot.append(when);
+      foot.append(btn("Run now", "pill quiet small", async () => { try { await api("/api/helpers/update", { id: g.id, run_now: true }); toast("Running it now."); refreshHome(); } catch (e) { toast(e.message); } }, "refresh"));
+      const del = btn("", "pill quiet small", async () => { try { await api("/api/helpers/delete", { id: g.id }); await refreshHome(); renderGoals(); } catch (e) { toast(e.message); } }, "trash");
+      del.setAttribute("aria-label", "Delete goal");
+      foot.append(del);
       c.append(foot);
       box.append(c);
     }
@@ -1006,7 +1133,7 @@
     if (decks.length) {
       const t = section("Decks");
       for (const f of decks) {
-        const tile = el("button", "tile glass");
+        const tile = el("button", "tile card");
         tile.type = "button";
         const thumb = el("div", `slide theme-${f.theme || "midnight"}`);
         thumb.append(el("span", "k", "Deck"), el("span", "t", f.title || f.name));
@@ -1021,12 +1148,14 @@
     if (deals.length) {
       const t = section("Deals");
       for (const c of deals.slice(0, 12)) {
-        const tile = el("button", "tile glass");
+        const tile = el("button", "tile card");
         tile.type = "button";
         const best = c.items[0];
+        const thumb = el("div", "thumb");
+        thumb.append(picture(best.image) || el("span", "checked", best.store));
         const cap = el("div", "cap");
         cap.append(el("div", "t", c.title), el("div", "s", `${best.store}: ${best.title}`));
-        tile.append(cap);
+        tile.append(thumb, cap);
         tile.addEventListener("click", () => { state.feedSel = c.id; go("feed"); });
         t.append(tile);
       }
@@ -1035,7 +1164,7 @@
     if (drafts.length) {
       const t = section("Drafts");
       for (const m of drafts) {
-        const tile = el("button", "tile glass");
+        const tile = el("button", "tile card");
         tile.type = "button";
         const cap = el("div", "cap");
         cap.append(el("div", "t", "Text to " + (m.name || m.to)), el("div", "s", m.body));
@@ -1049,14 +1178,14 @@
 
   // -------------------------------------------------------------- apps ---
   function appCard(title, sub, color, letterOrIcon, on, statusText) {
-    const c = el("div", "app-card glass");
+    const c = el("div", "app-card card");
     const top = el("div", "top");
     const logo = el("span", "logo");
     logo.style.background = color;
     if (ICONS[letterOrIcon]) logo.append(icon(letterOrIcon)); else logo.textContent = letterOrIcon;
     const t = el("div");
     t.append(el("div", "t", title), el("div", "s", sub));
-    top.append(logo, t, el("span", "status" + (on ? " on" : ""), statusText || (on ? "Connected" : "Not connected")));
+    top.append(logo, t, el("span", "status " + (on ? "green" : "grey"), statusText || (on ? "Connected" : "Not connected")));
     c.append(top);
     return c;
   }
@@ -1066,13 +1195,12 @@
     const box = $("apps");
     box.replaceChildren();
 
-    // Email
     const mail = con.mail || {};
     const mc = appCard("Email", mail.connected ? mail.address : "Gmail, iCloud, Outlook, Yahoo", "linear-gradient(135deg,#ea4335,#fbbc05)", "mail", mail.connected);
     if (mail.connected) {
       mc.append(el("div", "help", "I read your inbox, write drafts into your Drafts folder, and only send when you press Allow."));
       const a = el("div", "actions");
-      a.append(btn("Check my email", "pill soft", () => send("check my email")), btn("Disconnect", "pill quiet danger", async () => { await api("/api/connect/disconnect", { service: "mail" }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
+      a.append(btn("Check my email", "pill soft small", () => send("check my email")), btn("Disconnect", "pill quiet small danger", async () => { await api("/api/connect/disconnect", { service: "mail" }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
       mc.append(a);
     } else {
       const f = el("form");
@@ -1102,12 +1230,11 @@
     }
     box.append(mc);
 
-    // Calendar
     const cal = con.calendar || {};
     const cc = appCard("Calendar", cal.connected ? cal.host : "Google, iCloud, Outlook", "linear-gradient(135deg,#4285f4,#34a853)", "calendar", cal.connected);
     if (cal.connected) {
       const a = el("div", "actions");
-      a.append(btn("What's on today?", "pill soft", () => send("what's on my calendar today?")), btn("Disconnect", "pill quiet danger", async () => { await api("/api/connect/disconnect", { service: "calendar" }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
+      a.append(btn("What's on today?", "pill soft small", () => send("what's on my calendar today?")), btn("Disconnect", "pill quiet small danger", async () => { await api("/api/connect/disconnect", { service: "calendar" }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
       cc.append(a);
     } else {
       const f = el("form");
@@ -1123,24 +1250,20 @@
     }
     box.append(cc);
 
-    // Luma's browser: Instagram, stores, anything with a login
     const br = con.browser || {};
-    const bc = appCard("Instagram, stores and the web", br.available ? "Luma's own browser, signed in by you" : "Needs Playwright on this computer", "linear-gradient(135deg,#f58529,#dd2a7b 50%,#8134af)", "insta", br.on, br.on ? "On" : "Off");
+    const bc = appCard("Instagram, stores and the web", br.available ? "Luma's own browser, signed in by you" : "Needs Luma's browser tools", "linear-gradient(135deg,#f58529,#dd2a7b 50%,#8134af)", "insta", br.on, br.on ? "On" : "Off");
     bc.append(el("div", "help", "I scroll feeds and compare prices in my own browser. Sign in once yourself; I never see or type passwords. Liking, posting and buying always wait for you."));
     const ba = el("div", "actions");
-    ba.append(btn(br.on ? "Turn off" : "Turn on", br.on ? "pill quiet" : "pill primary", async () => { try { await api("/api/setting", { key: "browser", value: !br.on }); await refreshHome(); renderApps(); } catch (e) { toast(e.message); } }));
+    ba.append(btn(br.on ? "Turn off" : "Turn on", br.on ? "pill quiet small" : "pill primary small", async () => { try { await api("/api/setting", { key: "browser", value: !br.on }); await refreshHome(); renderApps(); } catch (e) { toast(e.message); } }));
     if (br.on) {
       for (const [label, url] of [["Sign in to Instagram", "https://www.instagram.com/"], ["Sign in to Amazon", "https://www.amazon.com/"]]) {
-        ba.append(btn(label, "pill soft", async () => {
-          try { const r = await api("/api/browser/show", { url }); toast(r.summary); } catch (e) { toast(e.message); }
-        }));
+        ba.append(btn(label, "pill soft small", async () => { try { const r = await api("/api/browser/show", { url }); toast(r.summary); } catch (e) { toast(e.message); } }));
       }
-      ba.append(btn("Done signing in", "pill quiet", async () => { try { await api("/api/browser/hide", {}); toast("Got it. I'll take it from here."); } catch (e) { toast(e.message); } }));
+      ba.append(btn("Done signing in", "pill quiet small", async () => { try { await api("/api/browser/hide", {}); toast("Got it. I'll take it from here."); } catch (e) { toast(e.message); } }));
     }
     bc.append(ba);
     box.append(bc);
 
-    // Texting
     const tx = con.texting || {};
     const tc = appCard("Texts", "iMessage, your number or Luma's number", "linear-gradient(135deg,#34c759,#30b0c7)", "message", tx.enabled, tx.enabled ? "On" : "Drafts only");
     const sel = el("select");
@@ -1150,13 +1273,12 @@
     tc.append(sel, el("div", "help", "Every text shows you the exact words first. Nothing sends until you press Allow."));
     box.append(tc);
 
-    // Phone
     const pa = con.phone_app || {};
     const phones = pa.phones || [];
-    const pc = appCard("Luma on your phone", phones.length ? phones.map((p) => p.name).join(", ") : "Talk to Luma from anywhere", "linear-gradient(135deg,#6d6cf5,#c58fc8)", "phone", phones.length > 0, phones.length ? "Paired" : "Not paired");
+    const pc = appCard("Luma on your phone", phones.length ? phones.map((p) => p.name).join(", ") : "Talk to Luma from anywhere", "linear-gradient(135deg,#6a67f4,#d48cc4)", "phone", phones.length > 0, phones.length ? "Paired" : "Not paired");
     pc.append(el("div", "help", "Encrypted end to end. Approvals and price drops come to your lock screen."));
     const pact = el("div", "actions");
-    pact.append(btn("Connect a phone", "pill soft", async () => {
+    pact.append(btn("Connect a phone", "pill soft small", async () => {
       try {
         const r = await api("/api/phone-app/pair", {});
         const b = el("div");
@@ -1170,10 +1292,9 @@
     pc.append(pact);
     box.append(pc);
 
-    // The brain
     const model = state.status?.model_name || "";
     const pretty = /qwen3-4b/i.test(model) ? "Qwen3 4B" : /llama-3\.2-3b/i.test(model) ? "Llama 3.2 3B" : model.replace(/[-_]Q\d.*$|\.gguf$/gi, "").replace(/[-_]/g, " ") || "Local model";
-    const mc2 = appCard("Luma's brain", pretty + ", on this computer", "linear-gradient(135deg,#15141c,#3f3e4b)", "cpu", h.model?.on, h.model?.on ? "Running" : "Off");
+    const mc2 = appCard("Luma's brain", pretty + ", on this computer", "linear-gradient(135deg,#111118,#3a3a46)", "cpu", h.model?.on, h.model?.on ? "Running" : "Off");
     mc2.append(el("div", "help", "No cloud AI and no subscription. What you say stays here unless you send it."));
     box.append(mc2);
   }
@@ -1204,7 +1325,7 @@
       const it = el("div", "item");
       const g = el("div", "grow");
       g.append(el("div", "title", m.text), el("div", "sub", m.source === "feedback" ? "From your feedback" : m.source === "explicit_user_request" ? "You asked me to remember" : "Picked up in conversation"));
-      it.append(g, btn("Forget", "pill quiet", async () => { try { await api("/api/memory/delete", { id: m.id }); await refreshHome(); renderRules(); } catch (e) { toast(e.message); } }));
+      it.append(g, btn("Forget", "pill quiet small", async () => { try { await api("/api/memory/delete", { id: m.id }); await refreshHome(); renderRules(); } catch (e) { toast(e.message); } }));
       learned.append(it);
     }
     if (!learned.children.length) learned.append(el("div", "item", "Nothing yet. Use thumbs up or down on anything I do and I'll learn."));
@@ -1235,19 +1356,24 @@
     const lg = el("div", "grow");
     lg.append(el("div", "title", "Appearance"), el("div", "sub", "Light, dark, or follow your computer."));
     const seg = el("div", "segmented");
-    for (const [v, label] of [["system", "Auto"], ["light", "Light"], ["dark", "Dark"]]) {
-      seg.append(btn(label, theme === v ? "on" : "", () => { theme = v; try { localStorage.setItem("luma-theme", v); } catch (_) { /* private */ } applyTheme(v); renderSettings(); }));
-    }
+    for (const [v, label] of [["system", "Auto"], ["light", "Light"], ["dark", "Dark"]]) seg.append(btn(label, theme === v ? "on" : "", () => { setTheme(v); renderSettings(); }));
     look.append(lg, seg);
     box.append(look);
     box.append(toggleRow("Listen for “Hey Luma”", "Talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
     box.append(toggleRow("Remember things I mention", "Small facts (your sister's birthday, your coffee order), encrypted on this computer.", s.presence?.learn_from_chat !== false, (on) => api("/api/setting", { key: "learn_from_chat", value: on })));
     box.append(toggleRow("Check back on things", "“How did the interview go?” the day after.", s.presence?.check_ins !== false, (on) => api("/api/setting", { key: "check_ins", value: on })));
     box.append(toggleRow("Morning briefing", "Your day, every morning.", s.daily_briefing_enabled, (on) => api("/api/setting", { key: "daily_briefing_enabled", value: on })));
+    for (const [title, sub, view] of [["Apps", "Email, calendar, Instagram, texts and your phone.", "apps"], ["Rules", "What Luma does on its own, asks about, or never does.", "rules"]]) {
+      const it = el("div", "item");
+      const g = el("div", "grow");
+      g.append(el("div", "title", title), el("div", "sub", sub));
+      it.append(g, btn("Open", "pill soft small", () => go(view)));
+      box.append(it);
+    }
     const about = el("div", "item");
     const ag = el("div", "grow");
     ag.append(el("div", "title", "Everything else"), el("div", "sub", "Voice, personality, kids mode, quiet hours and the full controls."));
-    const full = el("a", "pill soft", "All controls");
+    const full = el("a", "pill soft small", "All controls");
     full.href = "/";
     about.append(ag, full);
     box.append(about);
@@ -1273,6 +1399,57 @@
   $("sheet-close").addEventListener("click", closeSheet);
   $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) closeSheet(); });
 
+  // ------------------------------------------------------------ palette ---
+  // ⌘K: jump anywhere, find a chat or feed card, or just ask Luma.
+  let paletteItems = [];
+  let paletteSel = 0;
+  function openPalette(text) {
+    $("palette").hidden = false;
+    $("palette-input").value = text || "";
+    renderPalette();
+    $("palette-input").focus();
+  }
+  function closePalette() { $("palette").hidden = true; }
+  function renderPalette() {
+    const raw = $("palette-input").value.trim();
+    const q = raw.toLowerCase();
+    const has = (s) => !q || String(s || "").toLowerCase().includes(q);
+    const out = $("palette-results");
+    out.replaceChildren();
+    paletteItems = [];
+    const section = (name, rows) => {
+      if (!rows.length) return;
+      out.append(el("div", "sec", name));
+      for (const r of rows) {
+        const b = el("button");
+        b.type = "button";
+        b.append(r.chip, el("span", null, r.title));
+        if (r.sub) b.append(el("span", "s", r.sub));
+        b.addEventListener("click", () => { closePalette(); r.run(); });
+        out.append(b);
+        paletteItems.push({ b, run: r.run });
+      }
+    };
+    if (q) section("Ask Luma", [{ chip: chip("update", "chat"), title: raw, sub: "↵", run: () => send(raw) }]);
+    const views = [["chat", "Main chat", "chat"], ["feed", "Feed", "feed"], ["ideas", "Ideas", "ideas"], ["goals", "Goals", "goals"], ["library", "Library", "library"], ["apps", "Apps", "apps"], ["rules", "Rules", "rules"], ["settings", "Settings", "settings"]];
+    section("Go to", views.filter(([, t]) => has(t)).slice(0, q ? 4 : 8).map(([v, t, ic]) => ({ chip: chip("setup", ic), title: t, run: () => { if (v === "chat") state.thread = "main"; go(v); } })));
+    section("Chats", (state.home?.threads || []).filter((t) => t.id !== "main" && has(t.title)).slice(0, 5).map((t) => ({ chip: chip("people", "chat"), title: t.title, run: async () => { state.thread = t.id; await loadThread(t.id); go("chat"); } })));
+    section("Feed", (state.home?.cards || []).filter((c) => has(c.title) || has(c.body)).slice(0, 5).map((c) => ({ chip: chip(c.kind in KIND ? c.kind : "update", (KIND[c.kind] || KIND.update).icon), title: c.title, sub: ago(c.created), run: () => { state.feedSel = c.id; go("feed"); } })));
+    section("Ideas", (state.home?.ideas || []).filter((i) => has(i.title)).slice(0, q ? 4 : 5).map((i) => ({ chip: chip(i.kind in KIND ? i.kind : "idea", (KIND[i.kind] || KIND.idea).icon), title: i.title, run: () => (/^connect my/.test(i.say) ? go("apps") : send(i.say)) })));
+    paletteSel = 0;
+    paintPaletteSel();
+  }
+  function paintPaletteSel() { paletteItems.forEach((p, i) => p.b.classList.toggle("sel", i === paletteSel)); paletteItems[paletteSel]?.b.scrollIntoView({ block: "nearest" }); }
+  $("palette-input").addEventListener("input", renderPalette);
+  $("palette-input").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); paletteSel = Math.min(paletteItems.length - 1, paletteSel + 1); paintPaletteSel(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); paletteSel = Math.max(0, paletteSel - 1); paintPaletteSel(); }
+    if (e.key === "Enter") { e.preventDefault(); const it = paletteItems[paletteSel]; if (it) { closePalette(); it.run(); } }
+    if (e.key === "Escape") closePalette();
+  });
+  $("palette").addEventListener("click", (e) => { if (e.target === $("palette")) closePalette(); });
+  $("open-search").addEventListener("click", () => openPalette(""));
+
   // --------------------------------------------------------- live data ---
   async function refreshHome() {
     try {
@@ -1287,9 +1464,9 @@
       paintActivity();
       if (h.activity && ["running", "paused"].includes(h.activity.state) && !activityTimer) watchActivity(true);
       const after = JSON.stringify([h.cards?.length, h.helpers, h.ideas, h.connections, h.rules, h.approvals?.length]);
-      const approvalsNow = (h.approvals || []).map((a) => a.id).join(",");
-      if (approvalsNow !== state.approvalsKey) { state.approvalsKey = approvalsNow; if (state.view === "chat" && !state.busy && !document.activeElement?.closest?.(".approve")) renderChat(); }
       if (before !== after && state.view !== "chat" && !document.activeElement?.closest?.(".page, .feed-view")) renderView(state.view);
+      const approvalsNow = (h.approvals || []).map((a) => a.id).join(",");
+      if (approvalsNow !== state.approvalsKey) { state.approvalsKey = approvalsNow; if (state.view === "chat" && !state.busy && !document.activeElement?.closest?.(".checkout")) renderChat(); }
       if ($("mascot").classList.contains("sleepy") && !state.busy) mood("idle", "Here with you");
       $("mic").classList.toggle("on", Boolean(h.status && !h.status.microphone_muted));
       return h;
@@ -1315,7 +1492,7 @@
       }
     }
     state.firstPoll = false;
-    if (reload) loadThread("main").then(() => { if (state.thread === "main" && !state.busy) renderChat(); });
+    if (reload) loadThread("main").then(() => { if (state.thread === "main" && !state.busy && state.view === "chat") renderChat(); });
   }
 
   // ----------------------------------------------------------- composer ---
@@ -1345,19 +1522,20 @@
     } catch (e) { toast(e.message); }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("sheet").hidden) closeSheet();
+    if (e.key === "Escape") { if (!$("palette").hidden) closePalette(); else if (!$("sheet").hidden) closeSheet(); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") { e.preventDefault(); newChat(); }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); go("chat"); input.focus(); }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); if ($("palette").hidden) openPalette(""); else closePalette(); }
   });
   // The window's menu (in the Mac app) can ask for a view.
   window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (document.getElementById("view-" + v)) go(v); });
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  if (scheme.addEventListener) scheme.addEventListener("change", () => applyTheme(theme));
 
   // ------------------------------------------------------------- start ---
   mood("idle", "Here with you");
   Promise.all([loadThread("main"), refreshHome()]).then(() => {
-    renderChat();
     const v = location.hash.slice(1);
-    if (v && document.getElementById("view-" + v)) go(v);
+    if (v && document.getElementById("view-" + v)) go(v); else go("chat");
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
   });
   setInterval(refreshHome, 4000);
