@@ -6,12 +6,25 @@
 //   LUMA_CLOUD_URL=http://127.0.0.1:8787 .venv/bin/python -m luma.cli serve
 //
 // Dev-only extras:
+//   GET  /app/                          the Luma phone app (pair it from Luma: Phone › Connect a phone)
 //   GET  /fake-checkout?account=<id>  completes a Luma Plus purchase
 //   POST /dev/reply {"from": "+1919...", "to": "+1919...", "body": "..."}  pretends someone texted back
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHandler, createService, twilioSignature } from "../api/_lib/luma-cloud.js";
 import { memoryDb } from "../api/_lib/luma-memory-db.js";
+import { generateVapidKeys } from "../api/_lib/web-push.js";
+
+// The phone app (app/ on the website). Override with LUMA_APP_DIR.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const appDir = [process.env.LUMA_APP_DIR, path.join(here, "..", "app"), path.join(here, "..", "..", "lumin-holdings-site", "app")]
+  .find((dir) => dir && fs.existsSync(path.join(dir, "index.html")));
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };
+const vapid = generateVapidKeys(); // throwaway notification keys for this run
 
 const port = Number(process.env.PORT || 8787);
 const base = `http://127.0.0.1:${port}`;
@@ -27,8 +40,11 @@ const env = {
   LUMA_PLUS_PRICE_ID: "price_dev",
   STRIPE_WEBHOOK_SECRET: "whsec_dev",
   LUMA_PROVISION_NUMBERS: "1",
+  LUMA_VAPID_PUBLIC_KEY: vapid.publicKey,
+  LUMA_VAPID_PRIVATE_KEY: vapid.privateKey,
+  LUMA_VAPID_SUBJECT: "mailto:dev@luma.invalid",
 };
-const db = memoryDb();
+const db = memoryDb(() => Date.now()); // real time, so "messages since …" cursors work
 let sid = 0;
 let numbers = 0;
 const json = (status, data) => ({ ok: status < 400, status, json: async () => data, text: async () => JSON.stringify(data) });
@@ -75,6 +91,14 @@ http.createServer(async (req, res) => {
     req.query = { ...Object.fromEntries(url.searchParams), route: url.pathname.slice("/api/luma/".length) };
     return handler(req, res);
   }
+  if (appDir && (url.pathname === "/app" || url.pathname.startsWith("/app/"))) {
+    if (url.pathname === "/app") { res.writeHead(302, { Location: "/app/" }); return res.end(); }
+    const rel = url.pathname.slice("/app/".length) || "index.html";
+    const file = path.resolve(appDir, rel);
+    if (!file.startsWith(appDir + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.statusCode = 404; return res.end("not found"); }
+    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" });
+    return res.end(fs.readFileSync(file));
+  }
   if (url.pathname === "/fake-checkout") {
     const account = url.searchParams.get("account");
     const event = JSON.stringify({ id: "evt_" + crypto.randomUUID(), type: "checkout.session.completed",
@@ -102,4 +126,4 @@ http.createServer(async (req, res) => {
   }
   res.statusCode = 404;
   res.end("not found");
-}).listen(port, "127.0.0.1", () => console.log(`Luma Cloud (dev) on ${base} · verification code 123456 · ${env.LUMA_FREE_TEXTS_PER_MONTH} free texts/month`));
+}).listen(port, "127.0.0.1", () => console.log(`Luma Cloud (dev) on ${base} · verification code 123456 · ${env.LUMA_FREE_TEXTS_PER_MONTH} free texts/month${appDir ? " · phone app at " + base + "/app/" : ""}`));

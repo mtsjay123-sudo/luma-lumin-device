@@ -1,3 +1,5 @@
+> **October 13, 2026:** **Luma Desktop** is a friendly, downloadable app (mascot, simple chat, a work panel for texts to approve and decks); see [../desktop/README.md](../desktop/README.md). Open it in a browser too at http://127.0.0.1:8095/desktop/. How ChatGPT's dots work and the small version Luma builds: [docs/DOTS_TEARDOWN.md](docs/DOTS_TEARDOWN.md).
+
 > **October 3, 2026:** start with [docs/LUMA_BLUEPRINT.md](docs/LUMA_BLUEPRINT.md): how every piece works, what changed (human voice, texting from your number or Luma's, Luma Plus, pitch decks, Luma's browser, streaming speech) and the gameplan. Texting setup: [TEXTING.md](TEXTING.md).
 
 > Current local model: **Qwen3-4B-Instruct-2507 Q4_K_M** on this Mac, with the original Llama retained. See [the measured evaluation](MODEL_EVALUATION.md) and [current capabilities](RUNTIME.md). Historical model and future-training references below belong to the original roadmap.
