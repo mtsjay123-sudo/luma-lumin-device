@@ -203,9 +203,10 @@ class Agent:
         self.last_offers = []  # the latest price comparison, for "add the cheapest to my cart"
         self.last_query = None
         self.approval_tokens = {}  # pending action id -> one-time token, for the owner's own screens only
-        self.threads = {"main": self.history}  # side chats; like the main chat, they live in memory only
+        self.threads = {"main": self.history}  # side chats, saved encrypted on this computer like everything else
         self.transcripts = {"main": []}
         self.thread_titles = {"main": "Main chat"}
+        self._load_chats()
         # A new process starts with the microphone muted, even after a crash.
         self.store.set_setting("muted", True)
 
@@ -236,6 +237,29 @@ class Agent:
             self.threads = {"main": self.history}
             self.transcripts = {"main": []}
             self.thread_titles = {"main": "Main chat"}
+            self._load_chats()
+
+    # Chats are kept (encrypted, on this computer) so they're still there after a restart.
+    def _load_chats(self):
+        try:
+            rows = [r for r in self.store.all("chat", 40) if r.get("mode", "friend") == self.mode]
+        except Exception:
+            return
+        for row in rows:
+            ident, log = row.get("thread"), row.get("log") or []
+            if not isinstance(ident, str) or not isinstance(log, list): continue
+            past = [{"role": "user" if m.get("role") == "you" else "assistant", "content": str(m.get("text", ""))} for m in log[-16:] if m.get("text")]
+            if ident == "main": self.history[:] = past
+            else: self.threads[ident] = past
+            self.transcripts[ident] = log
+            self.thread_titles[ident] = row.get("title") or ("Main chat" if ident == "main" else "Chat")
+
+    def _save_chat(self, ident):
+        try:
+            self.store.put("chat", {"thread": ident, "mode": self.mode, "title": self.thread_titles.get(ident, "Chat"), "log": self.transcripts.get(ident, [])},
+                           id=f"chat:{self.mode}:{ident}")
+        except Exception:
+            pass  # a chat that can't be saved still works for now
 
     def set_muted(self, value):
         if value: self.interrupt()
@@ -1035,6 +1059,7 @@ class Agent:
             raise ValueError("Choose a side chat.")
         for table in (self.threads, self.transcripts, self.thread_titles):
             table.pop(ident, None)
+        self.store.delete("chat", f"chat:{self.mode}:{ident}")
         return {"deleted": True}
 
     # -- things people ask for in so many words (rules, not the model) -------------
@@ -1539,6 +1564,7 @@ class Agent:
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified") if k in result}})
             del log[:-80]
+            self._save_chat(thread)
             return result
 
     def _chat_turn(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None, channel="local"):

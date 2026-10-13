@@ -129,3 +129,28 @@ class GreetingWithoutModelTests(unittest.TestCase):
                     self.assertNotIn("Model conversation is disabled", reply)
             finally:
                 store.close()
+
+
+class ChatsAreKeptTests(unittest.TestCase):
+    def test_side_chats_and_the_main_chat_are_still_there_after_a_restart(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(Path(folder) / "db", Path(folder) / "key")
+            try:
+                first = Agent(store=store, use_model=False)
+                first.chat("yo")
+                side = first.new_thread()
+                first.chat("ideas for a picnic on saturday", thread=side["id"])
+                again = Agent(store=store, use_model=False)
+                listed = {t["id"]: t for t in again.thread_list()}
+                self.assertEqual(listed[side["id"]]["title"], "ideas for a picnic on saturday")
+                self.assertEqual(listed[side["id"]]["messages"], 2)
+                self.assertEqual(again.transcripts["main"][0]["text"], "yo")
+                self.assertEqual(again.history[0], {"role": "user", "content": "yo"})
+                again.delete_thread(side["id"])
+                self.assertNotIn(side["id"], {t["id"] for t in Agent(store=store, use_model=False).thread_list()})
+            finally:
+                store.close()

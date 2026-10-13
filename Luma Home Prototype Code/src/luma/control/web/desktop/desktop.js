@@ -943,11 +943,19 @@
       hint.addEventListener("click", newChat);
       box.append(hint);
     }
+    // Newest first, grouped like ChatGPT: Today, Yesterday, Previous 7 days, Older.
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const day0 = midnight.getTime() / 1000;
+    const groupOf = (t) => !t.updated || t.updated >= day0 ? "Today" : t.updated >= day0 - 86400 ? "Yesterday" : t.updated >= day0 - 7 * 86400 ? "Previous 7 days" : "Older";
+    threads.sort((a, b) => (b.updated || Infinity) - (a.updated || Infinity));
+    let group = "";
     for (const t of threads) {
+      if (groupOf(t) !== group) { group = groupOf(t); box.append(el("div", "thread-group", group)); }
       const b = el("button", "thread-item" + (state.view === "chat" && state.thread === t.id ? " active" : ""));
       b.type = "button";
       b.dataset.id = t.id;
-      b.append(el("span", null, t.title));
+      b.append(el("span", null, t.title === "New chat" && !t.messages ? "New chat" : t.title));
+      b.title = t.title;
       const x = el("span", "x");
       x.append(icon("x"));
       x.title = "Delete chat";
@@ -1071,109 +1079,132 @@
 
   // -------------------------------------------------------------- feed ---
   function cardImage(c) { const i = (c.items || []).find((x) => safeImg(x.image) || safeImg(x.image_shot)); return i ? [i.image, i.image_shot] : null; }
+  // The feed reads like a real feed: one column of posts, newest first, each with its pictures
+  // and what you can do about it right there. Posts pop in as they arrive.
+  const FEED_TABS = [["all", "All"], ["deal", "Deals"], ["inbox", "Inbox"], ["feed", "Social"], ["today", "Your day"], ["update", "Updates"]];
+  let feedTab = "all";
+  const feedShown = new Set();
+  let readWatch = null;
   function renderFeed() {
     const list = $("feed-list");
     const cards = state.home?.cards || [];
     list.replaceChildren();
-    if (!state.feedSel || !cards.some((c) => c.id === state.feedSel)) state.feedSel = cards[0]?.id || null;
-    for (const c of cards) {
-      const meta = KIND[c.kind] || KIND.update;
-      const b = el("button", "fcard" + (c.id === state.feedSel ? " active" : ""));
-      b.type = "button";
-      const who = el("div", "who-row");
-      const g = el("div", "grow");
-      const src = el("div", "src");
-      if (!c.read) src.append(el("span", "unread-dot"));
-      src.append(document.createTextNode(meta.label));
-      g.append(src, el("div", "time", ago(c.created)));
-      const arrow = el("span", "arrow");
-      arrow.append(icon("external"));
-      who.append(chip(c.kind in KIND ? c.kind : "update", meta.icon, "face"), g, arrow);
-      b.append(who, el("div", "ttl", c.title));
-      const img = cardImage(c);
-      if (img) {
-        const pv = el("div", "preview");
-        pv.append(picture(img[0], "", img[1]));
-        if (c.items?.[0]?.price) pv.append(el("span", "price-chip", money(c.items[0].price) + " · " + c.items[0].store));
-        b.append(pv);
-      } else if (c.body) b.append(el("div", "snip", c.body));
-      b.addEventListener("click", () => { state.feedSel = c.id; renderFeed(); });
-      list.append(b);
+    const tabs = el("div", "feed-tabs");
+    for (const [k, label] of FEED_TABS) {
+      if (k !== "all" && !cards.some((c) => (k === "update" ? !["deal", "inbox", "feed", "today"].includes(c.kind) : c.kind === k))) continue;
+      tabs.append(btn(label, "feed-tab" + (feedTab === k ? " on" : ""), () => { feedTab = k; renderFeed(); }));
     }
-    if (!cards.length) list.append(el("p", "lede", "Nothing yet. Set up a goal and I'll leave what I find here."));
-    renderReader(cards.find((c) => c.id === state.feedSel));
+    list.append(tabs);
+    const shown = cards.filter((c) => feedTab === "all" || (feedTab === "update" ? !["deal", "inbox", "feed", "today"].includes(c.kind) : c.kind === feedTab));
+    readWatch?.disconnect();
+    readWatch = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const c = e.isIntersecting && cards.find((x) => x.id === e.target.dataset.id);
+        if (c && !c.read) { c.read = true; e.target.classList.remove("unread"); api("/api/cards/read", { id: c.id }).then(renderWidgets).catch(() => {}); }
+      }
+    }, { threshold: 0.6 }) : null;
+    let fresh = 0;
+    for (const c of shown) {
+      const post = feedPost(c);
+      if (!feedShown.has(c.id)) { post.classList.add("pop"); post.style.setProperty("--i", String(fresh++)); feedShown.add(c.id); }
+      list.append(post);
+      readWatch?.observe(post);
+    }
+    if (!cards.length) {
+      const e = el("div", "feed-empty");
+      e.append(orb(), el("h2", null, "Your feed"), el("p", null, "Deals I find, inbox catch-ups and what's new on your apps show up here, like a feed made just for you."));
+      e.append(btn("Set up a goal", "pill primary", () => go("goals"), "plus"));
+      list.append(e);
+    }
+    if (state.feedSel) {
+      const target = list.querySelector(`[data-id="${CSS.escape(state.feedSel)}"]`);
+      state.feedSel = null;
+      if (target) requestAnimationFrame(() => { target.scrollIntoView({ block: "center", behavior: "smooth" }); target.classList.add("flash"); });
+    }
   }
-  function renderReader(c) {
-    const r = $("reader");
-    r.replaceChildren();
-    if (!c) {
-      const e = el("div", "empty-reader");
-      e.append(bigAvatar(), el("h2", null, "Your feed"), el("p", null, "Deals I find, inbox summaries and catch-ups land here."));
-      e.append(btn("Set up a goal", "pill primary", () => go("goals")));
-      r.append(e);
-      return;
-    }
-    if (!c.read) api("/api/cards/read", { id: c.id }).then(() => { c.read = true; renderWidgets(); }).catch(() => {});
+  function feedPost(c) {
     const meta = KIND[c.kind] || KIND.update;
-    const top = el("div", "r-top");
-    top.append(btn("Remove", "", async () => { try { await api("/api/cards/delete", { id: c.id }); state.feedSel = null; await refreshHome(); renderFeed(); } catch (e) { toast(e.message); } }, "trash"));
-    top.append(el("span", null, new Date(c.created * 1000).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })));
-    const hero = el("div", "r-hero");
-    hero.append(chip(c.kind in KIND ? c.kind : "update", meta.icon, "face"), el("h1", null, c.title), el("div", "s", `${meta.label} · ${ago(c.created)}`));
-    const acts = el("div", "r-acts");
-    acts.append(btn("Ask Luma", "r-act", () => { go("chat"); $("input").value = `About “${c.title}”: `; resize(); $("input").focus(); }, "chat"));
-    if (safeUrl(c.url)) acts.append(linkOut("Open", c.url, "r-act", "external"));
-    const upB = btn("", "r-act icon-only" + (c.feedback === "up" ? " on" : ""), () => rate("up"), "up_t");
-    const downB = btn("", "r-act icon-only" + (c.feedback === "down" ? " on" : ""), () => rate("down"), "down_t");
-    upB.title = "Useful"; downB.title = "Not for me";
-    upB.setAttribute("aria-label", "Useful"); downB.setAttribute("aria-label", "Not for me");
-    acts.append(upB, downB);
-    const body = el("div", "r-body");
-    if (c.body) body.append(el("div", "r-text", c.body));
-    if (c.kind === "deal" && (c.items || []).length) {
-      const grid = el("div", "products");
-      c.items.forEach((o, i) => { if (o.url) state.offers.set(o.url, o); grid.append(productTile(o, i === 0)); });
-      body.append(grid);
+    const post = el("article", "post" + (c.read ? "" : " unread"));
+    post.dataset.id = c.id;
+    const head = el("header", "post-head");
+    const who = el("div", "grow");
+    const line = el("div", "who-line");
+    line.append(el("b", null, meta.label), el("span", "dot-sep", "·"), el("span", "time", ago(c.created)));
+    who.append(line);
+    const site = safeUrl(c.url) ? host(c.url) : "";
+    if (site) who.append(el("div", "where", site));
+    const remove = btn("", "icon-btn small", async () => {
+      post.classList.add("leaving");
+      try { await api("/api/cards/delete", { id: c.id }); setTimeout(async () => { await refreshHome(); renderFeed(); }, 220); } catch (e) { post.classList.remove("leaving"); toast(e.message); }
+    }, "x");
+    remove.setAttribute("aria-label", "Remove from feed");
+    remove.title = "Remove";
+    head.append(chip(c.kind in KIND ? c.kind : "update", meta.icon, "face"), who, remove);
+    post.append(head, el("h3", "post-title", c.title));
+    if (c.body) {
+      const text = el("p", "post-text", c.body);
+      post.append(text);
+      if (c.body.length > 340) {
+        text.classList.add("clamped");
+        const more = btn("more", "more-btn", () => { text.classList.toggle("clamped"); more.textContent = text.classList.contains("clamped") ? "more" : "less"; });
+        post.append(more);
+      }
     }
-    if (c.kind === "inbox" && (c.items || []).length) {
-      const rows = el("div", "rows");
-      for (const m of c.items) {
-        const row = el("div", "r");
+    if (c.kind === "deal" && (c.items || []).length) {
+      const strip = el("div", "post-products");
+      c.items.forEach((o, i) => { if (o.url) state.offers.set(o.url, o); strip.append(productTile(o, i === 0)); });
+      post.append(strip);
+    } else if (c.kind === "inbox" && (c.items || []).length) {
+      const rows = el("div", "post-mail");
+      for (const m of c.items.slice(0, 5)) {
+        const row = el("div", "mail-row");
         const g = el("div", "grow");
-        g.append(el("div", "t", `${m.from} · ${m.title}`), el("div", "s", m.snippet || ""));
+        g.append(el("div", "t", m.title), el("div", "s", `${String(m.from).replace(/<.*>/, "").trim()} · ${m.snippet || ""}`));
         row.append(face(m.from), g, btn("Reply", "pill quiet small", () => replyTo(m.from), "reply"));
         rows.append(row);
       }
-      body.append(rows);
+      post.append(rows);
+    } else {
+      const img = cardImage(c);
+      if (img) { const media = el("div", "post-media"); const pic = picture(img[0], "", img[1]); if (pic) { media.append(pic); post.append(media); } }
     }
-    if (safeUrl(c.url)) {
-      const at = el("div", "attach");
-      const a = linkOut("", c.url, "", "globe");
+    if (safeUrl(c.url) && c.kind !== "deal") {
+      const link = el("button", "post-link");
+      link.type = "button";
+      const mark = brandFor(site.split(".").slice(-2, -1)[0]);
+      link.append(mark ? brand(mark) : icon("globe"));
       const t = el("span");
-      t.append(document.createTextNode(host(c.url)), el("small", null, "Open the page"));
-      a.append(t);
-      at.append(a);
-      body.append(at);
+      t.append(el("b", null, site), el("small", null, "Open in Luma's browser"));
+      link.append(t, icon("external"));
+      link.addEventListener("click", () => openInLuma(c.url));
+      post.append(link);
     }
-    const reply = el("form", "r-reply");
-    const note = el("input");
-    note.placeholder = "Tell Luma what you'd rather see…";
-    note.maxLength = 300;
-    const sendB = el("button", "send");
-    sendB.type = "submit";
-    sendB.setAttribute("aria-label", "Teach Luma");
-    sendB.append(icon("up"));
-    reply.append(note, sendB);
-    reply.addEventListener("submit", (e) => { e.preventDefault(); if (note.value.trim()) rate(c.feedback || "down", note.value); });
-    r.append(top, hero, acts, body, reply);
-    async function rate(value, text) {
+    const foot = el("footer", "post-foot");
+    foot.append(btn("Ask Luma", "post-act", () => { go("chat"); $("input").value = `About “${c.title}”: `; resize(); $("input").focus(); }, "chat"));
+    const up = btn("", "post-act" + (c.feedback === "up" ? " on" : ""), () => rate("up"), "up_t");
+    const down = btn("", "post-act" + (c.feedback === "down" ? " on" : ""), () => rate("down"), "down_t");
+    up.title = "More like this"; down.title = "Less like this";
+    up.setAttribute("aria-label", up.title); down.setAttribute("aria-label", down.title);
+    foot.append(el("span", "grow"), up, down);
+    post.append(foot);
+    async function rate(value) {
       try {
-        const res = await api("/api/feedback", { id: c.id, value, note: text || "" });
+        const res = await api("/api/feedback", { id: c.id, value, note: "" });
         c.feedback = value;
-        toast(res.summary);
-        renderReader(c);
+        up.classList.toggle("on", value === "up"); down.classList.toggle("on", value === "down");
+        if (value === "down" && !post.querySelector(".teach")) {
+          const f = el("form", "teach");
+          const note = el("input");
+          Object.assign(note, { placeholder: "What would you rather see?", maxLength: 300 });
+          f.append(note, btn("Tell Luma", "pill soft small"));
+          f.lastChild.type = "submit";
+          f.addEventListener("submit", async (e) => { e.preventDefault(); if (!note.value.trim()) return; try { const r2 = await api("/api/feedback", { id: c.id, value: "down", note: note.value }); toast(r2.summary); f.remove(); } catch (err) { toast(err.message); } });
+          post.append(f);
+          note.focus();
+        } else toast(res.summary);
       } catch (e) { toast(e.message); }
     }
+    return post;
   }
 
   // ------------------------------------------------------------- ideas ---
