@@ -148,9 +148,10 @@ class BrowserSession:
                         if playwright is None:
                             playwright = sync_playwright().start()
                         os.makedirs(self.profile_dir, mode=0o700, exist_ok=True)
-                        options = {"headless": self.headless, "viewport": {"width": 1100, "height": 800},
-                                   "user_agent": None, "locale": "en-US"}
-                        options = {k: v for k, v in options.items() if v is not None}
+                        options = {"headless": self.headless, "viewport": {"width": 1280, "height": 800},
+                                   "device_scale_factor": 2, "locale": "en-US",
+                                   "user_agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                                                  "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")}
                         if self.executable: options["executable_path"] = self.executable
                         # No "controlled by automated test software" bar when the owner sees this window.
                         options["ignore_default_args"] = ["--enable-automation"]
@@ -269,11 +270,21 @@ class BrowserSession:
         image = page.screenshot(type="jpeg", quality=55, full_page=False)
         return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
 
-    def _do_frame(self, page):
+    def _do_frame(self, page, have=None):
         if page.url in {"", "about:blank"}:
             return None
-        image = page.screenshot(type="jpeg", quality=62, full_page=False, timeout=8000)
-        return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
+        import hashlib
+        image = page.screenshot(type="jpeg", quality=82, full_page=False, timeout=8000)
+        digest = hashlib.sha1(image).hexdigest()[:16]
+        secure = page.url.startswith("https://")
+        try:
+            host = urllib.parse.urlsplit(page.url).hostname or ""
+        except ValueError:
+            host = ""
+        base = {"url": page.url, "title": page.title()[:200], "secure": secure, "host": host, "hash": digest}
+        if have == digest:  # nothing changed on the page, so don't resend the picture
+            return {**base, "same": True}
+        return {**base, "jpeg_base64": base64.b64encode(image).decode()}
 
     def _do_focused(self, page):
         return page.evaluate(DESCRIBE_JS, [None, None])
@@ -387,7 +398,7 @@ class BrowserSession:
     def products(self): return self._call("products")
     def pictures(self, ids): return self._call("pictures", list(ids))
     def search_results(self): return self._call("search_results")
-    def frame(self): return self._call("frame", timeout=20)
+    def frame(self, have=None): return self._call("frame", have, timeout=20)
     def focused(self): return self._call("focused")
     def drive(self, kind, data=None): return self._call("drive", str(kind), dict(data or {}), timeout=30)
     def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)

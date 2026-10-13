@@ -38,6 +38,7 @@
     copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
     external: '<path d="M7 17 17 7M9 7h8v8"/>',
     left: '<path d="m14.5 5.5-6.5 6.5 6.5 6.5"/>',
+    unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
     right: '<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/>',
     popout: '<rect x="3.5" y="5.5" width="13" height="13" rx="3"/><path d="M13 3.5h7.5V11M20.5 3.5 12 12"/>',
     image: '<rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/>',
@@ -1769,11 +1770,12 @@
   // ------------------------------------------------------------ browser ---
   // Luma's own browser, live inside the window: the same one Luma uses, signed in as you.
   // You can click, scroll and type on it; Luma steps back while you drive.
-  const browserView = { url: "", busy: 0, fast: 0, timer: null, typed: "", typing: null, queue: Promise.resolve() };
+  const browserView = { url: "", hash: null, busy: 0, fast: 0, timer: null, typed: "", typing: null, queue: Promise.resolve() };
   async function openInLuma(href) {
     go("browser");
     $("b-url").value = href;
     browserLoading(true);
+    browserView.hash = null;
     try { const r = await api("/api/browser/go", { url: href }); browserView.url = r.url || href; if (typeof r.steps === "number") teachUI(r.steps); }
     catch (e) {
       toast(/turn|browser is off|isn't on/i.test(e.message) ? "Turn on Luma's browser in Apps first." : e.message);
@@ -1790,19 +1792,31 @@
     if (soon) browserView.fast = Date.now() + 2500;
     if (state.view !== "browser" || document.hidden) return;
     try {
-      const d = await api("/api/browser/frame");
+      // Pass the last picture's fingerprint: if the page hasn't changed, Luma skips resending it.
+      const d = await api("/api/browser/frame" + (browserView.hash ? "?have=" + encodeURIComponent(browserView.hash) : ""));
       const f = d.frame;
       $("b-img").hidden = !f;
       $("b-empty").hidden = Boolean(f);
       if (f) {
-        $("b-img").src = "data:image/jpeg;base64," + f.jpeg_base64;
-        $("b-img").alt = f.title ? "Page: " + f.title : "The page";
+        if (!f.same && f.jpeg_base64) { $("b-img").src = "data:image/jpeg;base64," + f.jpeg_base64; $("b-img").alt = f.title ? "Page: " + f.title : "The page"; }
+        browserView.hash = f.hash;
         browserView.url = f.url;
         if (document.activeElement !== $("b-url")) $("b-url").value = f.url;
         $("b-out").disabled = !safeUrl(f.url);
-      }
+        secureUI(f.secure, f.host);
+      } else { browserView.hash = null; }
     } catch (_) { /* Luma restarting; try again shortly */ }
-    if (state.view === "browser") browserView.timer = setTimeout(browserFrame, Date.now() < browserView.fast ? 160 : 900);
+    // Smooth while you're interacting, easy on the computer when the page is still.
+    const idle = Date.now() >= browserView.fast;
+    if (state.view === "browser") browserView.timer = setTimeout(browserFrame, idle ? 700 : 120);
+  }
+  // An honest padlock: green when the page itself is on a secure (https) connection.
+  function secureUI(secure, host) {
+    const lock = $("b-lock");
+    lock.replaceChildren(icon(secure ? "lock" : "unlock"));
+    lock.classList.toggle("secure", Boolean(secure));
+    lock.classList.toggle("insecure", host && !secure);
+    lock.title = !host ? "" : secure ? `Secure connection to ${host}` : `Not a secure connection — don't type anything private on ${host}`;
   }
   // Inputs go one after another, so a click lands before the typing that follows it.
   function drive(kind, data = {}) {
@@ -1876,10 +1890,12 @@
   $("b-forward").addEventListener("click", () => drive("forward"));
   $("b-reload").addEventListener("click", () => drive("reload"));
   $("b-out").addEventListener("click", () => { if (safeUrl(browserView.url)) window.open(browserView.url, "_blank", "noopener"); });
-  $("b-popout").addEventListener("click", async () => {
-    try { await api("/api/browser/show", { url: browserView.url || "https://duckduckgo.com/" }); toast("Luma's browser is in its own window now. Sign in there; Luma never sees your password."); }
+  async function signInWindow() {
+    try { await api("/api/browser/show", { url: browserView.url || "https://accounts.google.com/" }); toast("Opened a real browser window. Sign in there (to Google or anywhere) — Luma never sees your password — then come back."); }
     catch (e) { toast(e.message); }
-  });
+  }
+  $("b-popout").addEventListener("click", signInWindow);
+  $("b-signin")?.addEventListener("click", signInWindow);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.view === "browser") browserFrame(true); });
 
   // Teach: do a task once while Luma watches, then Luma can do it again whenever you ask.

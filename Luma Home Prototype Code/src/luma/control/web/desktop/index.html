@@ -78,7 +78,7 @@
             <button class="icon-btn" id="b-back" type="button" aria-label="Back" title="Back" data-icon="left"></button>
             <button class="icon-btn" id="b-forward" type="button" aria-label="Forward" title="Forward" data-icon="right"></button>
             <button class="icon-btn" id="b-reload" type="button" aria-label="Reload" title="Reload" data-icon="refresh"></button>
-            <form class="b-url" id="b-url-form" autocomplete="off"><span class="b-lock" data-icon="lock"></span><input id="b-url" placeholder="Search or type a web address" spellcheck="false" aria-label="Web address" /></form>
+            <form class="b-url" id="b-url-form" autocomplete="off"><span class="b-lock" id="b-lock" data-icon="lock"></span><input id="b-url" placeholder="Search or type a web address" spellcheck="false" aria-label="Web address" /></form>
             <span class="b-who" id="b-who"><i></i>You're driving</span>
             <button class="pill primary small" id="b-done" type="button" hidden data-icon="check">Done</button>
             <button class="pill soft small" id="b-teach" type="button" title="Show Luma a task once and it can do it again" data-icon="hand">Teach</button>
@@ -95,6 +95,7 @@
               <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
               <h2>Luma's browser</h2>
               <p>It's signed in as you, right here in Luma. Search or type an address above, or tap a link in the chat. You can click, scroll and type on the page.</p>
+              <button class="pill soft small" id="b-signin" type="button" data-icon="external">Sign in to Google in a real window</button>
             </div>
             <div class="b-loading" id="b-loading" hidden><span></span></div>
           </div>

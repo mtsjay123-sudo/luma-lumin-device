@@ -13,7 +13,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import parse_qs, quote_plus, urlsplit
 from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
 from luma.integrations.phone_app import PhoneApp
 
@@ -229,7 +229,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 # What Luma's browser shows right now, for the browser view in Luma's window.
                 if companion or agent.mode=='kids': return self.send({'error':'Open the browser on the Mac.'},403)
                 if not agent.integration_on('browser') or not agent.browser: return self.send({'frame':None})
-                try: return self.send({'frame':agent.browser.frame()})
+                have=parse_qs(urlsplit(self.path).query).get('have',[None])[0]
+                try: return self.send({'frame':agent.browser.frame(have)})
                 except Exception as error: return self.send({'frame':None,'error':str(error)[:200]})
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
