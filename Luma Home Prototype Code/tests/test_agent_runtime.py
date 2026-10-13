@@ -116,6 +116,22 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(e.exception.code,400)
         with self.request('/api/profile',{'name':'Sam'}) as r:self.assertEqual(json.load(r)['profile']['name'],'Sam')
         with self.request('/api/photo',{'photo':''}) as r:self.assertEqual(json.load(r)['photo'],'')
+    def test_talking_in_the_window_turns_speech_into_text_locally(self):
+        import sys, types
+        heard=[]
+        fake=types.ModuleType('luma.audio.stt')
+        fake.transcribe_clip=lambda data,suffix: heard.append((len(data),suffix)) or 'what is on my calendar today'
+        old=sys.modules.get('luma.audio.stt');sys.modules['luma.audio.stt']=fake
+        try:
+            req=urllib.request.Request(self.base+'/api/listen',data=b'\x1aE\xdf\xa3'+b'0'*5000,headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'audio/webm;codecs=opus'})
+            with urllib.request.urlopen(req) as r:self.assertEqual(json.load(r)['text'],'what is on my calendar today')
+            self.assertEqual(heard,[(5004,'.webm')])
+            req=urllib.request.Request(self.base+'/api/listen',data=b'x'*10,headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'text/plain'})
+            with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(req)
+            self.assertEqual(e.exception.code,415)
+        finally:
+            if old is None: sys.modules.pop('luma.audio.stt',None)
+            else: sys.modules['luma.audio.stt']=old
     def test_control_persists_memory_and_blocks_cross_origin(self):
         with self.request('/api/chat',{'text':'remember I like tea'}) as r:self.assertEqual(r.status,200)
         with self.request('/api/state') as r:self.assertEqual(json.load(r)['memories'][0]['text'],'I like tea')

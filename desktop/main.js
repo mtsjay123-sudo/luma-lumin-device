@@ -71,7 +71,8 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
   const log = fs.openSync(path.join(app.getPath("userData"), "luma-runtime.log"), "a");
   runtime = spawn(python, ["-m", "luma.cli", "serve", "--port", String(PORT)], {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
-    cwd: dir, env: { ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
+    cwd: dir, env: { ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });

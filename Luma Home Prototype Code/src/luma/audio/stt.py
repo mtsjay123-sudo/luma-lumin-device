@@ -13,8 +13,37 @@ _MIN_AUDIO_BYTES = 1000
 def _get_model() -> WhisperModel:
     global _model
     if _model is None:
-        _model = WhisperModel(WHISPER_MODEL_SIZE, device=os.environ.get("LUMA_WHISPER_DEVICE", "cpu"), compute_type=os.environ.get("LUMA_WHISPER_COMPUTE_TYPE", "int8"), local_files_only=True)
+        # The desktop app may fetch the speech model once (about 150 MB); the device ships with it.
+        download = os.environ.get("LUMA_WHISPER_DOWNLOAD") == "1"
+        _model = WhisperModel(WHISPER_MODEL_SIZE, device=os.environ.get("LUMA_WHISPER_DEVICE", "cpu"), compute_type=os.environ.get("LUMA_WHISPER_COMPUTE_TYPE", "int8"), local_files_only=not download)
     return _model
+
+
+# What Whisper tends to "hear" in silence. Alone, these are noise, not you.
+_PHANTOMS = {"", "you", "thank you", "thanks for watching", "thank you for watching", "bye", "okay", "so"}
+
+
+def transcribe_clip(data: bytes, suffix: str = ".webm") -> str:
+    """Text from a short recording made in Luma's window. Nothing leaves this computer."""
+    import tempfile
+    if len(data) < _MIN_AUDIO_BYTES:
+        return ""
+    with tempfile.TemporaryDirectory(prefix="luma-voice-") as folder:
+        path = os.path.join(folder, "clip" + suffix)
+        with open(path, "wb") as handle:
+            handle.write(data)
+        segments, _info = _get_model().transcribe(path, beam_size=3, language="en", vad_filter=True,
+                                                  condition_on_previous_text=False)
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+    return "" if text.lower().strip(" .!?,") in _PHANTOMS else text
+
+
+def warm_up():
+    """Load (and on the desktop, fetch once) the speech model in the background."""
+    try:
+        _get_model()
+    except Exception as error:
+        print(f"[stt] not ready yet: {error}", flush=True)
 
 
 def transcribe(audio_path: str) -> str:

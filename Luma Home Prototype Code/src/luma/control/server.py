@@ -1,6 +1,7 @@
 """Local owner controls and an opt-in, paired HTTPS phone companion."""
 from __future__ import annotations
 import base64
+import os
 import json
 import secrets
 import ssl
@@ -252,6 +253,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             driving = path=='/api/browser/drive'
             bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('request',90)
             if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            if path=='/api/listen':
+                # A short recording from Luma's window becomes text, right here on this computer.
+                if companion: return self.send({'error':'Talk to Luma on the Mac, or in the Luma phone app.'},403)
+                kinds={'audio/webm':'.webm','audio/ogg':'.ogg','audio/wav':'.wav','audio/mp4':'.m4a'}
+                kind=self.headers.get('Content-Type','').split(';')[0].strip()
+                if kind not in kinds: return self.send({'error':'Send audio.'},415)
+                size=int(self.headers.get('Content-Length','0') or 0)
+                if not 0<size<=8_000_000: return self.send({'error':'That recording is too long. Keep it under a minute.'},413)
+                clip=self.rfile.read(size)
+                try:
+                    from luma.audio.stt import transcribe_clip
+                except ImportError:
+                    return self.send({'error':"Luma's ears aren't installed yet. Restart Luma to finish setting up voice."},503)
+                try: return self.send({'text':transcribe_clip(clip,kinds[kind])})
+                except Exception as error: return self.send({'error':"I couldn't make out that recording. "+str(error)[:160]},500)
             if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:
                 size = int(self.headers.get('Content-Length','0'))
@@ -538,6 +554,14 @@ def serve(agent,port,phone_host=None,phone_port=8096):
             # The desktop app installs Luma without voice; typing still works.
             print(f'LUMA voice is off ({error.name or error} is not installed). Install the voice extras to talk out loud.',flush=True)
     threading.Thread(target=hands_free,daemon=True).start()
+    def ears():
+        # The desktop app gets Luma's speech model ready in the background, so the mic is quick the first time.
+        try:
+            from luma.audio.stt import warm_up
+            warm_up()
+        except ImportError:
+            pass
+    if os.environ.get('LUMA_WHISPER_DOWNLOAD')=='1': threading.Thread(target=ears,daemon=True,name='luma-ears').start()
     import signal
     previous_signals = {}
     def stop_on_signal(signum, frame):

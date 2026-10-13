@@ -851,7 +851,7 @@
   }
 
   // ------------------------------------------------------------- talk ---
-  async function send(text) {
+  async function send(text, opts = {}) {
     text = String(text || "").trim();
     if (!text || state.busy) return;
     if (state.view !== "chat") go("chat");
@@ -874,6 +874,9 @@
       else if (r.file || r.helper || r.state === "succeeded" || r.task) mood("happy", "Done", 3500);
       else mood("idle", "Here with you");
       if (r.open === "apps") setTimeout(() => go("apps"), 900);
+      // You talked, so Luma talks back. In talk mode it listens again when it's done.
+      if (opts.voice && speakAloud && r.text) speak(r.text, () => { if (voice.talkMode && r.state !== "pending") startListening(); });
+      else if (opts.voice && voice.talkMode && r.state !== "pending") startListening();
     } catch (e) {
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
       pushLocal(thread, { role: "you", text });
@@ -1630,7 +1633,8 @@
     for (const [v, label] of options) scenes.append(btn(label, scene === v ? "on" : "", () => { if (v === "photo") bgPick.click(); else { setScene(v); renderSettings(); } }));
     bg.append(bgg, scenes, bgPick);
     box.append(bg);
-    box.append(toggleRow("Listen for “Hey Luma”", "Talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
+    box.append(toggleRow("Talk back out loud", "When you talk to Luma with the mic, it answers out loud and keeps listening, back and forth.", speakAloud, (on) => { speakAloud = on; try { localStorage.setItem("luma-speak", on ? "1" : "0"); } catch (_) { /* private */ } if (on) speak("Hey, this is how I sound."); }));
+    if (!document.documentElement.classList.contains("in-app")) box.append(toggleRow("Listen for “Hey Luma”", "On the Luma device: talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
     box.append(toggleRow("Remember things I mention", "Small facts (your sister's birthday, your coffee order), encrypted on this computer.", s.presence?.learn_from_chat !== false, (on) => api("/api/setting", { key: "learn_from_chat", value: on })));
     box.append(toggleRow("Check back on things", "“How did the interview go?” the day after.", s.presence?.check_ins !== false, (on) => api("/api/setting", { key: "check_ins", value: on })));
     box.append(toggleRow("Morning briefing", "Your day, every morning.", s.daily_briefing_enabled, (on) => api("/api/setting", { key: "daily_briefing_enabled", value: on })));
@@ -1861,7 +1865,7 @@
       const approvalsNow = (h.approvals || []).map((a) => a.id).join(",");
       if (approvalsNow !== state.approvalsKey) { state.approvalsKey = approvalsNow; if (state.view === "chat" && !state.busy && !document.activeElement?.closest?.(".checkout")) renderChat(); }
       if ($("mascot").classList.contains("sleepy") && !state.busy) mood("idle", "Here with you");
-      $("mic").classList.toggle("on", Boolean(h.status && !h.status.microphone_muted));
+
       return h;
     } catch (_) {
       if (!state.busy) mood("sleepy", "Can't reach Luma. Is it running?");
@@ -1906,13 +1910,139 @@
     input.value = "";
     send(text);
   });
-  $("mic").addEventListener("click", async () => {
-    const on = !$("mic").classList.contains("on");
+  // ------------------------------------------------------------- voice ---
+  // Tap the mic and talk. Your words become text on this computer (nothing goes to the cloud),
+  // Luma answers out loud, and in talk mode it listens again, back and forth, until you stop.
+  const voice = { rec: null, chunks: [], stream: null, audio: null, raf: 0, heard: false, cancelled: false, talkMode: false };
+  let speakAloud = true;
+  try { speakAloud = localStorage.getItem("luma-speak") !== "0"; } catch (_) { /* private window */ }
+  function bestVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    const score = (v) => (/premium|enhanced|natural|neural|siri/i.test(v.name) ? 40 : 0) + (/samantha|ava|zoe|allison|aria|jenny|serena|karen|moira|evan|nathan/i.test(v.name) ? 20 : 0)
+      + (/^en[-_]US/i.test(v.lang) ? 10 : 0) + (v.localService ? 5 : 0);
+    return speechSynthesis.getVoices().filter((v) => /^en[-_]/i.test(v.lang)).sort((a, b) => score(b) - score(a))[0] || null;
+  }
+  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => bestVoice();
+  function speak(text, then) {
+    if (!("speechSynthesis" in window) || !text) { then?.(); return; }
+    speechSynthesis.cancel();
+    const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1400);
+    // Sentence by sentence: long single utterances can stall, and this sounds more natural.
+    const parts = clean.match(/[^.!?]+[.!?]*\s*/g) || [clean];
+    const v = bestVoice();
+    document.body.classList.add("speaking");
+    mood("happy", "Talking");
+    let i = 0;
+    const next = () => {
+      if (i >= parts.length) { document.body.classList.remove("speaking"); mood("idle", "Here with you"); then?.(); return; }
+      const u = new SpeechSynthesisUtterance(parts[i++].trim());
+      if (v) u.voice = v;
+      u.rate = 1.04;
+      u.onend = next;
+      u.onerror = (e) => { if (e.error !== "interrupted" && e.error !== "canceled") next(); else document.body.classList.remove("speaking"); };
+      speechSynthesis.speak(u);
+    };
+    next();
+  }
+  function hush() { if ("speechSynthesis" in window) speechSynthesis.cancel(); document.body.classList.remove("speaking"); }
+  async function startListening() {
+    if (voice.rec || voice.starting) return;
+    voice.starting = true;
+    hush();
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { voice.starting = false; toast("This window can't use a microphone."); return; }
+    try { voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (_) { voice.starting = false; toast("Luma can't hear you yet. Allow the microphone for Luma in your computer's settings."); stopTalkMode(); return; }
+    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+    voice.rec = new MediaRecorder(voice.stream, type ? { mimeType: type } : {});
+    voice.chunks = []; voice.heard = false; voice.cancelled = false;
+    voice.rec.ondataavailable = (e) => { if (e.data.size) voice.chunks.push(e.data); };
+    voice.rec.onstop = finishListening;
+    voice.rec.start(250);
+    voice.starting = false;
+    document.body.classList.add("listening");
+    $("mic").classList.add("on");
+    $("input").placeholder = "Listening… just talk";
+    mood("waiting", "Listening");
+    watchLevel();
+  }
+  // Stop by itself after you finish a sentence, like talking to a person.
+  function watchLevel() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    voice.audio = new AC();
+    const src = voice.audio.createMediaStreamSource(voice.stream);
+    const an = voice.audio.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    const started = performance.now();
+    let quietSince = performance.now();
+    const tick = () => {
+      if (!voice.rec) return;
+      an.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (const x of buf) sum += x * x;
+      const level = Math.sqrt(sum / buf.length);
+      document.documentElement.style.setProperty("--level", Math.min(1, level * 14).toFixed(3));
+      const now = performance.now();
+      if (level > 0.018) { voice.heard = true; quietSince = now; }
+      if ((voice.heard && now - quietSince > 1400) || (!voice.heard && now - started > 8000) || now - started > 45000) { stopListening(!voice.heard); return; }
+      voice.raf = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  function stopListening(cancel = false) {
+    if (!voice.rec) return;
+    voice.cancelled = cancel;
+    try { voice.rec.stop(); } catch (_) { finishListening(); }
+  }
+  function releaseMic() {
+    cancelAnimationFrame(voice.raf);
+    voice.stream?.getTracks().forEach((t) => t.stop());
+    voice.audio?.close().catch(() => {});
+    voice.stream = voice.audio = null;
+    document.body.classList.remove("listening");
+    document.documentElement.style.removeProperty("--level");
+    $("mic").classList.toggle("on", voice.talkMode);
+    $("input").placeholder = "Ask Luma anything";
+  }
+  async function finishListening() {
+    const rec = voice.rec;
+    voice.rec = null;
+    releaseMic();
+    if (!rec) return;
+    if (voice.cancelled || !voice.chunks.length) {
+      mood("idle", "Here with you");
+      if (!voice.heard) stopTalkMode();
+      return;
+    }
+    const kind = (rec.mimeType || "audio/webm").split(";")[0];
+    const blob = new Blob(voice.chunks, { type: kind });
+    mood("thinking", "Hearing you");
     try {
-      await api("/api/setting", { key: "muted", value: !on });
-      $("mic").classList.toggle("on", on);
-      toast(on ? "Listening. Say “Hey Luma”." : "Microphone off.");
-    } catch (e) { toast(e.message); }
+      const r = await fetch("/api/listen", { method: "POST", headers: { "Content-Type": kind }, body: blob });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "I couldn't hear that.");
+      if (!d.text) { mood("idle", "Here with you"); toast("I didn't catch that. Try again?"); if (voice.talkMode) startListening(); return; }
+      send(d.text, { voice: true });
+    } catch (e) { mood("idle", "Here with you"); toast(e.message); stopTalkMode(); }
+  }
+  function stopTalkMode() { voice.talkMode = false; $("mic").classList.remove("on"); }
+  // Tap the mic and just talk: Luma answers out loud and listens again, back and forth.
+  // Tap again when you're done, or stay quiet for a few seconds and it stops by itself.
+  $("mic").addEventListener("click", () => {
+    if (voice.starting) return;
+    if (voice.rec) { const said = voice.heard; if (!said) stopTalkMode(); stopListening(!said); return; }
+    if (document.body.classList.contains("speaking")) hush();
+    if (state.busy) return;
+    voice.talkMode = true;
+    try { if (!localStorage.getItem("luma-talked")) { localStorage.setItem("luma-talked", "1"); toast("I'm listening. Talk to me and I'll answer out loud. Go quiet to stop."); } } catch (_) { /* private */ }
+    startListening();
+  });
+  document.addEventListener("keydown", (e) => {
+    // ⌘/Ctrl + Shift + Space starts talking from anywhere in the window.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Space") { e.preventDefault(); $("mic").click(); }
+    if (e.key === "Escape" && (voice.rec || document.body.classList.contains("speaking"))) { stopTalkMode(); stopListening(true); hush(); }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (!$("palette").hidden) closePalette(); else if (!$("sheet").hidden) closeSheet(); }
