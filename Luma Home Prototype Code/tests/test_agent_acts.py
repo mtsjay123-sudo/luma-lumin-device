@@ -384,3 +384,67 @@ class VisionTests(unittest.TestCase):
         self.assertIn("golden retriever", out["text"])
         self.assertEqual(self.agent.transcripts["main"][-1]["text"], "A golden retriever on a beach at sunset.")
         self.assertIn("photo", self.agent.transcripts["main"][-2]["text"])
+
+
+class EvolvingMindTests(unittest.TestCase):
+    """The corrector that fixes its own guess, and the reflection that rewires who Luma is."""
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.temp = tempfile.TemporaryDirectory()
+        from luma.memory.store import Store
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def _agent(self, planner):
+        from luma.agent.runtime import Agent
+        return Agent(store=self.store, use_model=True, planner=planner, now=lambda: 1791900000)
+
+    def test_the_corrector_takes_a_second_look_on_a_meaningful_turn(self):
+        seen = []
+        def planner(history, memories, tools, mode):
+            last = history[-1]["content"]
+            seen.append(last)
+            if "Check your own draft" in last:
+                return {"type": "reply", "text": "Honestly, I'm not sure — here's how I'd think about it."}
+            return {"type": "reply", "text": "You should definitely quit today, guaranteed it'll work out."}
+        agent = self._agent(planner)
+        out = agent.chat("should I quit my job?")
+        self.assertEqual(out["text"], "Honestly, I'm not sure — here's how I'd think about it.")
+        self.assertTrue(any("Check your own draft" in c for c in seen))
+
+    def test_the_corrector_is_skipped_on_a_trivial_turn(self):
+        calls = []
+        def planner(history, memories, tools, mode):
+            calls.append(history[-1]["content"])
+            return {"type": "reply", "text": "Sure thing."}
+        agent = self._agent(planner)
+        agent.chat("what's 2 plus 2")
+        self.assertFalse(any("Check your own draft" in c for c in calls))
+
+    def test_reflection_rewires_the_self_model_and_it_reaches_context(self):
+        def planner(history, memories, tools, mode):
+            if "Rewrite your sense of yourself" in history[-1]["content"]:
+                return {"type": "reply", "text": "I'm Xiena's Luma. She's building a startup and needs me direct and quick. I've learned she hates fluff."}
+            return {"type": "reply", "text": "ok"}
+        agent = self._agent(planner)
+        agent.transcripts["main"] = [{"role": "you", "text": "stop being so wordy", "at": 1}, {"role": "luma", "text": "got it", "at": 2}]
+        grown = agent.reflect_self()
+        self.assertIn("hates fluff", grown)
+        seen = agent._mind_context("what should I focus on")
+        self.assertTrue(any("hates fluff" in c["text"] for c in seen if c.get("mind")))
+
+    def test_deep_mind_can_be_turned_off_for_speed(self):
+        calls = []
+        def planner(history, memories, tools, mode):
+            calls.append(history[-1]["content"])
+            return {"type": "reply", "text": "A plain answer."}
+        agent = self._agent(planner)
+        agent.store.set_setting("deep_mind", False)
+        agent.store.set_setting("think_first", False)
+        out = agent.chat("should I move to Austin?")
+        self.assertEqual(out["text"], "A plain answer.")
+        self.assertFalse(any("Check your own draft" in c for c in calls))

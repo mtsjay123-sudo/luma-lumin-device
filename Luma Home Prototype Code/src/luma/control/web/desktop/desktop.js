@@ -353,6 +353,12 @@
       const row = el("div", "msg " + (m.role === "you" ? "you" : "luma") + (state.shown.has(key) ? " seen" : ""));
       state.shown.add(key);
       if (m.photo) { const fig = el("div", "photo-bubble"); const im = el("img"); im.src = m.photo; im.alt = "Photo you shared"; fig.append(im); row.append(fig); }
+      if (m.result && m.result.thinking && m.result.thinking.length && state.home?.status?.show_thoughts) {
+        const t = el("div", "thought-trace");
+        t.append(orb("small"));
+        t.append(el("span", null, "Thought it through: " + m.result.thinking.join(" → ")));
+        row.append(t);
+      }
       if (m.text) row.append(el("div", "bubble", m.text));
       if (m.role !== "you") {
         const extra = m.result ? rich(m.result) : null;
@@ -1711,6 +1717,8 @@
     au.append(aug, btn(done ? "Edit" : "Set it up", "pill " + (done ? "soft" : "primary") + " small", () => aboutSheet(), "people"));
     box.append(au);
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
+    box.append(toggleRow("Deeper mind", "Luma takes a second look at its own answer and fixes anything it's unsure of or made up. A little slower, a lot sharper.", s.deep_mind !== false, (on) => api("/api/setting", { key: "deep_mind", value: on })));
+    box.append(toggleRow("Show me its thinking", "When Luma thinks something through, show the steps it took, so you can see how it got there.", s.show_thoughts === true, (on) => api("/api/setting", { key: "show_thoughts", value: on })));
 
     const look = el("div", "item");
     const lg = el("div", "grow");

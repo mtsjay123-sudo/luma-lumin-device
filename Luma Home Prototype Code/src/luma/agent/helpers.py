@@ -22,6 +22,7 @@ KINDS = {
     "goal": "Goal",
     "ideas": "Ideas",
     "news": "News",
+    "reflect": "Reflection",
 }
 FEED_KEEP = 200
 
@@ -125,6 +126,8 @@ class Helpers:
             title = title or "Ideas for me"
         elif kind == "news":
             title = title or "Read the news"
+        elif kind == "reflect":
+            title = title or "Reflect on us"
         now = self.agent.clock()
         row = {"kind": kind, "title": str(title)[:120], "params": params, "every": every, "at": at, "enabled": True, "system": system,
                "created": now, "last_run": None, "last_result": None, "last_error": None, "runs": 0, "history": [], "seen": [], "low": None}
@@ -157,6 +160,9 @@ class Helpers:
         # Read the news every few hours, so Luma knows what happened after its training.
         if not any(r.get("kind") == "news" for r in self.store.all("helper", 60)):
             self.create("news", every="every_6h", system=True, run_now=True)
+        # Every night, Luma reflects on its conversations and rewires its sense of itself.
+        if not any(r.get("kind") == "reflect" for r in self.store.all("helper", 60)):
+            self.create("reflect", every="daily", at="03:30", system=True, run_now=False)
 
     # -- running ---------------------------------------------------------------
     def due(self, now):
@@ -289,6 +295,11 @@ class Helpers:
         body = "\n".join(f"{p['source']}: {p['title']}" for p in picks)
         return {"card": {"kind": "update", "title": "Today's news", "body": body, "items": [], "url": picks[0]["url"] if picks else None},
                 "state": {"carded": today}}
+
+    def _run_reflect(self, row):
+        if self.agent.use_model:
+            self.agent.reflect_self()
+        return {}
 
     def _run_ideas(self, row):
         items = self.agent.model_ideas()

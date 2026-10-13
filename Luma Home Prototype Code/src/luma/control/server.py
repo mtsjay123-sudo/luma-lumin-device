@@ -367,6 +367,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
                     elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
+                    elif key in {'think_first','deep_mind','show_thoughts'} and type(value) is bool: agent.store.set_setting(key,value)
                     else: raise ValueError('Unsupported setting')
                     result={'ok':True}
                 elif path=='/api/timers/start': result=agent.propose('timers.start',data)

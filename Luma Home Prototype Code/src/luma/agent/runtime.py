@@ -403,7 +403,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self.store.setting("think_first",True), "deep_mind":self.store.setting("deep_mind",True), "show_thoughts":self.store.setting("show_thoughts",False), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -1224,6 +1224,7 @@ class Agent:
         if summary: out.append({"about": True, "text": summary})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
+        out.append({"mind": True, "text": mind.self_line(self.store.setting("self_model"))})
         if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
             try:
                 with self.lock:
@@ -1260,6 +1261,44 @@ class Agent:
         self.history.append({"role": "user", "content": "[I showed you a photo] " + (question or "")})
         self.history.append({"role": "assistant", "content": said})
         return {"text": said, "section": "vision"}
+
+    def correct(self, draft, text, cancel_event=None):
+        """A second look that catches a guess that's wrong, made up or too sure, and fixes it. The corrector layer."""
+        from luma.agent import mind
+        if not self.use_model or not isinstance(draft, str) or not draft.strip():
+            return draft
+        summary = mind.about_summary(self.about, self.profile.get("name") or "")
+        try:
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": mind.correct_prompt(draft, text, summary)}], [], {}, cancel_event or threading.Event())
+            fixed = out.get("text") if isinstance(out, dict) else None
+            if isinstance(fixed, str) and fixed.strip():
+                return fixed.strip()[:2000]
+        except Exception:
+            pass
+        return draft
+
+    def reflect_self(self, cancel_event=None):
+        """Rewrite Luma's sense of itself from its recent real conversations. The nightly rewiring."""
+        from luma.agent import mind
+        if not self.use_model:
+            return self.store.setting("self_model")
+        lines = []
+        for m in (self.transcripts.get("main") or [])[-24:]:
+            who = "Them" if m.get("role") == "you" else "Me"
+            if m.get("text"): lines.append(f"{who}: {m['text'][:160]}")
+        recent = "\n".join(lines[-20:])
+        notes = [m["text"][:200] for m in self.store.all("memory", 60) if m.get("source") == "feedback"][:6]
+        summary = mind.about_summary(self.about, self.profile.get("name") or "")
+        try:
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": mind.reflect_self_prompt(self.store.setting("self_model"), recent, "\n".join(notes), summary)}], [], {}, cancel_event or threading.Event())
+            grown = out.get("text") if isinstance(out, dict) else None
+            if isinstance(grown, str) and grown.strip():
+                self.store.set_setting("self_model", grown.strip()[:1200])
+        except Exception:
+            pass
+        return self.store.setting("self_model")
 
     def think_deep(self, text, cancel_event=None):
         """Several passes before answering: understand it, look at it three ways, check itself, then answer."""
@@ -1716,7 +1755,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2087,4 +2126,7 @@ class Agent:
                         return self.look_it_up(text, cancel_event)
                     except (ValueError, ProviderError) as error:
                         return {"text": str(error)}
+            from luma.agent.mind import MATTERS
+            if self.store.setting("deep_mind", True) and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
+                reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
             return {"text": reply[:2000]}
