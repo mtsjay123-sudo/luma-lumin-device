@@ -130,9 +130,12 @@ function createWindow() {
     minHeight: 560,
     title: "Luma",
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#161618" : "#fbfaf8",
+    // On a Mac the window is real glass: what's behind it shows through when you pick See-through.
+    ...(process.platform === "darwin"
+      ? { vibrancy: "under-window", visualEffectState: "active", backgroundColor: "#00000000" }
+      : { backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#eef0f6" }),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    trafficLightPosition: { x: 18, y: 18 },
+    trafficLightPosition: { x: 28, y: 28 },
     icon: path.join(__dirname, "build", "icon.png"),
     // backgroundThrottling off: Luma's page keeps checking in while hidden, so news still notifies you.
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },

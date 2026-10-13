@@ -43,6 +43,14 @@ PRESETS = [
      "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "{folder}"], "needs": "folder"},
     {"id": "github", "name": "GitHub", "about": "Issues, pull requests and code. Needs a GitHub personal access token.",
      "url": "https://api.githubcopilot.com/mcp/", "needs": "token"},
+    {"id": "huggingface", "name": "Hugging Face", "about": "Models, datasets, Spaces and papers. Needs a Hugging Face access token (huggingface.co/settings/tokens).",
+     "url": "https://huggingface.co/mcp", "needs": "token"},
+    {"id": "supabase", "name": "Supabase", "about": "Your Supabase projects, tables and logs, read-only. Needs a Supabase personal access token (supabase.com/dashboard/account/tokens).",
+     "url": "https://mcp.supabase.com/mcp?read_only=true", "needs": "token"},
+    {"id": "figma", "name": "Figma", "about": "Your open designs. In the Figma desktop app, switch to Dev Mode and turn on the desktop MCP server first.",
+     "url": "http://127.0.0.1:3845/mcp"},
+    {"id": "aws", "name": "AWS", "about": "Your AWS account through the AWS CLI's sign-in on this computer. Needs uv (astral.sh/uv) and AWS credentials set up.",
+     "command": "uvx", "args": ["awslabs.aws-api-mcp-server@latest"]},
     {"id": "memory", "name": "Notes graph", "about": "A local knowledge graph Luma can add to and search.",
      "command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
     {"id": "custom", "name": "Any MCP app", "about": "Paste the app's MCP address, or the command its docs give you."},
@@ -58,7 +66,8 @@ class StdioTransport:
     def __init__(self, command, args=(), env=None, cwd=None):
         exe = shutil.which(command) or command
         if not (os.path.isabs(exe) and os.path.exists(exe)):
-            hint = " Install Node.js from nodejs.org, then try again." if command in {"npx", "node"} else ""
+            hint = (" Install Node.js from nodejs.org, then try again." if command in {"npx", "node"}
+                    else " Install uv from astral.sh/uv, then try again." if command in {"uv", "uvx"} else "")
             raise ConnectorError(f"I couldn't find “{command}” on this computer.{hint}")
         keep = ("PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SYSTEMROOT", "SYSTEMDRIVE", "TEMP", "TMP", "LANG", "PROGRAMFILES")
         base = {k: os.environ[k] for k in keep if k in os.environ}

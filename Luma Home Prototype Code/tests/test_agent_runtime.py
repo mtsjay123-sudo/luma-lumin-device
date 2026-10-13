@@ -105,6 +105,17 @@ class ControlTests(unittest.TestCase):
     def request(self,path,data=None,headers=None):
         h={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'application/json',**(headers or {})};req=urllib.request.Request(self.base+path,data=None if data is None else json.dumps(data).encode(),headers=h)
         return urllib.request.urlopen(req)
+    def test_profile_photo_is_kept_small_and_served_back(self):
+        import base64, io
+        from PIL import Image
+        buf=io.BytesIO();Image.new('RGB',(64,64),(200,120,90)).save(buf,'JPEG');photo='data:image/jpeg;base64,'+base64.b64encode(buf.getvalue()).decode()
+        with self.request('/api/photo',{'photo':photo}) as r:self.assertTrue(json.load(r)['photo'])
+        with self.request('/api/photo') as r:self.assertEqual(r.read(),buf.getvalue())
+        with self.request('/api/home') as r:self.assertTrue(json.load(r)['profile']['photo'])
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/photo',{'photo':'data:image/png;base64,iVBORw0KGgo='})
+        self.assertEqual(e.exception.code,400)
+        with self.request('/api/profile',{'name':'Sam'}) as r:self.assertEqual(json.load(r)['profile']['name'],'Sam')
+        with self.request('/api/photo',{'photo':''}) as r:self.assertEqual(json.load(r)['photo'],'')
     def test_control_persists_memory_and_blocks_cross_origin(self):
         with self.request('/api/chat',{'text':'remember I like tea'}) as r:self.assertEqual(r.status,200)
         with self.request('/api/state') as r:self.assertEqual(json.load(r)['memories'][0]['text'],'I like tea')

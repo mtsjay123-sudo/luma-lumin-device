@@ -12,7 +12,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote_plus, urlsplit
 from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
 from luma.integrations.phone_app import PhoneApp
 
@@ -125,7 +125,7 @@ def home_payload(agent, owner=True):
             'apps': agent.connectors.list() if owner else [],
             'app_presets': agent.connectors.presets(),
         },
-        'profile': {'name': agent.profile.get('name') or ''},
+        'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or '')},
         'model': {'on': agent.use_model},
     }
 
@@ -216,6 +216,16 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 image=agent.activity.image()
                 if not image: return self.send({'error':'No picture yet'},404)
                 return self.send(image,kind='image/jpeg')
+            if path=='/api/photo':
+                photo=agent.store.setting('owner_photo','')
+                if not photo: return self.send({'error':'No photo yet'},404)
+                return self.send(base64.b64decode(photo),kind='image/jpeg')
+            if path=='/api/browser/frame':
+                # What Luma's browser shows right now, for the browser view in Luma's window.
+                if companion: return self.send({'error':'Open the browser on the Mac.'},403)
+                if not agent.integration_on('browser') or not agent.browser: return self.send({'frame':None})
+                try: return self.send({'frame':agent.browser.frame()})
+                except Exception as error: return self.send({'frame':None,'error':str(error)[:200]})
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
@@ -238,7 +248,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             path = urlsplit(self.path).path
             pairing = companion and path=='/api/phone/pair'
             if not pairing and not self.authenticated(): return self.send({'error':'Unauthorized device request'},403)
-            if not ctx.allowed(('pair' if pairing else 'request', self.client_address[0]), 10 if pairing else 90): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            # Driving the browser by hand is many small requests, so it has its own, larger allowance.
+            driving = path=='/api/browser/drive'
+            bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('request',90)
+            if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
             if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:
                 size = int(self.headers.get('Content-Length','0'))
@@ -328,7 +341,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     if agent.mode=='kids': raise ValueError('Personal and external action controls are unavailable in kids mode.')
                     if path=='/api/profile':
                         if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
+                        if set(data)=={'name'}: data={**(agent.store.setting('personality') or {}),'name':data['name']}
                         result={'profile':agent.set_profile(data)}
+                    elif path=='/api/photo':
+                        # Your picture, shrunk on this computer first. Only a small JPEG is kept.
+                        photo=data.get('photo')
+                        if photo in (None,''):
+                            agent.store.set_setting('owner_photo',''); agent.store.set_setting('owner_photo_at','')
+                            result={'photo':''}
+                        else:
+                            if not isinstance(photo,str) or not photo.startswith('data:image/jpeg;base64,'): raise ValueError('Choose a photo.')
+                            raw=base64.b64decode(photo.split(',',1)[1],validate=True)
+                            if not raw.startswith(b'\xff\xd8') or len(raw)>9000: raise ValueError('That photo is too big. Try another one.')
+                            stamp=str(int(time.time()))
+                            agent.store.set_setting('owner_photo',base64.b64encode(raw).decode()); agent.store.set_setting('owner_photo_at',stamp)
+                            result={'photo':stamp}
                     elif path=='/api/voice/preferences':
                         if companion: return self.send({'error':'Set the household voice on the Mac.'},403)
                         result={'voice_preferences':agent.set_voice_preferences(data)}
@@ -415,6 +442,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         else: return self.send({'error':'Not found'},404)
                     elif path=='/api/contacts/save': result=agent.contacts.save(data)
                     elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
+                    elif path in {'/api/browser/drive', '/api/browser/go'}:
+                        # The owner driving Luma's browser from Luma's window: Luma steps back while they do.
+                        if companion: return self.send({'error':'Drive the browser on the Mac.'},403)
+                        agent._check('browser.open')
+                        view=agent.activity.view() or {}
+                        if view.get('state')=='running': agent.activity.pause()
+                        if path.endswith('go'):
+                            target=str(data.get('url') or '').strip()
+                            if not target: raise ValueError('Type a web address or something to search for.')
+                            if ' ' in target or '.' not in target: target='https://duckduckgo.com/?q='+quote_plus(target)
+                            page=agent.browser.open(target)
+                            result={'url':page.get('url'),'title':page.get('title')}
+                        else: result=agent.browser.drive(data.get('kind'),{k:data.get(k) for k in ('x','y','dy','text','key') if k in data})
                     elif path in {'/api/browser/show', '/api/browser/hide'}:
                         if companion: return self.send({'error':"Sign in to sites on the Mac."},403)
                         agent._check('browser.open')

@@ -1,3 +1,4 @@
+import base64
 """Luma's Dots-style features: cheapest-price shopping you can watch and stop, the owner's
 rules, free email and calendar, always-on helpers, the feed, feedback and side chats."""
 import email
@@ -410,6 +411,20 @@ class RealBrowserShoppingTests(unittest.TestCase):
         page = self.agent.browser.read()["text"]
         self.assertIn("Added to cart", page)
         self.assertNotIn("ORDER PLACED", page)
+
+    def test_owner_drives_lumas_browser_from_the_window(self):
+        browser = self.agent.browser
+        browser.open(self.base + "/shop.html")
+        frame = browser.frame()
+        self.assertTrue(base64.b64decode(frame["jpeg_base64"]).startswith(b"\xff\xd8"))
+        self.assertEqual(frame["title"], "Headphones")
+        browser.drive("key", {"key": "Tab"})
+        browser.drive("type", {"text": "earbuds"})
+        landed = browser.drive("key", {"key": "Enter"})
+        self.assertIn("q=earbuds", landed["url"])
+        self.assertNotIn("q=", browser.drive("back")["url"])
+        with self.assertRaises(ValueError):
+            browser.drive("key", {"key": "Meta+Q"})
 
     def test_add_to_cart_finds_the_button_far_down_a_busy_page_and_remembers_it(self):
         args = {"store": "Amazon", "title": "Apple AirPods Pro (2nd Generation)", "price": "$129.35",

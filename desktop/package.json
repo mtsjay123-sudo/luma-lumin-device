@@ -58,7 +58,13 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Luma listens when you talk to it. Your voice is turned into text on this computer.",
+        "NSCameraUsageDescription": "Only if you choose the camera as Luma's background. The picture never leaves this computer."
+      }
     },
     "dmg": {
       "title": "Luma",

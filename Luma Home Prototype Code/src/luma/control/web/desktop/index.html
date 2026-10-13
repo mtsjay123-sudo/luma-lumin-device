@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/desktop/desktop.css" />
 </head>
 <body>
-  <div class="canvas" aria-hidden="true"></div>
+  <div class="scene" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><div class="scene-photo" id="scene-photo" hidden></div><video id="scene-cam" muted playsinline hidden></video></div>
 
   <div class="app" id="app">
     <!-- Sidebar, like ChatGPT's: new chat and search on top, the tabs, your chats, then you -->
@@ -28,6 +28,7 @@
         <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
         <button class="nav-item" data-view="goals" data-icon="goals">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
         <button class="nav-item" data-view="library" data-icon="library">Library</button>
+        <button class="nav-item" data-view="browser" data-icon="globe">Browser</button>
       </nav>
       <div class="side-label">Chats</div>
       <div class="threads" id="threads"></div>
@@ -70,6 +71,29 @@
       <section class="view feed-view" id="view-feed" hidden>
         <div class="feed-list" id="feed-list" aria-label="Feed"></div>
         <article class="reader card" id="reader" aria-live="polite"></article>
+      </section>
+
+      <section class="view browser-view" id="view-browser" hidden>
+        <div class="browser glass">
+          <div class="b-bar">
+            <button class="icon-btn" id="b-back" type="button" aria-label="Back" title="Back" data-icon="left"></button>
+            <button class="icon-btn" id="b-forward" type="button" aria-label="Forward" title="Forward" data-icon="right"></button>
+            <button class="icon-btn" id="b-reload" type="button" aria-label="Reload" title="Reload" data-icon="refresh"></button>
+            <form class="b-url" id="b-url-form" autocomplete="off"><span class="b-lock" data-icon="lock"></span><input id="b-url" placeholder="Search or type a web address" spellcheck="false" aria-label="Web address" /></form>
+            <span class="b-who" id="b-who"><i></i>You're driving</span>
+            <button class="icon-btn" id="b-popout" type="button" aria-label="Pop out" title="Pop out into its own window" data-icon="popout"></button>
+            <button class="icon-btn" id="b-out" type="button" aria-label="Open in my browser" title="Open in my browser" data-icon="external"></button>
+          </div>
+          <div class="b-screen" id="b-screen" tabindex="0" aria-label="Luma's browser. Click, scroll and type here.">
+            <img id="b-img" alt="" draggable="false" hidden />
+            <div class="b-empty" id="b-empty">
+              <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
+              <h2>Luma's browser</h2>
+              <p>It's signed in as you, right here in Luma. Search or type an address above, or tap a link in the chat. You can click, scroll and type on the page.</p>
+            </div>
+            <div class="b-loading" id="b-loading" hidden><span></span></div>
+          </div>
+        </div>
       </section>
 
       <section class="view page" id="view-ideas" hidden>

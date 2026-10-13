@@ -152,11 +152,17 @@ class BrowserSession:
                                    "user_agent": None, "locale": "en-US"}
                         options = {k: v for k, v in options.items() if v is not None}
                         if self.executable: options["executable_path"] = self.executable
+                        # No "controlled by automated test software" bar when the owner sees this window.
+                        options["ignore_default_args"] = ["--enable-automation"]
+                        options["args"] = ["--disable-blink-features=AutomationControlled"]
                         context = playwright.chromium.launch_persistent_context(self.profile_dir, **options)
                         context.set_default_timeout(20000)
                         page = context.pages[0] if context.pages else context.new_page()
-                    if page.is_closed():
-                        page = context.new_page()
+                    # Follow new tabs (a link that opens one, a sign-in popup) and drop the oldest past four.
+                    pages = [p for p in context.pages if not p.is_closed()]
+                    while len(pages) > 4:
+                        pages.pop(0).close()
+                    page = pages[-1] if pages else context.new_page()
                     reply.put((True, getattr(self, "_do_" + fn)(page, *args)))
                 except Exception as error:  # reported to the caller, never swallowed
                     reply.put((False, error))
@@ -263,6 +269,44 @@ class BrowserSession:
         image = page.screenshot(type="jpeg", quality=55, full_page=False)
         return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
 
+    def _do_frame(self, page):
+        if page.url in {"", "about:blank"}:
+            return None
+        image = page.screenshot(type="jpeg", quality=62, full_page=False, timeout=8000)
+        return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
+
+    def _do_drive(self, page, kind, data):
+        """The owner's own clicks, scrolls and keys from Luma's window. Luma itself still never types passwords."""
+        size = page.viewport_size or {"width": 1100, "height": 800}
+        x = min(max(float(data.get("x", 0.5)), 0.0), 1.0) * size["width"]
+        y = min(max(float(data.get("y", 0.5)), 0.0), 1.0) * size["height"]
+        if kind == "back": page.go_back(wait_until="domcontentloaded", timeout=15000)
+        elif kind == "forward": page.go_forward(wait_until="domcontentloaded", timeout=15000)
+        elif kind == "reload": page.reload(wait_until="domcontentloaded", timeout=20000)
+        elif kind == "click":
+            page.mouse.click(x, y)
+            page.wait_for_timeout(350)
+        elif kind == "scroll":
+            page.mouse.move(x, y)
+            page.mouse.wheel(0, max(-2400, min(2400, int(data.get("dy", 0)))))
+            page.wait_for_timeout(120)
+        elif kind == "type":
+            page.keyboard.type(str(data.get("text", ""))[:500])
+        elif kind == "key":
+            key = str(data.get("key", ""))
+            if key not in OWNER_KEYS:
+                raise ValueError("That key isn't supported here.")
+            page.keyboard.press(key)
+            page.wait_for_timeout(250)
+        else:
+            raise ValueError("Click, scroll, type, back, forward or reload.")
+        try:
+            check_url(page.url, self.allow_local)
+        except ValueError:
+            page.goto("about:blank")
+            raise
+        return {"url": page.url, "title": page.title()[:200]}
+
     def _do_products(self, page):
         from luma.skills.shopping import PRODUCTS_JS
         if page.url in {"", "about:blank"}:
@@ -336,6 +380,8 @@ class BrowserSession:
     def products(self): return self._call("products")
     def pictures(self, ids): return self._call("pictures", list(ids))
     def search_results(self): return self._call("search_results")
+    def frame(self): return self._call("frame", timeout=20)
+    def drive(self, kind, data=None): return self._call("drive", str(kind), dict(data or {}), timeout=30)
     def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)
 
     def show_for_sign_in(self, url):
@@ -352,6 +398,10 @@ class BrowserSession:
         self._call("_relaunch", True)
         return {"summary": "Browser is back in the background."}
 
+
+# Keys the owner can press in Luma's browser view.
+OWNER_KEYS = {"Enter", "Backspace", "Delete", "Tab", "Shift+Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft",
+              "ArrowRight", "Home", "End", "PageUp", "PageDown", "Space"}
 
 # Stores' own Add to cart buttons, most-used first.
 CART_SELECTORS = [
