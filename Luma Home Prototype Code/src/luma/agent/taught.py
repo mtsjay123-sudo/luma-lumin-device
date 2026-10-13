@@ -32,15 +32,17 @@ class Recorder:
             self.steps.append({"do": "open", "url": (result or {}).get("url") or data.get("url")})
         elif kind == "click" and target:
             self.steps.append({"do": "click", "target": target})
-        elif kind == "type" and target:
-            secret = target.get("type") == "password"
+        elif kind == "type":
+            # Unknown field, a frame, or anything password-, code- or card-like: the typing is never kept.
+            secret = not target or bool(target.get("secret")) or target.get("type") == "password" or target.get("tag") in {"iframe", "frame"}
+            target = target or {"tag": "", "type": "", "label": "", "name": "", "placeholder": "", "href": "", "secret": True}
             if last and last["do"] == "type" and last["target"] == target:
                 if not secret: last["text"] = (last.get("text", "") + str(data.get("text", "")))[:500]
             else:
                 self.steps.append({"do": "type", "target": target, "text": "" if secret else str(data.get("text", ""))[:500], "secret": secret})
         elif kind == "key" and data.get("key") == "Enter":
             if last and last["do"] == "type": last["submit"] = True
-            else: self.steps.append({"do": "key", "key": "Enter"})
+            else: self.steps.append({"do": "key", "key": "Enter", "target": target})
         elif kind == "back":
             self.steps.append({"do": "key", "back": True})
         del self.steps[MAX_STEPS:]
@@ -90,28 +92,44 @@ class Taught:
         return self.store.delete("taught", str(ident))
 
     def find(self, words, exact=False):
+        """The task with this name. Without exact, a name that's one whole-word match away, and only if just one fits."""
         want = _norm(words)
         rows = self.store.all("taught", 60)
         same = next((r for r in rows if _norm(r["name"]) == want), None)
-        if same or exact:
+        if same or exact or len(want) < 4:
             return same
-        return next((r for r in rows if len(want) > 3 and (want in _norm(r["name"]) or _norm(r["name"]) in want)), None)
+        close = [r for r in rows if re.search(rf"(?:^| ){re.escape(want)}(?: |$)", _norm(r["name"]))]
+        return close[0] if len(close) == 1 else None
 
     def run(self, row, cancel_event=None):
         """Do it again, step by step, through Luma's normal approval rules."""
         agent, name = self.agent, row["name"]
         agent.activity.start("taught", f"Doing “{name}”")
+        def opened(url):
+            result = agent.propose("browser.open", {"url": url})
+            return result.get("state") not in {"failed", "unknown", "blocked"} and bool(result.get("url"))
         try:
-            agent.propose("browser.open", {"url": row["start_url"]})
+            if not opened(row["start_url"]):
+                return {"text": f"I couldn't open the page “{name}” starts on, so I didn't do anything. Is the site down, or blocked in Rules?"}
             for number, step in enumerate(row["steps"], 1):
                 if cancel_event is not None and cancel_event.is_set():
                     return {"text": f"Stopped “{name}” at step {number}.", "state": "stopped"}
                 agent.activity.step(self._say(step))
                 if step["do"] == "open":
-                    agent.propose("browser.open", {"url": step["url"]})
+                    if not opened(step["url"]):
+                        return {"text": f"I stopped “{name}” at step {number}: that page wouldn't open, so I didn't go on."}
+                    continue
+                if step["do"] == "key" and step.get("back"):
+                    agent.browser.drive("back", {})
                     continue
                 if step["do"] == "key":
-                    agent.browser.drive("back" if step.get("back") else "key", {} if step.get("back") else {"key": "Enter"})
+                    # Enter can submit a form, so it gets the same check as pressing a submit button.
+                    from luma.integrations.browser import classify
+                    field = agent.browser.focused() or {}
+                    if classify(field, submit=True, typing=True):
+                        return {"text": f"I did “{name}” up to the last part. The next step presses Enter, which would send the form, so it's your call: check it in Luma's browser and press Enter yourself if it's right.",
+                                "url": agent.browser.read().get("url"), "handoff": True}
+                    agent.browser.drive("key", {"key": "Enter"})
                     continue
                 if step.get("secret"):
                     page = agent.browser.read()

@@ -100,6 +100,8 @@ LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|tempe
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import ASKS_NEWS as NEWS_ASK  # noqa: E402
+# "latest on my order", "any news from Jake": about their own life, not the headlines.
+PERSONAL_NEWS = re.compile(r"\b(?:my|our|me|from|about (?:my|our))\b", re.I)
 GREETING = re.compile(r"(?:yo+|hey+(?: luma)?|hi+(?: luma)?|hello+(?: luma)?|sup|wass?up|what'?s up|whats good|what'?s good|good (?:morning|afternoon|evening)|gm|howdy|hiya)(?: luma)?")
 CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
 
@@ -245,9 +247,11 @@ class Agent:
     # Chats are kept (encrypted, on this computer) so they're still there after a restart.
     def _load_chats(self):
         try:
-            rows = [r for r in self.store.all("chat", 40) if r.get("mode", "friend") == self.mode]
+            rows = [r for r in self.store.all("chat", 400) if r.get("mode", "friend") == self.mode]
+            main = self.store.get("chat", f"chat:{self.mode}:main")
         except Exception:
             return
+        if main and all(r.get("thread") != "main" for r in rows): rows.append(main)
         for row in rows:
             ident, log = row.get("thread"), row.get("log") or []
             if not isinstance(ident, str) or not isinstance(log, list): continue
@@ -258,11 +262,13 @@ class Agent:
             self.thread_titles[ident] = row.get("title") or ("Main chat" if ident == "main" else "Chat")
 
     def _save_chat(self, ident):
+        from luma.memory.store import mask_long_numbers
+        # Order and tracking numbers are kept as [number], so one long number never stops a chat from saving.
+        chat = mask_long_numbers({"thread": ident, "mode": self.mode, "title": self.thread_titles.get(ident, "Chat"), "log": self.transcripts.get(ident, [])})
         try:
-            self.store.put("chat", {"thread": ident, "mode": self.mode, "title": self.thread_titles.get(ident, "Chat"), "log": self.transcripts.get(ident, [])},
-                           id=f"chat:{self.mode}:{ident}")
-        except Exception:
-            pass  # a chat that can't be saved still works for now
+            self.store.put("chat", chat, id=f"chat:{self.mode}:{ident}")
+        except ValueError:
+            pass  # still card-like after masking: this turn isn't kept, the chat itself still works
 
     def set_muted(self, value):
         if value: self.interrupt()
@@ -1046,11 +1052,12 @@ class Agent:
         return {"id": ident, "title": self.thread_titles[ident]}
 
     def delete_thread(self, ident):
-        if ident == "main" or ident not in self.threads:
-            raise ValueError("Choose a side chat.")
-        for table in (self.threads, self.transcripts, self.thread_titles):
-            table.pop(ident, None)
-        self.store.delete("chat", f"chat:{self.mode}:{ident}")
+        with self.lock:  # waits for a reply that's still being written, so the chat can't come back
+            if ident == "main" or ident not in self.threads:
+                raise ValueError("Choose a side chat.")
+            for table in (self.threads, self.transcripts, self.thread_titles):
+                table.pop(ident, None)
+            self.store.delete("chat", f"chat:{self.mode}:{ident}")
         return {"deleted": True}
 
     # -- things people ask for in so many words (rules, not the model) -------------
@@ -1197,8 +1204,14 @@ class Agent:
             if not mine:
                 return {"text": "Nothing yet. Open the Browser tab, press Teach, and do a task once, like reordering your usual coffee. I'll remember the steps and can do it again whenever you ask."}
             return {"text": "You've taught me: " + "; ".join(t["name"] for t in mine[:10]) + ". Say \"run\" and the name any time.", "section": "ideas"}
-        ask = re.fullmatch(r"(?:please\s+)?(?:run|do|redo|repeat|start)\s+(?:my\s+|the\s+)?[\"“']?(.+?)[\"”']?(?:\s+(?:again|for me|now|please))*", lowered)
-        row = self.taught.find(ask.group(1)) if ask else self.taught.find(lowered, exact=True)  # just saying its name runs it
+        row = self.taught.find(lowered, exact=True)  # just saying its name runs it
+        ask = re.fullmatch(r"(?:please\s+)?(run|redo|repeat|do)\s+(.+)", lowered)
+        if not row and ask:
+            rest = ask.group(2).strip(" \"“”'")
+            bare = re.sub(r"^(?:my|the)\s+|(?:\s+(?:again|for me|now|please))+$", "", rest)
+            row = self.taught.find(rest, exact=True) or self.taught.find(bare, exact=True)
+            # "run …" may be a little loose; "do …" must say the name, so ordinary chat ("do I have email?") is never taken.
+            if not row and ask.group(1) in {"run", "redo", "repeat"}: row = self.taught.find(bare)
         if not row: return None
         if not self.integration_on("browser"):
             return {"text": f"I need Luma's browser on to do “{row['name']}”. Turn it on in Apps.", "section": "apps"}
@@ -1906,7 +1919,7 @@ class Agent:
             if shopping_reply is not None: return shopping_reply
             mail_reply = self._mail_command(text, lowered, cancel_event)
             if mail_reply is not None: return mail_reply
-            if self.mode != "kids" and NEWS_ASK.search(lowered) and not wants_message(text) and self.integration_on("web_search") \
+            if self.mode != "kids" and NEWS_ASK.search(lowered) and not PERSONAL_NEWS.search(lowered) and not wants_message(text) and self.integration_on("web_search") \
                     and self.rules.for_tool("web.search")[1] != "block":
                 caught_up = self.news_reply(text, cancel_event)
                 if caught_up is not None: return caught_up

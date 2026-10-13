@@ -138,12 +138,16 @@ def refresh(store, clock, allow_local=False, fetch=None):
             continue
         seen.add(key)
         keep.append(item)
-    keep = keep[:MAX_ITEMS]
-    try:
-        store.set_setting("news", {"fetched": now, "items": keep, "failed": failed})
-    except ValueError:  # a headline that looks like a card number; drop numbers and keep the rest
-        keep = [{**i, "snippet": re.sub(r"\d{6,}", "", i["snippet"])} for i in keep]
-        store.set_setting("news", {"fetched": now, "items": keep, "failed": failed})
+    from luma.memory.store import reject_payment_secrets
+
+    def storable(item):  # e.g. a link with a long status number in it: drop that one story, keep the rest
+        try:
+            reject_payment_secrets(item)
+            return True
+        except ValueError:
+            return False
+    keep = [i for i in keep if storable(i)][:MAX_ITEMS]
+    store.set_setting("news", {"fetched": now, "items": keep, "failed": failed})
     return {"items": keep, "fetched": now, "new": len(found), "failed": failed}
 
 
@@ -160,7 +164,7 @@ def terms(text):
 
 
 def relevant(question, items, limit=5, at_least=2):
-    """Headlines that share real words with the question, best first."""
+    """Headlines that share real words with the question (two, when it has two), best first."""
     want = terms(question)
     if not want:
         return []

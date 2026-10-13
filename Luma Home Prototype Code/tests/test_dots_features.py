@@ -468,6 +468,32 @@ class RealBrowserShoppingTests(unittest.TestCase):
         self.assertNotIn("ORDER PLACED", page["text"])
         self.assertEqual(self.agent.taught.list()[0]["id"], saved["id"])
 
+    def test_a_taught_enter_that_would_send_a_form_waits_for_the_owner(self):
+        from luma.agent.taught import Recorder
+        teach = Recorder(self.base + "/checkout-form.html")
+        note = {"tag": "input", "type": "", "label": "Gift note", "name": "note", "placeholder": "", "href": ""}
+        teach.add("click", {}, {"target": note})
+        teach.add("key", {"key": "Enter"}, {"target": note})
+        self.assertEqual([s["do"] for s in teach.steps], ["click", "key"])
+        self.agent.taught.save("checkout", teach)
+        result = self.agent.chat("run checkout")
+        self.assertTrue(result.get("handoff"))
+        self.assertIn("presses Enter", result["text"])
+        self.assertNotIn("ORDER PLACED", self.agent.browser.read()["text"])
+
+    def test_a_field_inside_a_frame_that_looks_secret_is_never_kept(self):
+        self.agent.browser.open(self.base + "/secret-frame.html")
+        import time; time.sleep(0.5)
+        focused = self.agent.browser.focused()
+        self.assertEqual(focused["name"], "login_secret")
+        self.assertTrue(focused["secret"])
+        from luma.agent.taught import Recorder
+        teach = Recorder(self.base + "/secret-frame.html")
+        teach.add("type", {"text": "123456"}, {"target": focused})
+        teach.add("type", {"text": "hunter2"}, {"target": None})
+        self.assertNotIn("123456", str(teach.steps))
+        self.assertNotIn("hunter2", str(teach.steps))
+
     def test_a_taught_task_never_keeps_a_password(self):
         from luma.agent.taught import Recorder
         teach = Recorder(self.base + "/login.html")

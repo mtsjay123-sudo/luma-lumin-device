@@ -226,7 +226,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 return self.send(base64.b64decode(photo),kind='image/jpeg')
             if path=='/api/browser/frame':
                 # What Luma's browser shows right now, for the browser view in Luma's window.
-                if companion: return self.send({'error':'Open the browser on the Mac.'},403)
+                if companion or agent.mode=='kids': return self.send({'error':'Open the browser on the Mac.'},403)
                 if not agent.integration_on('browser') or not agent.browser: return self.send({'frame':None})
                 try: return self.send({'frame':agent.browser.frame()})
                 except Exception as error: return self.send({'frame':None,'error':str(error)[:200]})
@@ -262,7 +262,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 kinds={'audio/webm':'.webm','audio/ogg':'.ogg','audio/wav':'.wav','audio/mp4':'.m4a'}
                 kind=self.headers.get('Content-Type','').split(';')[0].strip()
                 if kind not in kinds: return self.send({'error':'Send audio.'},415)
-                size=int(self.headers.get('Content-Length','0') or 0)
+                try: size=int(self.headers.get('Content-Length','0') or 0)
+                except ValueError: return self.send({'error':'Send the recording again.'},411)
                 if not 0<size<=8_000_000: return self.send({'error':'That recording is too long. Keep it under a minute.'},413)
                 clip=self.rfile.read(size)
                 try:
@@ -474,9 +475,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                             page=agent.browser.open(target)
                             result={'url':page.get('url'),'title':page.get('title')}
                         else: result=agent.browser.drive(data.get('kind'),{k:data.get(k) for k in ('x','y','dy','text','key') if k in data})
-                        if ctx.recording is not None:
+                        teaching=ctx.recording
+                        if teaching is not None:
                             # Teach is on: keep what they did as a step (passwords are never kept).
-                            result['steps']=ctx.recording.add('go' if path.endswith('go') else data.get('kind'),data,result)
+                            result['steps']=teaching.add('go' if path.endswith('go') else data.get('kind'),data,result)
                     elif path=='/api/browser/teach':
                         if companion or agent.mode=='kids': return self.send({'error':'Teach Luma on the Mac.'},403)
                         from luma.agent.taught import Recorder
@@ -494,9 +496,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         else: raise ValueError('Start, save or cancel.')
                     elif path=='/api/taught/delete': result={'deleted':agent.taught.delete(str(data.get('id','')))}
                     elif path=='/api/taught/run':
+                        # By id, so two tasks with similar names can't be mixed up.
+                        if agent.mode=='kids': return self.send({'error':'Ask a grown-up.'},403)
                         row=agent.store.get('taught',str(data.get('id','')))
                         if not row: raise ValueError('That task is gone.')
-                        result=agent.chat('run '+row['name'])
+                        agent._check('browser.open')
+                        with agent.lock: result=agent.taught.run(row)
                     elif path in {'/api/browser/show', '/api/browser/hide'}:
                         if companion: return self.send({'error':"Sign in to sites on the Mac."},403)
                         agent._check('browser.open')

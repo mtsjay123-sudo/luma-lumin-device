@@ -1221,7 +1221,11 @@
       c.append(mark ? brand(mark) : chip("update", "hand", "ic"), el("h3", null, t.name),
         el("p", null, `You showed me this${t.site ? " on " + t.site : ""}: ${t.steps} step${t.steps === 1 ? "" : "s"}${t.runs ? `, done ${t.runs}×` : ""}. Anything that buys or sends still asks you first.`));
       const row = el("div", "actions");
-      row.append(btn("Do it again", "pill small primary", () => send("run " + t.name), "play"),
+      row.append(btn("Do it again", "pill small primary", async () => {
+        go("chat"); mood("working", `Doing “${t.name}”`); watchActivity(true);
+        try { const r = await api("/api/taught/run", { id: t.id }); remember(r); pushLocal(state.thread, { role: "luma", text: r.text || r.summary || "Done.", result: r }); renderChat(); refreshHome(); }
+        catch (e) { toast(e.message); } finally { mood("idle", "Here with you"); }
+      }, "play"),
         btn("", "pill quiet small", async () => { try { await api("/api/taught/delete", { id: t.id }); await refreshHome(); renderIdeas(); } catch (e) { toast(e.message); } }, "trash"));
       c.append(row);
       box.append(c);

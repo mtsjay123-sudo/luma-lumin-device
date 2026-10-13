@@ -214,3 +214,73 @@ class NewsTests(unittest.TestCase):
         self.assertTrue(seen[0]["news"])
         self.assertIn("Tech Daily: Apple announces M6 MacBook Pro", seen[0]["text"])
         self.assertEqual(self.agent._news_context("help me write a poem"), [])
+
+
+
+class LooseEndsTests(unittest.TestCase):
+    """Things an independent check caught: taught tasks taking over chat, chats that stopped saving, news that never saved."""
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.agent.taught import Recorder
+        from luma.memory.store import Store
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+        self.agent = Agent(store=self.store, use_model=False)
+        self.Agent = Agent
+        for name in ["coffee", "email", "pay rent now", "pay rent early"]:
+            r = Recorder("https://shop.example/")
+            r.steps = [{"do": "click", "target": {"tag": "button", "label": name}}]
+            self.agent.taught.save(name, r)
+        self.ran = []
+        self.agent.taught.run = lambda row, cancel_event=None: self.ran.append(row["name"]) or {"text": "ran"}
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_ordinary_questions_never_start_a_taught_task(self):
+        for said in ["do you think coffee is healthy?", "do I have any new email?", "do my homework", "run", "do it"]:
+            self.agent.chat(said)
+        self.assertEqual(self.ran, [])
+
+    def test_the_named_task_is_the_one_that_runs(self):
+        self.agent.enable("browser", True)
+        self.agent._browser_available = lambda: True
+        self.agent.chat("run pay rent now")
+        self.agent.chat("coffee")
+        self.agent.chat("redo my email again")
+        self.assertEqual(self.ran, ["pay rent now", "coffee", "email"])
+
+    def test_a_chat_with_an_order_number_keeps_saving(self):
+        # A reply that quoted an order number from an email or a store.
+        self.agent.transcripts["main"].append({"role": "luma", "text": "Your order 112-1234567-1234567 shipped today.", "at": self.agent.clock()})
+        self.agent.chat("yo")
+        again = self.Agent(store=self.store, use_model=False)
+        texts = [m["text"] for m in again.transcripts["main"]]
+        self.assertIn("yo", texts)
+        self.assertNotIn("1234567-1234567", str(texts))
+
+    def test_the_main_chat_survives_lots_of_side_chats(self):
+        self.agent.chat("yo")
+        for _ in range(45):
+            self.agent.chat("hi", thread=self.agent.new_thread()["id"])
+        again = self.Agent(store=self.store, use_model=False)
+        self.assertEqual(again.transcripts["main"][0]["text"], "yo")
+
+    def test_one_bad_headline_never_stops_the_news_from_saving(self):
+        from luma.skills import news
+        rss = (b"<rss><channel><item><title>Big launch today</title><link>https://x.com/a/status/1846382910456712345</link></item>"
+               b"<item><title>Markets close higher</title><link>https://news.example/markets</link></item></channel></rss>")
+        result = news.refresh(self.store, self.agent.clock, fetch=lambda url: rss)
+        self.assertEqual([i["title"] for i in result["items"]], ["Markets close higher"])
+        self.assertEqual(len(news.cached(self.store)["items"]), 1)
+
+    def test_personal_questions_are_not_answered_with_headlines(self):
+        from luma.skills import news
+        self.store.set_setting("news", {"fetched": self.agent.clock(), "items": [
+            {"title": "Judge blocks executive order on tariffs", "url": "https://news.example/order", "source": "Wire", "snippet": "", "published": self.agent.clock()},
+            {"title": "Jake Paul announces next fight", "url": "https://news.example/jake", "source": "Wire", "snippet": "", "published": self.agent.clock()}]})
+        for said in ["what's the latest with my order?", "any news from Jake?"]:
+            self.assertNotEqual(self.agent.chat(said).get("section"), "news")

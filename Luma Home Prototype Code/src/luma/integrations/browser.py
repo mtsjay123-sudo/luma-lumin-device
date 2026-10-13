@@ -275,6 +275,9 @@ class BrowserSession:
         image = page.screenshot(type="jpeg", quality=62, full_page=False, timeout=8000)
         return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
 
+    def _do_focused(self, page):
+        return page.evaluate(DESCRIBE_JS, [None, None])
+
     def _do_drive(self, page, kind, data):
         """The owner's own clicks, scrolls and keys from Luma's window. Luma itself still never types passwords."""
         size = page.viewport_size or {"width": 1100, "height": 800}
@@ -299,6 +302,7 @@ class BrowserSession:
             key = str(data.get("key", ""))
             if key not in OWNER_KEYS:
                 raise ValueError("That key isn't supported here.")
+            target = page.evaluate(DESCRIBE_JS, [None, None])
             page.keyboard.press(key)
             page.wait_for_timeout(250)
         else:
@@ -384,6 +388,7 @@ class BrowserSession:
     def pictures(self, ids): return self._call("pictures", list(ids))
     def search_results(self): return self._call("search_results")
     def frame(self): return self._call("frame", timeout=20)
+    def focused(self): return self._call("focused")
     def drive(self, kind, data=None): return self._call("drive", str(kind), dict(data or {}), timeout=30)
     def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)
 
@@ -406,13 +411,26 @@ class BrowserSession:
 # snapshot describes it, so a taught task can find the same thing again later.
 DESCRIBE_JS = r"""
 ([x, y]) => {
-  const hit = x === null ? document.activeElement : document.elementFromPoint(x, y);
+  let hit = x === null ? document.activeElement : document.elementFromPoint(x, y);
+  // The field that really has focus can sit inside a frame or a shadow root.
+  for (let i = 0; hit && i < 8; i++) {
+    if (hit.tagName === 'IFRAME' || hit.tagName === 'FRAME') {
+      let inner = null;
+      try { inner = hit.contentDocument && hit.contentDocument.activeElement; } catch (e) { inner = null; }
+      if (!inner || inner === hit.contentDocument.body) break;
+      hit = inner;
+    } else if (hit.shadowRoot && hit.shadowRoot.activeElement) hit = hit.shadowRoot.activeElement;
+    else break;
+  }
   if (!hit || hit === document.body) return null;
   const el = hit.closest('a[href],button,input,textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[contenteditable=true],summary,label') || hit;
   const label = (el.getAttribute('aria-label') || el.innerText || el.value || el.placeholder || el.title ||
                  el.getAttribute('alt') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 90);
+  const hints = [el.getAttribute('type'), el.getAttribute('autocomplete'), el.name, el.id, el.getAttribute('aria-label'), el.placeholder, label].join(' ');
+  const secret = /password|passwd|passcode|\bpin\b|one.time|otp|verification code|security code|\bcvc\b|\bcvv\b|card.?number|cc-|ssn/i.test(hints) ||
+                 ['IFRAME', 'FRAME'].includes(el.tagName);
   return {tag: el.tagName.toLowerCase(), type: (el.getAttribute('type') || el.getAttribute('role') || '').toLowerCase(), label,
-          name: el.name || '', placeholder: el.placeholder || '', href: el.href || ''};
+          name: el.name || '', placeholder: el.placeholder || '', href: el.href || '', secret};
 }
 """
 
