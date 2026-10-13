@@ -1,7 +1,7 @@
 {
   "name": "luma-desktop",
   "productName": "Luma",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Luma on your computer: talk to it, watch it work, approve what goes out.",
   "main": "main.js",
   "private": true,
@@ -11,7 +11,8 @@
     "start": "electron .",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:linux": "electron-builder --linux AppImage --x64 --publish never"
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never",
+    "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {
     "electron": "43.7.9",
@@ -28,6 +29,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "setup.js",
       "splash.html",
       "splash.css",
       "splash.js",
@@ -74,7 +76,18 @@
       "category": "Utility",
       "artifactName": "Luma-${version}-linux.${ext}"
     },
-    "publish": null
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "../Luma Home Prototype Code/src/luma",
+        "to": "luma/src/luma",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      }
+    ]
   },
   "repository": {
     "type": "git",

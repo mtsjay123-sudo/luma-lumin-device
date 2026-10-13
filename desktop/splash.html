@@ -12,9 +12,17 @@
     <img class="mascot" src="assets/logo.svg" alt="" width="104" height="104" />
     <h1 id="title">Waking up…</h1>
     <p id="detail">Starting Luma's brain on this computer. The first time takes a minute.</p>
+    <ol class="setup" id="setup" hidden>
+      <li data-step="python"><span class="dot"></span><span class="what">Python</span><span class="how" id="how-python">30 MB</span></li>
+      <li data-step="packages"><span class="dot"></span><span class="what">Luma's tools</span><span class="how" id="how-packages">about 150 MB</span></li>
+      <li data-step="browser"><span class="dot"></span><span class="what">A browser for Luma</span><span class="how" id="how-browser">uses your Chrome or Edge if you have one</span></li>
+      <li data-step="model"><span class="dot"></span><span class="what">Luma's brain</span><span class="how" id="how-model">2.5 GB, one time</span></li>
+    </ol>
+    <div class="bar" id="bar" hidden><i id="fill"></i></div>
+    <p class="fine" id="fine" hidden>Everything stays in Luma's own folder. You can keep using your computer; closing the app pauses the download and it picks up where it left off.</p>
     <div class="actions" id="actions" hidden>
-      <button id="choose" class="primary">Find Luma's folder</button>
-      <button id="retry">Try again</button>
+      <button id="retry" class="primary">Try again</button>
+      <button id="choose">Use my Luma folder</button>
     </div>
   </main>
   <script src="splash.js"></script>

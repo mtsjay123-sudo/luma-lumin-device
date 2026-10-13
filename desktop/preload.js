@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("lumaDesktop", {
   platform: process.platform,
   chooseFolder: () => ipcRenderer.invoke("luma:choose-folder"),
   retry: () => ipcRenderer.invoke("luma:retry"),
+  // First-launch setup progress, for the splash screen.
+  onSetup: (callback) => ipcRenderer.on("luma:setup", (_event, progress) => callback(progress)),
 });
 
 window.addEventListener("DOMContentLoaded", () => {

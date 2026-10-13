@@ -11,6 +11,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
+const setup = require("./setup");
 
 const PORT = Number(process.env.LUMA_PORT || 8095);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -61,32 +62,55 @@ function ping() {
   });
 }
 
-async function startRuntime(dir) {
+async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
   if (await ping()) return { ok: true };
   const log = fs.openSync(path.join(app.getPath("userData"), "luma-runtime.log"), "a");
-  runtime = spawn(pythonFor(dir), ["-m", "luma.cli", "serve", "--port", String(PORT)], {
+  runtime = spawn(python, ["-m", "luma.cli", "serve", "--port", String(PORT)], {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
-    cwd: dir, env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
-    stdio: ["ignore", log, log],
+    cwd: dir, env: { ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });
   // The first start loads the model; give it time.
   for (let i = 0; i < 240; i++) {
     if (await ping()) return { ok: true };
-    if (!runtime) return { ok: false, reason: "Luma stopped while starting. Run scripts/setup_mac.sh once, then try again." };
+    if (!runtime) return { ok: false, reason: "Luma stopped while starting. Help → Runtime Log shows why." };
     await sleep(500);
   }
   return { ok: false, reason: "Luma is taking too long to start." };
 }
 
+// Luma's runtime ships inside the app; its Python, tools and brain arrive on first launch.
+const bundledRuntime = () => path.join(process.resourcesPath || "", "luma");
+const setupHome = () => path.join(app.getPath("userData"), "runtime");
+const hasVenv = (dir) => fs.existsSync(path.join(dir, ".venv"));
+let booting = false;
+
 async function boot() {
-  splash("starting");
-  if (await ping()) return win.loadURL(HOME_URL);
-  const dir = findRuntime();
-  if (!dir) return splash("missing");
-  const started = await startRuntime(dir);
-  if (started.ok) return win.loadURL(HOME_URL);
-  splash("failed", started.reason);
+  if (booting) return;
+  booting = true;
+  try {
+    splash("starting");
+    if (await ping()) return win.loadURL(HOME_URL);
+    const dev = findRuntime();
+    let started;
+    if (dev && (hasVenv(dev) || !app.isPackaged || readConfig().runtimeDir === dev)) {
+      started = await startRuntime(dev); // a developer's own Luma folder
+    } else if (isRuntimeDir(bundledRuntime())) {
+      if (setup.needsSetup(setupHome())) splash("setup");
+      let ready;
+      try { ready = await setup.ensure(setupHome(), (p) => win?.webContents.send("luma:setup", p)); }
+      catch (error) { return splash("failed", error.message); }
+      splash("starting");
+      started = await startRuntime(bundledRuntime(), ready.python, ready.env);
+    } else {
+      return splash("missing");
+    }
+    if (started.ok) return win.loadURL(HOME_URL);
+    splash("failed", started.reason);
+  } finally {
+    booting = false;
+  }
 }
 
 function splash(state, detail = "") {
@@ -199,8 +223,10 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     app.setName("Luma");
     buildMenu();
-    ipcMain.handle("luma:choose-folder", chooseFolder);
-    ipcMain.handle("luma:retry", () => { boot(); return true; });
+    // Only Luma's own pages (the splash and the local desktop page) may ask for these.
+    const trusted = (event) => { const url = event.senderFrame?.url || ""; return url.startsWith("file://") || url.startsWith(ORIGIN + "/"); };
+    ipcMain.handle("luma:choose-folder", (event) => trusted(event) && chooseFolder());
+    ipcMain.handle("luma:retry", (event) => { if (!trusted(event)) return false; boot(); return true; });
     session.defaultSession.on("will-download", (_event, item) => {
       item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename()));
       item.once("done", (_e, state) => {

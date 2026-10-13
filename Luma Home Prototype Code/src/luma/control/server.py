@@ -477,8 +477,14 @@ def serve(agent,port,phone_host=None,phone_port=8096):
     if phone_host: ctx.start_phone(phone_host,phone_port)
     print(f'LUMA local control: http://127.0.0.1:{server.server_port}/',flush=True)
     if ctx.phone_origin: print('LUMA phone connection: '+ctx.phone_origin,flush=True)
-    from luma.orchestrator import start_hands_free
-    threading.Thread(target=start_hands_free,args=(agent,server.agent_stop),daemon=True).start()
+    def hands_free():
+        try:
+            from luma.orchestrator import start_hands_free
+            start_hands_free(agent,server.agent_stop)
+        except ImportError as error:
+            # The desktop app installs Luma without voice; typing still works.
+            print(f'LUMA voice is off ({error.name or error} is not installed). Install the voice extras to talk out loud.',flush=True)
+    threading.Thread(target=hands_free,daemon=True).start()
     import signal
     previous_signals = {}
     def stop_on_signal(signum, frame):

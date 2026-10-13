@@ -1,12 +1,14 @@
-# Builds Luma Desktop on real Macs (and Windows) and attaches the installers to
-# the run: Actions → "Luma Desktop" → the latest run → Artifacts.
+# Builds Luma Desktop on real Macs and Windows, checks that first launch really works
+# there (private Python, Luma's tools, a browser, Luma answering), and publishes the
+# installers as a GitHub Release with stable names the website links to:
+#   https://github.com/<owner>/<repo>/releases/latest/download/Luma-mac-apple-silicon.dmg
 name: Luma Desktop
 
 on:
   push:
     paths:
       - "desktop/**"
-      - "Luma Home Prototype Code/src/luma/control/web/desktop/**"
+      - "Luma Home Prototype Code/src/**"
       - ".github/workflows/luma-desktop.yml"
   workflow_dispatch:
 
@@ -16,7 +18,7 @@ permissions:
 jobs:
   mac:
     runs-on: macos-14
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: desktop
@@ -28,6 +30,8 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
+      - name: First launch works on a real Mac
+        run: node scripts/smoke.js "$RUNNER_TEMP/luma-home"
       # Ad-hoc signed. With an Apple Developer ID, add CSC_LINK / CSC_KEY_PASSWORD
       # and APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID secrets to notarize.
       - run: npm run dist:mac
@@ -41,10 +45,11 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: desktop
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,9 +58,50 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
+      - name: First launch works on a real Windows PC
+        run: node scripts/smoke.js "$RUNNER_TEMP/luma-home"
       - run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
           name: Luma-for-Windows
           path: desktop/dist/*.exe
           if-no-files-found: error
+
+  release:
+    needs: [mac, windows]
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/hopeful-feynman-z2294x'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Give the files names that never change
+        run: |
+          mkdir out
+          cp dist/Luma-for-Mac/*-mac-arm64.dmg out/Luma-mac-apple-silicon.dmg
+          cp dist/Luma-for-Mac/*-mac-x64.dmg out/Luma-mac-intel.dmg
+          cp dist/Luma-for-Mac/*-mac-arm64.zip out/Luma-mac-apple-silicon.zip
+          cp dist/Luma-for-Mac/*-mac-x64.zip out/Luma-mac-intel.zip
+          cp dist/Luma-for-Windows/*.exe out/Luma-windows-setup.exe
+          ls -la out
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="0.2.${{ github.run_number }}"
+          cat > notes.md <<'NOTES'
+          Luma Desktop: your own AI that works for you, running privately on your computer.
+
+          **Mac:** open the .dmg and drag Luma to Applications. The first time, right-click Luma and choose Open (or System Settings → Privacy & Security → Open Anyway), because this build isn't notarized by Apple yet.
+          **Windows:** run the installer. If SmartScreen appears, choose More info → Run anyway.
+
+          On first launch Luma sets itself up in its own folder: a private Python, its tools, and its brain (Qwen3 4B, about 2.5 GB, checked against its published SHA-256). Nothing is sent or bought without your OK.
+          NOTES
+          gh release create "desktop-v$version" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Luma Desktop $version" --notes-file notes.md --latest
+          # Keep the three newest desktop releases.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName -q '.[].tagName' \
+            | grep '^desktop-v' | tail -n +4 \
+            | xargs -r -n1 gh release delete --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag

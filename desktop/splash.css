@@ -29,3 +29,15 @@ button.primary { background: #15141c; color: #fff; }
 @keyframes float { 50% { transform: translateY(-6px); } }
 @keyframes spin { to { transform: translateX(-50%) rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mascot, .glow { animation: none; } }
+.setup { position: relative; list-style: none; margin: 4px auto 16px; padding: 0; text-align: left; display: grid; gap: 9px; max-width: 340px; -webkit-app-region: no-drag; }
+.setup li { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: center; font-size: 14px; opacity: 0.55; }
+.setup li.now, .setup li.done { opacity: 1; }
+.setup .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #6d6cf5; grid-row: span 2; }
+.setup li.now .dot { border-color: rgba(109, 108, 245, 0.25); border-top-color: #6d6cf5; animation: spin-dot 0.9s linear infinite; }
+.setup li.done .dot { background: #1f9d63; border-color: #1f9d63; }
+.setup .what { font-weight: 600; }
+.setup .how { font-size: 12.5px; color: #7d7b8c; }
+.bar { position: relative; height: 6px; border-radius: 3px; background: rgba(109, 108, 245, 0.15); overflow: hidden; max-width: 340px; margin: 0 auto 14px; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, #f5b860, #c58fc8, #6d6cf5); transition: width 0.3s; }
+.fine { font-size: 12px !important; max-width: 340px; margin: 0 auto !important; }
+@keyframes spin-dot { to { transform: rotate(360deg); } }
