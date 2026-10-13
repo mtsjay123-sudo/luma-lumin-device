@@ -7,12 +7,13 @@
   <link rel="stylesheet" href="splash.css" />
 </head>
 <body>
+  <div class="scene" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <main>
-    <img class="icon" src="assets/logo.svg" alt="" width="88" height="88" />
+    <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
     <h1 id="title">Waking up</h1>
     <p class="lede" id="detail">Starting Luma on this computer.</p>
 
-    <section class="progress" id="progress" hidden aria-live="polite">
+    <section class="progress glass" id="progress" hidden aria-live="polite">
       <div class="row"><span id="step-label">Getting ready</span><span id="percent">0%</span></div>
       <div class="bar"><i id="fill"></i></div>
       <ol class="steps" id="setup">
