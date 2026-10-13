@@ -132,6 +132,15 @@ class ControlTests(unittest.TestCase):
         finally:
             if old is None: sys.modules.pop('luma.audio.stt',None)
             else: sys.modules['luma.audio.stt']=old
+    def test_sharing_a_photo_goes_to_the_local_vision_and_rejects_non_images(self):
+        seen=[]
+        self.agent.see=lambda image,question='',thread='main': seen.append((len(image),question,thread)) or {'text':'I see a cat.','section':'vision'}
+        req=urllib.request.Request(self.base+'/api/see?q=what%20is%20this&thread=main',data=b'\xff\xd8\xff'+b'0'*500,headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'image/jpeg'})
+        with urllib.request.urlopen(req) as r:self.assertEqual(json.load(r)['text'],'I see a cat.')
+        self.assertEqual(seen,[(503,'what is this','main')])
+        bad=urllib.request.Request(self.base+'/api/see',data=b'hello',headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'text/plain'})
+        with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(bad)
+        self.assertEqual(e.exception.code,415)
     def test_control_persists_memory_and_blocks_cross_origin(self):
         with self.request('/api/chat',{'text':'remember I like tea'}) as r:self.assertEqual(r.status,200)
         with self.request('/api/state') as r:self.assertEqual(json.load(r)['memories'][0]['text'],'I like tea')

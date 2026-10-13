@@ -1234,6 +1234,33 @@ class Agent:
                 pass
         return out
 
+    def see(self, image_bytes, question=None, thread="main"):
+        """Look at a photo the owner shared. Local only; nothing is sent anywhere."""
+        from luma.skills import vision
+        if self.mode == "kids":
+            return {"text": "Ask a grown-up to look at photos with Luma."}
+        self.activity.start("vision", "Looking at the photo")
+        try:
+            said = vision.look(image_bytes, question)
+        except ValueError as error:
+            self.activity.finish("", "failed")
+            if str(error) == "not_ready":
+                return {"text": "I can't see photos just yet — my vision model is still downloading in the background. Try again in a few minutes and I'll take a real look.", "vision_pending": True}
+            return {"text": str(error)}
+        except Exception as error:
+            self.activity.finish("", "failed")
+            return {"text": "I had trouble looking at that one: " + str(error)[:160]}
+        self.activity.finish("Had a look.")
+        # Keep a short note in the chat so the next messages have context.
+        log = self.transcripts.setdefault(thread, [])
+        log.append({"role": "you", "text": ("[photo] " + question).strip() if question else "[shared a photo]", "at": self.clock()})
+        log.append({"role": "luma", "text": said, "at": self.clock()})
+        del log[:-80]
+        self._save_chat(thread)
+        self.history.append({"role": "user", "content": "[I showed you a photo] " + (question or "")})
+        self.history.append({"role": "assistant", "content": said})
+        return {"text": said, "section": "vision"}
+
     def think_deep(self, text, cancel_event=None):
         """Several passes before answering: understand it, look at it three ways, check itself, then answer."""
         from luma.agent import mind

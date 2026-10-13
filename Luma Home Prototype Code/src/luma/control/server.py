@@ -259,6 +259,20 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             driving = path=='/api/browser/drive'
             bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('request',90)
             if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            if path=='/api/see':
+                # A photo the owner shared, looked at locally. Big, so raw bytes like a recording.
+                if companion: return self.send({'error':'Share photos with Luma on the Mac.'},403)
+                kinds={'image/jpeg','image/png','image/webp','image/gif'}
+                if self.headers.get('Content-Type','').split(';')[0].strip() not in kinds: return self.send({'error':'Send a photo (JPEG, PNG, WebP or GIF).'},415)
+                try: size=int(self.headers.get('Content-Length','0') or 0)
+                except ValueError: return self.send({'error':'Send the photo again.'},411)
+                if not 0<size<=12_000_000: return self.send({'error':'That photo is too big. Keep it under about 12 MB.'},413)
+                image=self.rfile.read(size)
+                question=parse_qs(urlsplit(self.path).query).get('q',[''])[0][:500]
+                thread=parse_qs(urlsplit(self.path).query).get('thread',['main'])[0]
+                result=agent.see(image,question,thread=thread if thread in agent.threads else 'main')
+                ctx.publish(result)
+                return self.send(result)
             if path=='/api/listen':
                 # A short recording from Luma's window becomes text, right here on this computer.
                 if companion: return self.send({'error':'Talk to Luma on the Mac, or in the Luma phone app.'},403)

@@ -341,3 +341,46 @@ class MindTests(unittest.TestCase):
         out = agent.chat("should I quit my job? think hard about it")
         self.assertEqual(out["text"], "pass 4")  # 3 thinking passes + 1 answer
         self.assertEqual(out["thinking"], ["Understanding it", "Looking at it three ways", "Checking myself"])
+
+
+class VisionTests(unittest.TestCase):
+    """Luma can look at a photo with a free local model, and says so plainly until it's ready."""
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+        self.agent = Agent(store=self.store, use_model=False)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_data_uri_reads_real_image_types_and_rejects_junk(self):
+        from luma.skills import vision
+        self.assertTrue(vision._data_uri(b"\xff\xd8\xff" + b"0" * 20).startswith("data:image/jpeg;base64,"))
+        self.assertTrue(vision._data_uri(b"\x89PNG\r\n\x1a\n" + b"0" * 20).startswith("data:image/png"))
+        with self.assertRaises(ValueError):
+            vision._data_uri(b"not an image")
+
+    def test_asking_about_a_photo_before_the_model_is_ready_is_honest(self):
+        from luma.skills import vision
+        self.assertFalse(vision.available())  # nothing downloaded in the test
+        out = self.agent.see(b"\xff\xd8\xff" + b"0" * 2000, "what is this?")
+        self.assertTrue(out["vision_pending"])
+        self.assertIn("still downloading", out["text"])
+        self.assertNotIn("I can see", out["text"].split(".")[0])  # no pretending to describe it
+
+    def test_a_good_look_is_remembered_in_the_chat(self):
+        from luma.skills import vision
+        orig = vision.look
+        vision.look = lambda data, q=None, name="": "A golden retriever on a beach at sunset."
+        try:
+            out = self.agent.see(b"\xff\xd8\xff" + b"0" * 2000, "what's in this?")
+        finally:
+            vision.look = orig
+        self.assertIn("golden retriever", out["text"])
+        self.assertEqual(self.agent.transcripts["main"][-1]["text"], "A golden retriever on a beach at sunset.")
+        self.assertIn("photo", self.agent.transcripts["main"][-2]["text"])

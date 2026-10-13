@@ -74,6 +74,17 @@ function contextSize() {
 
 // While Luma is in the middle of something, the computer doesn't go to sleep on it.
 let awake = null;
+// Luma's eyes: the vision model downloads quietly after Luma is running, so photos work soon
+// without slowing the first launch. Entirely optional — Luma is fine without it.
+let visionTried = false;
+function fetchVisionInBackground() {
+  if (visionTried || !app.isPackaged) return;
+  visionTried = true;
+  setTimeout(() => {
+    setup.ensureVision(setupHome(), () => {}).catch(() => { /* try again next launch */ });
+  }, 60000);
+}
+
 function keepAwakeWhileWorking() {
   setInterval(() => {
     // With the window's own sign-in cookie, the same way Luma's page asks.
@@ -100,7 +111,7 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
     // LUMA_CONTEXT_SIZE: how much of the conversation Luma can keep in mind at once, sized to this computer's memory.
-    cwd: dir, env: { LUMA_CONTEXT_SIZE: String(contextSize()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    cwd: dir, env: { LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });
@@ -310,6 +321,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", summon);
   app.whenReady().then(() => {
     keepAwakeWhileWorking();
+    fetchVisionInBackground();
     app.setName("Luma");
     buildMenu();
     // First launch: start at login, so Goals run every day (switch it off from the menu bar icon).

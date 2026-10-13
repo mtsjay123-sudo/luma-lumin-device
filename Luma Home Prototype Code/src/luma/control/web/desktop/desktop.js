@@ -352,6 +352,7 @@
       const key = `${state.thread}|${m.role}|${Math.round(m.at / 1000)}|${String(m.text || "").slice(0, 40)}`;
       const row = el("div", "msg " + (m.role === "you" ? "you" : "luma") + (state.shown.has(key) ? " seen" : ""));
       state.shown.add(key);
+      if (m.photo) { const fig = el("div", "photo-bubble"); const im = el("img"); im.src = m.photo; im.alt = "Photo you shared"; fig.append(im); row.append(fig); }
       if (m.text) row.append(el("div", "bubble", m.text));
       if (m.role !== "you") {
         const extra = m.result ? rich(m.result) : null;
@@ -853,6 +854,48 @@
       } catch (_) { /* the next home poll will notice */ }
     }, 900);
   }
+
+  // --------------------------------------------------------- see a photo ---
+  // Show Luma a picture: it looks at it on this computer and talks about it. Nothing is uploaded anywhere.
+  async function see(file, question) {
+    if (!file || !file.type.startsWith("image/") || state.busy) return;
+    if (file.size > 12_000_000) { toast("That photo's a bit big. Try one under 12 MB."); return; }
+    if (state.view !== "chat") go("chat");
+    const thread = state.thread;
+    let preview = null;
+    try { preview = URL.createObjectURL(file); } catch (_) { /* fine */ }
+    pushLocal(thread, { role: "you", photo: preview, text: question || "", optimistic: true });
+    state.busy = true;
+    mood("thinking", "Looking at the photo");
+    renderChat(); resize(); watchActivity(true);
+    try {
+      const r = await fetch("/api/see?q=" + encodeURIComponent(question || "") + "&thread=" + encodeURIComponent(thread),
+        { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "I couldn't look at that photo.");
+      await loadThread(thread);
+      state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
+      mood(d.vision_pending ? "idle" : "happy", d.vision_pending ? "Here with you" : "Had a look", 3000);
+    } catch (e) {
+      state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
+      pushLocal(thread, { role: "luma", text: e.message });
+      mood("idle", "Here with you");
+    } finally {
+      state.busy = false; state.stick = true; renderChat(); resize(); refreshHome();
+    }
+  }
+  $("photo-btn").addEventListener("click", () => $("photo-input").click());
+  $("photo-input").addEventListener("change", () => { const f = $("photo-input").files?.[0]; if (f) see(f, $("input").value.trim()); $("input").value = ""; $("photo-input").value = ""; resize(); });
+  // Paste a screenshot straight into the composer.
+  $("input").addEventListener("paste", (e) => {
+    const img = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+    if (img) { e.preventDefault(); see(img.getAsFile(), $("input").value.trim()); $("input").value = ""; resize(); }
+  });
+  // Drag a photo onto the chat.
+  const dropZone = $("view-chat");
+  ["dragover", "dragenter"].forEach((ev) => dropZone.addEventListener(ev, (e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); dropZone.classList.add("dropping"); } }));
+  ["dragleave", "drop"].forEach((ev) => dropZone.addEventListener(ev, () => dropZone.classList.remove("dropping")));
+  dropZone.addEventListener("drop", (e) => { const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith("image/")); if (f) { e.preventDefault(); see(f, $("input").value.trim()); $("input").value = ""; resize(); } });
 
   // ------------------------------------------------------------- talk ---
   async function send(text, opts = {}) {

@@ -26,6 +26,8 @@ LLAMA_GPU_LAYERS = _model_int("LUMA_GPU_LAYERS", -1, -1, 999)
 LLAMA_THREADS = _model_int("LUMA_THREADS", min(8, os.cpu_count() or 4), 1, 128)
 LLAMA_BATCH_SIZE = _model_int("LUMA_BATCH_SIZE", 512, 1, 2048)
 LLAMA_CHAT_FORMAT = os.environ.get("LUMA_CHAT_FORMAT") or None
+# Vision: a free, open-source model (Qwen2.5-VL 3B) so Luma can look at a photo. Off until the files exist.
+VISION_DIR = Path(os.environ.get("LUMA_VISION_DIR") or MODELS_DIR / "qwen2.5-vl-3b").expanduser()
 WHISPER_MODEL_SIZE = os.environ.get("LUMA_WHISPER_MODEL", "base.en")
 MEMORY_DB_PATH = Path("~/.luma/memory.db").expanduser()
 SAMPLE_RATE = 16000

@@ -258,6 +258,34 @@ function mb(done, total) {
   return total ? `${f(done)} of ${f(total)}` : f(done);
 }
 
+// Vision: a free, open-source model so Luma can look at a photo. Downloaded in the
+// background after Luma is up, so it never slows the first launch. Best-effort.
+const VISION_REPO = "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF";
+function visionDir(home) { return path.join(home, "models", "qwen2.5-vl-3b"); }
+function visionReady(home) {
+  const dir = visionDir(home);
+  if (!fs.existsSync(dir)) return false;
+  const files = fs.readdirSync(dir);
+  return files.some((f) => f.endsWith(".gguf") && !/mmproj/i.test(f)) && files.some((f) => /mmproj/i.test(f) && f.endsWith(".gguf"));
+}
+async function ensureVision(home, onLine = () => {}) {
+  if (visionReady(home)) return visionDir(home);
+  const api = `https://huggingface.co/api/models/${VISION_REPO}`;
+  const r = await fetch(api, { headers: UA, redirect: "follow" });
+  if (!r.ok) throw new Error(`Hugging Face answered ${r.status}`);
+  const names = ((await r.json()).siblings || []).map((s) => s.rfilename).filter((n) => n && n.endsWith(".gguf"));
+  const main = names.find((n) => /q4_k_m/i.test(n) && !/mmproj/i.test(n)) || names.find((n) => !/mmproj/i.test(n));
+  const proj = names.find((n) => /mmproj/i.test(n) && /f16/i.test(n)) || names.find((n) => /mmproj/i.test(n));
+  if (!main || !proj) throw new Error("Couldn't find the vision model files to download.");
+  for (const name of [proj, main]) {  // the small projector first, so a half-done download is still useful soonest
+    const dest = path.join(visionDir(home), path.basename(name));
+    if (fs.existsSync(dest)) continue;
+    onLine(`vision: getting ${path.basename(name)}`);
+    await download(`https://huggingface.co/${VISION_REPO}/resolve/main/${name}`, dest, {});
+  }
+  return visionDir(home);
+}
+
 // Returns the Python to run Luma with and the environment it needs.
 async function ensure(home, report = () => {}, { skipModel = false } = {}) {
   fs.mkdirSync(home, { recursive: true });
@@ -276,4 +304,4 @@ function needsSetup(home) {
   return !fs.existsSync(pythonPath(home)) || !state.packages || !model;
 }
 
-module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile };
+module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady };
