@@ -118,7 +118,7 @@ def home_payload(agent, owner=True):
         'connections': {
             'mail': agent.mail.status(),
             'calendar': agent.calendar.status(),
-            'browser': {'on': agent.store.setting('integration:browser', False), 'available': agent._browser_available()},
+            'browser': {'on': agent.integration_on('browser'), 'available': agent._browser_available()},
             'texting': {'route': agent.message_route, 'enabled': agent.store.setting('integration:sms', False)},
             'phone_app': None,
             'apps': agent.connectors.list() if owner else [],

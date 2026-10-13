@@ -411,6 +411,12 @@ class RealBrowserShoppingTests(unittest.TestCase):
         self.assertIn("Added to cart", page)
         self.assertNotIn("ORDER PLACED", page)
 
+    def test_search_the_web_for_free_in_lumas_browser(self):
+        self.agent.providers.env["LUMA_SEARCH_URL"] = self.base + "/search.html?q={q}"
+        result = self.agent.search_web("raleigh weather")
+        self.assertEqual([r["url"] for r in result["results"]], ["https://weather.example/raleigh", "https://news.example/story"])
+        self.assertEqual(result["results"][0]["snippet"], "Sunny with a high of 72.")
+
     def test_pictures_come_from_the_store_page(self):
         from luma.skills import shopping
 

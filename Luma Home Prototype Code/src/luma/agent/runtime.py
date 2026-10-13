@@ -94,6 +94,10 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
               "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda"}
 
 
+RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done)(?: please)?[.!? ]*$", re.I)
+CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
+
+
 def register_connector_tools(tools):
     """Connected apps' tools become Luma tools. Read-only ones run on their own; the rest wait for a yes."""
     for name in [n for n in TOOLS if n.startswith("mcp.")]:
@@ -274,7 +278,7 @@ class Agent:
                    if k not in {"booking.create", "sms.send", "mac_messages.send", "luma.send", "browser.act", "shop.add_to_cart", "mail.send"}
                    and (agent_mode or not informational or k in {"web.search", "memory.recall", "tasks.list", "timers.list", "household.find", "briefing.today"})
                    and (self.mode != "kids" or v.kids)
-                   and (not v.service or self.store.setting("integration:" + v.service, False))}
+                   and (not v.service or self.integration_on(v.service))}
         if not agent_mode and re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered): allowed = {}
         relevant = set()
         groups = [
@@ -284,7 +288,7 @@ class Agent:
             (r"\b(?:recipe|cooking|next step|previous step)\b", {"cooking.step"}),
             (r"\b(?:household|pantry|manual|warranty|maintenance|save|where)\b", {"household.save", "household.find"}),
             (r"\b(?:briefing|my day|today's plans)\b", {"briefing.today", "tasks.list"}),
-            (r"\b(?:search|look up|find online|research|latest|current price)\b", {"web.search"}),
+            (r"\b(?:search|look (?:it |that )?up|google|find online|research|latest|current|news|weather|forecast|scores?|who won|stock price|open now|hours|near me|reviews?|release date|what happened|price of|how much)\b", {"web.search"}),
             (r"\b(?:appointment|availability|book|booking)\b", {"booking.availability"}),
             (r"\b(?:lights?|brightness)\b", {"home.light"}),
             (r"\b(?:talk|speak|style|tone|reply|replies)\b", {"personality.set_style"}),
@@ -333,6 +337,14 @@ class Agent:
         if self.mode == "kids" and value: raise ValueError("Integrations cannot be enabled in kids mode.")
         self.store.set_setting("integration:" + service, bool(value))
 
+    DEFAULT_ON = {"browser", "web_search"}  # reading the web is what Luma is for; Rules can still block it
+
+    def integration_on(self, service):
+        value = self.store.setting("integration:" + service, None)
+        if value is None:
+            return service in self.DEFAULT_ON and self.mode != "kids" and (service != "browser" or self._browser_available())
+        return bool(value)
+
     def hush(self, minutes=30):
         if not 1 <= minutes <= 1440: raise ValueError("Hush must be 1–1440 minutes.")
         self.store.set_setting("hush_until", self.clock() + minutes * 60)
@@ -353,12 +365,12 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.store.setting("integration:"+s,False) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
         if self.mode == "kids" and not spec.kids: raise ValueError("This tool is unavailable in kids mode.")
-        if spec.service and not self.store.setting("integration:" + spec.service, False):
+        if spec.service and not self.integration_on(spec.service):
             raise ValueError(f"{spec.service} is off. Enable it explicitly in local settings first.")
 
     def propose(self, name, args):
@@ -510,7 +522,7 @@ class Agent:
             return {"summary": f"Every day at {at}, I'll remind you to {self._task_phrase(args['title'])}.", "routine": row}
         if name == "booking.availability": return self.bookings.availability(args)
         if name == "booking.create": return self.bookings.create(args)
-        if name == "web.search": return self.providers.search(args)
+        if name == "web.search": return self.search_web(args["query"])
         if name == "sms.send": return self.providers.sms(args)
         if name == "luma.send": return self.cloud.send(args["to"], args["body"], client_ref=action_id or secrets.token_hex(8))
         if name == "mac_messages.send":
@@ -581,7 +593,7 @@ class Agent:
         label, url = self.FEEDS[site]
         if self.mode == "kids":
             return {"text": "I don't browse social apps in kids mode. Ask a grown-up!"}
-        if not self.store.setting("integration:browser", False):
+        if not self.integration_on("browser"):
             return {"text": f"I can scroll {label} for you once Luma's browser is on. Turn it on in Connections, sign in to {label} once in the window that opens, and I'll take it from there.", "section": "connections"}
         first = self.propose("browser.open", {"url": url})
         if first.get("state") == "failed":
@@ -628,12 +640,48 @@ class Agent:
         return {"page": page_for_model(snap, limit_elements=20)[:limit], "url": snap.get("url"), "title": snap.get("title"),
                 "summary": "Done." if name == "browser.act" else f"Opened {snap.get('title') or snap.get('url')}."}
 
+    SEARCH_URL = "https://html.duckduckgo.com/html/?q={q}"
+
+    def search_web(self, query):
+        """Look something up on the live web: Brave's API if there's a key, otherwise in Luma's own browser."""
+        query = " ".join(str(query).split())[:200]
+        if self.providers.env.get("BRAVE_SEARCH_API_KEY"):
+            return self.providers.search({"query": query})
+        if not self._browser_available():
+            raise ProviderError("I need my browser tools to look things up. Reinstall Luma's tools from Settings.")
+        import urllib.parse
+        url = self.providers.env.get("LUMA_SEARCH_URL", self.SEARCH_URL).replace("{q}", urllib.parse.quote_plus(query))
+        background = self.activity.busy()
+        ident = None if background else self.activity.start("search", f"Looking up {query}")
+        try:
+            if ident: self.activity.step("Searching the web")
+            snap = self.browser.open(url)
+            if ident:
+                shot = self.browser.screenshot()
+                self.activity.shot(shot.get("jpeg_base64"), shot.get("url"), shot.get("title"))
+            results = self.browser.search_results()
+        except Exception as error:
+            if ident: self.activity.finish("Couldn't search: " + str(error)[:160], "failed")
+            raise ProviderError("I couldn't reach the web just now: " + str(error)[:160]) from None
+        results = [r for r in results if str(r.get("url", "")).startswith("https://")][:6]
+        if ident: self.activity.finish(f"Found {len(results)} result{'s' if len(results) != 1 else ''}.")
+        return {"results": results, "query": query, "page": snap.get("text", "")[:1200] if not results else "",
+                "summary": (f"Here's what the web says about {query}." if results else f"I searched for {query} but nothing useful came up.")}
+
+    def look_it_up(self, question, cancel_event=None):
+        """Answer from the live web instead of guessing."""
+        result = self.propose("web.search", {"query": question})
+        spoken = self._answer_from(question, "web.search", result, cancel_event) if self.use_model and cancel_event is not None else None
+        top = result.get("results") or []
+        fallback = (result["summary"] + " " + " · ".join(r["title"] for r in top[:3])).strip()
+        return {**result, "text": spoken or fallback}
+
     # -- shopping: the cheapest real price, with the owner watching -------------
     def shop(self, query, max_price=None, background=False, cancel_event=None):
         """Compare stores in Luma's browser. Steps and live pictures go to the activity panel."""
         from luma.skills import shopping
         if self.mode == "kids": raise ValueError("I don't shop in kids mode. Ask a grown-up!")
-        if not self.store.setting("integration:browser", False):
+        if not self.integration_on("browser"):
             return {"text": "I can compare stores for you once Luma's browser is on. Turn it on in Apps and ask me again.", "section": "apps"}
         self.rules.check("shop.compare")
         stores = shopping.stores_from_env(self.providers.env)
@@ -968,7 +1016,7 @@ class Agent:
             return hit
         return offers[index] if 0 <= index < len(offers) else None
 
-    def _shopping_command(self, text, lowered, cancel_event):
+    def _shopping_command(self, text, lowered, cancel_event, force=False):
         from luma.skills import shopping
         cart = self.CART_REQUEST.fullmatch(text.strip())
         if cart:
@@ -1000,6 +1048,11 @@ class Agent:
                 limit = int(m.group("max").replace(",", "")) if m.groupdict().get("max") else None
                 if len(query) < 2: return None
                 return self.shop(query, max_price=limit, cancel_event=cancel_event)
+        if force and re.search(r"\b(?:cheapest|cheaper|price|prices|cost|costs|how much|buy|deals?)\b", lowered):
+            # The model shrugged at a shopping question: pull out the product and go compare.
+            query = re.sub(r"\b(?:find|get|show|tell|me|my|i|we|the|a|an|cheapest|cheaper|best|lowest|price|prices|priced|of|for|on|at|in|to|with|how|much|is|are|was|were|be|does|do|did|would|will|should|cost|costs|buy|buying|deals?|what'?s|what|can|could|you|please|right|now|today|online|try|again|they|them|it|its|these|those|this|that|days?|nowadays|currently|usually|typically|go|goes|going|sell|sells|selling|anywhere|stores?|around)\b", " ", lowered)
+            query = " ".join(query.split()).strip(" ?.!,")
+            if len(query) >= 3: return self.shop(query, cancel_event=cancel_event)
         return None
 
     def _mail_command(self, text, lowered, cancel_event):
@@ -1384,6 +1437,10 @@ class Agent:
         if spoken is not None: return spoken
         if text.strip().lower() in {"wait", "stop talking", "stop speaking", "never mind", "nevermind"}:
             return self.interrupt()
+        if RETRY.match(text.strip()) and getattr(self, "last_request", None):
+            text = self.last_request  # "try now", "again": do the last thing again
+        else:
+            self.last_request = text.strip()
         event = cancel_event or self.new_turn()
         with self.lock:
             if event.is_set(): return {"state":"interrupted", "text":"Stopped before starting."}
@@ -1694,4 +1751,13 @@ class Agent:
                 return result
             reply = answer.get("text")
             if not isinstance(reply, str) or not reply.strip(): raise ValueError("Local model returned no usable reply.")
+            if CANT_DO.search(reply) and self.mode != "kids":
+                # A small model sometimes falls back on "I don't have real-time access". Luma does: go look.
+                shop = self._shopping_command(text, lowered, cancel_event, force=True)
+                if shop is not None: return shop
+                if self.integration_on("web_search") and not self.rules.for_tool("web.search")[1] == "block":
+                    try:
+                        return self.look_it_up(text, cancel_event)
+                    except (ValueError, ProviderError) as error:
+                        return {"text": str(error)}
             return {"text": reply[:2000]}

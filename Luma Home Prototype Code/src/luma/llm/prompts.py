@@ -140,6 +140,7 @@ def build_plan_prompt(memories, tools, mode="friend", profile=None, current_time
     facts = [m["text"][:300] for m in memories[:3] if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
     parts = [build_personality_prompt(mode, profile), ACTION_CONTRACT,
              "Current local date and time: " + current_time,
+             "You are an agent with your own web browser on this computer. For anything current (prices, news, weather, scores, opening hours, facts you aren't sure of) use web.search or shop.compare when they're available. Never say you can't browse or don't have real-time access.",
              "Available tools: " + json.dumps(tools, ensure_ascii=False),
              "Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False)]
     if not tools:

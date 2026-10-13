@@ -269,6 +269,10 @@ class BrowserSession:
             raise ValueError("Nothing is open yet. Open a page first.")
         return page.evaluate(PRODUCTS_JS)
 
+    def _do_search_results(self, page):
+        """Results from a search page: title, real address and snippet for each."""
+        return page.evaluate(SEARCH_RESULTS_JS)
+
     def _do_pictures(self, page, ids):
         """Small JPEGs of product pictures, taken straight from the page Luma is looking at."""
         import base64
@@ -294,6 +298,7 @@ class BrowserSession:
     def screenshot(self): return self._call("screenshot")
     def products(self): return self._call("products")
     def pictures(self, ids): return self._call("pictures", list(ids))
+    def search_results(self): return self._call("search_results")
 
     def show_for_sign_in(self, url):
         """Reopen visibly so the owner can sign in themselves; Luma never handles passwords."""
@@ -308,6 +313,30 @@ class BrowserSession:
     def hide(self):
         self._call("_relaunch", True)
         return {"summary": "Browser is back in the background."}
+
+
+SEARCH_RESULTS_JS = r"""
+() => {
+  const out = [], seen = new Set();
+  // Search engines wrap result links in a redirect; keep the real address.
+  const real = (href) => {
+    try { const u = new URL(href, location.href); const q = u.searchParams.get('uddg') || u.searchParams.get('u') || u.searchParams.get('url'); return q && /^https?:/.test(q) ? q : u.href; } catch (e) { return null; }
+  };
+  for (const a of document.querySelectorAll('a.result__a, .result h2 a, .b_algo h2 a, h2 a, h3 a')) {
+    const url = real(a.getAttribute('href'));
+    if (!url || !/^https?:/.test(url)) continue;
+    const host = new URL(url).hostname;
+    if (host === location.hostname || /(^|\.)(duckduckgo|bing|google)\.com$/.test(host) || seen.has(url)) continue;
+    seen.add(url);
+    const box = a.closest('.result, .b_algo, li, article') || a.parentElement;
+    const snip = box && box.querySelector('.result__snippet, .b_caption p, p');
+    out.push({ title: a.textContent.replace(/\s+/g, ' ').trim().slice(0, 200), url,
+               snippet: (snip ? snip.textContent : '').replace(/\s+/g, ' ').trim().slice(0, 400) });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+"""
 
 
 def page_for_model(snapshot, limit_elements=45):
