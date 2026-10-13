@@ -682,3 +682,16 @@ body.panel-open .widgets { display: flex; }
 .tool-chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--line); color: var(--ink-2); }
 .tool-chip.asks { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
 .tool-chip.more { color: var(--muted); }
+
+/* Characters instead of clip-art: Luma's helpers have faces */
+.character { background: none !important; box-shadow: none !important; }
+.character img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 4px 6px rgba(20, 16, 40, 0.18)); }
+.ic.character, .chip-ic.character, .face.character { transform: scale(1.18); }
+.idea:hover .character img, .goal-card:hover .character img { transform: rotate(-6deg) scale(1.05); transition: transform .3s cubic-bezier(.3, 1.4, .5, 1); }
+
+/* Real app marks, white on the brand's color */
+.brand { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; flex: none; color: #fff; }
+.brand svg { width: 56%; height: 56%; fill: currentColor; }
+.app-card .top .brand.logo { width: 40px; height: 40px; }
+.brand-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.brand-strip .brand { width: 30px; height: 30px; border-radius: 8px; }

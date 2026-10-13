@@ -6,6 +6,7 @@ import secrets
 import ssl
 import subprocess
 import threading
+import re
 import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -187,6 +188,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 svg = ROOT/'desktop'/'brand'/'logo.svg'
                 if svg.is_file(): return self.send(svg.read_bytes(),kind='image/svg+xml')
                 return self.send((ROOT/'desktop'/'mascot.svg').read_bytes(),kind='image/svg+xml')
+            if re.fullmatch(r'/desktop/characters/[a-z-]{2,30}\.png', path) and (ROOT/path.removeprefix('/')).is_file():
+                return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='image/png')
             if path in {'/desktop/fonts/geist.woff2','/desktop/fonts/instrument-serif.woff2','/desktop/fonts/instrument-serif-italic.woff2'}:
                 return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='font/woff2')
             if path in static and not (companion and path.startswith('/desktop/')):

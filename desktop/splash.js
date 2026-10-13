@@ -3,8 +3,8 @@ const params = new URLSearchParams(location.search);
 const state = params.get("state") || "starting";
 const $ = (id) => document.getElementById(id);
 const copy = {
-  starting: ["Waking up…", "Starting Luma's brain on this computer. This takes a few seconds."],
-  setup: ["Setting up Luma", "The first time, Luma gets what it needs to run privately on this computer. About 3 GB, once."],
+  starting: ["Waking up", "Starting Luma on this computer."],
+  setup: ["Setting up Luma", "The first time, Luma gets what it needs to run privately on this computer."],
   missing: ["Where's Luma?", "I couldn't find Luma on this computer. Show me the luma-lumin-device folder and I'll remember it."],
   failed: ["Luma didn't start", params.get("detail") || "Something stopped Luma from starting."],
 };
@@ -17,12 +17,11 @@ if (state === "missing" || state === "failed") {
   $("choose").addEventListener("click", () => window.lumaDesktop?.chooseFolder());
   $("retry").addEventListener("click", () => window.lumaDesktop?.retry());
 }
-if (state === "setup") {
-  $("setup").hidden = false;
-  $("bar").hidden = false;
-  $("fine").hidden = false;
-}
+if (state === "setup") $("progress").hidden = false;
+
+// Each step reports its own progress; the bar shows the whole setup, weighted by how long each takes.
 const ORDER = ["python", "packages", "browser", "model", "done"];
+const WEIGHT = { python: 0.05, packages: 0.25, browser: 0.1, model: 0.6 };
 window.lumaDesktop?.onSetup?.((p) => {
   if (state !== "setup") return;
   const at = ORDER.indexOf(p.step);
@@ -31,7 +30,11 @@ window.lumaDesktop?.onSetup?.((p) => {
     li.classList.toggle("done", i < at);
     li.classList.toggle("now", i === at);
   }
-  if (p.detail && $("how-" + p.step)) $("how-" + p.step).textContent = p.detail;
-  if (p.label) $("title").textContent = p.step === "done" ? "Starting Luma" : p.label + "…";
-  $("fill").style.width = Math.round(Math.max(0, Math.min(1, p.fraction || 0)) * 100) + "%";
+  const before = ORDER.slice(0, Math.max(at, 0)).reduce((sum, s) => sum + (WEIGHT[s] || 0), 0);
+  const overall = p.step === "done" ? 1 : before + (WEIGHT[p.step] || 0) * Math.max(0, Math.min(1, p.fraction || 0));
+  const pct = Math.round(overall * 100);
+  $("fill").style.width = pct + "%";
+  $("percent").textContent = pct + "%";
+  const label = p.step === "done" ? "Starting Luma" : p.label || "Working";
+  $("step-label").textContent = p.detail && p.step !== "packages" ? `${label} · ${p.detail}` : label;
 });

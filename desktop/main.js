@@ -130,7 +130,7 @@ function createWindow() {
     minHeight: 560,
     title: "Luma",
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0b0a12" : "#f3f1ee",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#161618" : "#fbfaf8",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 18, y: 18 },
     icon: path.join(__dirname, "build", "icon.png"),
