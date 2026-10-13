@@ -32,9 +32,24 @@ jobs:
       - run: npm ci
       - name: First launch works on a real Mac
         run: node scripts/smoke.js "$RUNNER_TEMP/luma-home"
-      # Ad-hoc signed. With an Apple Developer ID, add CSC_LINK / CSC_KEY_PASSWORD
-      # and APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID secrets to notarize.
-      - run: npm run dist:mac
+      # With the Apple Developer secrets set, the app is signed and notarized, so macOS opens it
+      # with no warning. Without them it's ad-hoc signed (people click Open Anyway once).
+      - name: Build for Mac
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "Signing with the Developer ID and notarizing with Apple."
+            npx electron-builder --mac --publish never --config notarize.config.js
+          else
+            echo "No Apple Developer secrets yet: ad-hoc signed build."
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            npm run dist:mac
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Luma-for-Mac
@@ -94,7 +109,7 @@ jobs:
           cat > notes.md <<'NOTES'
           Luma Desktop: your own AI that works for you, running privately on your computer.
 
-          **Mac:** open the .dmg and drag Luma to Applications. The first time, right-click Luma and choose Open (or System Settings → Privacy & Security → Open Anyway), because this build isn't notarized by Apple yet.
+          **Mac:** open the .dmg and drag Luma to Applications. If macOS says Apple cannot check it for malicious software, open System Settings → Privacy & Security and click Open Anyway, once. Or install from Terminal with no warning: `curl -fsSL https://lumin-holdings-site.vercel.app/install-mac.sh | bash`.
           **Windows:** run the installer. If SmartScreen appears, choose More info → Run anyway.
 
           On first launch Luma sets itself up in its own folder: a private Python, its tools, and its brain (Qwen3 4B, about 2.5 GB, checked against its published SHA-256). Nothing is sent or bought without your OK.

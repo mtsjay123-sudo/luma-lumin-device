@@ -19,7 +19,7 @@ Download it from the website (**/download**) or from the repository's latest rel
 - `Luma-windows-setup.exe` for Windows 10 and 11.
 
 **The first time you open it**:
-- **Mac:** right-click Luma → **Open**. Or open System Settings → Privacy & Security → **Open Anyway**. This build isn't notarized by Apple yet.
+- **Mac:** if it says “Apple cannot check it for malicious software”, open System Settings → Privacy & Security and click **Open Anyway**, once. Or install from Terminal with no warning: `curl -fsSL https://lumin-holdings-site.vercel.app/install-mac.sh | bash`. This build isn't notarized by Apple yet.
 - **Windows:** if SmartScreen appears, choose **More info → Run anyway**.
 
 Then Luma sets itself up, once, in its own folder (no admin password):
@@ -49,3 +49,14 @@ CI (`.github/workflows/luma-desktop.yml`) works in this order:
 ## Your logo
 
 The app icon is in `build/` (`icon.png`, `icon.icns`, `icon.ico`). Luma's face in the app is `assets/logo.svg` and `Luma Home Prototype Code/src/luma/control/web/desktop/brand/logo.svg`.
+
+## Signing and notarizing the Mac app
+
+With an Apple Developer account ($99 a year), add these repository secrets and every build after that is signed and notarized, so macOS opens Luma with no warning:
+- `MAC_CERTIFICATE_P12_BASE64`: your **Developer ID Application** certificate exported from Keychain Access as a .p12, then base64-encoded (`base64 -i cert.p12 | pbcopy`).
+- `MAC_CERTIFICATE_PASSWORD`: the password you gave that .p12.
+- `APPLE_ID`: the Apple ID email of the developer account.
+- `APPLE_APP_SPECIFIC_PASSWORD`: an app-specific password from account.apple.com → Sign-In and Security.
+- `APPLE_TEAM_ID`: the 10-character Team ID from developer.apple.com → Membership.
+
+CI uses `notarize.config.js` when all of them are set, and the ad-hoc build otherwise.
