@@ -263,6 +263,12 @@ class BrowserSession:
         image = page.screenshot(type="jpeg", quality=55, full_page=False)
         return {"url": page.url, "title": page.title()[:200], "jpeg_base64": base64.b64encode(image).decode()}
 
+    def _do_products(self, page):
+        from luma.skills.shopping import PRODUCTS_JS
+        if page.url in {"", "about:blank"}:
+            raise ValueError("Nothing is open yet. Open a page first.")
+        return page.evaluate(PRODUCTS_JS)
+
     # -- public API ----------------------------------------------------------
     def open(self, url): return self._call("open", url)
     def read(self): return self._call("read")
@@ -273,6 +279,7 @@ class BrowserSession:
     def click(self, ref, expected_label=None): return self._call("click", int(ref), expected_label)
     def type(self, ref, text, submit=False, expected_label=None): return self._call("type", int(ref), text, bool(submit), expected_label)
     def screenshot(self): return self._call("screenshot")
+    def products(self): return self._call("products")
 
     def show_for_sign_in(self, url):
         """Reopen visibly so the owner can sign in themselves; Luma never handles passwords."""

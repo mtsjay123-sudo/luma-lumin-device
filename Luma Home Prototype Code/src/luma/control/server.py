@@ -93,6 +93,40 @@ class ControlContext:
             return self.phone_origin
 
 
+def home_payload(agent, owner=True):
+    """Everything the Luma Desktop home screen shows, in one request."""
+    now = agent.clock()
+    approvals = []
+    for row in agent.store.all('action', 40):
+        if row.get('state') != 'pending' or row.get('expires', 0) < now: continue
+        item = {k: v for k, v in row.items() if k != 'approval_hash'}
+        token = agent.approval_tokens.get(row['id'])
+        if owner and token: item['confirm_token'] = token[0]
+        approvals.append(item)
+    learned = [m for m in agent.store.all('memory', 60) if m.get('source') in {'feedback', 'noticed_in_conversation', 'explicit_user_request'}][:8]
+    helpers = agent.helpers.list()
+    return {
+        'today': agent.today(),
+        'cards': agent.feed.list(40),
+        'approvals': approvals,
+        'helpers': helpers,
+        'ideas': agent.ideas(),
+        'activity': agent.activity.view(),
+        'threads': agent.thread_list(),
+        'rules': agent.rules.all(),
+        'learned': learned,
+        'connections': {
+            'mail': agent.mail.status(),
+            'calendar': agent.calendar.status(),
+            'browser': {'on': agent.store.setting('integration:browser', False), 'available': agent._browser_available()},
+            'texting': {'route': agent.message_route, 'enabled': agent.store.setting('integration:sms', False)},
+            'phone_app': None,
+        },
+        'profile': {'name': agent.profile.get('name') or ''},
+        'model': {'on': agent.use_model},
+    }
+
+
 def make_server(agent, port=8095, *, context=None, phone_host=None):
     root_context = context is None
     ctx = context or ControlContext(agent)
@@ -126,7 +160,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
         def send(self, data, status=200, kind='application/json', *, owner_cookie=False, phone_token=None):
             encoded = json.dumps(data, ensure_ascii=False).encode() if kind=='application/json' else data
             self.send_response(status)
-            for k, v in {'Content-Type':kind, 'Content-Length':str(len(encoded)), 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items(): self.send_header(k,v)
+            for k, v in {'Content-Type':kind, 'Content-Length':str(len(encoded)), 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items(): self.send_header(k,v)
             if owner_cookie: self.send_header('Set-Cookie',f'luma_owner={ctx.owner_session}; HttpOnly; SameSite=Strict; Path=/')
             if phone_token: self.send_header('Set-Cookie',f'luma_phone={phone_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/')
             self.end_headers()
@@ -167,6 +201,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                              'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}.items(): self.send_header(k, v)
                 self.end_headers()
                 return self.wfile.write(data)
+            if path=='/api/activity':
+                return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5]})
+            if path=='/api/activity/shot':
+                image=agent.activity.image()
+                if not image: return self.send({'error':'No picture yet'},404)
+                return self.send(image,kind='image/jpeg')
+            if path=='/api/home':
+                if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
+                payload=home_payload(agent, owner=not companion)
+                payload['connections']['phone_app']=ctx.phone_app.status() if not companion else None
+                return self.send(payload)
+            if path.startswith('/api/threads/'):
+                ident=path[len('/api/threads/'):]
+                if ident not in agent.transcripts: return self.send({'error':'That chat is gone.'},404)
+                return self.send({'id':ident,'title':agent.thread_titles.get(ident),'messages':agent.transcripts[ident]})
             if path=='/api/state':
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
@@ -215,12 +264,28 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     reject_payment_secrets(text)
                     ctx.say(text)
                     result={'ok':True,'summary':'Speaking on this Mac. Stop interrupts playback.'}
+                elif path=='/api/activity/control':
+                    action=data.get('action')
+                    if action=='pause': result={'activity':agent.activity.pause()}
+                    elif action=='resume': result={'activity':agent.activity.resume()}
+                    elif action=='stop': result={'activity':agent.activity.stop()}
+                    elif action=='show':
+                        if companion: return self.send({'error':'Take over on the Mac.'},403)
+                        view=agent.activity.view() or {}
+                        agent.activity.pause()
+                        agent._check('browser.open')
+                        shown=agent.browser.show_for_sign_in(view.get('url') or 'https://www.google.com/')
+                        result={'activity':agent.activity.view(),'url':shown.get('url'),'summary':"It's your browser now. I paused; press Resume when you're done."}
+                    else: raise ValueError('Choose pause, resume, stop or show.')
                 elif path=='/api/chat':
                     from luma.orchestrator import SpeechStream, spoken_reply
                     event=agent.new_turn()
                     # Start talking at the first sentence while the model is still writing.
                     stream=SpeechStream(agent,event,allow_muted=True) if data.get('voice') is True and not companion else None
-                    result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None)
+                    thread=data.get('thread') or 'main'
+                    if not isinstance(thread,str): raise ValueError('Choose a chat.')
+                    result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None,thread=thread)
+                    if thread!='main': result['thread']=thread
                     ctx.publish(result)
                     if stream and not event.is_set() and not stream.finish(wait=False):
                         ctx.say(spoken_reply(result), event)
@@ -286,6 +351,51 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/threads/new': result=agent.new_thread(data.get('title'))
+                    elif path=='/api/threads/delete': result=agent.delete_thread(str(data.get('id','')))
+                    elif path=='/api/shop/compare':
+                        query=data.get('query')
+                        if not isinstance(query,str) or not 2<=len(query.strip())<=120: raise ValueError('Tell me what to look for.')
+                        limit=data.get('max_price')
+                        result=agent.chat(f"find me the cheapest {query.strip()}"+(f" under ${int(limit)}" if isinstance(limit,int) and limit>0 else ''))
+                        ctx.publish(result)
+                    elif path=='/api/shop/add':
+                        from luma.skills.shopping import money
+                        offer=data.get('offer') or {}
+                        if not isinstance(offer,dict): raise ValueError('Pick a product.')
+                        price=offer.get('price')
+                        price=money(float(price)) if isinstance(price,(int,float)) else str(price or '')
+                        result=agent.propose('shop.add_to_cart',{'store':str(offer.get('store','')),'title':str(offer.get('title',''))[:200],'price':price,'url':str(offer.get('url',''))})
+                    elif path=='/api/helpers/create':
+                        if companion: return self.send({'error':'Set up helpers on the Mac.'},403)
+                        params={k:data.get(k) for k in ('query','target','site','goal') if data.get(k) not in (None,'')}
+                        result={'helper':agent.helpers.create(str(data.get('kind','')),data.get('title'),params,data.get('every') or 'daily',data.get('at') or None)}
+                    elif path=='/api/helpers/update':
+                        changes={k:data[k] for k in ('enabled','run_now','every') if k in data}
+                        result={'helper':agent.helpers.update(str(data.get('id','')),**changes)}
+                    elif path=='/api/helpers/delete': result={'deleted':agent.helpers.delete(str(data.get('id','')))}
+                    elif path=='/api/cards/read': result={'card':agent.feed.mark_read(data.get('id'))}
+                    elif path=='/api/cards/delete': result={'deleted':agent.feed.delete(data.get('id'))}
+                    elif path=='/api/feedback': result=agent.feedback(str(data.get('id','')),data.get('value'),data.get('note'))
+                    elif path=='/api/rules':
+                        if companion: return self.send({'error':'Change rules on the Mac.'},403)
+                        result={'rules':agent.rules.set(str(data.get('id','')),str(data.get('value','')))}
+                    elif path.startswith('/api/connect/'):
+                        if companion: return self.send({'error':'Connect apps on the Mac.'},403)
+                        what=path[len('/api/connect/'):]
+                        if what=='mail':
+                            servers={k:data.get(k) for k in ('imap_host','smtp_host','smtp_port') if data.get(k)}
+                            result={'mail':agent.mail.connect(data.get('address'),data.get('app_password'),**servers)}
+                            agent.enable('mail',True)
+                        elif what=='calendar':
+                            result={'calendar':agent.calendar.connect(data.get('url'))}
+                            agent.enable('calendar',True)
+                        elif what=='disconnect':
+                            service=data.get('service')
+                            if service=='mail': result={'mail':agent.mail.disconnect()}; agent.enable('mail',False)
+                            elif service=='calendar': result={'calendar':agent.calendar.disconnect()}; agent.enable('calendar',False)
+                            else: raise ValueError('Choose mail or calendar.')
+                        else: return self.send({'error':'Not found'},404)
                     elif path=='/api/contacts/save': result=agent.contacts.save(data)
                     elif path=='/api/contacts/delete': result={'deleted':agent.contacts.delete(data.get('id'))}
                     elif path in {'/api/browser/show', '/api/browser/hide'}:
@@ -337,6 +447,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
     server.control_context=ctx
     if root_context:
         ctx.phone_app.start()
+        try: agent.helpers.ensure_system()
+        except Exception: pass
         def clock_loop():
             while not ctx.stop.wait(1):
                 try:

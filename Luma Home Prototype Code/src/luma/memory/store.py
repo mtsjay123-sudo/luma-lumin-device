@@ -34,6 +34,18 @@ def reject_payment_secrets(value):
             raise ValueError("Long payment-like numbers are not accepted. Use merchant-saved payment details.")
 
 
+def mask_long_numbers(value):
+    """For things Luma keeps from the outside world (receipts, feed cards): long digit runs
+    such as tracking or order numbers become [number] so nothing card-like is ever stored."""
+    if isinstance(value, dict):
+        return {k: mask_long_numbers(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask_long_numbers(v) for v in value]
+    if isinstance(value, str):
+        return re.sub(r"(?<![A-Za-z0-9+])(?:\d[ -]?){12,18}\d(?![A-Za-z0-9])", "[number]", value)
+    return value
+
+
 class Store:
     def __init__(self, db_path: Path, key_path: Path):
         self.db_path, self.key_path = Path(db_path), Path(key_path)
