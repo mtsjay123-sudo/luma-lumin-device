@@ -284,6 +284,22 @@ class MailAndCalendarTests(unittest.TestCase):
         self.assertIsNone(second.get("notify"))
         self.assertEqual(self.agent.feed.list()[0]["kind"], "inbox")
 
+    def test_plan_my_week_reads_the_real_calendar_or_asks_for_it(self):
+        ask = self.agent.chat("plan my week")
+        self.assertEqual(ask["section"], "apps")
+        self.assertIn("Connect your calendar", ask["text"])
+        self.assertNotIn("events", ask)
+        self.agent.calendar.connect("webcal://calendar.example.com/private/basic.ics")
+        self.agent.enable("calendar", True)
+        week = self.agent.chat("can you plan my week")
+        titles = [e["title"] for e in week["events"]]
+        self.assertIn("Dentist", titles)
+        self.assertIn("Tomorrow thing", titles)
+        self.assertEqual(titles.count("Soccer practice"), 1)  # weekly, so once this week
+        self.assertEqual(week["kind"], "agenda")
+        tomorrow = self.agent.chat("plan tomorrow")
+        self.assertEqual([e["title"] for e in tomorrow["events"]], ["Tomorrow thing"])
+
     def test_calendar_today_including_repeats(self):
         self.agent.calendar.connect("webcal://calendar.example.com/private/basic.ics")
         self.agent.enable("calendar", True)

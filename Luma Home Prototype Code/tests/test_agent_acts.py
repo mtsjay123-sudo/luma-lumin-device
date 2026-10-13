@@ -111,3 +111,21 @@ class AgentActsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GreetingWithoutModelTests(unittest.TestCase):
+    def test_yo_gets_a_friendly_hello_not_a_status_message(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(Path(folder) / "db", Path(folder) / "key")
+            agent = Agent(store=store, use_model=False)
+            try:
+                for hello in ["yo", "what's good", "hey luma!"]:
+                    reply = agent.chat(hello)["text"]
+                    self.assertIn("What can I take off your plate?", reply)
+                    self.assertNotIn("Model conversation is disabled", reply)
+            finally:
+                store.close()
