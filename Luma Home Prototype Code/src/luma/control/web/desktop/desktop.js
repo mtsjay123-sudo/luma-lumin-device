@@ -441,12 +441,15 @@
     if (r.cart && r.url) { const a = el("div", "actions"); a.append(webLink("Open your cart", r.url, "pill soft small", "cart")); return a; }
     if (r.sign_in) {
       const a = el("div", "actions");
-      a.append(btn("I'm signed in", "pill primary small", () => send("done"), "check"), webLink(`Open ${r.sign_in}`, r.url, "pill soft small", "globe"));
+      const mark = brandFor(r.sign_in);
+      const go1 = btn(`Sign in to ${r.sign_in}`, "pill primary small", () => { state.handoff = "I'm signed in"; openInLuma(r.url); });
+      if (mark) go1.prepend(brand(mark));
+      a.append(go1, btn("I'm signed in", "pill soft small", () => send("done"), "check"));
       return a;
     }
     if (r.handoff && r.url) {
       const a = el("div", "actions");
-      a.append(btn("Done, I added it", "pill primary small", () => send("done"), "check"), webLink("Show me the page", r.url, "pill soft small", "globe"));
+      a.append(btn("Show me the page", "pill primary small", () => { state.handoff = "Done, I added it"; go("browser"); }, "globe"), btn("Done, I added it", "pill soft small", () => send("done"), "check"));
       return a;
     }
     if (r.results && r.results.length) {
@@ -1395,8 +1398,8 @@
     box.replaceChildren();
 
     const mail = con.mail || {};
-    const mc = appCard("Email", mail.connected ? mail.address : "Gmail, Outlook, iCloud, Yahoo, Proton or your own", "", "brand:gmail", mail.connected);
-    mc.append(strip(["gmail", "microsoftoutlook", "icloud", "yahoo", "protonmail", "email"]));
+    const mc = appCard("Email", mail.connected ? mail.address : "Gmail, iCloud, Yahoo or your own domain", "", "brand:gmail", mail.connected);
+    mc.append(strip(["gmail", "icloud", "yahoo", "email"]));
     if (mail.connected) {
       mc.append(el("div", "help", "I read your inbox, write drafts into your Drafts folder, and only send when you press Allow."));
       const a = el("div", "actions");
@@ -1407,7 +1410,7 @@
       const addr = el("input"); addr.type = "email"; addr.placeholder = "you@gmail.com"; addr.required = true; addr.autocomplete = "email";
       const pw = el("input"); pw.type = "password"; pw.placeholder = "App password (16 letters)"; pw.required = true; pw.autocomplete = "off";
       const help = el("div", "help");
-      help.append(document.createTextNode("Free and private. Make an app password at "), linkOut("Google", "https://myaccount.google.com/apppasswords", ""), document.createTextNode(", "), linkOut("Apple", "https://account.apple.com/account/manage", ""), document.createTextNode(" or "), linkOut("Yahoo", "https://login.yahoo.com/account/security/app-passwords", ""), document.createTextNode(". It's never your real password."));
+      help.append(document.createTextNode("Free and private. Make an app password at "), linkOut("Google", "https://myaccount.google.com/apppasswords", ""), document.createTextNode(", "), linkOut("Apple", "https://account.apple.com/account/manage", ""), document.createTextNode(" or "), linkOut("Yahoo", "https://login.yahoo.com/account/security/app-passwords", ""), document.createTextNode(". It's never your real password. Outlook: sign in to it below in Luma's browser instead."));
       const adv = el("details");
       adv.append(el("summary", null, "Other provider"));
       const imap = el("input"); imap.placeholder = "IMAP server, e.g. imap.fastmail.com";
@@ -1433,6 +1436,7 @@
     const cal = con.calendar || {};
     const cc = appCard("Calendar", cal.connected ? cal.host : "Google, iCloud, Outlook", "", "brand:googlecalendar", cal.connected);
     cc.append(strip(["googlecalendar", "icloud", "microsoftoutlook"]));
+    cc.append(el("div", "help", "Outlook: Settings → Calendar → Shared calendars → Publish a calendar, then paste the ICS link."));
     if (cal.connected) {
       const a = el("div", "actions");
       a.append(btn("What's on today?", "pill soft small", () => send("what's on my calendar today?")), btn("Disconnect", "pill quiet small danger", async () => { await api("/api/connect/disconnect", { service: "calendar" }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
@@ -1801,8 +1805,14 @@
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.view === "browser") browserFrame(true); });
 
+  $("b-done").addEventListener("click", () => { const said = state.handoff; state.handoff = null; $("b-done").hidden = true; go("chat"); if (said) send("done"); });
   function renderView(view) {
-    if (view === "browser") { browserFrame(true); if (!browserView.url) $("b-url").focus(); }
+    if (view === "browser") {
+      $("b-done").hidden = !state.handoff;
+      if (state.handoff) $("b-done").lastChild.textContent = state.handoff;
+      browserFrame(true);
+      if (!browserView.url) $("b-url").focus();
+    }
     if (view === "feed") renderFeed();
     if (view === "ideas") renderIdeas();
     if (view === "goals") renderGoals();

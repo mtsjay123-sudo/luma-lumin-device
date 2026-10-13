@@ -622,15 +622,9 @@ class Agent:
 
     def _needs_sign_in(self, label, url, question):
         """Never guess at a feed Luma can't see: open the site so the owner signs in once, then 'done' retries."""
-        try:
-            self.browser.show_for_sign_in(url)
-            shown = True
-        except Exception:
-            shown = False
         self.pending_handoff = {"kind": "sign_in", "site": label, "url": url, "retry": question}
         text = (f"Luma's browser isn't signed in to {label} yet, so I can't see your feed. "
-                + (f"I've opened {label} for you: log in once (I never see or type your password), then say \"done\" and I'll catch you up."
-                   if shown else f"Open Apps and tap Sign in to {label}, log in once, then ask me again."))
+                f"Tap Sign in to {label}, log in once right there in Luma (I never see or type your password), then say \"done\" and I'll catch you up.")
         return {"text": text, "section": "apps", "url": url, "sign_in": label}
 
     def check_feed(self, site, question, cancel_event=None):
@@ -810,14 +804,8 @@ class Agent:
         if not pressed:
             # Don't just give up: put the page in front of the owner, signed in as them, and wait.
             self.activity.finish("Over to you: the page is open in Luma's browser.", "handoff")
-            try:
-                self.browser.show_for_sign_in(args["url"])
-                shown = True
-            except Exception:
-                shown = False
             text = (f"I couldn't press Add to cart on {args['store']} myself (it may want a size, color or seller first), "
-                    + ("so I've opened the page in my browser. Pick what it needs and press Add to cart, then say \"done\" and I'll check your cart."
-                       if shown else "so open the product and add it yourself."))
+                    "so the page is waiting for you in Luma's browser. Pick what it needs and press Add to cart, then say \"done\" and I'll check your cart.")
             self.pending_handoff = {"kind": "cart", "store": args["store"], "url": args["url"]}
             return {"handoff": True, "url": args["url"], "section": "shopping", "summary": text, "text": text}
         if host and pressed not in {"label", None}:

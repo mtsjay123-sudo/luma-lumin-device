@@ -94,12 +94,11 @@ class AgentActsTests(unittest.TestCase):
                 return {"url": "https://www.instagram.com/accounts/login/", "title": "Instagram",
                         "text": "Phone number, username, or email  Password  Log in  Forgot password?", "elements": []}
             def show_for_sign_in(self, url):
-                self.shown = url
-                return {"url": url}
+                raise AssertionError("signing in happens inside Luma's window, not a pop-up")
         self.agent._browser = SignedOut(LISTINGS)
         result = self.agent.chat("catch me up on instagram")
         self.assertIn("isn't signed in to Instagram", result["text"])
-        self.assertEqual(self.agent._browser.shown, "https://www.instagram.com/")
+        self.assertEqual((result["sign_in"], result["url"]), ("Instagram", "https://www.instagram.com/"))
         self.assertNotIn("summar", result["text"].lower())
         self.assertEqual(self.agent.pending_handoff["retry"], "catch me up on instagram")
 
