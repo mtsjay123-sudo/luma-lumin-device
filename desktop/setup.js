@@ -23,7 +23,8 @@ const MODEL = {
   sha256: "2fde00ce69dd4899c70d020845e2638353015bba0fdf161b3eb965f2bca4464e",
 };
 // Enough to run Luma Desktop. Voice (Whisper, Kokoro) is optional and much larger.
-const PACKAGES = ["llama-cpp-python>=0.3.9", "cryptography>=44", "qrcode==8.2", "python-pptx>=1.0,<2", "playwright>=1.56,<2", "numpy", "python-dotenv"];
+// tzdata: Windows has no time-zone database of its own, and Luma plans your day in yours.
+const PACKAGES = ["llama-cpp-python>=0.3.9", "cryptography>=44", "qrcode==8.2", "python-pptx>=1.0,<2", "playwright>=1.56,<2", "numpy", "python-dotenv", "tzdata"];
 const UA = { "User-Agent": "LumaDesktop/1.0 (+https://github.com/mtsjay123-sudo/luma-lumin-device)" };
 
 const triple = () => ({
@@ -172,17 +173,30 @@ async function ensurePackages(home, python, report) {
       report({ step: "packages", label: "Installing Luma's tools", fraction: Math.min(0.95, 0.05 + seen / 60), detail: name });
     }
   };
-  const base = ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary", "--extra-index-url", wheelIndex()];
+  const pip = ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary"];
+  const others = PACKAGES.filter((p) => !p.startsWith("llama-cpp-python"));
+  const llama = PACKAGES.find((p) => p.startsWith("llama-cpp-python"));
+  await run(python, [...pip, ...others], { env, onLine });
   try {
-    // Prebuilt llama.cpp only: no compiler needed.
-    await run(python, [...base, "--only-binary", "llama-cpp-python", ...PACKAGES], { env, onLine });
+    // A prebuilt llama.cpp first: no compiler needed.
+    await run(python, [...pip, "--only-binary", "llama-cpp-python", "--extra-index-url", wheelIndex(), llama], { env, onLine });
+    await run(python, ["-c", "import llama_cpp"], { env });
   } catch (error) {
-    // No prebuilt wheel for this machine: build it (works when Xcode tools or Visual Studio are installed).
+    // No good prebuilt one for this machine (or a broken download): build it from source.
     report({ step: "packages", label: "Building Luma's brain engine (a few minutes)", fraction: 0.6 });
-    try { await run(python, [...base, ...PACKAGES], { env: { ...env, CMAKE_ARGS: process.platform === "darwin" && process.arch === "arm64" ? "-DGGML_METAL=on" : "" }, onLine }); }
-    catch (second) { throw Object.assign(new Error("Installing Luma's tools didn't work. " + lastLine(second.tail || error.tail)), { tail: second.tail }); }
+    if (process.platform === "darwin" && !(await hasMacCompiler())) {
+      run("xcode-select", ["--install"]).catch(() => {});
+      throw new Error("Luma needs Apple's free Command Line Tools to finish setting up. Click Install in the window that just opened, wait for it to finish, then press Try again.");
+    }
+    const cmake = process.platform === "darwin" && process.arch === "arm64" ? "-DGGML_METAL=on" : "";
+    try { await run(python, [...pip, "--no-cache-dir", "--no-binary", "llama-cpp-python", llama], { env: { ...env, CMAKE_ARGS: cmake }, onLine }); }
+    catch (second) { throw Object.assign(new Error("Installing Luma's brain engine didn't work. " + lastLine(second.tail || error.tail)), { tail: second.tail }); }
   }
   writeState(home, { packages: want });
+}
+
+async function hasMacCompiler() {
+  try { await run("xcode-select", ["-p"]); await run("xcrun", ["--find", "clang"]); return true; } catch { return false; }
 }
 
 function lastLine(tail) {

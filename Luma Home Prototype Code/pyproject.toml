@@ -23,6 +23,7 @@ dependencies = [
     "wikipedia-api",
     "cryptography>=44",
     "qrcode==8.2",
+    "tzdata; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
