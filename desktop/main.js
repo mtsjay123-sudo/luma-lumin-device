@@ -7,7 +7,7 @@
 // Closing the window doesn't stop Luma: it stays in the menu bar (or the system
 // tray on Windows) and starts at login, so your Goals keep running.
 "use strict";
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session, powerSaveBlocker, net } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -66,13 +66,41 @@ function ping() {
   });
 }
 
+// More memory, longer memory: 8K tokens on an 8 GB computer, 16K on 16 GB, 32K on 24 GB and up.
+function contextSize() {
+  const gb = os.totalmem() / 2 ** 30;
+  return gb >= 24 ? 32768 : gb >= 12 ? 16384 : 8192;
+}
+
+// While Luma is in the middle of something, the computer doesn't go to sleep on it.
+let awake = null;
+function keepAwakeWhileWorking() {
+  setInterval(() => {
+    // With the window's own sign-in cookie, the same way Luma's page asks.
+    const req = net.request({ url: `${ORIGIN}/api/activity`, useSessionCookies: true });
+    req.on("response", (res) => {
+      let body = "";
+      res.on("data", (c) => { body += c; });
+      res.on("end", () => {
+        let busy = false;
+        try { busy = ["running", "paused"].includes(JSON.parse(body).activity?.state); } catch { /* not ready */ }
+        if (busy && awake === null) awake = powerSaveBlocker.start("prevent-app-suspension");
+        if (!busy && awake !== null) { powerSaveBlocker.stop(awake); awake = null; }
+      });
+    });
+    req.on("error", () => {});
+    req.end();
+  }, 20000);
+}
+
 async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
   if (await ping()) return { ok: true };
   const log = fs.openSync(path.join(app.getPath("userData"), "luma-runtime.log"), "a");
   runtime = spawn(python, ["-m", "luma.cli", "serve", "--port", String(PORT)], {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
-    cwd: dir, env: { ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    // LUMA_CONTEXT_SIZE: how much of the conversation Luma can keep in mind at once, sized to this computer's memory.
+    cwd: dir, env: { LUMA_CONTEXT_SIZE: String(contextSize()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });
@@ -281,6 +309,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on("second-instance", summon);
   app.whenReady().then(() => {
+    keepAwakeWhileWorking();
     app.setName("Luma");
     buildMenu();
     // First launch: start at login, so Goals run every day (switch it off from the menu bar icon).

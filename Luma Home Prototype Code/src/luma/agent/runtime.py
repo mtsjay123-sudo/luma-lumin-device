@@ -208,6 +208,8 @@ class Agent:
         self.transcripts = {"main": []}
         self.thread_titles = {"main": "Main chat"}
         self._load_chats()
+        from luma.agent.taught import Taught
+        self.taught = Taught(self)  # tasks the owner showed Luma once in its browser
         # A new process starts with the microphone muted, even after a crash.
         self.store.set_setting("muted", True)
 
@@ -1186,6 +1188,25 @@ class Agent:
             return {"events": events, "kind": "agenda", "section": "today", "text": self.calendar.describe(events, label)}
         return None
 
+    # -- tasks the owner taught Luma by doing them once ---------------------------------------------
+    def _taught_request(self, text, cancel_event=None):
+        if self.mode == "kids": return None
+        lowered = text.strip().lower().rstrip(".!?")
+        if re.fullmatch(r"(?:what (?:have i|did i) (?:taught|teach|show(?:n)?) you|what can you do for me|(?:show|list) (?:me )?(?:my|the) (?:taught )?(?:tasks|skills))", lowered):
+            mine = self.taught.list()
+            if not mine:
+                return {"text": "Nothing yet. Open the Browser tab, press Teach, and do a task once, like reordering your usual coffee. I'll remember the steps and can do it again whenever you ask."}
+            return {"text": "You've taught me: " + "; ".join(t["name"] for t in mine[:10]) + ". Say \"run\" and the name any time.", "section": "ideas"}
+        ask = re.fullmatch(r"(?:please\s+)?(?:run|do|redo|repeat|start)\s+(?:my\s+|the\s+)?[\"“']?(.+?)[\"”']?(?:\s+(?:again|for me|now|please))*", lowered)
+        row = self.taught.find(ask.group(1)) if ask else self.taught.find(lowered, exact=True)  # just saying its name runs it
+        if not row: return None
+        if not self.integration_on("browser"):
+            return {"text": f"I need Luma's browser on to do “{row['name']}”. Turn it on in Apps.", "section": "apps"}
+        try:
+            return self.taught.run(row, cancel_event)
+        except ValueError as error:
+            return {"text": f"I stopped “{row['name']}”: {error}"}
+
     # -- what's new in the world (read from free public feeds, no accounts or keys) --------------
     news_allow_local = False  # tests point the feeds at a local server
 
@@ -1877,6 +1898,8 @@ class Agent:
             if texted is not None: return texted
             saved = self._save_contact_request(text)
             if saved is not None: return saved
+            taught = self._taught_request(text, cancel_event)
+            if taught is not None: return taught
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new|happening|going on) on)\s+(?:my\s+|the\s+)?(instagram|insta|ig|tiktok|twitter|x|facebook|fb|reddit|linkedin|youtube)\b", lowered)
             if feed: return self.check_feed(feed[1], text, cancel_event)
             shopping_reply = self._shopping_command(text, lowered, cancel_event)

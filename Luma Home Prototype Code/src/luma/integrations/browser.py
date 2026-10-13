@@ -278,12 +278,14 @@ class BrowserSession:
     def _do_drive(self, page, kind, data):
         """The owner's own clicks, scrolls and keys from Luma's window. Luma itself still never types passwords."""
         size = page.viewport_size or {"width": 1100, "height": 800}
+        target = None
         x = min(max(float(data.get("x", 0.5)), 0.0), 1.0) * size["width"]
         y = min(max(float(data.get("y", 0.5)), 0.0), 1.0) * size["height"]
         if kind == "back": page.go_back(wait_until="domcontentloaded", timeout=15000)
         elif kind == "forward": page.go_forward(wait_until="domcontentloaded", timeout=15000)
         elif kind == "reload": page.reload(wait_until="domcontentloaded", timeout=20000)
         elif kind == "click":
+            target = page.evaluate(DESCRIBE_JS, [x, y])
             page.mouse.click(x, y)
             page.wait_for_timeout(350)
         elif kind == "scroll":
@@ -291,6 +293,7 @@ class BrowserSession:
             page.mouse.wheel(0, max(-2400, min(2400, int(data.get("dy", 0)))))
             page.wait_for_timeout(120)
         elif kind == "type":
+            target = page.evaluate(DESCRIBE_JS, [None, None])
             page.keyboard.type(str(data.get("text", ""))[:500])
         elif kind == "key":
             key = str(data.get("key", ""))
@@ -305,7 +308,7 @@ class BrowserSession:
         except ValueError:
             page.goto("about:blank")
             raise
-        return {"url": page.url, "title": page.title()[:200]}
+        return {"url": page.url, "title": page.title()[:200], "target": target}
 
     def _do_products(self, page):
         from luma.skills.shopping import PRODUCTS_JS
@@ -398,6 +401,20 @@ class BrowserSession:
         self._call("_relaunch", True)
         return {"summary": "Browser is back in the background."}
 
+
+# What's under the owner's finger (or cursor) in Luma's browser, described the way the page
+# snapshot describes it, so a taught task can find the same thing again later.
+DESCRIBE_JS = r"""
+([x, y]) => {
+  const hit = x === null ? document.activeElement : document.elementFromPoint(x, y);
+  if (!hit || hit === document.body) return null;
+  const el = hit.closest('a[href],button,input,textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[contenteditable=true],summary,label') || hit;
+  const label = (el.getAttribute('aria-label') || el.innerText || el.value || el.placeholder || el.title ||
+                 el.getAttribute('alt') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 90);
+  return {tag: el.tagName.toLowerCase(), type: (el.getAttribute('type') || el.getAttribute('role') || '').toLowerCase(), label,
+          name: el.name || '', placeholder: el.placeholder || '', href: el.href || ''};
+}
+"""
 
 # Keys the owner can press in Luma's browser view.
 OWNER_KEYS = {"Enter", "Backspace", "Delete", "Tab", "Shift+Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft",

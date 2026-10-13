@@ -442,6 +442,41 @@ class RealBrowserShoppingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             browser.drive("key", {"key": "Meta+Q"})
 
+    def test_a_taught_task_replays_by_what_things_say_and_still_asks_before_buying(self):
+        from luma.agent.taught import Recorder
+        browser = self.agent.browser
+        browser.open(self.base + "/shop.html")
+        teach = Recorder(self.base + "/shop.html")
+        browser.drive("key", {"key": "Tab"})
+        typed = browser.drive("type", {"text": "earbuds"})
+        self.assertEqual(typed["target"]["label"], "Search the store")
+        teach.add("type", {"text": "earbuds"}, typed)
+        teach.add("key", {"key": "Enter"}, browser.drive("key", {"key": "Enter"}))
+        teach.add("click", {}, {"target": {"tag": "button", "type": "", "label": "Add to cart", "name": "", "placeholder": "", "href": ""}})
+        teach.add("click", {}, {"target": {"tag": "button", "type": "", "label": "Buy now", "name": "", "placeholder": "", "href": ""}})
+        self.assertEqual([s["do"] for s in teach.steps], ["type", "click", "click"])
+        self.assertTrue(teach.steps[0]["submit"])
+        saved = self.agent.taught.save("buy my earbuds", teach)
+        with self.assertRaises(ValueError):
+            self.agent.taught.save("Buy my earbuds", teach)
+        result = self.agent.chat("run buy my earbuds")
+        self.assertEqual(result["state"], "pending")  # "Buy now" waits for the owner, taught or not
+        self.assertIn("needs your OK", result["text"])
+        page = browser.read()
+        self.assertIn("q=earbuds", page["url"])
+        self.assertIn("In cart (1)", page["text"])
+        self.assertNotIn("ORDER PLACED", page["text"])
+        self.assertEqual(self.agent.taught.list()[0]["id"], saved["id"])
+
+    def test_a_taught_task_never_keeps_a_password(self):
+        from luma.agent.taught import Recorder
+        teach = Recorder(self.base + "/login.html")
+        secret = {"tag": "input", "type": "password", "label": "", "name": "pw", "placeholder": "", "href": ""}
+        teach.add("type", {"text": "hunter2"}, {"target": secret})
+        teach.add("type", {"text": "more"}, {"target": secret})
+        self.assertEqual(teach.steps, [{"do": "type", "target": secret, "text": "", "secret": True}])
+        self.assertNotIn("hunter2", str(self.agent.taught.save("sign in", teach)))
+
     def test_add_to_cart_finds_the_button_far_down_a_busy_page_and_remembers_it(self):
         args = {"store": "Amazon", "title": "Apple AirPods Pro (2nd Generation)", "price": "$129.35",
                 "url": self.base + "/product-amazonish.html"}

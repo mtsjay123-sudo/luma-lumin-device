@@ -1214,6 +1214,18 @@
   function renderIdeas() {
     const box = $("ideas");
     box.replaceChildren();
+    // Things you showed Luma once in its browser. Luma can do them again on its own.
+    for (const t of state.home?.taught || []) {
+      const c = el("div", "idea card taught");
+      const mark = brandFor((t.site || "").split(".").slice(-2, -1)[0]);
+      c.append(mark ? brand(mark) : chip("update", "hand", "ic"), el("h3", null, t.name),
+        el("p", null, `You showed me this${t.site ? " on " + t.site : ""}: ${t.steps} step${t.steps === 1 ? "" : "s"}${t.runs ? `, done ${t.runs}×` : ""}. Anything that buys or sends still asks you first.`));
+      const row = el("div", "actions");
+      row.append(btn("Do it again", "pill small primary", () => send("run " + t.name), "play"),
+        btn("", "pill quiet small", async () => { try { await api("/api/taught/delete", { id: t.id }); await refreshHome(); renderIdeas(); } catch (e) { toast(e.message); } }, "trash"));
+      c.append(row);
+      box.append(c);
+    }
     for (const i of state.home?.ideas || []) {
       const k = i.kind in KIND && i.kind !== "idea" ? i.kind : guessKind(i.say + " " + i.title);
       const c = el("div", "idea card");
@@ -1697,7 +1709,7 @@
     go("browser");
     $("b-url").value = href;
     browserLoading(true);
-    try { const r = await api("/api/browser/go", { url: href }); browserView.url = r.url || href; }
+    try { const r = await api("/api/browser/go", { url: href }); browserView.url = r.url || href; if (typeof r.steps === "number") teachUI(r.steps); }
     catch (e) {
       toast(/turn|browser is off|isn't on/i.test(e.message) ? "Turn on Luma's browser in Apps first." : e.message);
     }
@@ -1730,7 +1742,7 @@
   // Inputs go one after another, so a click lands before the typing that follows it.
   function drive(kind, data = {}) {
     browserView.queue = browserView.queue.then(async () => {
-      try { await api("/api/browser/drive", { kind, ...data }); }
+      try { const r = await api("/api/browser/drive", { kind, ...data }); if (typeof r.steps === "number") teachUI(r.steps); }
       catch (e) { if (!/That key/.test(e.message)) toast(e.message); }
       browserFrame(true);
     });
@@ -1805,6 +1817,24 @@
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.view === "browser") browserFrame(true); });
 
+  // Teach: do a task once while Luma watches, then Luma can do it again whenever you ask.
+  function teachUI(steps) {
+    const on = steps !== null;
+    $("b-teach").hidden = on;
+    $("b-rec").hidden = !on;
+    if (on) $("b-rec-count").textContent = steps === 0 ? "Watching… do the task" : `${steps} step${steps === 1 ? "" : "s"}`;
+  }
+  $("b-teach").addEventListener("click", async () => {
+    try { const r = await api("/api/browser/teach", { action: "start" }); teachUI(0); toast(r.summary); $("b-screen").focus(); }
+    catch (e) { toast(e.message); }
+  });
+  $("b-rec-save").addEventListener("click", async () => {
+    const name = $("b-rec-name").value.trim();
+    if (!name) { $("b-rec-name").focus(); toast("Give it a name first, like “reorder my coffee”."); return; }
+    try { const r = await api("/api/browser/teach", { action: "save", name }); teachUI(null); $("b-rec-name").value = ""; toast(r.summary); refreshHome(); }
+    catch (e) { toast(e.message); }
+  });
+  $("b-rec-cancel").addEventListener("click", async () => { await api("/api/browser/teach", { action: "cancel" }).catch(() => {}); teachUI(null); });
   $("b-done").addEventListener("click", () => { const said = state.handoff; state.handoff = null; $("b-done").hidden = true; go("chat"); if (said) send("done"); });
   function renderView(view) {
     if (view === "browser") {

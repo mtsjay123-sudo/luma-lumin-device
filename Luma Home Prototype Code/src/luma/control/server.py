@@ -67,6 +67,8 @@ class ControlContext:
                 self.publish({'text':'Voice could not play: ' + str(error)[:250]})
         threading.Thread(target=play, daemon=True).start()
 
+    recording = None  # a Teach session in Luma's browser, while the owner shows Luma a task
+
     def allowed(self, key, count, seconds=60):
         now = time.monotonic()
         with self.lock:
@@ -127,6 +129,7 @@ def home_payload(agent, owner=True):
             'app_presets': agent.connectors.presets(),
         },
         'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or '')},
+        'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
         'model': {'on': agent.use_model},
     }
 
@@ -471,6 +474,29 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                             page=agent.browser.open(target)
                             result={'url':page.get('url'),'title':page.get('title')}
                         else: result=agent.browser.drive(data.get('kind'),{k:data.get(k) for k in ('x','y','dy','text','key') if k in data})
+                        if ctx.recording is not None:
+                            # Teach is on: keep what they did as a step (passwords are never kept).
+                            result['steps']=ctx.recording.add('go' if path.endswith('go') else data.get('kind'),data,result)
+                    elif path=='/api/browser/teach':
+                        if companion or agent.mode=='kids': return self.send({'error':'Teach Luma on the Mac.'},403)
+                        from luma.agent.taught import Recorder
+                        action=data.get('action')
+                        if action=='start':
+                            agent._check('browser.open')
+                            here=agent.browser.read().get('url') if agent.browser else None
+                            if not here or here=='about:blank': raise ValueError('Open the page where the task starts, then press Teach.')
+                            ctx.recording=Recorder(here)
+                            result={'recording':True,'steps':0,'summary':"I'm watching. Do the task once, then name it and press Save."}
+                        elif action=='save':
+                            row=agent.taught.save(data.get('name'),ctx.recording); ctx.recording=None
+                            result={'taught':{'id':row['id'],'name':row['name'],'steps':len(row['steps'])},'summary':f"Saved. Say “run {row['name']}” any time."}
+                        elif action=='cancel': ctx.recording=None; result={'recording':False}
+                        else: raise ValueError('Start, save or cancel.')
+                    elif path=='/api/taught/delete': result={'deleted':agent.taught.delete(str(data.get('id','')))}
+                    elif path=='/api/taught/run':
+                        row=agent.store.get('taught',str(data.get('id','')))
+                        if not row: raise ValueError('That task is gone.')
+                        result=agent.chat('run '+row['name'])
                     elif path in {'/api/browser/show', '/api/browser/hide'}:
                         if companion: return self.send({'error':"Sign in to sites on the Mac."},403)
                         agent._check('browser.open')

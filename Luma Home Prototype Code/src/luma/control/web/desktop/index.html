@@ -81,6 +81,11 @@
             <form class="b-url" id="b-url-form" autocomplete="off"><span class="b-lock" data-icon="lock"></span><input id="b-url" placeholder="Search or type a web address" spellcheck="false" aria-label="Web address" /></form>
             <span class="b-who" id="b-who"><i></i>You're driving</span>
             <button class="pill primary small" id="b-done" type="button" hidden data-icon="check">Done</button>
+            <button class="pill soft small" id="b-teach" type="button" title="Show Luma a task once and it can do it again" data-icon="hand">Teach</button>
+            <span class="b-rec" id="b-rec" hidden><i></i><span id="b-rec-count">Watching…</span>
+              <input id="b-rec-name" placeholder="Name it, e.g. reorder my coffee" maxlength="60" aria-label="Name for this task" />
+              <button class="pill primary small" id="b-rec-save" type="button">Save</button>
+              <button class="icon-btn small" id="b-rec-cancel" type="button" aria-label="Stop teaching" title="Stop teaching" data-icon="x"></button></span>
             <button class="icon-btn" id="b-popout" type="button" aria-label="Pop out" title="Pop out into its own window" data-icon="popout"></button>
             <button class="icon-btn" id="b-out" type="button" aria-label="Open in my browser" title="Open in my browser" data-icon="external"></button>
           </div>
