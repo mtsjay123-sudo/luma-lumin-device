@@ -106,6 +106,10 @@ from luma.skills.news import asks as asks_news  # noqa: E402
 PERSONAL_NEWS = re.compile(r"\b(?:my|our|about (?:my|our))\b|\bfrom (?!the\b|today\b|this\b|last\b|yesterday\b|tonight\b|overnight\b|around\b|across\b|all\b)\w", re.I)
 GREETING = re.compile(r"(?:yo+|hey+(?: luma)?|hi+(?: luma)?|hello+(?: luma)?|sup|wass?up|what'?s up|whats good|what'?s good|good (?:morning|afternoon|evening)|gm|howdy|hiya)(?: luma)?")
 CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
+def _words(text):
+    return " ".join(re.findall(r"[a-z0-9']+", str(text).lower()))
+
+
 # Any way a small model says it can't do something: "I don't have real-time news access", "No, I don't have a news connector",
 # "I can't schedule emails — that's not something I do". Luma can, so these get caught and done for real.
 DENIES = re.compile(r"\b(?:i|luma)\s+(?:do not|don't|dont|can ?not|can't|cant|am unable to|'m unable to|am not able to|'m not able to|have no|lack|"
@@ -985,8 +989,11 @@ class Agent:
             else: lead += "Sure. "
             example = {"when": " Like “tomorrow at 9am”.", "what": " Like “saying the deck is ready”."}.get(missing[-1], "")
             if missing == ["what", "when"]: example = " Like “tomorrow at 9am: work on the news feature”."
-            return {"text": lead + "Just tell me " + (asks[missing[0]] if len(missing) == 1 else ", ".join(asks[m] for m in missing[:-1]) + " and " + asks[missing[-1]]) + "." + example,
-                    "section": "inbox", "pending_mail": missing}
+            asked = {"text": lead + "Just tell me " + (asks[missing[0]] if len(missing) == 1 else ", ".join(asks[m] for m in missing[:-1]) + " and " + asks[missing[-1]]) + "." + example,
+                     "section": "inbox", "pending_mail": missing}
+            if not connected:
+                asked.update(connect="mail", text=asked["text"] + " And connect your email below so it can go out.")
+            return asked
         if not connected:
             spare = f" Or say “remind me instead” and I'll remind you here {self._when(slots['when'])}." if slots.get("to_kind") == "me" and slots.get("when") else ""
             return {"text": "I've got it all. I just need your email connected to send it: add it right here (Gmail, iCloud or Yahoo with an app password, about a minute) "
@@ -1112,6 +1119,36 @@ class Agent:
         if key in {"email", "schedule"} and not state["mail"]: reply.update(connect="mail", section="apps")
         if key == "calendar" and not state["calendar"]: reply.update(connect="calendar", section="apps")
         return reply
+
+    def understand(self, text, cancel_event=None):
+        """What they really mean, in one clear line. People type fast, misspell, ramble and talk to speech-to-text;
+        the small model turns any of it into a plain instruction Luma's actions understand. 'CHAT' for conversation,
+        'ASK: …' when it's a request but the meaning isn't clear yet."""
+        recent = [f"{'Them' if m.get('role') == 'user' else 'Luma'}: {str(m.get('content', ''))[:200]}" for m in self.history[-5:-1]]
+        prompt = ("Rewrite the LAST message someone sent their assistant Luma as one clear instruction. People type fast, misspell, use slang "
+                  "and talk to speech-to-text, so fix all of that. Keep every detail they gave (names, times, what to say) and never add any. "
+                  "Earlier lines are only there to explain words like 'it' or 'that'; don't repeat an earlier request.\n"
+                  "If the last message is chatting, venting, joking or asking an opinion, answer exactly: CHAT\n"
+                  "If it's a request but you can't tell what they want, answer ASK: and one short, friendly question.\n"
+                  "Examples:\n"
+                  "shceudle me an emial tmrw 9am saying call the bank -> Schedule an email to me tomorrow at 9am saying call the bank.\n"
+                  "wat r the big headlnes last 6 hrs -> Tell me the news from the last 6 hours.\n"
+                  "how do i hook up my gmail -> Connect my email.\n"
+                  "hit up jay about the thing -> ASK: Want me to text Jay or email him, and what should it say?\n"
+                  "remnd me to grab milk wen i get off -> ASK: What time do you get off, so I can remind you then?\n"
+                  "ugh today was so long -> CHAT\n"
+                  "findd cheapest airpods -> Find the cheapest AirPods.\n"
+                  + ("Earlier:\n" + "\n".join(recent) + "\n" if recent else "") + f"Last message: {text}\nAnswer:")
+        try:
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+        except Exception:
+            return None
+        said = out.get("text") if isinstance(out, dict) else None
+        if not isinstance(said, str): return None
+        said = said.strip().strip('"').splitlines()[0].strip() if said.strip() else ""
+        if not said or DENIES.search(said) or CANT_DO.search(said): return None  # an answer, not an instruction
+        return said[:400]
 
     def _instead_of_no(self, text, lowered, reply, cancel_event=None):
         """The model said no to something Luma can do. Do the real thing, or say truthfully what it takes."""
@@ -1364,6 +1401,18 @@ class Agent:
             return {"text": "Add it right here. With Gmail, make an app password at myaccount.google.com/apppasswords and paste it in. It's free, and I'll never send anything without your OK.", "section": "apps", "connect": "mail"}
         if re.fullmatch(r"(?:please\s+)?(?:connect|add|set up|link)\s+(?:my\s+)?(?:google\s+)?calendar[.!]*", lowered):
             return {"text": "Paste your calendar's private iCal link right here. In Google Calendar it's under Settings, your calendar, “Secret address in iCal format”.", "section": "apps", "connect": "calendar"}
+        if self.mode != "kids" and re.search(r"\b(?:how (?:can|do|would) i|help me|i (?:want|need) to|let me|can (?:you|i)|where (?:do|can) i|walk me through how to)\s+(?:connect|link|hook up|add|set up|sign in to|log ?in to)\b"
+                                              r"|^\W*(?:connect|link|hook up)\s+(?:it|this|that|my|me|gmail|e-?mail|outlook|icloud|calendar|apps?)\b", lowered):
+            recent = " ".join(str(m.get("content", "")) for m in self.history[-4:]).lower() + " " + lowered
+            if re.search(r"\bcalendar\b", lowered) or (not re.search(r"\b(?:e-?mail|gmail|inbox|mail)\b", recent) and re.search(r"\bcalendar\b", recent)):
+                return {"text": "Here you go: paste your calendar's private iCal link right here and I'll carry on.", "connect": "calendar", "section": "apps"}
+            if re.search(r"\b(?:e-?mails?|gmail|inbox|mail|outlook|icloud|yahoo)\b", recent) or self.pending_mail:
+                if self.mail.connected():
+                    return {"text": f"Your email ({self.mail.status().get('address')}) is already connected. Tell me what to send, or say “keep going”.", "connect": "mail"}
+                return {"text": "Here you go: add your email right here. With Gmail, make an app password at myaccount.google.com/apppasswords (it's free) and paste it in. Then I'll pick up where we left off.",
+                        "connect": "mail", "section": "apps"}
+            return {"text": "Here's everything you can connect: email, calendar, Luma's browser (for Instagram, stores and any site), and connectors for other apps. Opening Connectors.",
+                    "section": "apps", "open": "apps"}
         reply = self.REPLY_REQUEST.fullmatch(text.strip())
         if reply and self.mode != "kids":
             return self.email_reply(reply["who"].strip(), reply["what"], cancel_event)
@@ -2426,6 +2475,22 @@ class Agent:
                     hello = ("Up late" if hour < 5 else "Morning" if hour < 12 else "Hey" if hour < 18 else "Evening") + (f", {name}" if name else "")
                     return {"text": f"{hello}! What can I take off your plate? I can find the cheapest price on something, go through your email, set a reminder, or make a deck."}
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
+            if getattr(self, "_rerouting", False):
+                return None  # the clear version matched nothing either: answer what they actually said
+            # (A stand-in planner, as in tests, only takes part when it says it understands these.)
+            if self.use_model and self.mode != "kids" and (self.planner is None or getattr(self.planner, "understands", False)) \
+                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")):
+                clear = self.understand(text, cancel_event)
+                if clear and clear.upper().startswith("ASK:") and len(clear) > 6:
+                    return {"text": clear[4:].strip()[:300], "asked": True}
+                if clear and clear.upper() != "CHAT" and _words(clear) != _words(text):
+                    self._rerouting = True
+                    try:
+                        routed = self._chat(clear, cancel_event)
+                    finally:
+                        self._rerouting = False
+                    if routed is not None:
+                        return routed
             context = [] if self.mode == "kids" else (self.store.recall(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]]
                                                       + self._news_context(text) + self._mind_context(text, cancel_event))
             allowed = self.available_tools(text)

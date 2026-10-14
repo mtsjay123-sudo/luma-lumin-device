@@ -29,10 +29,19 @@ TYPOS = [
 ]
 
 
+def _near_schedule(word):
+    """'shceudle', 'scheudle', 'schedual': close enough to 'schedule', and not a real word like 'saddle'."""
+    from difflib import SequenceMatcher
+    w = word.lower()
+    if w in {"schedule", "scheduled", "schedules", "scheduling", "shuttle", "saddle", "sidled", "shudder", "sledged", "shoulder", "sundial"}: return False
+    return "d" in w and "l" in w and w[:2] in {"sc", "sh", "sk", "sd"} and SequenceMatcher(None, w, "schedule").ratio() >= 0.74
+
+
 def fix_typos(text):
     """'shceydke me an emial tmrw' -> 'schedule me an email tomorrow'. Only these few deciding words are touched."""
     text = str(text or "")
     text = _SCHEDULE.sub(lambda m: m.group(0) if m.group(0).lower() in {"schedule", "sidle", "sidled"} else "schedule", text)
+    text = re.sub(r"\bs[a-z]{5,9}\b", lambda m: "schedule" if _near_schedule(m.group(0)) else m.group(0), text, flags=re.I)
     for pattern, fixed in TYPOS:
         text = pattern.sub(fixed, text)
     return text

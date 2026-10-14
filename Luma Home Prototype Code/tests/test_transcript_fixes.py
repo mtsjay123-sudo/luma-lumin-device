@@ -252,3 +252,43 @@ class ScheduledEmailTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnderstandsAnyWordingTests(unittest.TestCase):
+    """The second real chat: typos the word lists missed, and "how can I connect?" answered with a lecture."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_new_typos_still_schedule_an_email(self):
+        reply = self.agent.chat("no i want to scheudle a email to send help me connect it")
+        self.assertEqual(reply["connect"], "mail")  # asks what's missing, with the connect form right there
+        self.assertIn("pending_mail", reply)
+
+    def test_how_can_i_connect_gives_the_connect_form(self):
+        self.agent.history.append({"role": "user", "content": "i want to schedule an email"})
+        reply = self.agent.chat("you have that in your memory how can i connect?")
+        self.assertEqual(reply["connect"], "mail")
+        self.assertEqual(self.agent.chat("how do i connect my calendar")["connect"], "calendar")
+
+    def test_the_model_turns_any_wording_into_an_action(self):
+        self.agent.use_model = True
+        asked = []
+        def planner(history, *a):
+            last = history[-1]["content"]
+            if "one clear instruction" in last:
+                asked.append(last)
+                return {"type": "reply", "text": "Tell me the news from the last 6 hours." if "headlnes" in last.split("Last message:")[-1] else "ASK: Do you want me to email Sam, or text him?"}
+            return {"type": "reply", "text": "Got it."}
+        planner.understands = True
+        self.agent.planner = planner
+        with mock.patch.object(self.agent, "news_reply", return_value={"text": "Here's what's new.", "section": "news"}) as news:
+            reply = self.agent.chat("yo wat are the big headlnes past 6 hrs")
+        self.assertEqual(reply["section"], "news")
+        self.assertIn("6 hours", news.call_args[0][0])
+        unsure = self.agent.chat("hit up sam about the thing")
+        self.assertEqual(unsure["text"], "Do you want me to email Sam, or text him?")

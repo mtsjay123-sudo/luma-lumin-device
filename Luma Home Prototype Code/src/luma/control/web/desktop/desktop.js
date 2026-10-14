@@ -326,7 +326,7 @@
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
   const EVERY = { hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Apps", rules: "Rules", settings: "Settings" };
+  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -1145,6 +1145,12 @@
   }
 
   // -------------------------------------------------------------- nav ---
+  // Liquid glass: the panels catch the light where your pointer is, like Vision Pro glass.
+  addEventListener("pointermove", (e) => {
+    document.documentElement.style.setProperty("--mx", e.clientX + "px");
+    document.documentElement.style.setProperty("--my", e.clientY + "px");
+  }, { passive: true });
+
   function go(view) {
     state.view = view;
     document.body.dataset.view = view;

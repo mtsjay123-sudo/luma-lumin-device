@@ -1099,3 +1099,14 @@ html[data-glass="clear"] :is(.sidebar, .center, .widgets) { box-shadow: inset 0 
 .scene-demo .d-bar span { height: 100%; width: 38%; background: #ff3b5c; animation: d-play 240s linear infinite; }
 @keyframes d-sink { to { transform: translateY(8vmin) scale(1.04); } }
 @keyframes d-play { to { width: 100%; } }
+
+/* Liquid glass: a soft sheen that follows the pointer across the panels, and drifts slowly on its own */
+.sidebar::after, .center::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+  background: radial-gradient(520px circle at var(--mx, 30%) var(--my, 20%), rgba(255, 255, 255, 0.14), transparent 42%),
+              linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 45%, transparent 60%) 0 0 / 250% 100%;
+  animation: luma-sheen 14s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+}
+@keyframes luma-sheen { 0%, 100% { background-position: 0 0, 120% 0; } 50% { background-position: 0 0, -20% 0; } }
+@media (prefers-reduced-motion: reduce) { .sidebar::after, .center::after { animation: none; } }

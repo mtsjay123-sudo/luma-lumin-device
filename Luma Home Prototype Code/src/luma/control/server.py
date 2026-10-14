@@ -201,7 +201,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
                 return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion)
-            if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated()})
+            if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated(),
+                                                      # which build of Luma is answering, so a newly installed app can replace an old one still running
+                                                      'build':os.environ.get('LUMA_APP_BUILD',''), 'pid':os.getpid() if not companion else None})
             if not self.authenticated(): return self.send({'error':'Pair this phone from the Mac, or reopen the local owner controls.'},401)
             if path.startswith('/files/'):
                 row = agent.store.get('file', path[len('/files/'):])

@@ -8,7 +8,7 @@
 // tray on Windows) and starts at login, so your Goals keep running.
 "use strict";
 const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session, powerSaveBlocker, net } = require("electron");
-const { spawn } = require("node:child_process");
+const { spawn, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
@@ -56,6 +56,44 @@ function findRuntime() {
 function pythonFor(dir) {
   const venv = path.join(dir, ".venv", process.platform === "win32" ? "Scripts\\python.exe" : "bin/python");
   return fs.existsSync(venv) ? venv : process.platform === "win32" ? "python" : "python3";
+}
+
+// Which Luma is answering on the port: its build stamp and process, or null.
+function running() {
+  return new Promise((resolve) => {
+    const req = http.get(`${ORIGIN}/api/session`, { timeout: 1500 }, (res) => {
+      let body = "";
+      res.on("data", (c) => { body += c; });
+      res.on("end", () => { try { resolve(res.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); } });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
+// This app's own build of the runtime. A fresh install gets a fresh stamp.
+function buildStamp(dir) {
+  try { return `${app.getVersion()}-${Math.round(fs.statSync(path.join(dir, "src", "luma", "agent", "runtime.py")).mtimeMs)}`; }
+  catch { return app.getVersion(); }
+}
+
+// An older Luma left running in the background (say, after an update) would keep serving
+// the old version. Stop it, so this app runs its own.
+async function replaceOld(stamp) {
+  const now = await running();
+  if (!now || now.build === stamp) return;
+  if (!now.pid && process.platform !== "win32") {
+    // Older builds don't say their process: find the Python listening on Luma's port.
+    try {
+      const pid = Number(execFileSync("lsof", ["-ti", `tcp:${PORT}`, "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n")[0]);
+      const name = pid ? execFileSync("ps", ["-p", String(pid), "-o", "comm="], { encoding: "utf8" }) : "";
+      if (/python/i.test(name)) now.pid = pid;
+    } catch { /* nothing found */ }
+  }
+  if (now.pid) try { process.kill(now.pid, "SIGTERM"); } catch { /* already gone */ }
+  for (let i = 0; i < 20 && (await ping()); i++) await sleep(250);
+  if (now.pid && (await ping())) try { process.kill(now.pid, "SIGKILL"); } catch { /* gone */ }
+  for (let i = 0; i < 20 && (await ping()); i++) await sleep(250);
 }
 
 function ping() {
@@ -111,7 +149,7 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
     // LUMA_CONTEXT_SIZE: how much of the conversation Luma can keep in mind at once, sized to this computer's memory.
-    cwd: dir, env: { LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });
@@ -135,10 +173,12 @@ async function boot() {
   booting = true;
   try {
     splash("starting");
-    if (await ping()) return win.loadURL(HOME_URL);
     const dev = findRuntime();
+    const ownDev = dev && (hasVenv(dev) || !app.isPackaged || readConfig().runtimeDir === dev);
+    if (app.isPackaged && !ownDev && isRuntimeDir(bundledRuntime())) await replaceOld(buildStamp(bundledRuntime()));
+    if (await ping()) return win.loadURL(HOME_URL);
     let started;
-    if (dev && (hasVenv(dev) || !app.isPackaged || readConfig().runtimeDir === dev)) {
+    if (ownDev) {
       started = await startRuntime(dev); // a developer's own Luma folder
     } else if (isRuntimeDir(bundledRuntime())) {
       if (setup.needsSetup(setupHome())) splash("setup");
@@ -169,7 +209,7 @@ function splash(state, detail = "") {
 //   Windows: Electron can't make a framed window see-through per pixel, so the whole window
 //     fades by clarity instead; acrylic behind the title bar for glass, none for clear.
 //   Linux: transparency is fixed when a window is made, so switching makes a fresh one.
-const GLASS = { mode: "glass", clarity: 60, onTop: false };
+const GLASS = { mode: "clear", clarity: 55, onTop: false };  // see-through from the start
 // Only exactly { mode: "glass"|"clear", clarity: 0–90, onTop: bool }; anything else is refused.
 function cleanGlass(g) {
   if (!g || typeof g !== "object" || Array.isArray(g) || Object.keys(g).some((k) => !(k in GLASS))) return null;
