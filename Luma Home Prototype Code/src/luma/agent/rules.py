@@ -35,7 +35,7 @@ TOOL_CATEGORY = {
     "messages.prepare": "drafts", "mail.draft": "drafts", "deck.create": "drafts",
     "mail.inbox": "inbox", "mail.read": "inbox", "calendar.agenda": "inbox",
     "sms.send": "texts", "mac_messages.send": "texts", "luma.send": "texts",
-    "mail.send": "email", "mail.schedule": "email",
+    "mail.send": "email", "mail.schedule": "email", "mail.send_web": "email",
     "booking.availability": "browse", "booking.create": "bookings",
     "home.light": "home",
     "food.checkout": "cart",

@@ -507,6 +507,13 @@
   // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
   function rich(r) {
     if (r.state === "pending" && r.action) return approval(r);
+    if (r.steps && r.steps.length) {
+      // Several things at once: a card for each one that needs one.
+      const box = el("div", "steps-cards");
+      for (const sub of r.steps) { const card = rich(sub); if (card) box.append(card); }
+      return box.childElementCount ? box : null;
+    }
+    if (r.open_url && safeUrl(r.open_url)) { const a = el("div", "actions"); a.append(linkOut("Open it", r.open_url, "pill soft small", "external")); return a; }
     if (r.draft_email) return draftEmailCard(r.draft_email);
     if (r.connect) return connectCard(r);
     if (r.section === "news" && r.results && r.results.length) return newsCard(r.results);
@@ -745,13 +752,13 @@
   function pendingIds() { return new Set((state.home?.approvals || []).map((a) => a.id)); }
 
   const WANTS = {
-    "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "mail.schedule": ["Email", "schedule this email"], "luma.send": ["Text", "send this text"],
+    "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "mail.schedule": ["Email", "schedule this email"], "mail.send_web": ["Email", "send this from your Gmail"], "luma.send": ["Text", "send this text"],
     "sms.send": ["Text", "send this text"], "mac_messages.send": ["Text", "send this text"], "browser.act": ["Website", "do this on a website"],
     "booking.create": ["Booking", "book this"], "home.light": ["Home", "change your lights"], "food.checkout": ["Groceries", "set up this checkout"],
   };
   const ROUTES = { luma_number: "From Luma's number", mac_imessage: "From your iMessage", mac_sms: "From your number (SMS)", twilio: "From your Twilio number" };
   const TEXTY = ["luma.send", "sms.send", "mac_messages.send"];
-  const MAILY = ["mail.send", "mail.schedule"];
+  const MAILY = ["mail.send", "mail.schedule", "mail.send_web"];
   const sendAt = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
 
   // An approval answered in words ("yes, send it", "no") rather than with the buttons: its card shows how it went.
@@ -785,6 +792,7 @@
       "shop.add_to_cart": "Check the item and price before you allow it. Checkout and payment always stay with you.",
       "mail.send": "These are the exact words that will go out.",
       "mail.schedule": `These exact words go out ${sendAt(a.send_at)}, not before. You can cancel any time until then.`,
+      "mail.send_web": a.send_at ? `I'll send these exact words from your Gmail ${sendAt(a.send_at)}, not before.` : "I'll open your Gmail and press Send with these exact words.",
       "browser.act": a.reason ? `Why I'm asking: ${a.reason}.` : "Nothing happens on the site until you allow it.",
     }[r.tool] || (String(r.tool).startsWith("mcp.") ? `This changes something in ${app ? app.name : "a connected app"}. Check the details first.` : TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
     c.append(el("div", "co-sub", sub));
@@ -1158,6 +1166,7 @@
       else if (r.file || r.helper || r.state === "succeeded" || r.task) mood("happy", "Done", 3500);
       else mood("idle", "Here with you");
       if (r.open === "apps") setTimeout(() => go("apps"), 900);
+      if (r.open_url && safeUrl(r.open_url)) window.open(r.open_url, "_blank", "noopener");
       // In a conversation Luma says it out loud (asking for your OK if it needs it) and keeps listening.
       talkBack(r);
     } catch (e) {
@@ -2464,6 +2473,8 @@
     clearTimeout(speak.watch);
     if (!("speechSynthesis" in window) || !text) { then?.(); return; }
     speechSynthesis.cancel();
+    try { speak.audio?.pause(); } catch (_) { /* nothing playing */ }
+    setTimeout(() => { speak.noNatural = false; }, 600000);  // try the natural voice again later (it may have finished downloading)
     dropTake(); // never record Luma's own voice as yours
     const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1400);
     // Sentence by sentence: long single utterances can stall, and this sounds more natural.
@@ -2487,6 +2498,19 @@
       }
       voice.left = parts.slice(i).join(" ");
       const line = parts[i++].trim();
+      if (!line) { next(); return; }
+      // Luma's own natural voice (Kokoro, on this computer) when it's downloaded; the system voice until then.
+      if (!speak.noNatural) {
+        const audio = new Audio("/api/tts?text=" + encodeURIComponent(line));
+        speak.audio = audio;
+        let moved = false;
+        const step = () => { if (!moved) { moved = true; next(); } };
+        audio.onended = step;
+        audio.onerror = () => { if (moved) return; speak.noNatural = true; i--; moved = true; next(); };  // not ready: say it with the system voice
+        audio.play().catch(() => audio.onerror());
+        speak.watch = setTimeout(step, 6000 + line.length * 160);
+        return;
+      }
       const u = new SpeechSynthesisUtterance(line);
       if (v) u.voice = v;
       u.rate = 1.04;
@@ -2503,6 +2527,7 @@
   function hush() {
     speak.gen++;
     clearTimeout(speak.watch);
+    try { speak.audio?.pause(); } catch (_) { /* already stopped */ }
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     if (voice.talking) Object.assign(voice, { talking: false, quietAt: performance.now() });
     document.body.classList.remove("speaking");

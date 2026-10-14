@@ -392,7 +392,83 @@ class NoPasswordWallTests(unittest.TestCase):
         self.assertNotIn("connect", reply)
 
     def test_a_full_request_is_written_and_handed_to_gmail(self):
+        self.agent.enable("browser", False)  # without Luma's browser: written, and handed over to send
         reply = self.agent.chat("email sam@example.com tomorrow at 9am saying the deck is ready")
         self.assertEqual(reply["draft_email"]["to"], "sam@example.com")
         self.assertIn("the deck is ready", reply["draft_email"]["body"].lower())
         self.assertTrue(reply["draft_email"]["send_at"])
+
+
+class GmailBrowser:
+    """Gmail's compose window, as Luma's browser sees it."""
+    def __init__(self, signed_in=True):
+        self.signed_in, self.opened, self.clicked = signed_in, [], []
+    def open(self, url):
+        self.opened.append(url)
+        if not self.signed_in:
+            return {"url": "https://accounts.google.com/signin", "title": "Sign in - Google Accounts", "text": "", "elements": []}
+        return {"url": url, "title": "Compose", "text": "New Message", "elements": [{"ref": 7, "label": "Send ‪(⌘Enter)‬", "tag": "div"}]}
+    def read(self):
+        return {"url": "https://mail.google.com/mail/u/0/#inbox", "title": "Inbox", "text": "Message sent", "elements": []}
+    def click(self, ref, expected_label=None):
+        self.clicked.append(ref); return self.read()
+
+
+class DoesItForRealTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.now = NOW
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: self.now)
+        self.agent.enable("browser", True)
+        self.agent._browser_available = lambda: True
+        self.agent._browser = self.gmail = GmailBrowser()
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_send_from_gmail_after_allow_no_password(self):
+        with mock.patch("time.sleep"):
+            card = self.agent.chat("email sam@example.com saying the deck is ready")
+            self.assertEqual((card["tool"], card["state"]), ("mail.send_web", "pending"))
+            self.assertEqual(self.gmail.opened, [])  # nothing before Allow
+            done = self.agent.confirm(card["action"], card["confirm_token"])
+        self.assertEqual(done["state"], "succeeded")
+        self.assertIn("to=sam%40example.com", self.gmail.opened[0])
+        self.assertEqual(self.gmail.clicked, [7])
+        self.assertIn("Sent from your Gmail", done["summary"])
+
+    def test_scheduled_gmail_send_goes_out_at_its_time(self):
+        with mock.patch("time.sleep"):
+            card = self.agent.chat("email sam@example.com tomorrow at 9am saying the deck is ready")
+            self.agent.confirm(card["action"], card["confirm_token"])
+            self.assertEqual(self.gmail.opened, [])
+            self.now += 2 * 86400 - 13 * 3600
+            sent = self.agent.send_due_mail()
+        self.assertEqual([r["state"] for r in sent], ["sent"])
+        self.assertEqual(self.gmail.clicked, [7])
+
+    def test_signed_out_of_gmail_asks_to_sign_in(self):
+        self.gmail.signed_in = False
+        with mock.patch("time.sleep"):
+            card = self.agent.chat("email sam@example.com saying hi")
+            done = self.agent.confirm(card["action"], card["confirm_token"])
+        self.assertEqual(done["state"], "handoff")
+        self.assertEqual(done["sign_in"], "Gmail")
+
+    def test_several_things_in_one_breath(self):
+        self.agent.use_model = True
+        def planner(history, *a):
+            if "one clear instruction" in history[-1]["content"]:
+                return {"type": "reply", "text": "1. Remind me in 20 minutes to call mom. 2. Play some Frank Ocean."}
+            return {"type": "reply", "text": "Got it."}
+        planner.understands = True
+        self.agent.planner = planner
+        reply = self.agent.chat("yo remind me in 20 min to call mom then put on some frank ocean")
+        self.assertEqual(len(reply["steps"]), 2)
+        self.assertTrue(reply["steps"][0].get("task"))
+        self.assertIn("music.youtube.com", reply["steps"][1]["open_url"])
+
+    def test_play_music(self):
+        reply = self.agent.chat("play me some drake")
+        self.assertIn("music.youtube.com/search?q=drake", reply["open_url"])

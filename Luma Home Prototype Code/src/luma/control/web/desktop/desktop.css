@@ -1171,3 +1171,4 @@ body.thinking .status small { background: linear-gradient(90deg, var(--muted), #
 .draft-mail .co-sub { padding: 8px 16px 14px; }
 .connect-form .steps { margin: 2px 0 0 18px; padding: 0; display: grid; gap: 3px; }
 .connect-form .actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0; }
+.steps-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; }

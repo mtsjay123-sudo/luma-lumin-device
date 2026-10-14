@@ -242,6 +242,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 one=lambda k: (q.get(k) or [''])[0]
                 hours=one('hours')
                 return self.send(agent.news_feed(topic=one('topic') or None, hours=int(hours) if hours.isdigit() else None, query=one('q') or None))
+            if path=='/api/tts':
+                # Luma's own voice (Kokoro, on this computer): one sentence at a time for the window to play.
+                if companion: return self.send({'error':'Voice plays on the Mac.'},403)
+                text=(parse_qs(urlsplit(self.path).query).get('text') or [''])[0].strip()[:600]
+                if not text: return self.send({'error':'Nothing to say.'},400)
+                try:
+                    import tempfile
+                    from luma.audio.tts import synthesize
+                    with tempfile.TemporaryDirectory() as folder:
+                        out=os.path.join(folder,'say.wav')
+                        prefs=agent.voice_preferences if isinstance(agent.voice_preferences,dict) else {}
+                        synthesize(text,out,voice=prefs.get('voice') or 'luma')
+                        with open(out,'rb') as f: return self.send(f.read(),kind='audio/wav')
+                except Exception as error:
+                    return self.send({'error':"Luma's natural voice isn't ready yet: "+str(error)[:120]},503)
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)

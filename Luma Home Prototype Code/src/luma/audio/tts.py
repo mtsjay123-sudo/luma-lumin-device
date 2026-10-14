@@ -143,7 +143,9 @@ def _get_kokoro():
         options.intra_op_num_threads = threads
         options.inter_op_num_threads = 1
         session = ort.InferenceSession(str(KOKORO_MODEL_PATH), sess_options=options, providers=["CPUExecutionProvider"])
-        _kokoro = Kokoro.from_session(session, str(KOKORO_VOICES_PATH), espeak_config=EspeakConfig(lib_path=ESPEAK_LIB, data_path=ESPEAK_DATA))
+        # A system espeak-ng if there is one; otherwise the one kokoro-onnx brings with it (no Homebrew needed).
+        espeak = EspeakConfig(lib_path=ESPEAK_LIB, data_path=ESPEAK_DATA) if ESPEAK_LIB and os.path.exists(str(ESPEAK_LIB)) else None
+        _kokoro = Kokoro.from_session(session, str(KOKORO_VOICES_PATH), espeak_config=espeak)
     return _kokoro
 
 

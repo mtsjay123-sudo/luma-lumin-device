@@ -286,6 +286,26 @@ async function ensureVision(home, onLine = () => {}) {
   return visionDir(home);
 }
 
+// Luma's natural voice: Kokoro (open source, about 100 MB), fetched in the background after first launch.
+const VOICE_FILES = ["kokoro-v1.0.int8.onnx", "voices-v1.0.bin"];
+const VOICE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/";
+function voiceDir(home) { return path.join(home, "models", "kokoro-82m"); }
+function voiceReady(home) { return VOICE_FILES.every((f) => fs.existsSync(path.join(voiceDir(home), f))) && readState(home).voice === 1; }
+async function ensureVoice(home, onLine = () => {}) {
+  if (voiceReady(home)) return voiceDir(home);
+  const python = pythonPath(home);
+  const env = { PIP_DISABLE_PIP_VERSION_CHECK: "1", PYTHONNOUSERSITE: "1" };
+  await run(python, ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary", "kokoro-onnx>=0.4,<1"], { env, onLine });
+  for (const f of VOICE_FILES) {
+    const dest = path.join(voiceDir(home), f);
+    if (fs.existsSync(dest)) continue;
+    onLine(`voice: getting ${f}`);
+    await download(VOICE_URL + f, dest, {});
+  }
+  writeState(home, { ...readState(home), voice: 1 });
+  return voiceDir(home);
+}
+
 // Returns the Python to run Luma with and the environment it needs.
 async function ensure(home, report = () => {}, { skipModel = false } = {}) {
   fs.mkdirSync(home, { recursive: true });
@@ -304,4 +324,4 @@ function needsSetup(home) {
   return !fs.existsSync(pythonPath(home)) || !state.packages || !model;
 }
 
-module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady };
+module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady };

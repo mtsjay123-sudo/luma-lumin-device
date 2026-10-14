@@ -119,7 +119,8 @@ function fetchVisionInBackground() {
   if (visionTried || !app.isPackaged) return;
   visionTried = true;
   setTimeout(() => {
-    setup.ensureVision(setupHome(), () => {}).catch(() => { /* try again next launch */ });
+    setup.ensureVoice(setupHome(), () => {}).catch(() => { /* try again next launch */ })
+      .finally(() => setup.ensureVision(setupHome(), () => {}).catch(() => { /* try again next launch */ }));
   }, 60000);
 }
 
@@ -149,7 +150,7 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
     // LUMA_CONTEXT_SIZE: how much of the conversation Luma can keep in mind at once, sized to this computer's memory.
-    cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), LUMA_TTS_MODEL_PATH: path.join(setup.voiceDir(setupHome()), "kokoro-v1.0.int8.onnx"), LUMA_TTS_VOICES_PATH: path.join(setup.voiceDir(setupHome()), "voices-v1.0.bin"), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   runtime.on("exit", () => { runtime = null; });

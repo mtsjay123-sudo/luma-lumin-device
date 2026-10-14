@@ -84,6 +84,7 @@ TOOLS = {
     "mail.read": Tool("Read one email by the id from the inbox list", {"id": "string"}, "mail"),
     "mail.draft": Tool("Write an email draft into the owner's own Drafts folder. Nothing is sent", {"to": "string", "subject": "text", "body": "string"}, "mail"),
     "mail.send": Tool("Send a reviewed email", {"to": "string", "subject": "text", "body": "string", "reply_to_id": "text"}, "mail", True),
+    "mail.send_web": Tool("Send a reviewed email through the owner's Gmail in Luma's browser, now or at send_at (ISO 8601, or empty)", {"to": "string", "subject": "text", "body": "string", "send_at": "text"}, "browser", True),
     "mail.schedule": Tool("Schedule a reviewed email to go out at an exact future time (ISO 8601 with time zone)", {"to": "string", "subject": "text", "body": "string", "send_at": "string"}, "mail", True),
     "calendar.agenda": Tool("What's on the owner's calendar. offset 0 is today, 1 tomorrow; days 1-14", {"days": "integer", "offset": "integer"}, "calendar"),
     "helpers.create": Tool("Set up something Luma keeps doing on its own. kind: price_watch (detail is the product, target_price in dollars or 0), inbox_digest, feed_digest (detail is the site), agenda, or goal (detail is the goal). every: hourly, every_6h, daily or weekly", {"kind": "string", "detail": "text", "target_price": "integer", "every": "string"}),
@@ -164,9 +165,9 @@ def validate(name, args):
     if name == "tasks.create":
         due = datetime.fromisoformat(args["due"].replace("Z", "+00:00"))
         if due.tzinfo is None: raise ValueError("Due date must include a time zone or UTC offset.")
-    if name == "mail.schedule":
+    if name in {"mail.schedule", "mail.send_web"}:
         if not re.fullmatch(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", args["to"].strip()): raise ValueError("Use the exact email address it should go to.")
-        if datetime.fromisoformat(args["send_at"].replace("Z", "+00:00")).tzinfo is None: raise ValueError("The send time must include a time zone.")
+        if args["send_at"] and datetime.fromisoformat(args["send_at"].replace("Z", "+00:00")).tzinfo is None: raise ValueError("The send time must include a time zone.")
     if name == "routines.create" and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", args["at"]):
         raise ValueError("Routine time must be HH:MM in 24-hour time.")
     if name == "food.checkout" and not 100 <= args["budget_cents"] <= 100000:
@@ -335,7 +336,7 @@ class Agent:
         lowered = text.lower()
         informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
         allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items()
-                   if k not in {"booking.create", "sms.send", "mac_messages.send", "luma.send", "browser.act", "shop.add_to_cart", "mail.send", "mail.schedule"}
+                   if k not in {"booking.create", "sms.send", "mac_messages.send", "luma.send", "browser.act", "shop.add_to_cart", "mail.send", "mail.schedule", "mail.send_web"}
                    and (agent_mode or not informational or k in {"web.search", "memory.recall", "tasks.list", "timers.list", "household.find", "briefing.today"})
                    and (self.mode != "kids" or v.kids)
                    and (not v.service or self.integration_on(v.service))}
@@ -438,7 +439,7 @@ class Agent:
         if name == "tasks.create":
             due = datetime.fromisoformat(args["due"].replace("Z", "+00:00")).timestamp()
             if not self.clock() < due <= self.clock()+366*86400: raise ValueError("Choose a reminder in the future, within one year.")
-        if name == "mail.schedule":
+        if name in {"mail.schedule", "mail.send_web"} and args["send_at"]:
             at = datetime.fromisoformat(args["send_at"].replace("Z", "+00:00")).timestamp()
             if not self.clock() < at <= self.clock()+366*86400: raise ValueError("Pick a time in the future, within a year.")
         self._check(name)
@@ -854,6 +855,15 @@ class Agent:
 
     # -- email -----------------------------------------------------------------
     def _mail(self, name, args):
+        if name == "mail.send_web":
+            if args["send_at"]:
+                at = datetime.fromisoformat(args["send_at"].replace("Z", "+00:00")).timestamp()
+                if at <= self.clock(): raise ValueError("That time already passed, so I didn't schedule it. Tell me a new time.")
+                row = self.store.put("mail_later", {"to": args["to"], "subject": args["subject"], "body": args["body"], "send_at": at, "state": "scheduled",
+                                                    "method": "gmail_web", "created": self.clock()})
+                return {"scheduled": {"id": row["id"], "to": args["to"], "subject": args["subject"], "send_at": at}, "section": "inbox",
+                        "summary": f"Scheduled. At {self._when(at).removeprefix('at ')} I'll send it from your Gmail. Say “cancel my scheduled email” to stop it."}
+            return self._send_via_gmail(args["to"], args["subject"], args["body"])
         try:
             if name == "mail.inbox":
                 messages = self.mail.inbox(limit=10, unread_only=args["unread_only"], query=args["query"] or None)
@@ -947,7 +957,7 @@ class Agent:
         return result
 
     # -- emails for later (and emails said in one breath) ---------------------------------------
-    SENDS = {"mail.send": "email", "mail.schedule": "email", "sms.send": "text", "mac_messages.send": "text", "luma.send": "text",
+    SENDS = {"mail.send": "email", "mail.schedule": "email", "mail.send_web": "email", "sms.send": "text", "mac_messages.send": "text", "luma.send": "text",
              "shop.add_to_cart": "cart", "booking.create": "booking", "browser.act": "website step"}
 
     def _did_it(self, lowered):
@@ -1051,6 +1061,8 @@ class Agent:
                      "section": "inbox", "pending_mail": missing}
             return asked
         if not connected:
+            if slots.get("to_kind") == "address" and self.integration_on("browser") and self._browser_available():
+                return self._send_through_gmail(slots, cancel_event)
             return self._draft_for_gmail(slots, cancel_event)
         kind, name = slots.get("to_kind"), slots.get("to")
         if kind == "me":
@@ -1087,6 +1099,22 @@ class Agent:
         result.update(text=said, recipient_name=None if kind == "me" else name, section="inbox", send_at=slots.get("when"))
         return result
 
+    def _send_through_gmail(self, slots, cancel_event=None):
+        """Write it, show it, and on Allow send it from their Gmail in Luma's browser, now or at the time they said."""
+        from luma.agent import later_mail as lm
+        name = slots.get("name") or _first_name(slots["to"])
+        args = {"to": slots["to"], "subject": lm.subject(slots["what"]), "body": self.write_email(name, slots["what"], None, cancel_event),
+                "send_at": datetime.fromtimestamp(slots["when"], self.zone).isoformat() if slots.get("when") else ""}
+        try:
+            result = self.propose("mail.send_web", args)
+        except ValueError as error:
+            return {"text": str(error)}
+        self.pending_mail = None
+        when = f" {self._when(slots['when'])}" if slots.get("when") else ""
+        result.update(recipient_name=name, section="inbox", send_at=slots.get("when"),
+                      text=f"Here it is. Allow it and I'll send it from your Gmail{when}" + (", not before." if when else ".") + " Nothing goes out until you do.")
+        return result
+
     def _draft_for_gmail(self, slots, cancel_event=None):
         """Email isn't connected: still write it, and open it in Gmail (signed in as them in Luma's browser) to send or schedule."""
         from luma.agent import later_mail as lm
@@ -1103,6 +1131,43 @@ class Agent:
         when = f" Gmail's Schedule send (the arrow next to Send) can send it {self._when(slots['when'])}." if slots.get("when") else ""
         who = "" if address else (" Add your own address in To." if kind == "me" else f" Add {name}'s address in To." if name else "")
         return {"text": "Here it is. Tap Open in Gmail and it's ready to send." + who + when, "draft_email": draft, "section": "inbox"}
+
+    def _send_via_gmail(self, to, subject, body):
+        """No password, no Google sign-up: Gmail's own compose window in Luma's browser (signed in as the owner), then Send."""
+        from urllib.parse import quote
+        if not self.integration_on("browser") or not self._browser_available():
+            raise ValueError("Turn on Luma's browser in Connectors, then I can send from your Gmail.")
+        self.activity.start("browser", f"Sending your email to {to}")
+        try:
+            page = self.browser.open(f"https://mail.google.com/mail/?view=cm&fs=1&to={quote(to)}&su={quote(subject)}&body={quote(body)}")
+            button = None
+            for _ in range(10):  # Gmail takes a moment to draw the compose window
+                if "accounts.google.com" in (page.get("url") or "") or re.search(r"\bsign in\b", (page.get("title") or ""), re.I):
+                    self.activity.finish("Needs you to sign in to Gmail.", "failed")
+                    return {"handoff": True, "sign_in": "Gmail", "url": page.get("url"),
+                            "summary": "Sign in to Gmail once in Luma's browser (I never type passwords), then say “done” and I'll send it."}
+                button = next((e for e in page.get("elements", []) if re.match(r"^\s*send\b(?!\s*(?:later|feedback|to))", e.get("label") or "", re.I)), None)
+                if button: break
+                time.sleep(1)
+                page = self.browser.read()
+            if not button:
+                self.activity.finish("Couldn't find Send.", "failed")
+                return {"handoff": True, "url": page.get("url"), "summary": "Gmail's open with your email filled in, but I couldn't find its Send button. Take a look in Luma's browser and press Send."}
+            self.browser.click(button["ref"], button.get("label"))
+            sent = False
+            for _ in range(6):
+                time.sleep(1)
+                seen = self.browser.read()
+                if re.search(r"message sent|sending…|sending\.\.\.", seen.get("text", ""), re.I) or "view=cm" not in (seen.get("url") or ""):
+                    sent = True
+                    break
+            self.activity.finish("Sent." if sent else "Pressed Send.")
+            if not sent:
+                return {"sent": False, "verified": False, "summary": f"I pressed Send in Gmail, but I couldn't see it confirm. Check your Sent folder for the email to {to}."}
+            return {"sent": True, "summary": f"Sent from your Gmail to {to}."}
+        except Exception:
+            self.activity.finish("", "failed")
+            raise
 
     def later_mail(self):
         return sorted((r for r in self.store.all("mail_later", 500) if r.get("state") == "scheduled"), key=lambda r: r["send_at"])
@@ -1133,8 +1198,13 @@ class Agent:
                 if self.clock() - row["send_at"] > 12 * 3600:
                     raise ValueError(f"I was off when it was due ({datetime.fromtimestamp(row['send_at'], self.zone).strftime('%a %-I:%M %p')}), so I held it. Ask me again if it still makes sense.")
                 self.rules.check("mail.send")  # blocked since? then it doesn't go
-                if not self.mail.connected(): raise ValueError("Your email isn't connected anymore, so it didn't go out.")
-                self.mail.send(row["to"], row["subject"], row["body"])
+                if row.get("method") == "gmail_web":
+                    out = self._send_via_gmail(row["to"], row["subject"], row["body"])
+                    if out.get("handoff") or out.get("sent") is False:
+                        raise ValueError(out.get("summary") or "It didn't go out.")
+                else:
+                    if not self.mail.connected(): raise ValueError("Your email isn't connected anymore, so it didn't go out.")
+                    self.mail.send(row["to"], row["subject"], row["body"])
                 row.update(state="sent", sent=self.clock())
                 card = {"kind": "update", "title": f"Sent your email to {row['to']}", "body": row["subject"]}
             except (MailError, ValueError) as error:
@@ -1190,6 +1260,30 @@ class Agent:
         if key == "calendar" and not state["calendar"]: reply.update(connect="calendar", section="apps")
         return reply
 
+    def run_steps(self, steps, cancel_event=None):
+        """'Text mom, then schedule the email for 3:30, then remind me at 12': each one, in order, each with its own card.
+        Anything that sends or buys still waits for its own OK."""
+        done, lines = [], []
+        self.activity.start("goal", f"Doing {len(steps)} things")
+        self._in_steps = True
+        try:
+            for number, step in enumerate(steps, 1):
+                if cancel_event is not None and cancel_event.is_set(): break
+                self.activity.step(step[:150])
+                try:
+                    result = self._chat(step, cancel_event) or {}
+                except Exception as error:
+                    result = {"text": f"That one didn't work: {str(error)[:160]}"}
+                said = result.get("text") or result.get("summary") or "Done."
+                lines.append(f"{number}. {step}\n   {said}")
+                done.append({**{k: v for k, v in result.items() if k != "steps"}, "step": step})
+        finally:
+            self._in_steps = False
+            self.activity.finish(f"Worked through {len(done)} of {len(steps)}.")
+        waiting = sum(1 for r in done if r.get("state") == "pending")
+        head = f"On it — {len(steps)} things." + (f" {waiting} {'is' if waiting == 1 else 'are'} waiting for your OK below." if waiting else "")
+        return {"text": head + "\n\n" + "\n".join(lines), "steps": done}
+
     def understand(self, text, cancel_event=None):
         """What they really mean, in one clear line. People type fast, misspell, ramble and talk to speech-to-text;
         the small model turns any of it into a plain instruction Luma's actions understand. 'CHAT' for conversation,
@@ -1200,6 +1294,7 @@ class Agent:
                   "Earlier lines are only there to explain words like 'it' or 'that'; don't repeat an earlier request.\n"
                   "If the last message is chatting, venting, joking or asking an opinion, answer exactly: CHAT\n"
                   "If it's a request but you can't tell what they want, answer ASK: and one short, friendly question.\n"
+                  "If they ask for several things, write each as its own numbered line, in the order they said them.\n"
                   "Examples:\n"
                   "shceudle me an emial tmrw 9am saying call the bank -> Schedule an email to me tomorrow at 9am saying call the bank.\n"
                   "wat r the big headlnes last 6 hrs -> Tell me the news from the last 6 hours.\n"
@@ -1208,6 +1303,7 @@ class Agent:
                   "remnd me to grab milk wen i get off -> ASK: What time do you get off, so I can remind you then?\n"
                   "ugh today was so long -> CHAT\n"
                   "findd cheapest airpods -> Find the cheapest AirPods.\n"
+                  "txt mom im omw then remind me at 5 to call sam -> 1. Text Mom: I'm on my way. 2. Remind me at 5pm to call Sam.\n"
                   + ("Earlier:\n" + "\n".join(recent) + "\n" if recent else "") + f"Last message: {text}\nAnswer:")
         try:
             with self.lock:
@@ -1216,7 +1312,12 @@ class Agent:
             return None
         said = out.get("text") if isinstance(out, dict) else None
         if not isinstance(said, str): return None
-        said = said.strip().strip('"').splitlines()[0].strip() if said.strip() else ""
+        said = said.strip().strip('"')
+        steps = [m.strip() for m in re.split(r"(?:^|\s|\n)\d{1,2}[.)]\s+", said) if m.strip()]
+        if len(steps) > 1:
+            steps = [st for st in steps[:6] if not DENIES.search(st)]
+            return steps if len(steps) > 1 else (steps[0] if steps else None)
+        said = said.splitlines()[0].strip() if said else ""
         if not said or DENIES.search(said) or CANT_DO.search(said): return None  # an answer, not an instruction
         return said[:400]
 
@@ -2182,7 +2283,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2476,6 +2577,11 @@ class Agent:
             if saved is not None: return saved
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
+            music = re.match(r"^\W*(?:(?:can you|could you|please|yo|hey|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
+            if music and self.mode != "kids" and not re.match(r"(?:a game|with|around|it cool|it safe)\b", music["what"]):
+                what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", music["what"]).strip(" ,.") or "music for right now"
+                from urllib.parse import quote_plus
+                return {"text": f"Playing {what} on YouTube Music. Tell me what you think of it, I've got opinions.", "open_url": "https://music.youtube.com/search?q=" + quote_plus(what), "section": "music"}
             truth = self._did_it(lowered)
             if truth is not None: return truth
             connecting = self._connect_request(lowered)
@@ -2539,9 +2645,11 @@ class Agent:
             if getattr(self, "_rerouting", False):
                 return None  # the clear version matched nothing either: answer what they actually said
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
-            if self.use_model and self.mode != "kids" and (self.planner is None or getattr(self.planner, "understands", False)) \
+            if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
                     and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")):
                 clear = self.understand(text, cancel_event)
+                if isinstance(clear, list):
+                    return self.run_steps(clear, cancel_event)
                 if clear and clear.upper().startswith("ASK:") and len(clear) > 6:
                     return {"text": clear[4:].strip()[:300], "asked": True}
                 if clear and clear.upper() != "CHAT" and _words(clear) != _words(text):
