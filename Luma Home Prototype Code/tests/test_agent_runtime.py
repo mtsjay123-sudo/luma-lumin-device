@@ -121,7 +121,7 @@ class ControlTests(unittest.TestCase):
         import sys, types
         heard=[]
         fake=types.ModuleType('luma.audio.stt')
-        fake.transcribe_clip=lambda data,suffix: heard.append((len(data),suffix)) or 'what is on my calendar today'
+        fake.transcribe_clip=lambda data,suffix,**kw: heard.append((len(data),suffix)) or 'what is on my calendar today'
         old=sys.modules.get('luma.audio.stt');sys.modules['luma.audio.stt']=fake
         try:
             req=urllib.request.Request(self.base+'/api/listen',data=b'\x1aE\xdf\xa3'+b'0'*5000,headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'audio/webm;codecs=opus'})
