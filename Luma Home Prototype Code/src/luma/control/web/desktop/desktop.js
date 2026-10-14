@@ -575,10 +575,15 @@
       const pw = el("input"); pw.type = "password"; pw.placeholder = "16-letter app code from Google"; pw.required = true; pw.autocomplete = "off";
       const go1 = el("button", "pill primary small", "Connect and continue"); go1.type = "submit";
       const help = el("div", "help");
-      help.append(document.createTextNode("Google doesn't let apps use your regular password, so it gives you a separate 16-letter code just for Luma. It takes 30 seconds, and you can delete it any time. "),
-                  document.createTextNode("You only need this if you want me to send emails on my own. Without it, I write them and open them in Gmail for you to send."));
-      const getCode = btn("Get my code from Google", "pill soft small", () => openInLuma("https://myaccount.google.com/apppasswords"), "external");
-      f.append(addr, getCode, pw, go1, help);
+      // Google only shows app codes once 2-Step Verification is on, so say that first.
+      const steps = el("ol", "help steps");
+      for (const t of ["Turn on 2-Step Verification for your Google account (skip if it's already on).",
+                       "Open App passwords, type “Luma” as the name, and press Create.",
+                       "Google shows a 16-letter code. Paste it below. That's it."]) steps.append(el("li", null, t));
+      help.append(document.createTextNode("Only needed if you want me to send emails on my own. Without it, I write them and open them in Gmail for you to send."));
+      const twoStep = btn("1. Turn on 2-Step Verification", "pill soft small", () => openInLuma("https://myaccount.google.com/signinoptions/twosv"), "lock");
+      const row = el("div", "actions"); row.append(twoStep, getCode);
+      f.append(addr, steps, row, pw, go1, help);
       f.addEventListener("submit", async (e) => {
         e.preventDefault();
         go1.disabled = true; go1.textContent = "Checking…";
