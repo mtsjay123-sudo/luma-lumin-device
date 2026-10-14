@@ -15,6 +15,7 @@
     goals: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/>',
     library: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    news: '<path d="M5 5.5h11v13H6.5A1.5 1.5 0 0 1 5 17V5.5Z"/><path d="M16 9h3v8.5a1 1 0 0 1-1 1h-2M8 9h5M8 12h5M8 15h3"/>',
     compose: '<path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.6 3.9a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5 8.3-8.3Z"/>',
     apps: '<path d="M9 7V4M15 7V4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v4"/>',
     rules: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>',
@@ -281,7 +282,7 @@
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
   const EVERY = { hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { browser: "Browser", feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Apps", rules: "Rules", settings: "Settings" };
+  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Apps", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -461,6 +462,8 @@
   // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
   function rich(r) {
     if (r.state === "pending" && r.action) return approval(r);
+    if (r.connect) return connectCard(r);
+    if (r.section === "news" && r.results && r.results.length) return newsCard(r.results);
     if (r.kind === "shopping" && r.offers) return products(r);
     if (r.file && r.file.url) return deckCard(r.file);
     if (r.messages && r.messages.length) return mailCard(r.messages);
@@ -496,6 +499,119 @@
     if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Apps", "pill soft small", () => go("apps"), "apps")); return a; }
     if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(webLink(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
     return null;
+  }
+
+  // "Connect it right here": the app connects inside the chat, then Luma picks the same task back up. No trip to Apps.
+  function connectCard(r) {
+    const kind = r.connect;
+    const con = state.home?.connections || {};
+    const on = kind === "mail" ? con.mail?.connected : kind === "calendar" ? con.calendar?.connected : kind === "browser" ? con.browser?.on : false;
+    const c = el("div", "card connect-card");
+    const head = el("div", "co-head");
+    const mark = kind === "mail" ? brand("gmail") : kind === "calendar" ? brand("googlecalendar") : null;
+    const hic = el("span", "chip-ic");
+    hic.append(icon(kind === "browser" ? "globe" : kind === "calendar" ? "calendar" : "mail"));
+    const title = { mail: "Connect your email", calendar: "Connect your calendar", browser: "Turn on Luma's browser" }[kind] || "Connect it";
+    const line = el("div");
+    line.append(el("b", null, title), el("span", "muted", on ? " · connected" : " · right here, then I'll carry on"));
+    head.append(mark || hic, line);
+    c.append(head);
+    const keepGoing = async (note) => { toast(note); await refreshHome(); send("keep going"); };
+    if (on) {
+      const a = el("div", "actions");
+      a.append(btn("Keep going", "pill primary small", () => send("keep going"), "check"));
+      c.append(a);
+      return c;
+    }
+    const f = el("form", "connect-form");
+    if (kind === "mail") {
+      const addr = el("input"); addr.type = "email"; addr.placeholder = "you@gmail.com"; addr.required = true; addr.autocomplete = "email";
+      const pw = el("input"); pw.type = "password"; pw.placeholder = "App password (not your real one)"; pw.required = true; pw.autocomplete = "off";
+      const go1 = el("button", "pill primary small", "Connect and continue"); go1.type = "submit";
+      const help = el("div", "help");
+      help.append(document.createTextNode("Free and private. Make an app password at "), linkOut("Google", "https://myaccount.google.com/apppasswords", ""), document.createTextNode(", "),
+                  linkOut("Apple", "https://account.apple.com/account/manage", ""), document.createTextNode(" or "), linkOut("Yahoo", "https://login.yahoo.com/account/security/app-passwords", ""), document.createTextNode("."));
+      f.append(addr, pw, go1, help);
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        go1.disabled = true; go1.textContent = "Checking…";
+        try { await api("/api/connect/mail", { address: addr.value.trim(), app_password: pw.value }); pw.value = ""; keepGoing("Email connected. Picking up where we left off."); }
+        catch (err) { toast(err.message); go1.disabled = false; go1.textContent = "Connect and continue"; }
+      });
+    } else if (kind === "calendar") {
+      const url = el("input"); url.placeholder = "Private iCal link (https:// or webcal://)"; url.required = true;
+      const go1 = el("button", "pill primary small", "Connect and continue"); go1.type = "submit";
+      f.append(url, go1, el("div", "help", "Google Calendar: Settings → your calendar → “Secret address in iCal format”. I can read it, never change it."));
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        go1.disabled = true;
+        try { await api("/api/connect/calendar", { url: url.value.trim() }); keepGoing("Calendar connected. Picking up where we left off."); }
+        catch (err) { toast(err.message); go1.disabled = false; }
+      });
+    } else if (kind === "browser") {
+      const go1 = btn("Turn it on and continue", "pill primary small", async () => {
+        go1.disabled = true;
+        try { await api("/api/setting", { key: "browser", value: true }); keepGoing("Luma's browser is on. Picking up where we left off."); }
+        catch (err) { toast(err.message); go1.disabled = false; }
+      }, "globe");
+      f.append(go1);
+    }
+    c.append(f);
+    return c;
+  }
+
+  // Headlines with where they're from and how fresh they are. Tap one to read it in Luma's browser.
+  function newsCard(items) {
+    const c = el("div", "card news-card");
+    for (const n of items.slice(0, 6)) {
+      const row = el("button", "news-row");
+      row.type = "button";
+      row.title = n.url;
+      row.append(el("span", "n-title", n.title), el("span", "n-meta", [n.source, n.age].filter(Boolean).join(" · ")));
+      row.addEventListener("click", () => openInLuma(n.url));
+      c.append(row);
+    }
+    return c;
+  }
+
+  // ------------------------------------------------------------- news ---
+  // What's new right now: re-read when it's over 15 minutes old, searched live for a topic.
+  const NEWS_TOPICS = [["", "Top"], ["world", "World"], ["us", "U.S."], ["business", "Business"], ["tech", "Tech"], ["sports", "Sports"], ["science", "Science"], ["health", "Health"], ["entertainment", "Entertainment"]];
+  const newsView = { topic: "", q: "", timer: 0, loading: false };
+  async function renderNews(quiet) {
+    const bar = $("news-topics");
+    if (!bar.childElementCount) {
+      for (const [k, label] of NEWS_TOPICS) bar.append(btn(label, "", () => { newsView.topic = k; newsView.q = ""; $("news-q").value = ""; renderNews(); }));
+      $("news-search").addEventListener("submit", (e) => { e.preventDefault(); newsView.q = $("news-q").value.trim(); renderNews(); });
+      $("news-refresh").addEventListener("click", () => renderNews());
+    }
+    [...bar.children].forEach((b, i) => b.classList.toggle("on", !newsView.q && NEWS_TOPICS[i][0] === newsView.topic));
+    const list = $("news-list");
+    if (!quiet) { list.replaceChildren(thinkingRow()); $("news-checked").textContent = "Reading the latest…"; }
+    clearTimeout(newsView.timer);
+    if (state.view === "news") newsView.timer = setTimeout(() => state.view === "news" && renderNews(true), 5 * 60 * 1000);  // stays live while it's open
+    try {
+      const qs = new URLSearchParams({ topic: newsView.topic, q: newsView.q });
+      const d = await api("/api/news?" + qs.toString());
+      list.replaceChildren();
+      if (!d.items.length) { list.append(el("p", "lede", newsView.q ? `Nothing new on “${newsView.q}” in the last two days.` : "No headlines yet. Check your connection and refresh.")); }
+      for (const n of d.items) {
+        const row = el("button", "news-item");
+        row.type = "button";
+        row.title = n.url;
+        const meta = el("div", "n-meta");
+        const mark = brandFor(String(n.source || "").toLowerCase().replace(/[^a-z]/g, ""));
+        if (mark) meta.append(brand(mark));
+        meta.append(document.createTextNode([n.source, n.age].filter(Boolean).join(" · ")));
+        row.append(meta, el("div", "n-title", n.title));
+        if (n.snippet) row.append(el("div", "n-snip", n.snippet));
+        row.addEventListener("click", () => openInLuma(n.url));
+        list.append(row);
+      }
+      $("news-checked").textContent = d.checked ? "Updated " + ago(d.checked) : "";
+    } catch (e) {
+      if (!quiet) list.replaceChildren(el("p", "lede", e.message));
+    }
   }
 
   function products(r) {
@@ -553,12 +669,14 @@
   function pendingIds() { return new Set((state.home?.approvals || []).map((a) => a.id)); }
 
   const WANTS = {
-    "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "luma.send": ["Text", "send this text"],
+    "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "mail.schedule": ["Email", "schedule this email"], "luma.send": ["Text", "send this text"],
     "sms.send": ["Text", "send this text"], "mac_messages.send": ["Text", "send this text"], "browser.act": ["Website", "do this on a website"],
     "booking.create": ["Booking", "book this"], "home.light": ["Home", "change your lights"], "food.checkout": ["Groceries", "set up this checkout"],
   };
   const ROUTES = { luma_number: "From Luma's number", mac_imessage: "From your iMessage", mac_sms: "From your number (SMS)", twilio: "From your Twilio number" };
   const TEXTY = ["luma.send", "sms.send", "mac_messages.send"];
+  const MAILY = ["mail.send", "mail.schedule"];
+  const sendAt = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
 
   // Muse-style: "Checkout · Luma wants to…", the item as it looks on the store, then Deny / Allow.
   function approval(r) {
@@ -570,9 +688,9 @@
     const c = el("div", "card checkout");
     const head = el("div", "co-head");
     const hic = el("span", "chip-ic");
-    hic.append(icon(r.tool === "shop.add_to_cart" ? "cart" : r.tool === "mail.send" ? "mail" : TEXTY.includes(r.tool) ? "message" : "rules"));
+    hic.append(icon(r.tool === "shop.add_to_cart" ? "cart" : MAILY.includes(r.tool) ? "mail" : TEXTY.includes(r.tool) ? "message" : "rules"));
     const where = r.tool === "shop.add_to_cart" ? ` at ${host(a.url) || a.store}`
-      : (r.tool === "mail.send" || TEXTY.includes(r.tool)) ? ` to ${r.recipient_name || a.to}`
+      : (MAILY.includes(r.tool) || TEXTY.includes(r.tool)) ? ` to ${r.recipient_name || a.to}`
       : r.tool === "browser.act" ? ` on ${host(String(a.page || "").split(" — ").pop()) || "a website"}` : "";
     const line = el("div");
     line.append(el("b", null, kind), el("span", "muted", ` · Luma wants to ${verb}${where}`));
@@ -580,7 +698,8 @@
     c.append(head);
     const sub = {
       "shop.add_to_cart": "Check the item and price before you allow it. Checkout and payment always stay with you.",
-      "mail.send": "These are the exact words that will go out. It's in your Drafts too.",
+      "mail.send": "These are the exact words that will go out.",
+      "mail.schedule": `These exact words go out ${sendAt(a.send_at)}, not before. You can cancel any time until then.`,
       "browser.act": a.reason ? `Why I'm asking: ${a.reason}.` : "Nothing happens on the site until you allow it.",
     }[r.tool] || (String(r.tool).startsWith("mcp.") ? `This changes something in ${app ? app.name : "a connected app"}. Check the details first.` : TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
     c.append(el("div", "co-sub", sub));
@@ -605,9 +724,11 @@
       row("card", "Payment", "You check out yourself");
       row("tag", "Item price", a.price);
       c.append(rows);
-    } else if (r.tool === "mail.send") {
+    } else if (MAILY.includes(r.tool)) {
       const mail = el("div", "co-mail");
-      for (const [k, v] of [["To", r.recipient_name ? `${r.recipient_name} <${a.to}>` : a.to], ["Subject", a.subject || "(no subject)"]]) {
+      const rows = [["To", r.recipient_name ? `${r.recipient_name} <${a.to}>` : a.to], ["Subject", a.subject || "(no subject)"]];
+      if (a.send_at) rows.push(["Sends", sendAt(a.send_at)]);
+      for (const [k, v] of rows) {
         const row = el("div", "row");
         row.append(el("b", null, k), el("span", null, v));
         mail.append(row);
@@ -651,18 +772,18 @@
       if (!token) { finish("Ask me again to get a fresh approval.", false); return; }
       allow.disabled = deny.disabled = true;
       lineEl.textContent = "Working on it…";
-      mood("working", r.tool === "shop.add_to_cart" ? "Adding to your cart" : "Sending");
+      mood("working", r.tool === "shop.add_to_cart" ? "Adding to your cart" : r.tool === "mail.schedule" ? "Scheduling" : "Sending");
       try {
         const done = await api("/api/confirm", { id: r.action, token });
         const ok = done.state === "succeeded";
-        finish(ok ? (done.verified === false ? "Pressed, but couldn't confirm it landed" : "Done ✓") : done.state === "handoff" ? "Over to you" : done.state === "unknown" ? "Not sure it went through" : "Didn't go through", ok);
+        finish(ok ? (done.verified === false ? "Pressed, but couldn't confirm it landed" : r.tool === "mail.schedule" ? "Scheduled ✓" : "Done ✓") : done.state === "handoff" ? "Over to you" : done.state === "unknown" ? "Not sure it went through" : "Didn't go through", ok);
         pushLocal(state.thread, { role: "luma", text: done.text || done.summary || (ok ? "Done." : "That didn't go through."), result: { cart: done.cart, url: done.url } });
         mood(ok ? "happy" : "idle", ok ? "Done" : "Here with you", ok ? 3500 : 0);
         refreshHome();
       } catch (e) { allow.disabled = deny.disabled = false; lineEl.textContent = e.message; mood("idle", "Here with you"); }
     });
     actions.append(deny, allow);
-    if (TEXTY.includes(r.tool) || r.tool === "mail.send") {
+    if (TEXTY.includes(r.tool) || MAILY.includes(r.tool)) {
       const spacer = el("span");
       spacer.style.flex = "1";
       foot.append(spacer, btn("Edit", "pill quiet small", () => edit(c, r), "compose"));
@@ -685,8 +806,8 @@
     actions.append(btn("Use this", "pill primary", async () => {
       try {
         await api("/api/cancel", { id: r.action }).catch(() => {});
-        const next = r.tool === "mail.send"
-          ? await api("/api/mail/compose", { to: a.to, subject: a.subject, body: area.value.trim(), reply_to_id: a.reply_to_id || "" })
+        const next = MAILY.includes(r.tool)
+          ? await api("/api/mail/compose", { to: a.to, subject: a.subject, body: area.value.trim(), reply_to_id: a.reply_to_id || "", send_at: a.send_at || "" })
           : await api("/api/messages/prepare", { recipient: a.to, body: area.value.trim() });
         remember(next);
         state.outcomes[r.action] = { text: "Edited", ok: false };
@@ -1069,7 +1190,7 @@
       card.type = "button";
       const o = state.offers.get(args.url) || {};
       const ph = el("span", "ph");
-      ph.append(icon(a.tool === "mail.send" ? "mail" : TEXTY.includes(a.tool) ? "message" : "cart"));
+      ph.append(icon(MAILY.includes(a.tool) ? "mail" : TEXTY.includes(a.tool) ? "message" : "cart"));
       card.append(picture(o.image, "", o.image_shot) || ph);
       const g = el("div", "grow");
       const what = WANTS[a.tool] || ["Action", "do this"];
@@ -1313,7 +1434,27 @@
 
   // ------------------------------------------------------------- goals ---
   let goalKind = "price_watch";
+  // Emails waiting for their time: the exact words already allowed. Cancel any of them before they go.
+  function renderLaterMail() {
+    const box = $("later-mail");
+    const rows = state.home?.later_mail || [];
+    box.hidden = !rows.length;
+    box.replaceChildren(el("h2", "sub-head", "Scheduled emails"));
+    for (const m of rows) {
+      const row = el("div", "card later-row");
+      const ic = el("span", "chip-ic");
+      ic.append(icon("mail"));
+      const g = el("div", "grow");
+      g.append(el("div", "t", m.subject || "(no subject)"), el("div", "s", `To ${m.to} · ${new Date(m.send_at * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`));
+      row.append(ic, g, btn("Cancel", "pill quiet small danger", async () => {
+        try { const r = await api("/api/mail/later/cancel", { id: m.id }); toast(r.text); await refreshHome(); renderLaterMail(); } catch (e) { toast(e.message); }
+      }));
+      box.append(row);
+    }
+  }
+
   function renderGoals() {
+    renderLaterMail();
     const form = $("goal-form");
     form.replaceChildren();
     const head = el("div", "card-head");
@@ -1998,6 +2139,7 @@
       if (!browserView.url) $("b-url").focus();
     }
     if (view === "feed") renderFeed();
+    if (view === "news") renderNews();
     if (view === "ideas") renderIdeas();
     if (view === "goals") renderGoals();
     if (view === "library") renderLibrary();

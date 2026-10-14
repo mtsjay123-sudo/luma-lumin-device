@@ -100,7 +100,7 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|scores?|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
 # A reply that says it looked something up when it didn't use a tool.
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
-RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done)(?: please)?[.!? ]*$", re.I)
+RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
 # "latest on my order", "any news from Jake": about their own life, not the headlines. ("Tell me the news" still is.)
 PERSONAL_NEWS = re.compile(r"\b(?:my|our|about (?:my|our))\b|\bfrom (?!the\b|today\b|this\b|last\b|yesterday\b|tonight\b|overnight\b|around\b|across\b|all\b)\w", re.I)

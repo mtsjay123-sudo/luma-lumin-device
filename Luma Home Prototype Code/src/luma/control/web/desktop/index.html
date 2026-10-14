@@ -25,6 +25,7 @@
       <nav class="nav" id="nav-main">
         <button class="nav-item active" data-view="chat" data-icon="chat">Main chat</button>
         <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
+        <button class="nav-item" data-view="news" data-icon="news">News</button>
         <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
         <button class="nav-item" data-view="goals" data-icon="goals">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
         <button class="nav-item" data-view="library" data-icon="library">Library</button>
@@ -104,6 +105,17 @@
         </div>
       </section>
 
+      <section class="view page news-view" id="view-news" hidden>
+        <div class="news-top">
+          <div class="segmented" id="news-topics"></div>
+          <span class="spacer"></span>
+          <small class="muted" id="news-checked"></small>
+          <button class="icon-btn" id="news-refresh" type="button" aria-label="Refresh" title="Refresh" data-icon="refresh"></button>
+        </div>
+        <form class="news-search" id="news-search" autocomplete="off"><input id="news-q" placeholder="Search the news, live: the Fed, the Lakers, a company…" aria-label="Search the news" /></form>
+        <div class="news-list" id="news-list"></div>
+      </section>
+
       <section class="view page" id="view-ideas" hidden>
         <p class="lede">Things I could take off your plate. Pick one and I'll get going.</p>
         <div class="idea-grid" id="ideas"></div>
@@ -113,6 +125,7 @@
         <p class="lede">Standing jobs I keep doing on my own. I only read and prepare; anything that goes out still waits for you.</p>
         <form class="card new-goal" id="goal-form"></form>
         <div class="goal-list" id="goals"></div>
+        <div class="later-mail" id="later-mail" hidden></div>
       </section>
 
       <section class="view page" id="view-library" hidden>

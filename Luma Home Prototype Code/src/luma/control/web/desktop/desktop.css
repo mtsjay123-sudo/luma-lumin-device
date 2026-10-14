@@ -1006,3 +1006,38 @@ body.speaking .composer { box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 30px -4
 .mind-step.now { color: var(--ink); }
 .mind-step.now .m-dot { background: var(--accent, #8a5cff); box-shadow: 0 0 0 4px color-mix(in srgb, #8a5cff 20%, transparent); animation: mind-pulse 1.3s ease-in-out infinite; }
 @keyframes mind-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, #8a5cff 0%, transparent); } }
+
+/* Connect right in the chat, then carry on */
+.connect-card { margin-top: 8px; max-width: 460px; padding-bottom: 14px; }
+.connect-card .co-head .brand, .connect-card .co-head .chip-ic { width: 28px; height: 28px; flex: none; }
+.connect-form { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 0 54px; }
+.connect-form input { width: 100%; height: 38px; border-radius: 11px; border: 1px solid var(--line-2); background: var(--card-2); padding: 0 12px; color: var(--ink); outline: none; }
+.connect-form input:focus, .news-search input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, #8a5cff 20%, transparent); }
+.connect-form .pill { align-self: flex-start; }
+.connect-form .help { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.connect-card .actions { padding: 10px 16px 0 54px; }
+
+/* News, in the chat and on its own page */
+.news-card { margin-top: 8px; max-width: 560px; padding: 4px; display: flex; flex-direction: column; }
+.news-row, .news-item { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 14px; }
+.news-row:hover, .news-item:hover, .news-row:focus-visible, .news-item:focus-visible { background: var(--card-2, rgba(127,127,127,.08)); }
+.news-row .n-title, .news-item .n-title { font-weight: 600; font-size: 14px; line-height: 1.35; color: var(--ink); }
+.news-row .n-meta, .news-item .n-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.news-item .n-meta .brand { width: 16px; height: 16px; border-radius: 5px; }
+.news-item .n-snip { color: var(--ink-2, var(--muted)); font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-view .news-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.news-view .news-top .spacer { flex: 1; }
+.news-view .segmented { flex-wrap: wrap; }
+.news-search { margin: 12px 0 8px; }
+.news-search input { width: 100%; height: 40px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--card-2); padding: 0 14px; color: var(--ink); outline: none; font-size: 14px; }
+.news-list { display: flex; flex-direction: column; gap: 2px; border-radius: var(--r-lg); }
+.news-list .news-item { border-bottom: 1px solid var(--line); border-radius: 0; padding: 14px 6px; }
+.news-list .news-item:last-child { border-bottom: 0; }
+
+/* Scheduled emails, under Goals */
+.later-mail { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.later-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.later-row .grow { flex: 1; min-width: 0; }
+.later-row .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.later-row .s { color: var(--muted); font-size: 12.5px; }
+.later-row .chip-ic { width: 28px; height: 28px; border-radius: 50%; background: var(--card-3); display: grid; place-items: center; flex: none; }
