@@ -993,3 +993,16 @@ body.speaking .composer { box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 30px -4
 /* The steps Luma took, when you ask to see its thinking */
 .thought-trace { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-style: italic; margin-bottom: 2px; }
 .thought-trace .orb { flex: none; }
+
+/* Watch the mind work: the few angles it weighs, lighting up one by one */
+.mind-card { align-self: flex-start; max-width: 82%; border-radius: 22px; padding: 16px 18px; background: var(--glass-soft);
+  border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi); animation: rise 0.3s ease-out; }
+.mind-head { display: flex; align-items: center; gap: 12px; }
+.mind-steps { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 2px; padding-left: 4px; }
+.mind-step { display: flex; align-items: center; gap: 11px; font-size: 14px; color: var(--muted); padding: 4px 0; transition: color .25s; }
+.mind-step .m-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); flex: none; transition: background .25s, box-shadow .25s; }
+.mind-step.done { color: var(--ink-2); }
+.mind-step.done .m-dot { background: var(--good); }
+.mind-step.now { color: var(--ink); }
+.mind-step.now .m-dot { background: var(--accent, #8a5cff); box-shadow: 0 0 0 4px color-mix(in srgb, #8a5cff 20%, transparent); animation: mind-pulse 1.3s ease-in-out infinite; }
+@keyframes mind-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, #8a5cff 0%, transparent); } }

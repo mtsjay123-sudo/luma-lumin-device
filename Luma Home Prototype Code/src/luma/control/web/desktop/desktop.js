@@ -369,7 +369,9 @@
     }
     if (state.busy) {
       const a = state.activity;
-      if (a && ["running", "paused", "stopping"].includes(a.state) && !a.background) box.append(computer(a, true));
+      const live = a && ["running", "paused", "stopping"].includes(a.state) && !a.background;
+      if (live && ["think", "goal", "vision"].includes(a.kind)) box.append(thinkingCard(a));
+      else if (live) box.append(computer(a, true));
       else box.append(thinkingRow());
     }
     if (atBottom || state.busy || state.stick) { box.scrollTop = box.scrollHeight; requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; }); }
@@ -383,6 +385,25 @@
     const doing = $("doing").textContent;
     t.append(orb("small"), el("span", "shimmer-text", doing && doing !== "Here with you" ? doing : "Thinking"));
     return t;
+  }
+  // The dream moment: watch Luma weigh a few ways to see it, then land on one.
+  function thinkingCard(a) {
+    const c = el("div", "mind-card");
+    const head = el("div", "mind-head");
+    head.append(orb("small"), el("span", "shimmer-text", a.title || "Thinking it through"));
+    c.append(head);
+    const steps = a.steps || [];
+    if (steps.length) {
+      const list = el("div", "mind-steps");
+      steps.forEach((st, i) => {
+        const now = i === steps.length - 1 && !st.done;
+        const row = el("div", "mind-step" + (st.done ? " done" : now ? " now" : ""));
+        row.append(el("span", "m-dot"), el("span", "m-text", st.text));
+        list.append(row);
+      });
+      c.append(list);
+    }
+    return c;
   }
   function replyTools(m) {
     const tools = el("div", "tools");
