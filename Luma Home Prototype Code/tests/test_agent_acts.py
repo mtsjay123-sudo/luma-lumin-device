@@ -332,15 +332,15 @@ class MindTests(unittest.TestCase):
         self.assertEqual(glad["feeling"], "so happy for them")
 
     def test_deep_think_runs_several_passes_then_answers(self):
-        calls = []
         def planner(history, memories, tools, mode):
-            calls.append(history[-1]["content"][:40])
-            return {"type": "reply", "text": f"pass {len(calls)}"}
+            if "You're the judge" in history[-1]["content"]:
+                return {"type": "reply", "text": "weighed it: here's my honest call"}
+            return {"type": "reply", "text": "a take"}
         from luma.agent.runtime import Agent
         agent = Agent(store=self.store, use_model=True, planner=planner, now=lambda: 1791900000)
         out = agent.chat("should I quit my job? think hard about it")
-        self.assertEqual(out["text"], "pass 4")  # 3 thinking passes + 1 answer
-        self.assertEqual(out["thinking"], ["Understanding it", "Looking at it three ways", "Checking myself"])
+        self.assertEqual(out["text"], "weighed it: here's my honest call")
+        self.assertEqual(len(out["thinking"]), 4)  # one note per scenario explored
 
 
 class VisionTests(unittest.TestCase):
@@ -412,6 +412,7 @@ class EvolvingMindTests(unittest.TestCase):
                 return {"type": "reply", "text": "Honestly, I'm not sure — here's how I'd think about it."}
             return {"type": "reply", "text": "You should definitely quit today, guaranteed it'll work out."}
         agent = self._agent(planner)
+        agent.store.set_setting("deliberate", False)  # test the fast corrector path, not the deliberation path
         out = agent.chat("should I quit my job?")
         self.assertEqual(out["text"], "Honestly, I'm not sure — here's how I'd think about it.")
         self.assertTrue(any("Check your own draft" in c for c in seen))
@@ -448,3 +449,64 @@ class EvolvingMindTests(unittest.TestCase):
         out = agent.chat("should I move to Austin?")
         self.assertEqual(out["text"], "A plain answer.")
         self.assertFalse(any("Check your own draft" in c for c in calls))
+
+
+class DeliberationTests(unittest.TestCase):
+    """The Monte-Carlo way of thinking: explore several takes, judge, verify, commit — only when it's hard."""
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from luma.memory.store import Store
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "db", Path(self.temp.name) / "key")
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def _agent(self, planner):
+        from luma.agent.runtime import Agent
+        return Agent(store=self.store, use_model=True, planner=planner, now=lambda: 1791900000)
+
+    def test_a_hard_question_explores_several_takes_then_a_judge_commits(self):
+        seen = {"candidates": 0, "judged": False}
+        def planner(history, memories, tools, mode):
+            c = history[-1]["content"]
+            if "You're the judge" in c:
+                seen["judged"] = True
+                return {"type": "reply", "text": "Here's what I'd actually do, and why."}
+            if "They asked:" in c and ("Answer as" in c):
+                seen["candidates"] += 1
+                return {"type": "reply", "text": f"take {seen['candidates']}"}
+            return {"type": "reply", "text": "plain"}
+        agent = self._agent(planner)
+        out = agent.chat("should I quit my job to go all in on my startup?")
+        self.assertEqual(out["text"], "Here's what I'd actually do, and why.")
+        self.assertTrue(seen["judged"])
+        self.assertEqual(seen["candidates"], 4)  # one per scenario
+        self.assertEqual(len(out["thinking"]), 4)
+
+    def test_an_easy_message_skips_deliberation(self):
+        calls = []
+        def planner(history, memories, tools, mode):
+            calls.append(history[-1]["content"])
+            return {"type": "reply", "text": "hey!"}
+        agent = self._agent(planner)
+        agent.chat("yo what's up")
+        self.assertFalse(any("You're the judge" in c for c in calls))
+
+    def test_when_the_answer_hinges_on_a_fact_it_goes_and_checks(self):
+        from luma.agent.runtime import Agent
+        looked = {"n": 0}
+        def planner(history, memories, tools, mode):
+            c = history[-1]["content"]
+            if "You're the judge" in c:
+                return {"type": "reply", "text": "It really depends on the current price, I'd need to look it up."}
+            return {"type": "reply", "text": "a take"}
+        agent = self._agent(planner)
+        agent.enable("web_search", True)
+        agent.look_it_up = lambda text, ev=None: looked.update(n=looked["n"] + 1) or {"text": "I checked: it's $199 right now.", "results": [{"title": "x", "url": "https://a.com", "snippet": ""}]}
+        out = agent.chat("is it worth buying the new iPad, should I get it?")
+        self.assertEqual(looked["n"], 1)
+        self.assertIn("I checked", out["text"])
+        self.assertIn("checked the web", out["thinking"])

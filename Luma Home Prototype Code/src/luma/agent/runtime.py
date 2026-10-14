@@ -403,7 +403,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self.store.setting("think_first",True), "deep_mind":self.store.setting("deep_mind",True), "show_thoughts":self.store.setting("show_thoughts",False), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self.store.setting("think_first",True), "deep_mind":self.store.setting("deep_mind",True), "deliberate":self.store.setting("deliberate",True), "show_thoughts":self.store.setting("show_thoughts",False), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -1301,27 +1301,67 @@ class Agent:
         return self.store.setting("self_model")
 
     def think_deep(self, text, cancel_event=None):
-        """Several passes before answering: understand it, look at it three ways, check itself, then answer."""
+        """Deliberate, Monte-Carlo style: look at it from several angles, weigh which is most likely right, verify, commit."""
+        return self.deliberate(text, cancel_event, scenarios=None)
+
+    def deliberate(self, text, cancel_event=None, scenarios=None):
+        """Explore several takes on a hard question, let a reasoning judge pick the truest, then check it against reality.
+
+        This is compute-optimal test-time scaling (spend the thinking where it pays): a small local model
+        reaches well past its weight by searching a few hypotheses and verifying, instead of one flat guess.
+        """
         from luma.agent import mind
+        import concurrent.futures
+        stopped = lambda: cancel_event is not None and cancel_event.is_set()
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
-        notes = []
-        self.activity.start("think", "Thinking it through")
+        picks = scenarios if scenarios is not None else mind.SCENARIOS
+        self.activity.start("think", "Weighing a few ways to look at it")
+        explored = []
         try:
-            for step, (label, _) in enumerate(mind.DEEP_PASSES):
-                if cancel_event is not None and cancel_event.is_set(): return {"text": "Stopped thinking.", "state": "stopped"}
-                self.activity.step(label)
-                with self.lock:
-                    out = self.call_planner([{"role": "user", "content": mind.deep_prompt(step, text, summary, notes)}], [], {}, cancel_event or threading.Event())
-                said = out.get("text") if isinstance(out, dict) else None
-                if isinstance(said, str) and said.strip(): notes.append(f"{label}: {said.strip()[:600]}")
-            self.activity.step("Answering")
+            # 1) Explore — one candidate per scenario. Run them together when the backend allows it.
+            def one(label_instr):
+                label, instruction = label_instr
+                try:
+                    with self.lock:
+                        out = self.call_planner([{"role": "user", "content": mind.candidate_prompt(instruction, text, summary)}], [], {}, cancel_event or threading.Event())
+                    said = out.get("text") if isinstance(out, dict) else None
+                    return (label, said.strip()[:600]) if isinstance(said, str) and said.strip() else None
+                except Exception:
+                    return None
+            parallel = self.providers.env.get("LUMA_DELIBERATE_PARALLEL") == "1"
+            if parallel:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(picks))) as pool:
+                    results = list(pool.map(one, picks))
+            else:
+                results = []
+                for item in picks:
+                    if stopped(): return {"text": "Stopped thinking.", "state": "stopped"}
+                    self.activity.step("Considering: " + item[0])
+                    results.append(one(item))
+            explored = [r for r in results if r]
+            if not explored:
+                return {"text": "I turned it over a few ways but couldn't get a good hold on it. Tell me a bit more?", "state": "unknown"}
+            if stopped(): return {"text": "Stopped thinking.", "state": "stopped"}
+            # 2) Judge — weigh the takes and merge the truest into one answer.
+            self.activity.step("Weighing which holds up")
             with self.lock:
-                out = self.call_planner([{"role": "user", "content": mind.final_prompt(text, summary, notes, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
+                out = self.call_planner([{"role": "user", "content": mind.judge_prompt(text, [c for _, c in explored], summary)}], [], {}, cancel_event or threading.Event())
             answer = out.get("text") if isinstance(out, dict) else None
+            answer = answer.strip()[:1500] if isinstance(answer, str) and answer.strip() else explored[0][1]
+            # 3) Check against reality — if the answer hinges on a fact, go look it up instead of guessing.
+            if (mind.needs_reality_check(answer) and self.mode != "kids" and not stopped()
+                    and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
+                self.activity.step("Checking it against the web")
+                try:
+                    looked = self.look_it_up(text, cancel_event)
+                    if isinstance(looked, dict) and looked.get("text"):
+                        looked["thinking"] = [lbl for lbl, _ in explored] + ["checked the web"]
+                        return looked
+                except (ValueError, ProviderError):
+                    pass
         finally:
             self.activity.finish("Thought it through.")
-        return {"text": (answer or "I thought about it, but I couldn't land on a good answer. Can you tell me a bit more?").strip()[:1500],
-                "thinking": [n.split(":", 1)[0] for n in notes]}
+        return {"text": answer, "thinking": [lbl for lbl, _ in explored]}
 
     # -- tasks the owner taught Luma by doing them once ---------------------------------------------
     def _taught_request(self, text, cancel_event=None):
@@ -2041,8 +2081,13 @@ class Agent:
             if saved is not None: return saved
             taught = self._taught_request(text, cancel_event)
             if taught is not None: return taught
-            from luma.agent.mind import DEEP
-            if self.use_model and self.mode != "kids" and DEEP.search(lowered): return self.think_deep(text, cancel_event)
+            from luma.agent import mind
+            if self.use_model and self.mode != "kids":
+                if mind.DEEP.search(lowered):
+                    return self.deliberate(text, cancel_event)
+                if self.store.setting("deliberate", True) and self.store.setting("deep_mind", True) and mind.is_hard(text) \
+                        and not wants_message(text) and not LIVE_INFO.search(lowered):
+                    return self.deliberate(text, cancel_event)
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new|happening|going on) on)\s+(?:my\s+|the\s+)?(instagram|insta|ig|tiktok|twitter|x|facebook|fb|reddit|linkedin|youtube)\b", lowered)
             if feed: return self.check_feed(feed[1], text, cancel_event)
             shopping_reply = self._shopping_command(text, lowered, cancel_event)

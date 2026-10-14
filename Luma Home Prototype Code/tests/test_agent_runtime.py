@@ -70,7 +70,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn("No action was taken",self.agent.chat('Do an unauthorized action')["text"])
         self.assertEqual(self.providers.calls,0)
     def test_explanation_cannot_create_a_model_invented_reminder(self):
-        self.agent.use_model=True;self.agent.planner=lambda *args:{'type':'tool','name':'tasks.create','arguments':{'title':'unrequested','due':'2026-10-01T12:00:00-04:00'}}
+        self.agent.use_model=True;self.store.set_setting('deliberate',False);self.store.set_setting('think_first',False)
+        self.agent.planner=lambda *args:{'type':'tool','name':'tasks.create','arguments':{'title':'unrequested','due':'2026-10-01T12:00:00-04:00'}}
         self.assertIn('No action was taken',self.agent.chat('Explain how a reminder can help me')['text']);self.assertEqual(self.store.all('task'),[])
     def test_conceptual_explanation_has_no_tools_and_returns_prose(self):
         self.agent.use_model=True

@@ -204,3 +204,61 @@ def correct_prompt(draft, text, about_line):
               "(a price, a date, news, something about them)? Are you too sure, or did you miss what they really meant? "
               "If the draft is good, reply with it unchanged. If not, rewrite it: same warmth, but honest about what you don't know "
               "and closer to what they need. Reply with only the final message, plain text.")
+
+
+# -- deliberation: the Monte-Carlo way of thinking ----------------------------------------------
+# Research-backed (compute-optimal test-time scaling, ICLR 2025; search beats best-of-N for small
+# models, Shanghai AI Lab 2025; generative verifiers, GenPRM 2026): a small local model punches far
+# above its weight if, on a HARD question, it explores several takes, a reasoning judge weighs which
+# is most likely right, and the winner is checked against reality before it commits. On an easy
+# question it answers straight — spending the extra thinking only where it pays is what keeps it fast.
+
+# Different "situations" to look at a hard question from. Diversity is the point: each lens surfaces
+# a candidate the others miss, like sampling different corners of the space.
+SCENARIOS = [
+    ("the practical read", "Answer as the practical friend who just wants what actually works for them, fastest."),
+    ("their feelings first", "Answer as the friend who cares most about how they feel and what they're really worried about underneath."),
+    ("the contrarian", "Answer as the sharp friend who thinks the obvious answer is a trap — find the angle everyone misses."),
+    ("the long game", "Answer as the friend thinking about where this leaves them in a year, not just today."),
+]
+
+# How hard is this, really? Only deliberate when it's worth it (adaptive compute).
+HARD = re.compile(r"\b(?:should i|what do you think|what would you do|advice|help me (?:decide|figure|choose)|is it worth|"
+                  r"pros and cons|which (?:one|option|is better)|how (?:do|should) i|what'?s the best way|plan|strategy|"
+                  r"why (?:do|does|is|are|did)|explain|compare|worth it|make sense|quit|break up|move|invest|"
+                  r"relationship|career|decision|torn|stuck|confused|not sure)\b", re.I)
+EASY = re.compile(r"^\s*(?:hi|hey|yo|sup|thanks?|thank you|ok(?:ay)?|cool|nice|lol|haha|got it|sounds good|"
+                  r"what'?s up|how are you|good (?:morning|night))\b", re.I)
+
+
+def is_hard(text):
+    """Worth deliberating over? Short talk and greetings aren't; real questions and decisions are."""
+    t = (text or "").strip()
+    if len(t) < 12 or EASY.match(t):
+        return False
+    return bool(HARD.search(t) or t.endswith("?") and len(t.split()) >= 6)
+
+
+def candidate_prompt(scenario_instruction, text, about_line):
+    return (("What you know about them: " + about_line + "\n" if about_line else "")
+            + scenario_instruction + "\n"
+            + f"They asked: {text}\n"
+              "Give that take in two or three sentences. Be specific and honest; if a fact is needed that you don't have, say what it is. No preamble.")
+
+
+def judge_prompt(text, candidates, about_line):
+    takes = "\n".join(f"[{chr(65+i)}] {c}" for i, c in enumerate(candidates))
+    return (("What you know about them: " + about_line + "\n" if about_line else "")
+            + f"They asked: {text}\n\nHere are different takes on it:\n{takes}\n\n"
+              "You're the judge. For each take, silently weigh how likely it is to actually be right and genuinely help them, "
+              "and whether it leans on a fact nobody here can confirm. Then write ONE answer that takes the strongest, truest parts "
+              "and drops the weak or made-up ones. Lead with your honest recommendation and the one or two reasons that matter most. "
+              "If the real answer depends on a fact you'd need to look up, say so plainly instead of guessing. "
+              "Warm, direct, under 150 words, plain text. Never mention the takes, their letters, or that you compared options — just talk to them.")
+
+
+def needs_reality_check(answer):
+    """Did the judge admit the answer hinges on something only the real world can settle?"""
+    return bool(re.search(r"\b(?:look (?:it|that|this) up|i'?d need to check|depends on .{0,40}\b(?:price|cost|date|whether|current|latest|today)|"
+                          r"can'?t confirm|don'?t (?:actually )?know (?:the|if|whether|what|how much)|check (?:the )?(?:price|latest|current|news)|"
+                          r"would need to (?:look|check|verify))\b", answer, re.I))

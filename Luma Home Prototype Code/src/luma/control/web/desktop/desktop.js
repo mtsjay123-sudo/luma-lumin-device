@@ -1718,6 +1718,7 @@
     box.append(au);
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
     box.append(toggleRow("Deeper mind", "Luma takes a second look at its own answer and fixes anything it's unsure of or made up. A little slower, a lot sharper.", s.deep_mind !== false, (on) => api("/api/setting", { key: "deep_mind", value: on })));
+    box.append(toggleRow("Weigh it out", "On a real question, Luma looks at it a few ways, picks what holds up, and checks facts before answering — how a small brain beats a big one. Needs Deeper mind on.", s.deliberate !== false, (on) => api("/api/setting", { key: "deliberate", value: on })));
     box.append(toggleRow("Show me its thinking", "When Luma thinks something through, show the steps it took, so you can see how it got there.", s.show_thoughts === true, (on) => api("/api/setting", { key: "show_thoughts", value: on })));
 
     const look = el("div", "item");
