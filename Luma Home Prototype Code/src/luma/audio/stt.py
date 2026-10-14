@@ -5,6 +5,30 @@ from luma.config import WHISPER_MODEL_SIZE
 
 _model: WhisperModel | None = None
 
+
+def _quiet_av():
+    """PyAV 14 dropped open()'s metadata_errors option, which faster-whisper still passes ("unexpected keyword
+    argument 'metadata_errors'"). Accept it and drop it, so any PyAV version decodes the recording."""
+    try:
+        import av
+    except ImportError:
+        return
+    if getattr(av.open, "_luma_quiet", False):
+        return
+    original = av.open
+    def open_(*args, **kwargs):
+        try:
+            return original(*args, **kwargs)
+        except TypeError as error:
+            if "metadata_errors" not in str(error): raise
+            kwargs.pop("metadata_errors", None)
+            return original(*args, **kwargs)
+    open_._luma_quiet = True
+    av.open = open_
+
+
+_quiet_av()
+
 # Audio files smaller than this are treated as silent/too-short and skipped
 # entirely — this avoids whisper hallucinating text from noise.
 _MIN_AUDIO_BYTES = 1000
