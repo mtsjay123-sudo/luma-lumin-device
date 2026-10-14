@@ -941,6 +941,34 @@ class Agent:
         return result
 
     # -- emails for later (and emails said in one breath) ---------------------------------------
+    SENDS = {"mail.send": "email", "mail.schedule": "email", "sms.send": "text", "mac_messages.send": "text", "luma.send": "text",
+             "shop.add_to_cart": "cart", "booking.create": "booking", "browser.act": "website step"}
+
+    def _did_it(self, lowered):
+        """'Did you send it?': answered from what really happened, never from the model's imagination."""
+        if not re.search(r"\b(?:did|have|has) (?:you|luma|it|that|the (?:e-?mail|text|message))\s+(?:already |actually |even |really )?(?:send|sent|schedul\w*|text\w*|e-?mail\w*|go out|gone out|go through|book\w*|buy|bought|order\w*|post\w*|add\w* (?:it )?to (?:my )?cart)\b"
+                         r"|\bis (?:it|that|the (?:e-?mail|text|message)) (?:sent|scheduled|out|done)\b", lowered):
+            return None
+        rows = [r for r in self.store.all("action", 30) if r.get("tool") in self.SENDS]
+        later = self.later_mail()
+        if later:
+            r = later[0]
+            return {"text": f"It's scheduled, not sent yet: your email to {r['to']} goes out {self._when(r['send_at'])}. Say “cancel my scheduled email” to stop it."}
+        if not rows:
+            if self.pending_mail:
+                return {"text": "Not yet. Nothing has been sent: I'm still waiting on " + " and ".join({"to": "who it's to", "what": "what it should say", "when": "when it should go out", "address": "their email address"}.get(m, m) for m in self.pending_mail.get("missing", []) or ["your OK"]) + "."}
+            return {"text": "No. I haven't sent, posted or bought anything. Everything like that waits for your OK first."}
+        r = rows[0]
+        what = self.SENDS[r["tool"]]
+        to = (r.get("arguments") or {}).get("to") or ""
+        state = r.get("state")
+        if state == "succeeded": said = f"Yes, your {what}" + (f" to {to}" if to else "") + " went through" + (f" ({self._when(r['finished'])})" if r.get("finished") else "") + "."
+        elif state == "pending": said = f"Not yet. The {what}" + (f" to {to}" if to else "") + " is waiting for your OK: press Allow on it, or say “send it”."
+        elif state in {"cancelled", "expired"}: said = f"No. That {what} was {state}, so nothing went out. Want me to set it up again?"
+        elif state == "failed": said = f"No, it didn't go through: {str(r.get('error') or 'the provider refused it')[:160]}"
+        else: said = f"I'm not sure the {what} went through. Check your Sent folder before trying again."
+        return {"text": said}
+
     def _connect_request(self, lowered):
         """'How can I connect?', 'help me connect it', 'connect my apps': the connect form right here, for what they were doing."""
         if self.mode == "kids" or not re.search(r"\b(?:how (?:can|do|would) i|help me|i (?:want|need) to|let me|can (?:you|i)|where (?:do|can) i|walk me through how to)\s+(?:connect|link|hook up|add|set up|sign in to|log ?in to)\b"
@@ -2431,6 +2459,8 @@ class Agent:
             if saved is not None: return saved
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
+            truth = self._did_it(lowered)
+            if truth is not None: return truth
             connecting = self._connect_request(lowered)
             if connecting is not None: return connecting
             later = self._later_mail(text, lowered, cancel_event)

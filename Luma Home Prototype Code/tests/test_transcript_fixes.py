@@ -347,3 +347,31 @@ class RealModelRunFixesTests(unittest.TestCase):
         self.agent.planner = lambda *a: {"type": "tool", "name": "tasks.create", "arguments": {"title": "Check Gmail", "due": "2020-01-01T09:00:00+00:00"}}
         reply = self.agent.chat("set a reminder for gmail stuff")
         self.assertIn("When should I remind you to check Gmail", reply["text"])
+
+
+class DidYouSendItTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+        self.agent.use_model = True
+        self.agent.planner = lambda *a: {"type": "reply", "text": "No, I saved it to drafts because the subject was half-written."}
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_nothing_sent_is_said_plainly_never_invented(self):
+        reply = self.agent.chat("did you send that email yet?")
+        self.assertIn("haven't sent", reply["text"])
+        self.assertNotIn("drafts", reply["text"])
+
+    def test_waiting_for_ok_and_scheduled_are_reported_truthfully(self):
+        FakeIMAP.mailbox, FakeIMAP.appended, FakeSMTP.sent = [], [], []
+        self.agent.mail.imap_factory, self.agent.mail.smtp_factory = FakeIMAP, FakeSMTP
+        self.agent.mail.connect("me@gmail.com", "abcdabcdabcdabcd")
+        self.agent.enable("mail", True)
+        self.agent.use_model = False
+        card = self.agent.chat("email sam@example.com in 2 hours saying the deck is ready")
+        self.assertIn("waiting for your OK", self.agent.chat("did you send it?")["text"])
+        self.agent.confirm(card["action"], card["confirm_token"])
+        self.assertIn("It's scheduled, not sent yet", self.agent.chat("did the email go out?")["text"])
