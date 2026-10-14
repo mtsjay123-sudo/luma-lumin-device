@@ -123,8 +123,8 @@ class WhatLumaCanDoTests(unittest.TestCase):
 
     def test_specific_abilities(self):
         mail = self.agent.chat("can you schedule emails? do you have a feature for scheduling emails")
-        self.assertIn("schedule emails for later", mail["text"])
-        self.assertEqual(mail["connect"], "mail")
+        self.assertIn("open it in Gmail", mail["text"])
+        self.assertNotIn("connect", mail)
         odd = self.agent.chat("do you have a connector for Notion?")
         self.assertIn("Not built in for Notion", odd["text"])
         self.assertIn("Teach", odd["text"])
@@ -164,8 +164,8 @@ class ScheduledEmailTests(unittest.TestCase):
     def test_connect_here_then_it_carries_on_and_waits_for_allow(self):
         self.assertIn("Just tell me", self.agent.chat("schedule me an email")["text"])
         need = self.agent.chat("tomorrow at 9am: work on the real-time news feature")
-        self.assertEqual(need["connect"], "mail")  # connect right here, and it picks back up
-        self.assertIn("remind me instead", need["text"])
+        self.assertIn("work on the real-time news feature", need["draft_email"]["body"])  # written now, no password needed
+        self.assertIn("Open in Gmail", need["text"])
         self.connect()
         card = self.agent.chat("done")
         self.assertEqual(card["state"], "pending")
@@ -246,7 +246,7 @@ class ScheduledEmailTests(unittest.TestCase):
         self.agent.use_model = True
         self.agent.planner = lambda *a: {"type": "reply", "text": "I can't schedule emails — that's not something I do."}
         reply = self.agent.chat("is emailing people later a thing for you")
-        self.assertIn("schedule emails for later", reply["text"])
+        self.assertIn("open it in Gmail ready to send or schedule", reply["text"])
         self.assertNotIn("can't", reply["text"])
 
 
@@ -266,8 +266,7 @@ class UnderstandsAnyWordingTests(unittest.TestCase):
 
     def test_new_typos_still_schedule_an_email(self):
         reply = self.agent.chat("no i want to scheudle a email to send help me connect it")
-        self.assertEqual(reply["connect"], "mail")  # asks what's missing, with the connect form right there
-        self.assertIn("pending_mail", reply)
+        self.assertIn("pending_mail", reply)  # asks what's missing, no password wall
 
     def test_how_can_i_connect_gives_the_connect_form(self):
         self.agent.history.append({"role": "user", "content": "i want to schedule an email"})
@@ -375,3 +374,25 @@ class DidYouSendItTests(unittest.TestCase):
         self.assertIn("waiting for your OK", self.agent.chat("did you send it?")["text"])
         self.agent.confirm(card["action"], card["confirm_token"])
         self.assertIn("It's scheduled, not sent yet", self.agent.chat("did the email go out?")["text"])
+
+
+class NoPasswordWallTests(unittest.TestCase):
+    """Writing and sending an email never waits on a password: it opens in Gmail, signed in as them."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_schedule_my_emails_starts_writing_one(self):
+        reply = self.agent.chat("im good i just want to scheudle my emails they are getting hard to send out")
+        self.assertIn("pending_mail", reply)
+        self.assertNotIn("connect", reply)
+
+    def test_a_full_request_is_written_and_handed_to_gmail(self):
+        reply = self.agent.chat("email sam@example.com tomorrow at 9am saying the deck is ready")
+        self.assertEqual(reply["draft_email"]["to"], "sam@example.com")
+        self.assertIn("the deck is ready", reply["draft_email"]["body"].lower())
+        self.assertTrue(reply["draft_email"]["send_at"])

@@ -507,6 +507,7 @@
   // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
   function rich(r) {
     if (r.state === "pending" && r.action) return approval(r);
+    if (r.draft_email) return draftEmailCard(r.draft_email);
     if (r.connect) return connectCard(r);
     if (r.section === "news" && r.results && r.results.length) return newsCard(r.results);
     if (r.kind === "shopping" && r.offers) return products(r);
@@ -571,12 +572,13 @@
     const f = el("form", "connect-form");
     if (kind === "mail") {
       const addr = el("input"); addr.type = "email"; addr.placeholder = "you@gmail.com"; addr.required = true; addr.autocomplete = "email";
-      const pw = el("input"); pw.type = "password"; pw.placeholder = "App password (not your real one)"; pw.required = true; pw.autocomplete = "off";
+      const pw = el("input"); pw.type = "password"; pw.placeholder = "16-letter app code from Google"; pw.required = true; pw.autocomplete = "off";
       const go1 = el("button", "pill primary small", "Connect and continue"); go1.type = "submit";
       const help = el("div", "help");
-      help.append(document.createTextNode("Free and private. Make an app password at "), linkOut("Google", "https://myaccount.google.com/apppasswords", ""), document.createTextNode(", "),
-                  linkOut("Apple", "https://account.apple.com/account/manage", ""), document.createTextNode(" or "), linkOut("Yahoo", "https://login.yahoo.com/account/security/app-passwords", ""), document.createTextNode("."));
-      f.append(addr, pw, go1, help);
+      help.append(document.createTextNode("Google doesn't let apps use your regular password, so it gives you a separate 16-letter code just for Luma. It takes 30 seconds, and you can delete it any time. "),
+                  document.createTextNode("You only need this if you want me to send emails on my own. Without it, I write them and open them in Gmail for you to send."));
+      const getCode = btn("Get my code from Google", "pill soft small", () => openInLuma("https://myaccount.google.com/apppasswords"), "external");
+      f.append(addr, getCode, pw, go1, help);
       f.addEventListener("submit", async (e) => {
         e.preventDefault();
         go1.disabled = true; go1.textContent = "Checking…";
@@ -602,6 +604,30 @@
       f.append(go1);
     }
     c.append(f);
+    return c;
+  }
+
+  // The email, written. One tap opens it in Gmail (signed in as you in Luma's browser), ready to send or schedule.
+  function draftEmailCard(d) {
+    const c = el("div", "card checkout draft-mail");
+    const head = el("div", "co-head");
+    head.append(brand("gmail") || icon("mail"));
+    const line = el("div");
+    line.append(el("b", null, "Your email"), el("span", "muted", d.send_at ? ` · send ${new Date(d.send_at * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}` : " · ready to send"));
+    head.append(line);
+    const mail = el("div", "co-mail");
+    for (const [k, v] of [["To", d.to || (d.name && d.name !== "you" ? `${d.name} (add their address)` : "(your address)")], ["Subject", d.subject]]) {
+      const row = el("div", "row"); row.append(el("b", null, k), el("span", null, v)); mail.append(row);
+    }
+    const body = el("textarea", "body draft-body");
+    body.value = d.body; body.rows = Math.min(10, d.body.split("\n").length + 1);
+    mail.append(body);
+    const q = () => `to=${encodeURIComponent(d.to || "")}&su=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(body.value)}`;
+    const a = el("div", "actions");
+    a.append(btn("Open in Gmail", "pill primary small", () => openInLuma(`https://mail.google.com/mail/?view=cm&fs=1&${q()}`), "mail"),
+             linkOut("Mail app", `mailto:${encodeURIComponent(d.to || "")}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(body.value)}`, "pill soft small"),
+             btn("Copy", "pill quiet small", async () => { await navigator.clipboard.writeText(`${d.subject}\n\n${body.value}`).catch(() => {}); toast("Copied"); }, "copy"));
+    c.append(head, mail, a, el("div", "co-sub", d.send_at ? "In Gmail, use the arrow next to Send, then Schedule send. Want me to send it on my own at that time? Connect your email under Connectors." : "Nothing goes out until you press Send in Gmail."));
     return c;
   }
 

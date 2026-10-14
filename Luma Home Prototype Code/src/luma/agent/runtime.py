@@ -106,6 +106,12 @@ from luma.skills.news import asks as asks_news  # noqa: E402
 PERSONAL_NEWS = re.compile(r"\b(?:my|our|about (?:my|our))\b|\bfrom (?!the\b|today\b|this\b|last\b|yesterday\b|tonight\b|overnight\b|around\b|across\b|all\b)\w", re.I)
 GREETING = re.compile(r"(?:yo+|hey+(?: luma)?|hi+(?: luma)?|hello+(?: luma)?|sup|wass?up|what'?s up|whats good|what'?s good|good (?:morning|afternoon|evening)|gm|howdy|hiya)(?: luma)?")
 CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
+def _first_name(address):
+    """sam@example.com -> Sam, sam.rivera@x.com -> Sam; something like info@ stays as is."""
+    first = re.split(r"[._+-]", str(address).split("@")[0])[0]
+    return first.capitalize() if first.isalpha() and 2 <= len(first) <= 15 and first.lower() not in {"info", "hello", "contact", "support", "admin", "team", "sales", "office", "mail", "noreply"} else str(address)
+
+
 def _words(text):
     return " ".join(re.findall(r"[a-z0-9']+", str(text).lower()))
 
@@ -1043,18 +1049,14 @@ class Agent:
             if missing == ["what", "when"]: example = " Like “tomorrow at 9am: work on the news feature”."
             asked = {"text": lead + "Just tell me " + (asks[missing[0]] if len(missing) == 1 else ", ".join(asks[m] for m in missing[:-1]) + " and " + asks[missing[-1]]) + "." + example,
                      "section": "inbox", "pending_mail": missing}
-            if not connected:
-                asked.update(connect="mail", text=asked["text"] + " And connect your email below so it can go out.")
             return asked
         if not connected:
-            spare = f" Or say “remind me instead” and I'll remind you here {self._when(slots['when'])}." if slots.get("to_kind") == "me" and slots.get("when") else ""
-            return {"text": "I've got it all. I just need your email connected to send it: add it right here (Gmail, iCloud or Yahoo with an app password, about a minute) "
-                            "and I'll pick this right back up." + spare, "connect": "mail", "section": "apps"}
+            return self._draft_for_gmail(slots, cancel_event)
         kind, name = slots.get("to_kind"), slots.get("to")
         if kind == "me":
             address, name = mine, "you"
         elif kind == "address":
-            address, name = slots["to"], slots.get("name") or slots["to"]
+            address, name = slots["to"], slots.get("name") or _first_name(slots["to"])
         else:
             try:
                 found = self.mail.find_latest_from(re.sub(r"^my\s+", "", name, flags=re.I))
@@ -1084,6 +1086,23 @@ class Agent:
         self.pending_mail = None
         result.update(text=said, recipient_name=None if kind == "me" else name, section="inbox", send_at=slots.get("when"))
         return result
+
+    def _draft_for_gmail(self, slots, cancel_event=None):
+        """Email isn't connected: still write it, and open it in Gmail (signed in as them in Luma's browser) to send or schedule."""
+        from luma.agent import later_mail as lm
+        kind, what = slots.get("to_kind"), slots["what"]
+        address = slots["to"] if kind == "address" else ""
+        name = "" if kind == "me" else (slots.get("name") or (_first_name(address) if address else slots.get("to")) or "")
+        if kind == "me":
+            first = (self.profile.get("name") or "").split(" ")[0]
+            body = f"Hey{' ' + first if first else ''},\n\nYou asked me to remind you: {what.rstrip('.')}.\n\n— Luma"
+        else:
+            body = self.write_email(name or "there", what, None, cancel_event)
+        draft = {"to": address, "name": "you" if kind == "me" else name, "subject": lm.subject(what, kind == "me"), "body": body, "send_at": slots.get("when")}
+        # (Kept a while: connect email later and say "keep going", and Luma schedules this same one itself.)
+        when = f" Gmail's Schedule send (the arrow next to Send) can send it {self._when(slots['when'])}." if slots.get("when") else ""
+        who = "" if address else (" Add your own address in To." if kind == "me" else f" Add {name}'s address in To." if name else "")
+        return {"text": "Here it is. Tap Open in Gmail and it's ready to send." + who + when, "draft_email": draft, "section": "inbox"}
 
     def later_mail(self):
         return sorted((r for r in self.store.all("mail_later", 500) if r.get("state") == "scheduled"), key=lambda r: r["send_at"])
@@ -1168,7 +1187,6 @@ class Agent:
             if fresh:
                 reply["text"] += " Right now: " + "; ".join(f"{h['title']} ({h['source']})" for h in fresh) + "."
                 reply.update(section="news", results=[{"title": h["title"], "url": h["url"], "snippet": h.get("snippet", ""), "source": h["source"]} for h in fresh])
-        if key in {"email", "schedule"} and not state["mail"]: reply.update(connect="mail", section="apps")
         if key == "calendar" and not state["calendar"]: reply.update(connect="calendar", section="apps")
         return reply
 
@@ -1213,8 +1231,7 @@ class Agent:
         if re.search(r"\be-?mail|\bschedul", denied) and re.search(r"\be-?mail", lowered):
             if later_mail.wants(text):
                 return self._later_mail(text, lowered, cancel_event)
-            return {"text": abilities.about("schedule" if "schedul" in lowered else "email", self._ability_state()),
-                    **({} if self.mail.connected() else {"connect": "mail", "section": "apps"})}
+            return {"text": abilities.about("schedule" if "schedul" in lowered else "email", self._ability_state())}
         for key, words in abilities.AREAS:
             if key not in {"web", "news", "email", "schedule", "shopping", "weather"} and re.search(rf"\b(?:{words})\b", denied) and re.search(rf"\b(?:{words})\b", lowered):
                 return {"text": abilities.about(key, self._ability_state())}
@@ -2165,7 +2182,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result

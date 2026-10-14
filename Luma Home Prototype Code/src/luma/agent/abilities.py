@@ -106,8 +106,8 @@ def about(key, state):
         verbs = "send or schedule emails for later, like “email Sam tomorrow at 9 saying the deck's ready”"
         if state.get("mail"):
             return f"Yes, your email ({address}) is connected. I can go through your inbox, write replies, and {verbs}. Every email waits for your OK."
-        return ("Yes. Connect your email right here (Gmail, iCloud, Yahoo or your own domain, with an app password; free, about a minute) "
-                f"and I can go through your inbox, write replies, and {verbs}. Every email waits for your OK.")
+        return ("Yes. Tell me who it's to, what to say and when, and I'll write it and open it in Gmail ready to send or schedule. No password needed. "
+                "If you'd rather I send and schedule them on my own, connect your email under Connectors.")
     if key == "calendar":
         if state.get("calendar"):
             return "Yes, your calendar's connected. Ask “what's on tomorrow” or “plan my week” and I'll work from what's really on it."

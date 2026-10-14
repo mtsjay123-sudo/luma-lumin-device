@@ -47,7 +47,7 @@ def fix_typos(text):
     return text
 
 
-SCHEDULE_ASK = re.compile(rf"\b(?:schedule|set up|queue(?: up)?|line up)\s+(?:me\s+|up\s+|for me\s+)?(?:an?\s+|the\s+|that\s+|this\s+)?{EMAIL}\b"
+SCHEDULE_ASK = re.compile(rf"\b(?:schedule|set up|queue(?: up)?|line up)\s+(?:me\s+|up\s+|for me\s+)?(?:an?\s+|the\s+|that\s+|this\s+|my\s+|some\s+|these\s+|those\s+)?{EMAIL}\b"
                           rf"|\b{EMAIL}\s+(?:for|to go out|to send)\s+(?:later|tomorrow|tonight)\b|\bschedule (?:it|that|this) (?:to go out|to send|for)\b"
                           rf"|\b(?:remind|ping|nudge) me (?:by|via|over|with an?|in an?|through) {EMAIL}\b", re.I)
 SEND_ASK = re.compile(rf"\b(?:send|write|shoot|drop)\s+(?:me|myself|[a-z][\w'.-]*(?:\s+[a-z][\w'.-]*)?|[\w.+-]+@[\w.-]+)?\s*(?:an?\s+|the\s+)?{EMAIL}\b"
