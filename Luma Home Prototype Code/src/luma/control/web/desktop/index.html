@@ -9,7 +9,10 @@
   <link rel="stylesheet" href="/desktop/desktop.css" />
 </head>
 <body>
-  <div class="scene" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><div class="scene-photo" id="scene-photo" hidden></div><video id="scene-cam" muted playsinline hidden></video></div>
+  <div class="scene" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><div class="scene-photo" id="scene-photo" hidden></div><video id="scene-cam" muted playsinline hidden></video>
+    <!-- See-through in a plain browser: a film playing "behind" Luma, since a web page can't see your screen -->
+    <div class="scene-demo" id="scene-demo" hidden><span class="d-sun"></span><span class="d-hill h1"></span><span class="d-hill h2"></span><span class="d-hill h3"></span><span class="d-player"><span class="d-time">0:42:17</span><span class="d-bar"><span></span></span></span></div>
+  </div>
 
   <div class="app" id="app">
     <!-- Sidebar, like ChatGPT's: new chat and search on top, the tabs, your chats, then you -->
@@ -51,6 +54,7 @@
         <div class="top-right">
           <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
           <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
+          <button class="icon-btn" id="top-glass" aria-label="See-through" title="See-through: let what's behind Luma show through" aria-pressed="false" data-icon="seethrough"></button>
           <button class="icon-btn" id="top-theme" aria-label="Light or dark" title="Light or dark" data-icon="moon"></button>
           <button class="icon-btn" id="top-panel" aria-label="At a glance" title="At a glance" aria-pressed="false" data-icon="panel"></button>
         </div>

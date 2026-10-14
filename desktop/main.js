@@ -161,46 +161,104 @@ function splash(state, detail = "") {
   win.loadFile(path.join(__dirname, "splash.html"), { query: { state, detail } });
 }
 
+// ---------------------------------------------------------------- glass ---
+// See-through, like Vision Pro: the window stops frosting what's behind it, so a movie or
+// another app stays visible while you work. The page paints thin panels whose fill follows
+// clarity (0–90%: how much shows through); Float on top keeps Luma over that video.
+//   Mac: always a transparent window; vibrancy on = frosted glass, off = clear.
+//   Windows: Electron can't make a framed window see-through per pixel, so the whole window
+//     fades by clarity instead; acrylic behind the title bar for glass, none for clear.
+//   Linux: transparency is fixed when a window is made, so switching makes a fresh one.
+const GLASS = { mode: "glass", clarity: 60, onTop: false };
+// Only exactly { mode: "glass"|"clear", clarity: 0–90, onTop: bool }; anything else is refused.
+function cleanGlass(g) {
+  if (!g || typeof g !== "object" || Array.isArray(g) || Object.keys(g).some((k) => !(k in GLASS))) return null;
+  const { mode, clarity, onTop } = g;
+  if ((mode !== "glass" && mode !== "clear") || typeof onTop !== "boolean") return null;
+  if (typeof clarity !== "number" || !Number.isFinite(clarity) || clarity < 0 || clarity > 90) return null;
+  return { mode, clarity: Math.round(clarity), onTop };
+}
+const savedGlass = () => cleanGlass(readConfig().glass) || { ...GLASS };
+const wantsTransparent = (g) => process.platform === "darwin" || (process.platform === "linux" && g.mode === "clear");
+let winTransparent = false;
+
+function applyGlass(w, g, was = null) {
+  if (!w || w.isDestroyed()) return;
+  const clear = g.mode === "clear";
+  if (!was || was.mode !== g.mode) {
+    if (process.platform === "darwin") w.setVibrancy(clear ? null : "under-window");
+    if (process.platform === "win32" && typeof w.setBackgroundMaterial === "function") w.setBackgroundMaterial(clear ? "none" : "acrylic");
+  }
+  if (process.platform === "win32") w.setOpacity(clear ? 1 - (g.clarity / 100) * 0.55 : 1);
+  if (!was || was.onTop !== g.onTop) {
+    w.setAlwaysOnTop(g.onTop, "floating");
+    // On every desktop too; skipTransformProcessType keeps the Dock icon where it is.
+    if (process.platform !== "win32") w.setVisibleOnAllWorkspaces(g.onTop, { skipTransformProcessType: true });
+  }
+}
+
+function setGlass(next) {
+  const was = savedGlass();
+  writeConfig({ glass: next });
+  if (win && !win.isDestroyed() && wantsTransparent(next) !== winTransparent) rebuildWindow();
+  else applyGlass(win, next, was);
+  if (was.mode !== next.mode || was.onTop !== next.onTop) buildMenu();
+  return next;
+}
+// From the app's menu: the page hears about it too.
+const glassFromMenu = (change) => { const next = setGlass({ ...savedGlass(), ...change }); if (win && !win.isDestroyed()) win.webContents.send("luma:glass", next); };
+
 // --------------------------------------------------------------- window ---
-function createWindow() {
-  win = new BrowserWindow({
+function createWindow({ bounds, url } = {}) {
+  const glass = savedGlass();
+  winTransparent = wantsTransparent(glass);
+  const w = win = new BrowserWindow({
     width: 1180,
     height: 780,
+    ...bounds,
     minWidth: 760,
     minHeight: 560,
     title: "Luma",
     show: false,
-    // On a Mac the window is real glass: what's behind it shows through when you pick See-through.
-    ...(process.platform === "darwin"
-      ? { vibrancy: "under-window", visualEffectState: "active", backgroundColor: "#00000000" }
-      : { backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#eef0f6" }),
+    // A transparent window lets See-through show what's behind Luma (the page paints the glass).
+    ...(winTransparent ? { transparent: true, backgroundColor: "#00000000" } : { backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#eef0f6" }),
+    ...(process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 28, y: 28 },
     icon: path.join(__dirname, "build", "icon.png"),
     // backgroundThrottling off: Luma's page keeps checking in while hidden, so news still notifies you.
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
   });
-  win.once("ready-to-show", () => { if (!startHidden) win.show(); });
-  win.on("close", (event) => {
+  applyGlass(w, glass);
+  w.once("ready-to-show", () => { if (!startHidden) w.show(); });
+  w.on("close", (event) => {
     // Closing the window keeps Luma working in the menu bar or tray (⌥Space brings it back).
     if (quitting || !(tray || process.platform === "darwin")) return;
     event.preventDefault();
-    win.hide();
+    w.hide();
     stillHereOnce();
   });
 
   // Only Luma's own pages load in the window. Everything else opens where it belongs:
   // sms: in Messages, mailto: in Mail, web links in the browser.
   const openOutside = (url) => { if (/^(https?|sms|mailto|tel|facetime):/i.test(url)) shell.openExternal(url); };
-  win.webContents.setWindowOpenHandler(({ url }) => { openOutside(url); return { action: "deny" }; });
-  win.webContents.on("will-navigate", (event, url) => {
+  w.webContents.setWindowOpenHandler(({ url }) => { openOutside(url); return { action: "deny" }; });
+  w.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith(ORIGIN + "/") || url.startsWith("file://")) return;
     event.preventDefault();
     openOutside(url);
   });
-  win.webContents.on("did-fail-load", (_e, code, _desc, url) => { if (url.startsWith(ORIGIN) && code !== -3) setTimeout(boot, 1500); });
+  w.webContents.on("did-fail-load", (_e, code, _desc, url) => { if (w === win && url.startsWith(ORIGIN) && code !== -3) setTimeout(boot, 1500); });
 
-  boot();
+  if (url) w.loadURL(url); else boot();
+}
+
+// A fresh window in the same place, on the same page; the old one goes once the new one shows.
+function rebuildWindow() {
+  const old = win;
+  const url = old.webContents.getURL();
+  createWindow({ bounds: old.getBounds(), url: url.startsWith(ORIGIN + "/") ? url : null });
+  win.once("ready-to-show", () => { if (!old.isDestroyed()) old.destroy(); });
 }
 
 function summon() {
@@ -235,6 +293,7 @@ function buildMenu() {
   const isMac = process.platform === "darwin";
   const go = (url) => () => { if (win) { win.show(); win.loadURL(url); } };
   const show = showView;
+  const glass = savedGlass();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(isMac ? [{ role: "appMenu" }] : []),
     { label: "File", submenu: [{ label: "New Conversation", accelerator: "CmdOrCtrl+N", click: () => win?.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown',{key:'n',metaKey:true,ctrlKey:true}))") }, { type: "separator" }, isMac ? { role: "close" } : { role: "quit" }] },
@@ -249,6 +308,9 @@ function buildMenu() {
       { label: "Apps", accelerator: "CmdOrCtrl+,", click: show("apps") },
       { label: "Rules", click: show("rules") },
       { label: "All Controls", accelerator: "CmdOrCtrl+9", click: go(`${ORIGIN}/`) },
+      { type: "separator" },
+      { label: "See-Through", type: "checkbox", checked: glass.mode === "clear", click: (item) => glassFromMenu({ mode: item.checked ? "clear" : "glass" }) },
+      { label: "Float on Top", type: "checkbox", checked: glass.onTop, click: (item) => glassFromMenu({ onTop: item.checked }) },
       { type: "separator" }, { role: "reload" }, { role: "togglefullscreen" },
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" }]),
     ] },
@@ -332,6 +394,10 @@ if (!app.requestSingleInstanceLock()) {
     const trusted = (event) => { const url = event.senderFrame?.url || ""; return url.startsWith("file://") || url.startsWith(ORIGIN + "/"); };
     ipcMain.handle("luma:choose-folder", (event) => trusted(event) && chooseFolder());
     ipcMain.handle("luma:retry", (event) => { if (!trusted(event)) return false; boot(); return true; });
+    // See-through: only the desktop page in Luma's own window, and only valid values (cleanGlass).
+    const fromHome = (event) => event.sender === win?.webContents && (event.senderFrame?.url || "").startsWith(HOME_URL);
+    ipcMain.handle("luma:glass-get", (event) => (fromHome(event) ? cleanGlass(readConfig().glass) : null));
+    ipcMain.handle("luma:glass-set", (event, g) => { const next = fromHome(event) && cleanGlass(g); return next ? setGlass(next) : null; });
     session.defaultSession.on("will-download", (_event, item) => {
       item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename()));
       item.once("done", async (_e, state) => {
