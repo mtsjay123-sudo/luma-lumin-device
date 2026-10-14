@@ -2090,6 +2090,9 @@ class Agent:
                 self.pending_mail = None  # the email they were still describing goes too
                 return {**stopped, "text": "Okay, dropped it. Nothing was sent."}
             return stopped
+        # "Yes" only answers the question Luma just asked. Once the owner moves on, a later "yes"
+        # (to something else) can't send it; the action keeps its Allow button. Texts keep their code.
+        if channel != "sms": self.awaiting = None
         handoff = getattr(self, "pending_handoff", None)
         if handoff and RETRY.match(text.strip()):
             self.pending_handoff = None
@@ -2286,10 +2289,10 @@ class Agent:
             elif self.clock() > awaiting["expires"]:
                 try: self.store.transition(awaiting["action"], {"pending"}, "expired")
                 except ValueError: pass
-                result = {"state": "expired", "text": "That one sat too long, so I didn't send it. Want me to set it up again?"}
+                result = {"state": "expired", "action": awaiting["action"], "text": "That one sat too long, so I didn't send it. Want me to set it up again?"}
             else:
                 try: result = self.confirm(awaiting["action"], awaiting["token"])
-                except ValueError as error: result = {"state": "failed", "text": "I didn't send it: " + str(error)}
+                except ValueError as error: result = {"state": "failed", "action": awaiting["action"], "text": "I didn't send it: " + str(error)}
             self.history.append({"role":"assistant", "content": result.get("text") or result.get("summary") or ""})
             self.last_reply = result.get("text") or ""
             return result

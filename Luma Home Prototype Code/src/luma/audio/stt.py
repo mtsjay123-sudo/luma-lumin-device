@@ -23,8 +23,12 @@ def _get_model() -> WhisperModel:
 _PHANTOMS = {"", "you", "thank you", "thanks for watching", "thank you for watching", "bye", "okay", "so"}
 
 
-def transcribe_clip(data: bytes, suffix: str = ".webm") -> str:
-    """Text from a short recording made in Luma's window. Nothing leaves this computer."""
+def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, keep: tuple = ()) -> str:
+    """Text from a short recording made in Luma's window. Nothing leaves this computer.
+
+    quick: one fast pass, for the words shown while you're still talking and for "Hey Luma".
+    keep: phantom words that mean something here (in a conversation, "bye" ends it).
+    """
     import tempfile
     if len(data) < _MIN_AUDIO_BYTES:
         return ""
@@ -32,10 +36,11 @@ def transcribe_clip(data: bytes, suffix: str = ".webm") -> str:
         path = os.path.join(folder, "clip" + suffix)
         with open(path, "wb") as handle:
             handle.write(data)
-        segments, _info = _get_model().transcribe(path, beam_size=3, language="en", vad_filter=True,
+        segments, _info = _get_model().transcribe(path, beam_size=1 if quick else 3, language="en", vad_filter=True,
                                                   condition_on_previous_text=False)
         text = " ".join(seg.text.strip() for seg in segments).strip()
-    return "" if text.lower().strip(" .!?,") in _PHANTOMS else text
+    said = text.lower().strip(" .!?,")
+    return "" if said in _PHANTOMS and said not in keep else text
 
 
 def warm_up():
