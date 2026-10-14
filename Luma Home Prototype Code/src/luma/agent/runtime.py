@@ -941,6 +941,27 @@ class Agent:
         return result
 
     # -- emails for later (and emails said in one breath) ---------------------------------------
+    def _connect_request(self, lowered):
+        """'How can I connect?', 'help me connect it', 'connect my apps': the connect form right here, for what they were doing."""
+        if self.mode == "kids" or not re.search(r"\b(?:how (?:can|do|would) i|help me|i (?:want|need) to|let me|can (?:you|i)|where (?:do|can) i|walk me through how to)\s+(?:connect|link|hook up|add|set up|sign in to|log ?in to)\b"
+                                              r"|^\W*(?:connect|link|hook up)\s+(?:it|this|that|my|me|gmail|e-?mail|outlook|icloud|calendar|apps?)\b", lowered):
+            return None
+        from luma.agent.later_mail import wants
+        if wants(lowered): return None  # "schedule an email … help me connect it": the email flow asks what's missing and shows the form
+        if re.search(r"\b(?:apps|connectors?|everything|all of (?:it|them|this)|integrations?|mcp)\b", lowered):
+            return {"text": "Here's everything you can connect: email, calendar, Luma's browser (for Instagram, stores and any site you sign in to), and connectors (MCP) for other apps. Opening Connectors.",
+                    "section": "apps", "open": "apps"}
+        recent = " ".join(str(m.get("content", "")) for m in self.history[-4:]).lower() + " " + lowered
+        if re.search(r"\bcalendar\b", lowered) or (not re.search(r"\b(?:e-?mail|gmail|inbox|mail)\b", recent) and re.search(r"\bcalendar\b", recent)):
+            return {"text": "Here you go: paste your calendar's private iCal link right here and I'll carry on.", "connect": "calendar", "section": "apps"}
+        if re.search(r"\b(?:e-?mails?|gmail|inbox|mail|outlook|icloud|yahoo)\b", recent) or self.pending_mail:
+            if self.mail.connected():
+                return {"text": f"Your email ({self.mail.status().get('address')}) is already connected. Tell me what to send, or say “keep going”.", "connect": "mail"}
+            return {"text": "Here you go: add your email right here. With Gmail, make an app password at myaccount.google.com/apppasswords (it's free) and paste it in. Then I'll pick up where we left off.",
+                    "connect": "mail", "section": "apps"}
+        return {"text": "Here's everything you can connect: email, calendar, Luma's browser (for Instagram, stores and any site), and connectors for other apps. Opening Connectors.",
+                "section": "apps", "open": "apps"}
+
     def _later_mail(self, text, lowered, cancel_event=None):
         """'Email Sam tomorrow at 9 saying …', 'schedule me an email': who, what and when, then one Allow."""
         from luma.agent import later_mail as lm
@@ -961,6 +982,9 @@ class Agent:
                 self.pending_mail = None
                 result = self.propose("tasks.create", {"title": pending["what"][:200], "due": datetime.fromtimestamp(pending["when"], self.zone).isoformat()})
                 return {**result, "text": f"Done. I'll remind you {self._when(pending['when'])}: {pending['what']}."}
+            if lm.NEW_TOPIC.match(lowered) and not re.search(r"\be-?mail|@", lowered):
+                self.pending_mail = None  # they moved on: a new question or another request
+                return None
             slots = lm.parse(text, now, self.zone, answering=pending)
             go_on = re.match(r"^\W*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|do it|schedule it|send it|go ahead|go for it|connected|done|i connected it|it'?s connected)\b", lowered)
             if not ({"to", "what", "when"} & set(slots)) and not go_on:
@@ -978,7 +1002,7 @@ class Agent:
         late = slots.get("when") is not None and not now + 30 < slots["when"] <= now + 366 * 86400
         if late: slots.pop("when")
         missing = [k for k in ("to", "what") if not slots.get(k)] + (["when"] if slots.get("scheduled") and not slots.get("when") else [])
-        self.pending_mail = {**slots, "missing": missing, "expires": now + 1800}
+        self.pending_mail = {**slots, "missing": missing, "expires": now + 900}
         connected = self.mail.connected()
         mine = self.mail.status().get("address") if connected else None
         if missing:
@@ -1401,18 +1425,6 @@ class Agent:
             return {"text": "Add it right here. With Gmail, make an app password at myaccount.google.com/apppasswords and paste it in. It's free, and I'll never send anything without your OK.", "section": "apps", "connect": "mail"}
         if re.fullmatch(r"(?:please\s+)?(?:connect|add|set up|link)\s+(?:my\s+)?(?:google\s+)?calendar[.!]*", lowered):
             return {"text": "Paste your calendar's private iCal link right here. In Google Calendar it's under Settings, your calendar, “Secret address in iCal format”.", "section": "apps", "connect": "calendar"}
-        if self.mode != "kids" and re.search(r"\b(?:how (?:can|do|would) i|help me|i (?:want|need) to|let me|can (?:you|i)|where (?:do|can) i|walk me through how to)\s+(?:connect|link|hook up|add|set up|sign in to|log ?in to)\b"
-                                              r"|^\W*(?:connect|link|hook up)\s+(?:it|this|that|my|me|gmail|e-?mail|outlook|icloud|calendar|apps?)\b", lowered):
-            recent = " ".join(str(m.get("content", "")) for m in self.history[-4:]).lower() + " " + lowered
-            if re.search(r"\bcalendar\b", lowered) or (not re.search(r"\b(?:e-?mail|gmail|inbox|mail)\b", recent) and re.search(r"\bcalendar\b", recent)):
-                return {"text": "Here you go: paste your calendar's private iCal link right here and I'll carry on.", "connect": "calendar", "section": "apps"}
-            if re.search(r"\b(?:e-?mails?|gmail|inbox|mail|outlook|icloud|yahoo)\b", recent) or self.pending_mail:
-                if self.mail.connected():
-                    return {"text": f"Your email ({self.mail.status().get('address')}) is already connected. Tell me what to send, or say “keep going”.", "connect": "mail"}
-                return {"text": "Here you go: add your email right here. With Gmail, make an app password at myaccount.google.com/apppasswords (it's free) and paste it in. Then I'll pick up where we left off.",
-                        "connect": "mail", "section": "apps"}
-            return {"text": "Here's everything you can connect: email, calendar, Luma's browser (for Instagram, stores and any site), and connectors for other apps. Opening Connectors.",
-                    "section": "apps", "open": "apps"}
         reply = self.REPLY_REQUEST.fullmatch(text.strip())
         if reply and self.mode != "kids":
             return self.email_reply(reply["who"].strip(), reply["what"], cancel_event)
@@ -2419,6 +2431,8 @@ class Agent:
             if saved is not None: return saved
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
+            connecting = self._connect_request(lowered)
+            if connecting is not None: return connecting
             later = self._later_mail(text, lowered, cancel_event)
             if later is not None: return later
             taught = self._taught_request(text, cancel_event)
@@ -2507,7 +2521,12 @@ class Agent:
                 except ValueError as error:
                     if name == "deck.create" or name.startswith("browser."):
                         return {"text": "That didn't work: " + str(error)}
-                    if name != "messages.prepare": raise
+                    if name in {"tasks.create", "tasks.in", "routines.create"}:
+                        # The model guessed a time that doesn't work: ask, don't show an error.
+                        what = str((arguments or {}).get("title") or "that").strip().rstrip(".")
+                        return {"text": f"When should I remind you to {what[:1].lower() + what[1:]}? Like “tomorrow at 9am” or “in 20 minutes”.", "asked": True}
+                    if name != "messages.prepare":
+                        return {"text": "I couldn't do that one: " + str(error) + " Tell me a bit more and I'll try again."}
                     body = str((arguments or {}).get("body") or "").strip()
                     who = str((arguments or {}).get("recipient") or "them").strip()
                     if body:

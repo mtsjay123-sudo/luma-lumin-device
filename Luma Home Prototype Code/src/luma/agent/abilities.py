@@ -58,6 +58,12 @@ def asked(text):
         return None if not raw else (None, raw) if one["what3"] else None
     if ASKS_ALL.search(text):
         return "all"
+    # "can you even send texts?", "do you do email": a short question about one ability, not a request to do it now
+    can = re.match(r"^\W*(?:can|could|do|does) (?:you|luma|u) (?:even |actually |really |also |still )?(?P<rest>[a-z' -]{2,40}?)\W*$", text, re.I)
+    if can and len(can["rest"].split()) <= 4:
+        for key, words in AREAS:
+            if re.search(rf"\b(?:{words})\b", can["rest"], re.I):
+                return key, can["rest"]
     return None
 
 

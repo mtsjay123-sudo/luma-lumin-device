@@ -60,11 +60,17 @@ REMINDER = re.compile(r"\bremind(?:ing|er)?\b", re.I)
 NOT_A_NAME = {"me", "myself", "him", "her", "them", "it", "about", "saying", "that", "tomorrow", "tonight", "today", "later", "at", "in", "on", "for",
               "to", "a", "an", "the", "this", "and", "so", "but", "now", "please", "out", "back", "reminding", "telling", "asking", "letting",
               "with", "when", "next", "every", "each", "around", "by", "before", "after", "morning", "evening", "afternoon", "noon", "real",
-              "schedule", "send", "write", "email", "emails", "mail", "be", "is", "go", "goes", "going", "something", "someone", "anyone", "everyone"}
+              "schedule", "send", "write", "email", "emails", "mail", "be", "is", "go", "goes", "going", "something", "someone", "anyone", "everyone",
+              "can", "could", "would", "will", "should", "you", "your", "do", "does", "even", "just", "really", "actually", "also", "what", "how",
+              "why", "who", "where", "texts", "text", "people", "somebody", "all", "everybody", "us", "we", "i", "my"}
 NEVERMIND = re.compile(r"^\W*(?:never ?mind|nvm|forget (?:it|that|about it)|cancel(?: (?:it|that))?|no(?:pe)?(?: thanks)?|stop|drop it|don'?t)\W*$", re.I)
 CANCEL_LATER = re.compile(rf"\b(?:cancel|stop|delete|unschedule|call off|don'?t send)\b.{{0,30}}\bscheduled {EMAIL}\b"
                           rf"|\b(?:cancel|unschedule)\s+(?:the|that|my)\s+(?:\w+\s+){{0,2}}{EMAIL}\b", re.I)
 LIST_LATER = re.compile(rf"\b(?:what|which|any|show|list|see)\b.{{0,30}}\bscheduled {EMAIL}\b|\b{EMAIL}\s+(?:are|do i have|have i got)\s+scheduled\b|^\W*(?:my\s+)?scheduled {EMAIL}\W*$", re.I)
+
+
+NEW_TOPIC = re.compile(r"^\W*(?:what|whats|what's|how|who|why|where|which|is|are|was|does|do|did|can|could|would|will|should|tell me|show me|"
+                       r"remind|text|call|find|search|look|check|open|play|buy|order|book|plan|make|set|turn|catch me up|news|weather|hey|yo|hi|hello|thanks?)\b", re.I)
 
 
 def wants(text):
@@ -211,7 +217,7 @@ def parse(text, now, zone, answering=None):
         rest = re.sub(rf"^\W*(?:(?:to|for)\s+(?:me|myself)|me|myself)\b|\b(?:it should say|make it say|say|tell (?:them|him|her))\b", " ", rest, flags=re.I)
         if out.get("to_kind") == "name": rest = re.sub(rf"^\W*(?:to\s+)?{re.escape(out['to'])}\b", " ", rest, flags=re.I)
         rest = _clean_what(re.sub(r"^\W*(?:and|then|also)\b", " ", rest, flags=re.I))
-        if len(rest) >= 3 and not re.match(r"(?:what|how|why|who|where|can you|could you|tell me about|is it|are you|do you)\b", rest, re.I):
+        if len(rest) >= 3 and not text.rstrip().endswith("?") and not re.match(r"(?:what|how|why|who|where|can you|could you|tell me about|is it|are you|do you)\b", rest, re.I):
             out["what"] = rest
             out["reminder"] = bool(REMINDER.search(text))
     if REMINDER.search(fixed) and out.get("to_kind") == "me":

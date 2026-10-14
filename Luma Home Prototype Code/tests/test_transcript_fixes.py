@@ -292,3 +292,58 @@ class UnderstandsAnyWordingTests(unittest.TestCase):
         self.assertIn("6 hours", news.call_args[0][0])
         unsure = self.agent.chat("hit up sam about the thing")
         self.assertEqual(unsure["text"], "Do you want me to email Sam, or text him?")
+
+
+class ConnectNeverGetsSwallowedTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_a_question_mid_email_is_answered_not_used_as_the_email(self):
+        first = self.agent.chat("no i want to scheudle a email to send help me connect it")
+        self.assertIn("pending_mail", first)
+        reply = self.agent.chat("you have that in your memory how can i connect?")
+        self.assertEqual(reply["connect"], "mail")
+        self.assertNotIn("what", self.agent.pending_mail or {})
+
+    def test_connect_my_apps_opens_connectors(self):
+        self.agent.history.append({"role": "user", "content": "schedule an email"})
+        self.assertEqual(self.agent.chat("connect my apps").get("open"), "apps")
+
+
+class RealModelRunFixesTests(unittest.TestCase):
+    """What a run with the real local model caught."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_a_half_made_email_lets_go_when_they_move_on(self):
+        self.agent.chat("schedule me an email")
+        weather = self.agent.chat("whats the weather like tmrw")
+        self.assertNotIn("I've got it all", weather.get("text", ""))
+        self.assertIsNone(self.agent.pending_mail)
+        reminder = self.agent.chat("remind me in 20 minutes to call mom")
+        self.assertNotIn("email", reminder.get("text", "").lower())
+
+    def test_common_words_are_never_a_recipient(self):
+        from luma.agent import later_mail
+        self.assertNotIn("to", later_mail.parse("Send an email to can you even send texts", NOW, self.agent.zone))
+
+    def test_can_you_even_send_texts_is_a_question_about_luma(self):
+        reply = self.agent.chat("can you even send texts")
+        self.assertTrue(reply.get("capabilities"))
+        self.assertIn("texts", reply["text"])
+
+    def test_a_bad_reminder_time_from_the_model_becomes_a_question(self):
+        self.agent.use_model = True
+        self.agent.planner = lambda *a: {"type": "tool", "name": "tasks.create", "arguments": {"title": "Check Gmail", "due": "2020-01-01T09:00:00+00:00"}}
+        reply = self.agent.chat("set a reminder for gmail stuff")
+        self.assertIn("When should I remind you to check Gmail", reply["text"])
