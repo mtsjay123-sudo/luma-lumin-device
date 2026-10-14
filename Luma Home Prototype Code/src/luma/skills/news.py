@@ -1,9 +1,11 @@
-"""What's new in the world, read fresh from free public news feeds (RSS/Atom).
+"""What's new in the world, read live from free public news feeds (RSS/Atom).
 
-The local model only knows what it learned before its training ended. Every few
-hours Luma reads a handful of public feeds, keeps two days of headlines, and
-uses them when you ask about the news or something that's in it. No accounts,
-no API keys, no cost. Feeds are read in parallel, one small reader per feed.
+The local model only knows what it learned before its training ended. Every
+hour Luma reads a handful of public feeds and keeps two days of headlines. When
+you ask, it reads them again if they're more than a few minutes old, and for a
+topic ("latest on the Fed", "tech news") it searches Google News right then, so
+the answer is minutes old, not hours. No accounts, no API keys, no cost. Feeds
+are read in parallel, one small reader per feed.
 """
 from __future__ import annotations
 
@@ -12,39 +14,117 @@ import json
 import os
 import re
 import threading
+import urllib.parse
 import urllib.request
 from email.utils import parsedate_to_datetime
 from datetime import datetime
 from xml.etree import ElementTree
 
-# Free, public, no key needed. Override with LUMA_NEWS_FEEDS='[["Name","https://…"], …]'.
+# Free, public, no key needed. Override with LUMA_NEWS_FEEDS='[["Name","https://…"], …]' (a third value, the topic, is optional).
+GOOGLE = "https://news.google.com/rss"
+REGION = "hl=en-US&gl=US&ceid=US:en"
 FEEDS = [
-    ("Google News", "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en"),
-    ("BBC", "https://feeds.bbci.co.uk/news/world/rss.xml"),
-    ("NPR", "https://feeds.npr.org/1001/rss.xml"),
-    ("The Verge", "https://www.theverge.com/rss/index.xml"),
-    ("TechCrunch", "https://techcrunch.com/feed/"),
-    ("Hacker News", "https://news.ycombinator.com/rss"),
-    ("ESPN", "https://www.espn.com/espn/rss/news"),
+    ("Google News", f"{GOOGLE}?{REGION}", "top"),
+    ("BBC", "https://feeds.bbci.co.uk/news/world/rss.xml", "world"),
+    ("NPR", "https://feeds.npr.org/1001/rss.xml", "top"),
+    ("The Verge", "https://www.theverge.com/rss/index.xml", "tech"),
+    ("TechCrunch", "https://techcrunch.com/feed/", "tech"),
+    ("Hacker News", "https://news.ycombinator.com/rss", "tech"),
+    ("ESPN", "https://www.espn.com/espn/rss/news", "sports"),
 ]
+# Google News' own sections: what Luma reads when you ask for "sports news" or "business news".
+TOPICS = {"world": "WORLD", "us": "NATION", "business": "BUSINESS", "tech": "TECHNOLOGY", "sports": "SPORTS",
+          "science": "SCIENCE", "health": "HEALTH", "entertainment": "ENTERTAINMENT"}
+TOPIC_WORDS = {
+    "world": r"world news|international|global|foreign", "us": r"u\.s\.?|us news|national|america|american|domestic",
+    "business": r"business|markets?|stocks?|economy|economic|finance|financial|money|wall street",
+    "tech": r"tech|technology|ai|a\.i\.|startups?|silicon valley|gadgets?",
+    "sports": r"sports?|nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf|f1|ufc",
+    "science": r"science|space|nasa|climate", "health": r"health|medical|medicine|covid|flu",
+    "entertainment": r"entertainment|celebrity|celebrities|movies?|films?|music|hollywood|tv shows?|box office",
+}
 KEEP_HOURS = 48
-MAX_ITEMS = 150
-FRESH_SECONDS = 3 * 3600
+MAX_ITEMS = 300
+FRESH_SECONDS = 3600     # the background reader: every hour
+LIVE_SECONDS = 15 * 60   # when they ask: anything older than this gets read again first
 WORDS = re.compile(r"[a-z0-9]+")
-STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "with", "at", "by", "from", "what", "whats",
-        "about", "news", "latest", "today", "happening", "going", "me", "my", "tell", "any", "new", "s", "it", "this", "that", "how", "did"}
-ASKS_NEWS = re.compile(r"\b(?:news|headlines|what'?s (?:happening|going on) (?:in the world|today|right now)|catch me up on the world|"
-                       r"current events|what happened (?:today|with|to|in)|latest (?:on|with|about))\b", re.I)
+STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "were", "with", "at", "by", "from", "what", "whats",
+        "about", "news", "latest", "today", "happening", "going", "me", "my", "tell", "any", "new", "s", "it", "this", "that", "how", "did",
+        "last", "past", "hours", "hour", "hrs", "hr", "minutes", "mins", "days", "day", "week", "weeks", "real", "time", "realtime", "live",
+        "breaking", "update", "updates", "give", "show", "get", "can", "could", "you", "please", "pls", "plz", "know", "some", "anything",
+        "everything", "world", "top", "stories", "story", "right", "now", "been", "has", "have", "there", "just", "like", "okay", "ok", "so",
+        "yo", "hey", "lately", "recent", "recently", "since", "yesterday", "tonight", "morning", "overnight", "night", "again", "headline",
+        "headlines", "catch", "up", "current", "events", "happened", "big", "biggest", "major", "whole", "out", "need", "want", "u", "ur",
+        "luma", "do", "does", "be", "would", "should", "all", "more", "most", "other", "else", "summary", "summarize", "rundown", "brief", "briefing",
+        "knews", "newz", "nws", "neews", "nwes", "nuews", "good", "great", "bad", "happen", "goin", "on", "abt"}
+FILLER = re.compile(r"^(?:u+h+|u+m+|h+m+|e+r+m*|a+h+|o+h+|l+o+l+|\d+\w*)$")
+NEWS_WORD = r"(?:news|knews|newz|nws|neews|nwes|nuews)"
+ASKS_NEWS = re.compile(
+    rf"\b(?:{NEWS_WORD}|headlines?|breaking|what'?s (?:new|happening|going on) (?:in the world|out there|today|right now|lately)|"
+    r"what'?s happening(?=\s*[?!.]*$)|catch me up(?: on (?:the world|everything|what'?s (?:happening|going on)))?(?=\s*[?!.]*$| on (?:the world|everything|what))|"
+    r"current events|what happened (?:today|yesterday|overnight|last night|with|to|in)|latest (?:on|with|about|stories))\b", re.I)
+# "I have news" / "good news, I got the job": they're telling Luma something, not asking for the headlines.
+SHARING_NEWS = re.compile(r"\b(?:i|we) (?:have|got|heard)\b[^?]{0,30}\bnews\b|^\W*(?:(?:so|ok(?:ay)?|guess what|omg|yo|hey|luma)\W+)*"
+                          r"(?:good|great|bad|sad|exciting|amazing|terrible|awful|big|some) news\b(?![^?]*\?)", re.I)
+WINDOW = re.compile(r"\b(?:in |over |from )?(?:the )?(?:last|past|previous)\s+(?:(?:u+h+|u+m+|like|about|around|maybe|roughly)\W+)*(?:(?P<n>\d{1,3}|a|an|one|two|three|four|five|six|eight|ten|twelve|few|couple(?: of)?)\s*)?"
+                    r"(?P<unit>h(?:ou)?rs?|hours?|h\b|min(?:ute)?s?|days?|d\b|weeks?|24)\b", re.I)
+NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "eight": 8, "ten": 10, "twelve": 12, "few": 3, "couple": 2, "couple of": 2}
 
 
 def feeds():
     custom = os.environ.get("LUMA_NEWS_FEEDS")
     if custom:
         try:
-            return [(str(n)[:40], str(u)) for n, u in json.loads(custom)][:20]
-        except (ValueError, TypeError):
+            return [(str(f[0])[:40], str(f[1]), str(f[2]) if len(f) > 2 else "top") for f in json.loads(custom)][:20]
+        except (ValueError, TypeError, IndexError, KeyError):
             pass
     return FEEDS
+
+
+def asks(text):
+    """They want the headlines (not: "I have good news")."""
+    text = str(text or "")
+    return bool(ASKS_NEWS.search(text)) and not SHARING_NEWS.search(text)
+
+
+def window_hours(text):
+    """'in the last 10 hrs' -> 10. 'today' -> since this morning, roughly. None when they didn't say."""
+    text = str(text or "").lower()
+    m = WINDOW.search(text)
+    if m:
+        unit = m["unit"].lower()
+        if unit == "24": return 24
+        n = m["n"]
+        n = NUMBERS.get(n, None) if n and not n.isdigit() else int(n) if n else 1
+        if unit.startswith("min"): return max(1, round((n or 1) / 60)) if (n or 0) >= 60 else 1
+        if unit.startswith("d"): return min(168, 24 * (n or 1))
+        if unit.startswith("w"): return 168
+        return max(1, min(168, n or 1))
+    if re.search(r"\b(?:this morning|overnight|last night|since i (?:woke|got up)|while i (?:was )?(?:asleep|sleeping))\b", text): return 12
+    if re.search(r"\b(?:right now|just now|breaking|this hour|live)\b", text): return 3
+    if re.search(r"\b(?:today|so far)\b", text): return 24
+    if re.search(r"\byesterday\b", text): return 48
+    if re.search(r"\bthis week\b", text): return 168
+    return None
+
+
+def topic(text):
+    """'sports news' -> 'sports'. None when it's just the news in general."""
+    text = str(text or "").lower()
+    for name, words in TOPIC_WORDS.items():
+        if re.search(rf"\b(?:{words})\b", text):
+            return name
+    return None
+
+
+def ago(when, now):
+    """'just now', '25 min ago', '3h ago', 'yesterday'."""
+    if not when: return ""
+    gap = max(0, now - when)
+    if gap < 120: return "just now"
+    if gap < 3600: return f"{int(gap // 60)} min ago"
+    if gap < 86400: return f"{int(gap // 3600)}h ago"
+    return "yesterday" if gap < 2 * 86400 else f"{int(gap // 86400)} days ago"
 
 
 def _clean(text, limit):
@@ -91,8 +171,14 @@ def parse(data, source):
                 if when:
                     break
         if title and link.startswith(("https://", "http://")):
-            out.append({"title": title, "url": link[:600], "source": source, "snippet": _clean(summary.text if summary is not None else "", 280),
-                        "published": when})
+            outlet = source
+            if source.startswith("Google News"):  # "Headline - Outlet": credit the outlet that wrote it
+                head, dash, tail = title.rpartition(" - ")
+                if dash and head and 1 < len(tail) <= 40:
+                    title, outlet = head.strip(), tail.strip()
+            snippet = _clean(summary.text if summary is not None else "", 280)
+            if snippet.startswith(title[:40]): snippet = ""  # Google News repeats the headline as the summary
+            out.append({"title": title, "url": link[:600], "source": outlet, "snippet": snippet, "published": when})
         if len(out) >= 40:
             break
     return out
@@ -112,29 +198,38 @@ def _fetch(url, timeout=12, allow_local=False):
         return response.read(2_000_000)
 
 
+def _key(item):
+    return " ".join(WORDS.findall(item["title"].lower()))[:80]
+
+
 def refresh(store, clock, allow_local=False, fetch=None):
     """Read every feed at once (a small reader each), merge, de-duplicate and keep two days."""
     fetch = fetch or (lambda url: _fetch(url, allow_local=allow_local))
     found, failed = [], []
     lock = threading.Lock()
+    now = clock()
 
-    def read(name, url):
+    def read(name, url, kind="top"):
         try:
             items = parse(fetch(url), name)
         except Exception:
             items = None
+        for item in items or []:
+            item["topic"] = kind
+            item["seen"] = now  # when Luma first saw it: the age for a story with no date
         with lock:
             (found.extend(items) if items else failed.append(name))
 
     workers = [threading.Thread(target=read, args=feed, daemon=True) for feed in feeds()]
     for w in workers: w.start()
     for w in workers: w.join(timeout=20)
-    now = clock()
     old = (store.setting("news") or {}).get("items", [])
+    first_seen = {_key(i): i.get("seen") for i in old if i.get("seen")}
     seen, keep = set(), []
-    for item in sorted(found + old, key=lambda i: i.get("published") or now, reverse=True):
-        key = " ".join(WORDS.findall(item["title"].lower()))[:80]
-        if key in seen or (item.get("published") or now) < now - KEEP_HOURS * 3600:
+    for item in sorted(found + old, key=lambda i: i.get("published") or i.get("seen") or now, reverse=True):
+        key = _key(item)
+        if key in first_seen: item["seen"] = first_seen[key]
+        if key in seen or (item.get("published") or item.get("seen") or now) < now - KEEP_HOURS * 3600:
             continue
         seen.add(key)
         keep.append(item)
@@ -155,12 +250,56 @@ def cached(store):
     return store.setting("news") or {"fetched": 0, "items": []}
 
 
-def is_fresh(store, clock):
-    return clock() - (cached(store).get("fetched") or 0) < FRESH_SECONDS
+def is_fresh(store, clock, max_age=None):
+    return clock() - (cached(store).get("fetched") or 0) < (FRESH_SECONDS if max_age is None else max_age)
+
+
+def when(item):
+    return item.get("published") or item.get("seen") or 0
+
+
+def within(items, hours, now):
+    """Only what came out in the last N hours, newest first."""
+    if not hours:
+        return sorted(items, key=when, reverse=True)
+    since = now - hours * 3600
+    return sorted((i for i in items if when(i) >= since), key=when, reverse=True)
+
+
+def search(query=None, section=None, hours=24, fetch=None, allow_local=False, base=GOOGLE):
+    """Live, right now: Google News for a topic ("fed rate cut") or one of its sections ("SPORTS")."""
+    fetch = fetch or (lambda url: _fetch(url, allow_local=allow_local))
+    hours = max(1, min(168, int(hours or 24)))
+    if query:
+        span = f"{hours}h" if hours < 48 else f"{round(hours / 24)}d"
+        url = f"{base}/search?q={urllib.parse.quote_plus(query[:120] + ' when:' + span)}&{REGION}"
+    elif section:
+        url = f"{base}/headlines/section/topic/{section}?{REGION}"
+    else:
+        url = f"{base}?{REGION}"
+    items = parse(fetch(url), "Google News")
+    seen, out = set(), []
+    for item in items:
+        key = _key(item)
+        if key in seen: continue
+        seen.add(key)
+        out.append(item)
+    return out
 
 
 def terms(text):
-    return {w for w in WORDS.findall(str(text).lower()) if w not in STOP and len(w) > 2}
+    return {w for w in WORDS.findall(str(text).lower()) if w not in STOP and len(w) > 2 and not FILLER.match(w)}
+
+
+def query_for(text):
+    """The words worth searching the news for, in the order they said them."""
+    out = []
+    for w in WORDS.findall(str(text).lower()):
+        if w in STOP or len(w) < 2 or FILLER.match(w) or w in out: continue
+        if w in {"sports", "sport", "tech", "technology", "business", "science", "health", "entertainment", "us", "international", "global", "national"}:
+            continue
+        out.append(w)
+    return " ".join(out[:8])
 
 
 def relevant(question, items, limit=5, at_least=2):

@@ -132,6 +132,7 @@ def home_payload(agent, owner=True):
         'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
         'about_done': bool((agent.store.setting('about') or {}).get('asked')) if agent.mode != 'kids' else True,
         'model': {'on': agent.use_model},
+        'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
     }
 
 
@@ -232,6 +233,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 have=parse_qs(urlsplit(self.path).query).get('have',[None])[0]
                 try: return self.send({'frame':agent.browser.frame(have)})
                 except Exception as error: return self.send({'frame':None,'error':str(error)[:200]})
+            if path=='/api/news':
+                # The News page: what's new right now, by section or search.
+                if agent.mode=='kids': return self.send({'error':'News is for grown-ups.'},403)
+                q=parse_qs(urlsplit(self.path).query)
+                one=lambda k: (q.get(k) or [''])[0]
+                hours=one('hours')
+                return self.send(agent.news_feed(topic=one('topic') or None, hours=int(hours) if hours.isdigit() else None, query=one('q') or None))
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
@@ -554,8 +562,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         agent.store.put('grocery_receipt',result,result['local_receipt_id'])
                     elif path=='/api/messages/prepare': result=agent.prepare_message(data.get('recipient'),data.get('body'))
                     elif path=='/api/mail/compose':
-                        result=agent.propose('mail.send',{'to':str(data.get('to','')),'subject':str(data.get('subject','')),'body':str(data.get('body','')),'reply_to_id':str(data.get('reply_to_id') or '')})
-                        result['text']='Here it is with your changes. Send it?'
+                        if data.get('send_at'):
+                            result=agent.propose('mail.schedule',{'to':str(data.get('to','')),'subject':str(data.get('subject','')),'body':str(data.get('body','')),'send_at':str(data.get('send_at'))})
+                            result['text']='Here it is with your changes. Schedule it?'
+                        else:
+                            result=agent.propose('mail.send',{'to':str(data.get('to','')),'subject':str(data.get('subject','')),'body':str(data.get('body','')),'reply_to_id':str(data.get('reply_to_id') or '')})
+                            result['text']='Here it is with your changes. Send it?'
+                    elif path=='/api/mail/later/cancel': result=agent.cancel_later_mail(ident=str(data.get('id','')))
                     elif path=='/api/messages/status': result=agent.message_status(data.get('action_id'))
                     elif path=='/api/messages/delete-draft': result={'deleted':agent.store.delete('phone_draft',str(data.get('id','')))}
                     elif path=='/api/booking/availability': result=agent.propose('booking.availability',data)

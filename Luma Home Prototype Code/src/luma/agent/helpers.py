@@ -157,9 +157,12 @@ class Helpers:
         """The daily ideas pass, so the Ideas tab has fresh things to suggest."""
         if not any(r.get("kind") == "ideas" for r in self.store.all("helper", 60)):
             self.create("ideas", every="daily", at="07:20", system=True, run_now=False)
-        # Read the news every few hours, so Luma knows what happened after its training.
-        if not any(r.get("kind") == "news" for r in self.store.all("helper", 60)):
-            self.create("news", every="every_6h", system=True, run_now=True)
+        # Read the news every hour, so Luma knows what happened after its training (and re-reads on the spot when asked).
+        reader = next((r for r in self.store.all("helper", 60) if r.get("kind") == "news"), None)
+        if not reader:
+            self.create("news", every="hourly", system=True, run_now=True)
+        elif reader.get("every") != "hourly":
+            self.update(reader["id"], every="hourly")
         # Every night, Luma reflects on its conversations and rewires its sense of itself.
         if not any(r.get("kind") == "reflect" for r in self.store.all("helper", 60)):
             self.create("reflect", every="daily", at="03:30", system=True, run_now=False)

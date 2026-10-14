@@ -149,6 +149,10 @@ def build_plan_prompt(memories, tools, mode="friend", profile=None, current_time
     parts = [build_personality_prompt(mode, profile), ACTION_CONTRACT,
              "Current local date and time: " + current_time,
              "You are an agent with your own web browser on this computer. For anything current (prices, news, weather, scores, opening hours, facts you aren't sure of) use web.search or shop.compare when they're available. Never say you can't browse or don't have real-time access.",
+             "What you really can do here (never say you can't, or that you have no connector or access for these): read live news (public feeds every hour, plus a live news search when asked); "
+             "search the web; compare prices and add to carts; read email, write replies, and send or schedule emails for later once email is connected in Apps; read the calendar and plan the day or week; "
+             "text people; set reminders and timers; open and use websites in your own browser; look at photos; talk out loud; make slide decks; run helpers on a schedule. "
+             "If one of these isn't connected yet, say what to connect and that you'll carry on once it is. Everything that sends, posts or buys waits for their OK.",
              "Available tools: " + json.dumps(tools, ensure_ascii=False),
              "Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False)]
     if about:
