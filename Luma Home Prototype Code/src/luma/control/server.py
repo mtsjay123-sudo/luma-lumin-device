@@ -1,6 +1,7 @@
 """Local owner controls and an opt-in, paired HTTPS phone companion."""
 from __future__ import annotations
 import base64
+import html
 import os
 import json
 import secrets
@@ -201,6 +202,16 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
                 return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion)
+            if path=='/api/connect/oauth/callback' and not companion:
+                # The app's sign-in page sends the owner's browser back here; the one-time state proves it's the sign-in Luma started.
+                q=parse_qs(urlsplit(self.path).query)
+                try:
+                    app=agent.connectors.sign_in_finish((q.get('state') or [''])[0],(q.get('code') or [''])[0])
+                    agent.enable('connectors',True)
+                    page=f"<!doctype html><meta charset=utf-8><title>Connected</title><body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>{html.escape(app['name'])} is connected to Luma.</h2><p>You can close this tab and go back to Luma.</p></div>"
+                except Exception as error:
+                    page=f"<!doctype html><meta charset=utf-8><title>Not connected</title><body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>That didn't connect.</h2><p>{html.escape(str(error)[:200])}</p></div>"
+                return self.send(page.encode(),kind='text/html; charset=utf-8')
             if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated(),
                                                       # which build of Luma is answering, so a newly installed app can replace an old one still running
                                                       'build':os.environ.get('LUMA_APP_BUILD',''), 'pid':os.getpid() if not companion else None})
@@ -496,6 +507,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         elif what=='calendar':
                             result={'calendar':agent.calendar.connect(data.get('url'))}
                             agent.enable('calendar',True)
+                        elif what=='app_signin':
+                            result=agent.connectors.sign_in_start(data.get('name'),data.get('url'),f"http://127.0.0.1:{self.server.server_port}/api/connect/oauth/callback",preset=data.get('preset'))
                         elif what=='app':
                             result={'app':agent.connectors.add(data.get('name'),url=data.get('url') or '',command=data.get('command') or '',
                                                                token=data.get('token') or '',preset=data.get('preset'),folder=data.get('folder') or '')}

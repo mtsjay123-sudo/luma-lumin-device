@@ -1892,6 +1892,7 @@
       name2.hidden = where.hidden = p.id !== "custom";
       folder.hidden = p.needs !== "folder";
       token.hidden = !(p.needs === "token" || p.id === "custom");
+      go2.textContent = p.needs === "signin" ? `Connect ${p.name}` : "Connect";
     };
     pick.addEventListener("change", sync);
     sync();
@@ -1899,6 +1900,24 @@
     f2.addEventListener("submit", async (e) => {
       e.preventDefault();
       const v = where.value.trim();
+      const p = presets.find((x) => x.id === pick.value) || {};
+      // Sign in with the app itself (like ChatGPT and Claude connectors): for sign-in apps, or any https address with no token.
+      if (p.needs === "signin" || (p.id === "custom" && /^https:\/\//i.test(v) && !token.value)) {
+        go2.disabled = true; go2.textContent = "Opening sign-in…";
+        try {
+          const before = (state.home?.connections?.apps || []).length;
+          const r = await api("/api/connect/app_signin", { preset: p.id === "custom" ? null : p.id, name: name2.value.trim(), url: v });
+          window.open(r.auth_url, "_blank", "noopener");
+          toast("Sign in on the page that opened. I'll connect as soon as you're back.");
+          for (let i = 0; i < 60; i++) {  // up to 3 minutes
+            await new Promise((ok) => setTimeout(ok, 3000));
+            await refreshHome();
+            if ((state.home?.connections?.apps || []).length > before) { toast("Connected. Ask me to use it by name."); renderApps(); return; }
+          }
+        } catch (err) { toast(err.message); }
+        go2.disabled = false; sync();
+        return;
+      }
       go2.disabled = true; go2.textContent = "Connecting…";
       try {
         await api("/api/connect/app", { preset: pick.value === "custom" ? null : pick.value, name: name2.value.trim(), url: /^https?:\/\//i.test(v) ? v : "", command: /^https?:\/\//i.test(v) ? "" : v, token: token.value, folder: folder.value.trim() });

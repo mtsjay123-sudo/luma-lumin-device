@@ -53,7 +53,13 @@ PRESETS = [
      "command": "uvx", "args": ["awslabs.aws-api-mcp-server@latest"]},
     {"id": "memory", "name": "Notes graph", "about": "A local knowledge graph Luma can add to and search.",
      "command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
-    {"id": "custom", "name": "Any MCP app", "about": "Paste the app's MCP address, or the command its docs give you."},
+    # Sign in with the app itself, the way ChatGPT and Claude connect: no codes, no tokens.
+    {"id": "notion", "name": "Notion", "about": "Your pages and databases. Press Connect and sign in to Notion.", "url": "https://mcp.notion.com/mcp", "needs": "signin"},
+    {"id": "linear", "name": "Linear", "about": "Your issues and projects. Press Connect and sign in to Linear.", "url": "https://mcp.linear.app/mcp", "needs": "signin"},
+    {"id": "atlassian", "name": "Jira & Confluence", "about": "Atlassian's Jira and Confluence. Press Connect and sign in.", "url": "https://mcp.atlassian.com/v1/sse", "needs": "signin"},
+    {"id": "asana", "name": "Asana", "about": "Your tasks and projects. Press Connect and sign in to Asana.", "url": "https://mcp.asana.com/sse", "needs": "signin"},
+    {"id": "stripe", "name": "Stripe", "about": "Payments, customers and invoices. Press Connect and sign in to Stripe.", "url": "https://mcp.stripe.com", "needs": "signin"},
+    {"id": "custom", "name": "Any MCP app", "about": "Paste the app's MCP address. If it supports sign-in (most new ones do, like Higgsfield or Canva), I'll open it for you; or paste a token or the command from its docs."},
 ]
 
 
@@ -387,6 +393,98 @@ class Connectors:
         self._save(configs + [config])
         return next(c for c in self.list() if c["id"] == config["id"])
 
+    # -- sign in with the app ----------------------------------------------------------------
+    def _json(self, url, data=None, form=False, timeout=15):
+        body = None
+        headers = {"Accept": "application/json", "User-Agent": "Luma/1.0"}
+        if data is not None:
+            body = urllib.parse.urlencode(data).encode() if form else json.dumps(data).encode()
+            headers["Content-Type"] = "application/x-www-form-urlencoded" if form else "application/json"
+        request = urllib.request.Request(url, data=body, headers=headers, method="POST" if data is not None else "GET")
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read(1_000_000) or b"{}")
+
+    def _auth_server(self, url):
+        """Where this MCP app signs people in: its protected-resource metadata, then the authorization server's."""
+        parts = urllib.parse.urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        issuer = origin
+        for meta in (f"{origin}/.well-known/oauth-protected-resource{parts.path.rstrip('/')}", f"{origin}/.well-known/oauth-protected-resource"):
+            try:
+                found = self._json(meta)
+                if found.get("authorization_servers"):
+                    issuer = found["authorization_servers"][0].rstrip("/")
+                    break
+            except Exception:
+                continue
+        ip = urllib.parse.urlsplit(issuer)
+        for meta in (f"{ip.scheme}://{ip.netloc}/.well-known/oauth-authorization-server{ip.path}", f"{ip.scheme}://{ip.netloc}/.well-known/oauth-authorization-server",
+                     f"{issuer}/.well-known/openid-configuration"):
+            try:
+                found = self._json(meta)
+                if found.get("authorization_endpoint") and found.get("token_endpoint"):
+                    return found
+            except Exception:
+                continue
+        raise ConnectorError("That app doesn't offer a sign-in for connectors. Paste an access token from it instead.")
+
+    def sign_in_start(self, name, url, redirect_uri, preset=None):
+        """Step 1: register Luma with the app (no developer account needed), then the sign-in page to open."""
+        import hashlib, secrets
+        spec = next((p for p in PRESETS if p["id"] == preset), None) if preset else None
+        url = (spec or {}).get("url") or str(url or "").strip()
+        if not url.startswith("https://"):
+            raise ConnectorError("Paste the app's MCP address (https://…).")
+        meta = self._auth_server(url)
+        if not meta.get("registration_endpoint"):
+            raise ConnectorError("That app doesn't let new apps sign in on their own yet. Paste an access token from it instead.")
+        client = self._json(meta["registration_endpoint"], {"client_name": "Luma", "redirect_uris": [redirect_uri], "grant_types": ["authorization_code", "refresh_token"],
+                                                           "response_types": ["code"], "token_endpoint_auth_method": "none"})
+        verifier = secrets.token_urlsafe(48)
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+        state = secrets.token_urlsafe(24)
+        self._signins = {k: v for k, v in getattr(self, "_signins", {}).items() if v["at"] > time.time() - 900}
+        self._signins[state] = {"name": " ".join(str(name or (spec or {}).get("name") or "App").split())[:40], "url": url, "client_id": client["client_id"],
+                                "token_endpoint": meta["token_endpoint"], "verifier": verifier, "redirect_uri": redirect_uri, "at": time.time()}
+        query = {"response_type": "code", "client_id": client["client_id"], "redirect_uri": redirect_uri, "code_challenge": challenge,
+                 "code_challenge_method": "S256", "state": state, "resource": url}
+        if meta.get("scopes_supported"): query["scope"] = " ".join(meta["scopes_supported"][:12])
+        return {"auth_url": meta["authorization_endpoint"] + ("&" if "?" in meta["authorization_endpoint"] else "?") + urllib.parse.urlencode(query)}
+
+    def sign_in_finish(self, state, code):
+        """Step 2: the app sent them back with a code; trade it for access, and connect."""
+        pending = getattr(self, "_signins", {}).pop(str(state or ""), None)
+        if not pending or pending["at"] < time.time() - 900:
+            raise ConnectorError("That sign-in expired. Press Connect again.")
+        tokens = self._json(pending["token_endpoint"], {"grant_type": "authorization_code", "code": code, "redirect_uri": pending["redirect_uri"],
+                                                         "client_id": pending["client_id"], "code_verifier": pending["verifier"], "resource": pending["url"]}, form=True)
+        if not tokens.get("access_token"):
+            raise ConnectorError("The app didn't finish the sign-in. Try again.")
+        added = self.add(pending["name"], url=pending["url"], token=tokens["access_token"])
+        if tokens.get("refresh_token"):
+            configs = self._configs()
+            for c in configs:
+                if c["id"] == added["id"]:
+                    c.update(refresh_b64=base64.b64encode(tokens["refresh_token"].encode()).decode(), client_id=pending["client_id"],
+                             token_endpoint=pending["token_endpoint"], expires=time.time() + int(tokens.get("expires_in") or 3600))
+            self._save(configs)
+        return added
+
+    def _fresh(self, config):
+        """Signed-in apps hand out access that expires: renew it quietly before connecting."""
+        if not config.get("refresh_b64") or config.get("expires", 0) > time.time() + 120:
+            return config
+        try:
+            tokens = self._json(config["token_endpoint"], {"grant_type": "refresh_token", "refresh_token": base64.b64decode(config["refresh_b64"]).decode(),
+                                                            "client_id": config["client_id"], "resource": config["url"]}, form=True)
+        except Exception:
+            return config
+        if tokens.get("access_token"):
+            config = {**config, "secret_b64": base64.b64encode(tokens["access_token"].encode()).decode(), "expires": time.time() + int(tokens.get("expires_in") or 3600)}
+            if tokens.get("refresh_token"): config["refresh_b64"] = base64.b64encode(tokens["refresh_token"].encode()).decode()
+            self._save([config if c["id"] == config["id"] else c for c in self._configs()])
+        return config
+
     def remove(self, connector_id):
         with self._lock:
             client = self._clients.pop(connector_id, None)
@@ -401,6 +499,7 @@ class Connectors:
     # ---- sessions
     def _transport(self, config):
         if config.get("url"):
+            config = self._fresh(config)
             token = base64.b64decode(config["secret_b64"]).decode() if config.get("secret_b64") else None
             return HttpTransport(config["url"], token)
         return StdioTransport(config["command"], config.get("args", []))

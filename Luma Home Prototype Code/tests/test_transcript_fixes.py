@@ -472,3 +472,43 @@ class DoesItForRealTests(unittest.TestCase):
     def test_play_music(self):
         reply = self.agent.chat("play me some drake")
         self.assertIn("music.youtube.com/search?q=drake", reply["open_url"])
+
+
+class SignInConnectorTests(unittest.TestCase):
+    """Connect an app by signing in to it (OAuth with dynamic registration), the way ChatGPT and Claude connectors work."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+        self.calls = []
+        def fake_json(url, data=None, form=False, timeout=15):
+            self.calls.append((url, data, form))
+            if "oauth-protected-resource" in url: return {"authorization_servers": ["https://auth.example.com"]}
+            if "oauth-authorization-server" in url:
+                return {"authorization_endpoint": "https://auth.example.com/authorize", "token_endpoint": "https://auth.example.com/token", "registration_endpoint": "https://auth.example.com/register"}
+            if url.endswith("/register"): return {"client_id": "luma-123"}
+            if url.endswith("/token"): return {"access_token": "AT-1", "refresh_token": "RT-1", "expires_in": 3600}
+            raise AssertionError(url)
+        self.agent.connectors._json = fake_json
+        self.added = []
+        self.agent.connectors.add = lambda name, url="", token="", **kw: (self.added.append((name, url, token)), self.agent.connectors._save(self.agent.connectors._configs() + [{"id": "notion", "name": name, "url": url}]), {"id": "notion", "name": name})[-1]
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_sign_in_registers_luma_and_connects_with_the_token(self):
+        from urllib.parse import parse_qs, urlsplit
+        start = self.agent.connectors.sign_in_start(None, None, "http://127.0.0.1:8095/api/connect/oauth/callback", preset="notion")
+        q = parse_qs(urlsplit(start["auth_url"]).query)
+        self.assertEqual(q["client_id"], ["luma-123"])
+        self.assertEqual(q["code_challenge_method"], ["S256"])
+        self.assertEqual(q["resource"], ["https://mcp.notion.com/mcp"])
+        added = self.agent.connectors.sign_in_finish(q["state"][0], "CODE-9")
+        self.assertEqual(self.added, [("Notion", "https://mcp.notion.com/mcp", "AT-1")])
+        token_call = next(c for c in self.calls if c[0].endswith("/token"))
+        self.assertEqual(token_call[1]["code"], "CODE-9")
+        self.assertTrue(token_call[1]["code_verifier"])
+        self.assertTrue(any(c.get("refresh_b64") for c in self.agent.connectors._configs()))
+        self.assertEqual(added["name"], "Notion")
+        with self.assertRaises(Exception):
+            self.agent.connectors.sign_in_finish(q["state"][0], "CODE-9")  # one use only
