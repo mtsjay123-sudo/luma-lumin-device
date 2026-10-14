@@ -1,6 +1,6 @@
 // The only things Luma's pages may ask of the app: pick Luma's folder, try
-// starting again, know they're inside the desktop app (for window chrome), and
-// make the window see-through.
+// starting again, come to the front ("Hey Luma"), know they're inside the
+// desktop app (for window chrome), and make the window see-through.
 "use strict";
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("lumaDesktop", {
   platform: process.platform,
   chooseFolder: () => ipcRenderer.invoke("luma:choose-folder"),
   retry: () => ipcRenderer.invoke("luma:retry"),
+  // "Hey Luma" brings Luma's window up.
+  show: () => ipcRenderer.invoke("luma:show"),
   // First-launch setup progress, for the splash screen.
   onSetup: (callback) => ipcRenderer.on("luma:setup", (_event, progress) => callback(progress)),
   // See-through: { mode: "glass" | "clear", clarity: 0–90, onTop: bool }. The app checks every value.

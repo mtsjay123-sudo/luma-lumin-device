@@ -9,11 +9,12 @@ from __future__ import annotations
 import re
 
 CONFIRM = re.compile(
-    r"^(?:(?:yes|yeah|yea|yep|yup|ya|sure|ok|okay|bet|perfect|cool|great|looks good|sounds good)[,!.\s]*)?"
-    r"(?:send(?: it| that| that text| the text)?(?: now)?|do it|go ahead|go for it|confirm|ship it|approved?|"
+    r"^(?:(?:yes|yeah|yea|yep|yup|ya|sure|ok|okay|bet|perfect|cool|great|looks good|sounds good)[,!.\s]*)?(?:please )?"
+    r"(?:(?:go ahead and )?send(?: it| that| that text| the text)?(?: now)?|do it|go ahead|go for it|confirm|ship it|approved?|"
     r"yes|yeah|yea|yep|yup|sure|ok|okay|bet|looks good|sounds good)(?: please)?[.!\s]*$", re.I)
 CANCEL = re.compile(
-    r"^(?:no|nah|nope|don'?t send(?: it| that)?|do not send(?: it| that)?|cancel(?: it| that)?|"
+    r"^(?:(?:no|nah|nope|ok|okay|wait|actually)[,!.\s]+)?"
+    r"(?:no|nah|nope|no thanks|no thank you|don'?t|don'?t send(?: it| that)?|do not send(?: it| that)?|cancel(?: it| that)?|"
     r"never ?mind|scrap (?:it|that)|hold off|forget it|not yet)[.!\s]*$", re.I)
 
 ROUTE_LABELS = {
@@ -45,6 +46,8 @@ def confirm_intent(text):
     if not isinstance(text, str):
         return None
     cleaned = re.sub(r"^(?:hey\s+)?(?:luma|luna)[\s,!.:]+", "", text.strip(), flags=re.I).strip()
+    # Spoken answers come back punctuated ("Yes, please." / "No, don't send it."): read them as said.
+    cleaned = re.sub(r"\s+", " ", re.sub(r"\s*[,;:—–]+\s*|\s+-\s+", " ", cleaned)).strip()
     if CANCEL.fullmatch(cleaned):
         return "cancel"
     if CONFIRM.fullmatch(cleaned):

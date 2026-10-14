@@ -291,11 +291,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 except ValueError: return self.send({'error':'Send the recording again.'},411)
                 if not 0<size<=8_000_000: return self.send({'error':'That recording is too long. Keep it under a minute.'},413)
                 clip=self.rfile.read(size)
+                # ?for=partial: the words so far, shown while you talk. ?for=wake: is that "Hey Luma"? One quick pass each.
+                purpose=parse_qs(urlsplit(self.path).query).get('for',[''])[0]
                 try:
                     from luma.audio.stt import transcribe_clip
                 except ImportError:
                     return self.send({'error':"Luma's ears aren't installed yet. Restart Luma to finish setting up voice."},503)
-                try: return self.send({'text':transcribe_clip(clip,kinds[kind])})
+                try: return self.send({'text':transcribe_clip(clip,kinds[kind],quick=purpose in {'partial','wake'},keep=('bye',))})
                 except Exception as error: return self.send({'error':"I couldn't make out that recording. "+str(error)[:160]},500)
             if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:

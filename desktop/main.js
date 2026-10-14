@@ -227,7 +227,9 @@ function createWindow({ bounds, url } = {}) {
     trafficLightPosition: { x: 28, y: 28 },
     icon: path.join(__dirname, "build", "icon.png"),
     // backgroundThrottling off: Luma's page keeps checking in while hidden, so news still notifies you.
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false,
+      // Luma answers out loud after "Hey Luma" too, without waiting for a click first.
+      autoplayPolicy: "no-user-gesture-required" },
   });
   applyGlass(w, glass);
   w.once("ready-to-show", () => { if (!startHidden) w.show(); });
@@ -267,6 +269,19 @@ function summon() {
   if (win.isVisible() && win.isFocused()) return win.hide();
   win.show();
   win.focus();
+  tellPage("luma-summon"); // with Stay in conversation on, Luma is listening as soon as it's up
+}
+// Luma's page hears about it (an event on its window), if it's the page that's open.
+function tellPage(name) {
+  if (win?.webContents.getURL().startsWith(HOME_URL)) win.webContents.executeJavaScript(`window.dispatchEvent(new Event(${JSON.stringify(name)}))`).catch(() => {});
+}
+// Start talking: from the menu bar icon, or the Voice menu.
+function talk() {
+  startHidden = false;
+  if (!win) createWindow();
+  win.show();
+  win.focus();
+  tellPage("luma-talk");
 }
 
 // ------------------------------------------------------------ downloads ---
@@ -300,6 +315,8 @@ function buildMenu() {
     { role: "editMenu" },
     { label: "View", submenu: [
       { label: "Main Chat", accelerator: "CmdOrCtrl+1", click: show("chat") },
+      // The page itself handles ⌘⇧Space (in any view and any chat); this just shows it.
+      { label: "Talk to Luma", accelerator: "CmdOrCtrl+Shift+Space", registerAccelerator: false, click: talk },
       { label: "Feed", accelerator: "CmdOrCtrl+2", click: show("feed") },
       { label: "Ideas", accelerator: "CmdOrCtrl+3", click: show("ideas") },
       { label: "Goals", accelerator: "CmdOrCtrl+4", click: show("goals") },
@@ -346,6 +363,7 @@ function createTray() {
   tray.setToolTip("Luma");
   const refresh = () => tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open Luma", accelerator: SUMMON, registerAccelerator: false, click: showView("chat") },
+    { label: "Talk to Luma", click: talk },
     { label: "Feed", click: showView("feed") },
     { label: "Goals", click: showView("goals") },
     { type: "separator" },
@@ -398,6 +416,8 @@ if (!app.requestSingleInstanceLock()) {
     const fromHome = (event) => event.sender === win?.webContents && (event.senderFrame?.url || "").startsWith(HOME_URL);
     ipcMain.handle("luma:glass-get", (event) => (fromHome(event) ? cleanGlass(readConfig().glass) : null));
     ipcMain.handle("luma:glass-set", (event, g) => { const next = fromHome(event) && cleanGlass(g); return next ? setGlass(next) : null; });
+    // "Hey Luma" brings the window up.
+    ipcMain.handle("luma:show", (event) => { if (!trusted(event) || !win) return false; startHidden = false; win.show(); win.focus(); return true; });
     session.defaultSession.on("will-download", (_event, item) => {
       item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename()));
       item.once("done", async (_e, state) => {
