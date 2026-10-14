@@ -343,6 +343,7 @@
     $("view-chat").classList.toggle("is-empty", empty);
     $("starters").hidden = !empty;
     if (empty) { box.append(emptyChat()); return; }
+    for (const m of list) settle(m.result);
     for (const m of list) {
       if (m.role === "notice") {
         const n = el("div", "notice");
@@ -678,6 +679,15 @@
   const MAILY = ["mail.send", "mail.schedule"];
   const sendAt = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
 
+  // An approval answered in words ("yes, send it", "no") rather than with the buttons: its card shows how it went.
+  const SETTLED = { succeeded: ["You said yes. Done ✓", true], cancelled: ["You said no. Nothing went out.", false], expired: ["This one expired. Ask me again.", false],
+    failed: ["Didn't go through", false], unknown: ["Not sure it went through", false], handoff: ["Over to you", false] };
+  function settle(r) {
+    if (!r || !r.action || state.outcomes[r.action] || !SETTLED[r.state]) return;
+    const [text, ok] = SETTLED[r.state];
+    state.outcomes[r.action] = { text: r.state === "succeeded" && r.verified === false ? "Pressed, but couldn't confirm it landed" : text, ok };
+  }
+
   // Muse-style: "Checkout · Luma wants to…", the item as it looks on the store, then Deny / Allow.
   function approval(r) {
     const a = r.arguments || {};
@@ -766,6 +776,7 @@
       try { await api("/api/cancel", { id: r.action }); } catch (_) { /* already gone */ }
       finish("Denied. Nothing went out.", false);
       mood("idle", "Here with you");
+      talkBack({});
       refreshHome();
     });
     const allow = btn("Allow", "pill blue", async () => {
@@ -778,6 +789,7 @@
         const ok = done.state === "succeeded";
         finish(ok ? (done.verified === false ? "Pressed, but couldn't confirm it landed" : r.tool === "mail.schedule" ? "Scheduled ✓" : "Done ✓") : done.state === "handoff" ? "Over to you" : done.state === "unknown" ? "Not sure it went through" : "Didn't go through", ok);
         pushLocal(state.thread, { role: "luma", text: done.text || done.summary || (ok ? "Done." : "That didn't go through."), result: { cart: done.cart, url: done.url } });
+        talkBack({ text: done.text || done.summary || (ok ? "Done." : "That didn't go through.") });
         mood(ok ? "happy" : "idle", ok ? "Done" : "Here with you", ok ? 3500 : 0);
         refreshHome();
       } catch (e) { allow.disabled = deny.disabled = false; lineEl.textContent = e.message; mood("idle", "Here with you"); }
@@ -1024,6 +1036,7 @@
       await loadThread(thread);
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
       mood(d.vision_pending ? "idle" : "happy", d.vision_pending ? "Here with you" : "Had a look", 3000);
+      talkBack(d);
     } catch (e) {
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
       pushLocal(thread, { role: "luma", text: e.message });
@@ -1060,6 +1073,7 @@
     try {
       const r = await api("/api/chat", { text, thread });
       remember(r);
+      settle(r);
       if (r.event_id) state.seen.add(r.event_id);
       await loadThread(thread);
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
@@ -1069,14 +1083,14 @@
       else if (r.file || r.helper || r.state === "succeeded" || r.task) mood("happy", "Done", 3500);
       else mood("idle", "Here with you");
       if (r.open === "apps") setTimeout(() => go("apps"), 900);
-      // You talked, so Luma talks back. In talk mode it listens again when it's done.
-      if (opts.voice && speakAloud && r.text) speak(r.text, () => { if (voice.talkMode && r.state !== "pending") startListening(); });
-      else if (opts.voice && voice.talkMode && r.state !== "pending") startListening();
+      // In a conversation Luma says it out loud (asking for your OK if it needs it) and keeps listening.
+      talkBack(r);
     } catch (e) {
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
       pushLocal(thread, { role: "you", text });
       pushLocal(thread, { role: "luma", text: e.status ? e.message : "I can't reach my brain right now. Is Luma running?" });
       mood(e.status ? "idle" : "sleepy", e.status ? "Here with you" : "Can't reach Luma");
+      talkBack({ text: e.status ? e.message : "I can't reach my brain right now." });
     } finally {
       state.busy = false;
       state.stick = true;
@@ -1909,6 +1923,8 @@
     bg.append(bgg, scenes, bgPick);
     box.append(bg);
     box.append(toggleRow("Talk back out loud", "When you talk to Luma with the mic, it answers out loud and keeps listening, back and forth.", speakAloud, (on) => { speakAloud = on; try { localStorage.setItem("luma-speak", on ? "1" : "0"); } catch (_) { /* private */ } if (on) speak("Hey, this is how I sound."); }));
+    box.append(toggleRow("Stay in conversation", "Once you start talking, Luma keeps listening between replies, however long it takes, until you say “bye” or “that's all”. With this on it's listening as soon as you bring it up, no tapping.", voice.stay, (on) => setStay(on)));
+    box.append(toggleRow("Start with “Hey Luma”", "While Luma is open, just say “Hey Luma” to start talking. It listens for its name on this computer; nothing is kept or sent anywhere.", voice.wake, (on) => setWake(on)));
     if (!document.documentElement.classList.contains("in-app")) box.append(toggleRow("Listen for “Hey Luma”", "On the Luma device: talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
     box.append(toggleRow("Remember things I mention", "Small facts (your sister's birthday, your coffee order), encrypted on this computer.", s.presence?.learn_from_chat !== false, (on) => api("/api/setting", { key: "learn_from_chat", value: on })));
     box.append(toggleRow("Check back on things", "“How did the interview go?” the day after.", s.presence?.check_ins !== false, (on) => api("/api/setting", { key: "check_ins", value: on })));
@@ -2272,17 +2288,44 @@
   });
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
+    if (talkEnter()) return;
     const text = input.value.trim();
     if (!text || state.busy) return;
     input.value = "";
     send(text);
   });
   // ------------------------------------------------------------- voice ---
-  // Tap the mic and talk. Your words become text on this computer (nothing goes to the cloud),
-  // Luma answers out loud, and in talk mode it listens again, back and forth, until you stop.
-  const voice = { rec: null, chunks: [], stream: null, audio: null, raf: 0, heard: false, cancelled: false, talkMode: false };
+  // Talk to Luma like a person. Tap the mic (or ⌘⇧Space from any view and any chat, or just say
+  // “Hey Luma” if you turned that on) and talk: your words show up as you say them, Luma gets going
+  // the moment you stop, answers out loud and keeps listening. It stays with you while it waits for
+  // your OK (“yes, send it” / “no”), while a long job runs, and when you cut in while it's talking.
+  // It stops when you say “bye”, “that's all” or “stop”, press Esc, or tap the mic.
+  // Your voice becomes text on this computer; nothing goes to the cloud.
+  const VOICE = {
+    tick: 40, onset: 110, // a tenth of a second of sound is you starting to talk
+    hang: 800, hangAnswer: 650, hangTrailing: 1500, // quiet that ends what you said: usually, after a yes/no question, mid-sentence
+    longest: 45000, fresh: 9000, // the longest thing you can say; a silent recording starts over this often
+    partialEvery: 1400, // show the words so far this often
+    idle: 30000, // this long with nothing said ends the conversation, unless you chose Stay in conversation
+    bargeWarm: 350, bargeHold: 280, // talking over Luma
+    settle: 150, settleWake: 600, // after Luma talks, let the room go quiet before listening
+    progressAfter: 8000, progressEvery: 22000, // a word on how a long job is going
+    wakeLongest: 3500,
+  };
+  const voice = {
+    on: false, stay: false, wake: false, opening: null,
+    stream: null, ctx: null, an: null, buf: null, timer: 0, mime: "",
+    take: null, takes: 0, heard: false, loudMs: 0, quietSince: 0, lastTick: 0, floor: 0.008, echo: 0, cool: false, coolMs: 0, coolAt: 0,
+    partial: "", partialBusy: false, partialAt: 0, shown: false, typed: false,
+    held: "", pending: 0, chain: Promise.resolve(), queued: "", expect: false, fails: 0,
+    said: "", left: "", talking: false, talkAt: 0, quietAt: 0, idleSince: 0, busy: false, progress: 0, progressN: 0,
+  };
   let speakAloud = true;
-  try { speakAloud = localStorage.getItem("luma-speak") !== "0"; } catch (_) { /* private window */ }
+  try {
+    speakAloud = localStorage.getItem("luma-speak") !== "0";
+    voice.stay = localStorage.getItem("luma-stay") === "1";
+    voice.wake = localStorage.getItem("luma-wake") === "1";
+  } catch (_) { /* private window */ }
   function bestVoice() {
     if (!("speechSynthesis" in window)) return null;
     const score = (v) => (/premium|enhanced|natural|neural|siri/i.test(v.name) ? 40 : 0) + (/samantha|ava|zoe|allison|aria|jenny|serena|karen|moira|evan|nathan/i.test(v.name) ? 20 : 0)
@@ -2291,126 +2334,414 @@
   }
   if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => bestVoice();
   function speak(text, then) {
+    const gen = ++speak.gen;
+    clearTimeout(speak.watch);
     if (!("speechSynthesis" in window) || !text) { then?.(); return; }
     speechSynthesis.cancel();
+    dropTake(); // never record Luma's own voice as yours
     const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1400);
     // Sentence by sentence: long single utterances can stall, and this sounds more natural.
     const parts = clean.match(/[^.!?]+[.!?]*\s*/g) || [clean];
     const v = bestVoice();
+    Object.assign(voice, { said: clean, talking: true, talkAt: performance.now(), echo: 0, loudMs: 0 });
     document.body.classList.add("speaking");
     mood("happy", "Talking");
+    paintVoice();
     let i = 0;
     const next = () => {
-      if (i >= parts.length) { document.body.classList.remove("speaking"); mood("idle", "Here with you"); then?.(); return; }
-      const u = new SpeechSynthesisUtterance(parts[i++].trim());
+      if (gen !== speak.gen) return;
+      clearTimeout(speak.watch);
+      if (i >= parts.length) {
+        Object.assign(voice, { talking: false, quietAt: performance.now(), left: "" });
+        document.body.classList.remove("speaking");
+        if (!voice.on) mood("idle", "Here with you");
+        paintVoice();
+        then?.();
+        return;
+      }
+      voice.left = parts.slice(i).join(" ");
+      const line = parts[i++].trim();
+      const u = new SpeechSynthesisUtterance(line);
       if (v) u.voice = v;
       u.rate = 1.04;
-      u.onend = next;
-      u.onerror = (e) => { if (e.error !== "interrupted" && e.error !== "canceled") next(); else document.body.classList.remove("speaking"); };
+      let moved = false;
+      const step = () => { if (!moved) { moved = true; next(); } };
+      u.onend = step;
+      u.onerror = (e) => { if (e.error !== "interrupted" && e.error !== "canceled") step(); };
+      speak.watch = setTimeout(step, 3000 + line.length * 110); // some voices never say they've finished
       speechSynthesis.speak(u);
     };
     next();
   }
-  function hush() { if ("speechSynthesis" in window) speechSynthesis.cancel(); document.body.classList.remove("speaking"); }
-  async function startListening() {
-    if (voice.rec || voice.starting) return;
-    voice.starting = true;
-    hush();
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { voice.starting = false; toast("This window can't use a microphone."); return; }
-    try { voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-    catch (_) { voice.starting = false; toast("Luma can't hear you yet. Allow the microphone for Luma in your computer's settings."); stopTalkMode(); return; }
-    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
-    voice.rec = new MediaRecorder(voice.stream, type ? { mimeType: type } : {});
-    voice.chunks = []; voice.heard = false; voice.cancelled = false;
-    voice.rec.ondataavailable = (e) => { if (e.data.size) voice.chunks.push(e.data); };
-    voice.rec.onstop = finishListening;
-    voice.rec.start(250);
-    voice.starting = false;
-    document.body.classList.add("listening");
-    $("mic").classList.add("on");
-    $("input").placeholder = "Listening… just talk";
-    mood("waiting", "Listening");
-    watchLevel();
+  speak.gen = 0;
+  function hush() {
+    speak.gen++;
+    clearTimeout(speak.watch);
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    if (voice.talking) Object.assign(voice, { talking: false, quietAt: performance.now() });
+    document.body.classList.remove("speaking");
+    paintVoice();
   }
-  // Stop by itself after you finish a sentence, like talking to a person.
-  function watchLevel() {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    voice.audio = new AC();
-    const src = voice.audio.createMediaStreamSource(voice.stream);
-    const an = voice.audio.createAnalyser();
-    an.fftSize = 1024;
-    src.connect(an);
-    const buf = new Float32Array(an.fftSize);
-    const started = performance.now();
-    let quietSince = performance.now();
-    const tick = () => {
-      if (!voice.rec) return;
-      an.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for (const x of buf) sum += x * x;
-      const level = Math.sqrt(sum / buf.length);
-      document.documentElement.style.setProperty("--level", Math.min(1, level * 14).toFixed(3));
-      const now = performance.now();
-      if (level > 0.018) { voice.heard = true; quietSince = now; }
-      if ((voice.heard && now - quietSince > 1400) || (!voice.heard && now - started > 8000) || now - started > 45000) { stopListening(!voice.heard); return; }
-      voice.raf = requestAnimationFrame(tick);
-    };
-    tick();
+
+  // The microphone stays open for the whole conversation (and while waiting for “Hey Luma”).
+  function openMic() {
+    if (voice.stream) return Promise.resolve(true);
+    voice.opening = voice.opening || (async () => {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !AC) { toast("This window can't use a microphone."); return false; }
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+      catch (_) { toast("Luma can't hear you yet. Allow the microphone for Luma in your computer's settings."); return false; }
+      voice.stream = stream;
+      voice.mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+      voice.ctx = new AC();
+      voice.ctx.resume?.().catch(() => {});
+      voice.an = voice.ctx.createAnalyser();
+      voice.an.fftSize = 1024;
+      voice.ctx.createMediaStreamSource(stream).connect(voice.an);
+      voice.buf = new Float32Array(voice.an.fftSize);
+      voice.lastTick = performance.now();
+      clearInterval(voice.timer);
+      voice.timer = setInterval(ear, VOICE.tick); // a timer, not animation frames: it keeps going when Luma's window is hidden
+      return true;
+    })().finally(() => { voice.opening = null; });
+    return voice.opening;
   }
-  function stopListening(cancel = false) {
-    if (!voice.rec) return;
-    voice.cancelled = cancel;
-    try { voice.rec.stop(); } catch (_) { finishListening(); }
-  }
-  function releaseMic() {
-    cancelAnimationFrame(voice.raf);
+  function closeMic() {
+    clearInterval(voice.timer);
+    voice.timer = 0;
+    dropTake();
     voice.stream?.getTracks().forEach((t) => t.stop());
-    voice.audio?.close().catch(() => {});
-    voice.stream = voice.audio = null;
-    document.body.classList.remove("listening");
-    document.documentElement.style.removeProperty("--level");
-    $("mic").classList.toggle("on", voice.talkMode);
-    $("input").placeholder = "Ask Luma anything";
+    voice.ctx?.close().catch(() => {});
+    voice.stream = voice.ctx = voice.an = null;
+    paintVoice();
   }
-  async function finishListening() {
-    const rec = voice.rec;
-    voice.rec = null;
-    releaseMic();
-    if (!rec) return;
-    if (voice.cancelled || !voice.chunks.length) {
-      mood("idle", "Here with you");
-      if (!voice.heard) stopTalkMode();
+  // Browsers let a page hear and talk only after a click or a key; any one will do.
+  for (const ev of ["pointerdown", "keydown"]) document.addEventListener(ev, () => { if (voice.ctx?.state === "suspended") voice.ctx.resume().catch(() => {}); }, true);
+
+  // A take is one recording of you; partial words come from it while you talk, and the whole of it when you stop.
+  const kindOf = (rec) => (rec.mimeType || "audio/webm").split(";")[0];
+  function startTake(barge = false) {
+    dropTake();
+    if (!voice.stream) return null;
+    let rec;
+    try { rec = new MediaRecorder(voice.stream, voice.mime ? { mimeType: voice.mime } : {}); } catch (_) { return null; }
+    const now = performance.now();
+    const take = { rec, chunks: [], at: now, n: ++voice.takes, barge, said: barge ? voice.said : "", left: barge ? voice.left : "", wake: !voice.on };
+    rec.ondataavailable = (e) => { if (e.data.size) take.chunks.push(e.data); };
+    rec.start(250);
+    Object.assign(voice, { take, heard: barge, loudMs: 0, partial: "", partialAt: now, quietSince: now });
+    return take;
+  }
+  function dropTake() {
+    const t = voice.take;
+    voice.take = null;
+    voice.heard = false;
+    if (t && t.rec.state !== "inactive") { t.rec.ondataavailable = null; try { t.rec.stop(); } catch (_) { /* already stopped */ } }
+  }
+  function endTake() {
+    const t = voice.take;
+    voice.take = null;
+    voice.heard = false;
+    return new Promise((resolve) => {
+      const done = () => resolve(new Blob(t.chunks, { type: kindOf(t.rec) }));
+      t.rec.onstop = done;
+      try { t.rec.stop(); } catch (_) { done(); }
+    });
+  }
+
+  // The ear: how loud the room is, every few hundredths of a second, and what that means right now.
+  function ear() {
+    if (!voice.an) return;
+    const now = performance.now();
+    const dt = Math.min(200, now - voice.lastTick);
+    voice.lastTick = now;
+    if (voice.busy !== state.busy) { voice.busy = state.busy; workChanged(); }
+    voice.an.getFloatTimeDomainData(voice.buf);
+    let sum = 0;
+    for (const x of voice.buf) sum += x * x;
+    const lv = Math.sqrt(sum / voice.buf.length);
+    const gate = Math.min(0.06, Math.max(0.012, voice.floor * 3));
+    if (voice.talking) {
+      // Luma's talking. Talk over it and it stops to listen; its own voice in the speakers doesn't count.
+      if (!voice.on) return;
+      if (now - voice.talkAt < VOICE.bargeWarm) { voice.echo = Math.max(voice.echo, lv); return; }
+      voice.echo = voice.echo * 0.97 + lv * 0.03;
+      voice.loudMs = lv > Math.max(0.045, gate * 2, voice.echo * 2.5) ? voice.loudMs + dt : 0;
+      if (voice.loudMs >= VOICE.bargeHold) bargeIn();
       return;
     }
-    const kind = (rec.mimeType || "audio/webm").split(";")[0];
-    const blob = new Blob(voice.chunks, { type: kind });
-    mood("thinking", "Hearing you");
-    try {
-      const r = await fetch("/api/listen", { method: "POST", headers: { "Content-Type": kind }, body: blob });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || "I couldn't hear that.");
-      if (!d.text) { mood("idle", "Here with you"); toast("I didn't catch that. Try again?"); if (voice.talkMode) startListening(); return; }
-      send(d.text, { voice: true });
-    } catch (e) { mood("idle", "Here with you"); toast(e.message); stopTalkMode(); }
+    if (!voice.on && !voice.wake) return;
+    if (lv < gate) voice.floor = voice.floor * 0.98 + lv * 0.02; // learn how quiet the room is
+    if (voice.on) document.documentElement.style.setProperty("--level", Math.min(1, lv * 14).toFixed(3));
+    const t = voice.take;
+    if (!t) {
+      voice.coolMs = lv < gate ? voice.coolMs + dt : 0;
+      // After a "Hey Luma" check, wait for a pause (or a few seconds of a TV that never pauses).
+      if (now - voice.quietAt < (voice.on ? VOICE.settle : VOICE.settleWake) || (voice.cool && voice.coolMs < 600 && now - voice.coolAt < 4000)) return;
+      voice.cool = false;
+      startTake();
+      return;
+    }
+    if (lv > gate) {
+      voice.loudMs += dt;
+      voice.quietSince = now;
+      if (!voice.heard && voice.loudMs >= VOICE.onset) { voice.heard = true; voice.idleSince = now; paintVoice(); }
+    } else if (!voice.heard) voice.loudMs = Math.max(0, voice.loudMs - dt);
+    if (voice.heard) {
+      if (now - voice.quietSince > hangFor(t) || now - t.at > (t.wake ? VOICE.wakeLongest : VOICE.longest)) { finishTake(); return; }
+      if (voice.on && !voice.partialBusy && now - voice.partialAt > VOICE.partialEvery) partial(t);
+    } else if (now - t.at > VOICE.fresh) startTake();
+    if (voice.on && !voice.stay && !voice.heard && !state.busy && !voice.pending && !voice.held && now - voice.idleSince > VOICE.idle) endConversation("quiet");
   }
-  function stopTalkMode() { voice.talkMode = false; $("mic").classList.remove("on"); }
-  // Tap the mic and just talk: Luma answers out loud and listens again, back and forth.
-  // Tap again when you're done, or stay quiet for a few seconds and it stops by itself.
-  $("mic").addEventListener("click", () => {
-    if (voice.starting) return;
-    if (voice.rec) { const said = voice.heard; if (!said) stopTalkMode(); stopListening(!said); return; }
-    if (document.body.classList.contains("speaking")) hush();
-    if (state.busy) return;
-    voice.talkMode = true;
-    try { if (!localStorage.getItem("luma-talked")) { localStorage.setItem("luma-talked", "1"); toast("I'm listening. Talk to me and I'll answer out loud. Go quiet to stop."); } } catch (_) { /* private */ }
-    startListening();
+  // How long a pause means you're done.
+  function hangFor(t) {
+    if (t.wake) return 500;
+    if (voice.expect) return VOICE.hangAnswer;
+    // Trailing off mid-sentence ("text my mom that…"): give them a moment to finish the thought.
+    if (/\b(?:and|or|but|so|to|that|the|a|an|my|your|for|with|about|because|if|of|in|on|at|from|um|uh|like)$/i.test(voice.partial.replace(/[\s.,…!?]+$/, ""))) return VOICE.hangTrailing;
+    return VOICE.hang;
+  }
+  async function hear(blob, purpose = "") {
+    if (!blob || blob.size < 1200) return "";
+    const r = await fetch("/api/listen" + (purpose ? "?for=" + purpose : ""), { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(d.error || "I couldn't hear that."), { status: r.status });
+    return String(d.text || "").trim();
+  }
+  // While you talk: your words so far, right in the composer.
+  async function partial(t) {
+    if (!t.chunks.length) return;
+    voice.partialBusy = true;
+    voice.partialAt = performance.now();
+    try {
+      const text = await hear(new Blob(t.chunks, { type: kindOf(t.rec) }), "partial");
+      if (voice.take === t && voice.heard && text) { voice.partial = text; showWords(text); }
+    } catch (_) { /* the full pass will tell */ }
+    finally { voice.partialBusy = false; }
+  }
+  function showWords(text) {
+    if (voice.typed || (!voice.shown && input.value.trim())) return; // never write over what you typed
+    input.value = (voice.held ? voice.held + " " : "") + text;
+    input.classList.add("partial");
+    voice.shown = true;
+    resize();
+  }
+  function clearWords() {
+    if (voice.shown) { input.value = ""; voice.shown = false; resize(); }
+    input.classList.remove("partial");
+  }
+  input.addEventListener("input", () => {
+    if (voice.shown) { voice.shown = false; voice.typed = true; input.classList.remove("partial"); }
+    if (!input.value.trim()) voice.typed = false;
   });
+  // Enter while your words are showing means "that's it, go".
+  function talkEnter() {
+    if (!voice.shown) return false;
+    if (voice.take && voice.heard) finishTake();
+    return true;
+  }
+  // You stopped talking: hear all of it, and act on it in the order you said things.
+  function finishTake() {
+    const t = voice.take;
+    if (!t) return;
+    const blob = endTake();
+    if (t.wake) { Object.assign(voice, { cool: true, coolMs: 0, coolAt: performance.now() }); voice.chain = voice.chain.then(() => wakeCheck(blob)); return; }
+    voice.pending++;
+    paintVoice();
+    const text = blob.then((b) => hear(b)); // starts right away
+    voice.chain = voice.chain.then(async () => {
+      try { heard(await text, t); } catch (e) { missed(e); } finally { voice.pending--; paintVoice(); }
+    });
+  }
+  const BYE = /^(?:(?:ok|okay|alright|cool|great|thanks|thank you|no)\s+)*(?:bye(?: bye)?|goodbye|good night|that's all|that is all|that's it|that'll be all|we're done|i'm done|stop listening|end (?:the )?conversation|go to sleep)(?:\s+(?:luma|for now|thanks|thank you|then))*$/;
+  const STOP_WORK = /^(?:stop|stop it|stop that|cancel|cancel it|cancel that|never ?mind|wait|hold on)$/;
+  const HUSH = /^(?:stop|wait|hold on|hang on|stop talking|okay stop|quiet|shh+)$/;
+  const plain = (text) => String(text || "").toLowerCase().replace(/[’‘]/g, "'").replace(/^\W*(?:hey\s+)?lu[mn]a\b/, "").replace(/[^a-z' ]+/g, " ").replace(/\s+/g, " ").trim();
+  // Is this only Luma's own words coming back through the mic (speakers, no headphones)?
+  function echoOf(text, said) {
+    const words = plain(text).split(" ").filter(Boolean);
+    const mine = plain(said).split(" ");
+    if (!words.length) return true;
+    if ((" " + mine.join(" ") + " ").includes(" " + words.join(" ") + " ")) return true;
+    return words.length <= 6 && words.filter((w) => mine.includes(w)).length / words.length >= 0.7;
+  }
+  function heard(text, t) {
+    if (!voice.on) return;
+    voice.fails = 0;
+    // You kept talking after a short pause: wait for the rest and take it all as one.
+    if (text && voice.heard && voice.take) { voice.held = (voice.held + " " + text).trim(); return; }
+    text = (voice.held + " " + text).trim();
+    voice.held = "";
+    clearWords();
+    if (t.barge && (!text || echoOf(text, t.said))) { if (t.left && speakAloud) speak(t.left, listenNow); return; } // a false alarm: carry on
+    if (!text) return;
+    const said = plain(text);
+    if (BYE.test(said)) { endConversation("bye"); return; }
+    if (state.busy) {
+      if (STOP_WORK.test(said)) { stopWork(); return; }
+      voice.queued = (voice.queued + " " + text).trim(); // said while Luma works: it's next
+      toast(`Next up: “${voice.queued}”`);
+      return;
+    }
+    if (t.barge && HUSH.test(said)) { listenNow(); return; } // "stop", "wait": Luma stops talking and listens
+    if (said === "stop") { endConversation("bye"); return; }
+    send(text, { voice: true });
+  }
+  function missed(e) {
+    if (!voice.on) return;
+    voice.fails++;
+    if (e.status === 503 || voice.fails >= 3) { endConversation("broken", e.message); return; }
+    toast(e.message);
+  }
+  function stopWork() {
+    api("/api/interrupt", {}).catch(() => {});
+    if (state.activity && ["running", "paused"].includes(state.activity.state)) control("stop");
+    toast("Stopping…");
+  }
+  function bargeIn() {
+    hush();
+    startTake(true); // you're already talking
+    paintVoice();
+  }
+
+  // Luma's side of the conversation.
+  function spokenFor(r) {
+    const text = String(r.text || "").trim();
+    if (r.state !== "pending") return text || String(r.summary || "");
+    // Waiting for your OK: always end on the question, so "yes" or "no" is all it takes.
+    if (text.includes("?")) return text;
+    const verb = (WANTS[r.tool] || ["", "do this"])[1];
+    const who = (TEXTY.includes(r.tool) || MAILY.includes(r.tool)) && (r.recipient_name || r.arguments?.to);
+    return `${text ? text + " " : ""}Want me to ${verb}${who ? " to " + who : ""}?`;
+  }
+  // After a turn, in a conversation: say it out loud, then listen again.
+  function talkBack(r) {
+    if (!voice.on) return;
+    const go = () => {
+      if (!voice.on) return;
+      if (voice.heard && voice.take) { setTimeout(go, 150); return; } // you're talking: let you finish
+      voice.expect = r.state === "pending";
+      const line = spokenFor(r);
+      if (speakAloud && line) speak(line, listenNow); else listenNow();
+    };
+    setTimeout(go, 0); // after the turn has wrapped up, so whatever you said meanwhile can go next
+  }
+  function listenNow() {
+    if (!voice.on) return;
+    voice.idleSince = performance.now();
+    if (voice.queued && !state.busy) { const next = voice.queued; voice.queued = ""; send(next, { voice: true }); return; }
+    paintVoice();
+  }
+  // A long job: the conversation stays open, and Luma says how it's going now and then.
+  function workChanged() {
+    clearTimeout(voice.progress);
+    voice.progressN = 0;
+    if (voice.busy && voice.on) voice.progress = setTimeout(progressTick, VOICE.progressAfter);
+    paintVoice();
+  }
+  function progressTick() {
+    if (!voice.on || !state.busy) return;
+    if (speakAloud && !voice.heard && !voice.talking) speak(progressLine(voice.progressN), paintVoice);
+    if (++voice.progressN < 3) voice.progress = setTimeout(progressTick, VOICE.progressEvery);
+  }
+  function progressLine(n) {
+    const a = state.activity;
+    const live = a && ["running", "paused"].includes(a.state) && !a.background;
+    const steps = live ? a.steps || [] : [];
+    const doing = $("doing").textContent;
+    const what = String((steps.length && steps[steps.length - 1].text) || (live && a.title) || (/^(Thinking|Listening|Hearing you|Talking|Here with you|Done)$/.test(doing) ? "" : doing)).replace(/[.…\s]+$/, "");
+    if (n === 0) return what ? `On it. ${what}.` : "On it. This one takes a moment.";
+    if (n === 1) return what ? `Still going. ${what}.` : "Still working on it.";
+    return "Still at it. I'll tell you the moment it's done.";
+  }
+  function paintVoice() {
+    const mic = $("mic");
+    const waking = !voice.on && voice.wake && Boolean(voice.stream);
+    mic.classList.toggle("on", voice.on);
+    mic.classList.toggle("wake", waking);
+    mic.setAttribute("aria-pressed", String(voice.on));
+    mic.title = voice.on ? "Stop talking (Esc)" : "Talk to Luma (⌘⇧Space)";
+    document.body.classList.toggle("talk", voice.on);
+    document.body.classList.toggle("listening", voice.on && !voice.talking);
+    if (!voice.on || voice.talking) document.documentElement.style.removeProperty("--level");
+    input.placeholder = !voice.on ? (waking ? "Ask Luma anything, or say “Hey Luma”" : "Ask Luma anything")
+      : voice.talking ? "Luma's talking… just talk to cut in"
+      : state.busy ? "Working on it… say “stop” to cancel"
+      : voice.expect ? "Say “yes” or “no”" : "Listening… just talk";
+    if (voice.on && !voice.talking && !state.busy) {
+      if (voice.heard || voice.pending) mood("thinking", "Hearing you");
+      else mood("waiting", voice.expect ? "Waiting for your yes or no" : "Listening");
+    }
+  }
+
+  // Starting and ending a conversation.
+  async function startConversation(opts = {}) {
+    if (voice.on) return;
+    Object.assign(voice, { on: true, fails: 0, typed: false, expect: false, held: "", queued: "", idleSince: performance.now() });
+    dropTake(); // a "Hey Luma" recording in progress makes way
+    if (state.view !== "chat") go("chat");
+    paintVoice();
+    if (!(await openMic())) { voice.on = false; paintVoice(); return; }
+    if (!voice.on) { if (!voice.wake) closeMic(); return; } // ended while the mic was opening
+    voice.busy = !state.busy; // the ear picks up a job that's already running
+    try { if (!localStorage.getItem("luma-talked")) { localStorage.setItem("luma-talked", "1"); toast("I'm listening. Just talk, and say “bye” when you're done."); } } catch (_) { /* private */ }
+    if (opts.text && !state.busy) send(opts.text, { voice: true });
+    else if (opts.greet && speakAloud) speak("Yeah?", listenNow);
+    else listenNow();
+  }
+  function endConversation(why, detail) {
+    if (!voice.on) return;
+    Object.assign(voice, { on: false, expect: false, queued: "", held: "" });
+    clearTimeout(voice.progress);
+    dropTake();
+    clearWords();
+    mood("idle", "Here with you");
+    const after = () => { if (!voice.on && !voice.wake) closeMic(); paintVoice(); };
+    if (why === "bye" && speakAloud) speak("Okay. I'm here when you need me.", after);
+    else if (why === "broken" && speakAloud) speak("I'm having trouble hearing you, so I stopped listening.", after);
+    else { hush(); after(); }
+    if (why === "quiet") toast("I stopped listening. Tap the mic or press ⌘⇧Space to talk again.");
+    if (why === "broken") toast(detail || "I'm having trouble hearing you right now.");
+  }
+  function toggleTalk() { if (voice.on) endConversation("tap"); else startConversation(); }
+  function setStay(on) {
+    voice.stay = on;
+    try { localStorage.setItem("luma-stay", on ? "1" : "0"); } catch (_) { /* private */ }
+  }
+  async function setWake(on) {
+    voice.wake = on;
+    try { localStorage.setItem("luma-wake", on ? "1" : "0"); } catch (_) { /* private */ }
+    if (on && !(await openMic())) { voice.wake = false; throw new Error("Luma can't use the microphone yet."); }
+    if (!on && !voice.on) closeMic();
+    paintVoice();
+  }
+  // "Hey Luma": a short bit of sound, heard on this computer. Anything else is ignored and forgotten.
+  const WAKE = /^\W*(?:(?:um|uh|so|oh)\W+)?(?:(?:hey|hi|hay|hello|okay|ok|yo)\W+(?:luma|luna|looma|lumah|loma|lumen|numa|uma)|luma)\b\W*(.*)$/i;
+  async function wakeCheck(blob) {
+    try {
+      const text = await hear(await blob, "wake");
+      const m = WAKE.exec(text);
+      if (!m || voice.on || !voice.wake) return;
+      window.lumaDesktop?.show?.(); // bring Luma's window up
+      const rest = m[1].trim();
+      startConversation(rest.split(/\s+/).length >= 2 ? { text: rest } : { greet: true });
+    } catch (_) { /* not this time */ }
+  }
+
+  $("mic").addEventListener("click", toggleTalk);
   document.addEventListener("keydown", (e) => {
-    // ⌘/Ctrl + Shift + Space starts talking from anywhere in the window.
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Space") { e.preventDefault(); $("mic").click(); }
-    if (e.key === "Escape" && (voice.rec || document.body.classList.contains("speaking"))) { stopTalkMode(); stopListening(true); hush(); }
+    // ⌘/Ctrl + Shift + Space starts (or ends) a conversation from any view and any chat.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Space") { e.preventDefault(); if (!e.repeat) toggleTalk(); return; }
+    if (e.key === "Escape" && $("palette").hidden && $("sheet").hidden && (voice.on || voice.talking)) { endConversation("esc"); hush(); }
   });
+  // From the app: "Talk to Luma" in the menu bar, and bringing Luma up (⌥Space) with Stay in conversation on.
+  window.addEventListener("luma-talk", () => startConversation());
+  window.addEventListener("luma-summon", () => { if (voice.stay) startConversation(); });
+  setTimeout(() => {
+    if (voice.stay && document.hasFocus()) startConversation();
+    else if (voice.wake) openMic().then(paintVoice);
+  }, 600);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { if (!$("palette").hidden) closePalette(); else if (!$("sheet").hidden) closeSheet(); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") { e.preventDefault(); newChat(); }
