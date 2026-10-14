@@ -670,7 +670,7 @@ body.panel-open .widgets { display: flex; }
   .nav-item .badge { display: none; }
   .feed-view { flex-direction: column; }
   .feed-list { width: auto; max-height: 40vh; }
-  .top-right .icon-btn:not(#top-theme) { display: none; }
+  .top-right .icon-btn:not(#top-theme):not(#top-glass) { display: none; }
   .empty h2 { font-size: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -727,6 +727,9 @@ body.panel-open .widgets { display: flex; }
   --ink: #111118; --ink-2: #33333d; --muted: rgba(60, 60, 75, 0.68); --faint: rgba(60, 60, 75, 0.4);
   --you-bubble: rgba(255, 255, 255, 0.78); --composer: rgba(255, 255, 255, 0.62);
   --luma-glow: conic-gradient(from var(--spin, 0deg), #ffb35c, #ff5fa2, #8a5cff, #46c8ff, #3ee6b8, #ffb35c);
+  /* See-through (below): the tint panels keep, the halo text keeps, crisper lines */
+  --clear-rgb: 250 250 253; --halo-rgb: 255 255 255; --clear-edge: rgba(20, 20, 40, 0.16); --clear-rim: rgba(255, 255, 255, 0.85);
+  --clear-ink-2: #22222b; --clear-muted: rgba(36, 36, 50, 0.88); --clear-faint: rgba(36, 36, 50, 0.72); --clear-line: rgba(20, 20, 40, 0.14); --clear-line-2: rgba(20, 20, 40, 0.22);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -741,6 +744,8 @@ body.panel-open .widgets { display: flex; }
     --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.14);
     --ink: #f5f5f7; --ink-2: rgba(245, 245, 247, 0.86); --muted: rgba(235, 235, 245, 0.58); --faint: rgba(235, 235, 245, 0.32);
     --you-bubble: rgba(255, 255, 255, 0.14); --composer: rgba(44, 44, 56, 0.55); --primary: #f5f5f7; --primary-ink: #0b0b10;
+    --clear-rgb: 20 20 28; --halo-rgb: 0 0 0; --clear-edge: rgba(0, 0, 0, 0.42); --clear-rim: rgba(255, 255, 255, 0.24);
+    --clear-ink-2: rgba(250, 250, 252, 0.94); --clear-muted: rgba(240, 240, 248, 0.8); --clear-faint: rgba(240, 240, 248, 0.56); --clear-line: rgba(255, 255, 255, 0.16); --clear-line-2: rgba(255, 255, 255, 0.24);
   }
 }
 :root[data-theme="dark"] {
@@ -755,11 +760,12 @@ body.panel-open .widgets { display: flex; }
   --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.14);
   --ink: #f5f5f7; --ink-2: rgba(245, 245, 247, 0.86); --muted: rgba(235, 235, 245, 0.58); --faint: rgba(235, 235, 245, 0.32);
   --you-bubble: rgba(255, 255, 255, 0.14); --composer: rgba(44, 44, 56, 0.55); --primary: #f5f5f7; --primary-ink: #0b0b10;
+  --clear-rgb: 20 20 28; --halo-rgb: 0 0 0; --clear-edge: rgba(0, 0, 0, 0.42); --clear-rim: rgba(255, 255, 255, 0.24);
+  --clear-ink-2: rgba(250, 250, 252, 0.94); --clear-muted: rgba(240, 240, 248, 0.8); --clear-faint: rgba(240, 240, 248, 0.56); --clear-line: rgba(255, 255, 255, 0.16); --clear-line-2: rgba(255, 255, 255, 0.24);
 }
 @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 
 html, body { background: var(--scene-base); }
-html[data-scene="clear"].platform-darwin, html[data-scene="clear"].platform-darwin body { background: transparent; }
 
 /* The scene behind the glass */
 .scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--scene-base); }
@@ -772,7 +778,7 @@ html[data-scene="clear"].platform-darwin, html[data-scene="clear"].platform-darw
 body.thinking .scene i { animation-duration: 9s; }
 .scene-photo, .scene video { position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); background-size: cover; background-position: center; object-fit: cover; }
 .scene video { transform: scaleX(-1); filter: saturate(1.15) brightness(0.92); }
-html[data-scene="camera"] .scene i, html[data-scene="photo"] .scene i, html[data-scene="clear"] .scene { display: none; }
+html[data-scene="camera"] .scene i, html[data-scene="photo"] .scene i { display: none; }
 html[data-scene="camera"] .scene::after, html[data-scene="photo"] .scene::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--scene-base) 22%, transparent); }
 
 /* Floating panels: sidebar, the main window, the side panel */
@@ -1041,3 +1047,51 @@ body.speaking .composer { box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 30px -4
 .later-row .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .later-row .s { color: var(--muted); font-size: 12.5px; }
 .later-row .chip-ic { width: 28px; height: 28px; border-radius: 50%; background: var(--card-3); display: grid; place-items: center; flex: none; }
+
+/* ======================================================================
+   See-through. Like Vision Pro: in the desktop app the window itself goes
+   clear, so a movie or another app behind Luma stays visible while you
+   work. Panels turn into thin tinted glass whose fill follows Clarity
+   (--clarity, 0–0.9), text keeps a soft halo so it reads over anything,
+   and edges get a hairline. No big blurs: a page can't blur other apps
+   anyway, and over a playing video they only cost GPU. data-see is how:
+   pixels (the window is transparent), fade (the whole window fades, on
+   Windows), preview (a plain browser, over a demo film).
+   ====================================================================== */
+:root { --clarity: 0.6; }
+html:root[data-glass="clear"] { /* html:root outranks the theme blocks */
+  --veil: calc(1 - var(--clarity));
+  --glass: rgb(var(--clear-rgb) / calc(var(--veil) * 0.92));
+  --glass-strong: rgb(var(--clear-rgb) / calc(var(--veil) * 0.4 + 0.55));
+  --glass-soft: rgb(var(--clear-rgb) / calc(var(--veil) * 0.4 + 0.12));
+  --card: rgb(var(--clear-rgb) / calc(var(--veil) * 0.4 + 0.18)); --card-2: var(--card);
+  --composer: var(--glass-strong); --you-bubble: rgb(var(--clear-rgb) / calc(var(--veil) * 0.3 + 0.6));
+  --ink-2: var(--clear-ink-2); --muted: var(--clear-muted); --faint: var(--clear-faint);
+  --line: var(--clear-line); --line-2: var(--clear-line-2); --glass-line: var(--clear-rim);
+  --text-halo: 0 0 1px rgb(var(--halo-rgb) / calc(0.25 + var(--clarity) * 0.75)), 0 0 3px rgb(var(--halo-rgb) / calc(var(--clarity) * 0.85)), 0 0 10px rgb(var(--halo-rgb) / calc(var(--clarity) * 0.6));
+}
+html[data-glass="clear"] .scene i, html[data-glass="clear"] .scene::after { display: none; }
+html[data-glass="clear"][data-see="pixels"], html[data-glass="clear"][data-see="pixels"] body { background: transparent; }
+html[data-glass="clear"][data-see="pixels"] .scene { display: none; }
+html[data-glass="clear"] *, html[data-glass="clear"] *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html[data-glass="clear"] body { text-shadow: var(--text-halo); }
+html[data-glass="clear"] :is(.pill.primary, .pill.blue, .send, .badge, .feed-tab.on, .r-act.on, .round-btn.on, .status, .sms, .slide, .co-pic, .pic, .thumb, .screen, .b-screen, .post-media, .toast, .initial, .tag, .price-chip, kbd) { text-shadow: none; }
+html[data-glass="clear"] :is(.icon-btn, .nav-item, .thread-item, .round-btn.ghost, .post-act, .w-head, .b-url) svg.i { filter: drop-shadow(0 0 1.5px rgb(var(--halo-rgb) / calc(0.15 + var(--clarity) * 0.75))); }
+html[data-glass="clear"] :is(.sidebar, .center, .widgets) { box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 0 1px var(--clear-edge), 0 24px 60px -32px rgba(0, 0, 0, 0.55); }
+.clarity-row input[type="range"] { width: min(220px, 34vw); accent-color: #8a5cff; cursor: pointer; }
+.clarity-row .clarity-val { width: 3.2em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* The demo film behind the preview: a plain browser can't show what's on your screen */
+.scene-demo { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, #14234f 0%, #3d3f8f 30%, #a1508f 52%, #f07b5a 68%, #fbb867 80%); }
+.scene-demo span { position: absolute; display: block; }
+.scene-demo .d-sun { left: 54%; top: 44%; width: 26vmin; height: 26vmin; border-radius: 50%; background: radial-gradient(circle, #fff6d8 0 30%, #ffd27a 46%, rgba(255, 170, 90, 0) 70%); animation: d-sink 40s ease-in-out infinite alternate; }
+.scene-demo .d-hill { left: -5%; right: -5%; bottom: 0; }
+.scene-demo .h1 { height: 46%; background: #6b3f78; clip-path: polygon(0 58%, 12% 30%, 24% 52%, 38% 18%, 52% 46%, 66% 22%, 80% 50%, 92% 28%, 100% 44%, 100% 100%, 0 100%); }
+.scene-demo .h2 { height: 34%; background: #3f2756; clip-path: polygon(0 40%, 16% 62%, 30% 30%, 46% 58%, 60% 34%, 76% 64%, 90% 38%, 100% 56%, 100% 100%, 0 100%); }
+.scene-demo .h3 { height: 20%; background: #1c1228; clip-path: polygon(0 50%, 20% 30%, 40% 58%, 58% 36%, 78% 62%, 100% 34%, 100% 100%, 0 100%); }
+.scene-demo .d-player { left: 0; right: 0; bottom: 0; height: 30px; display: flex; align-items: center; gap: 12px; padding: 0 24px 2px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.45)); color: rgba(255, 255, 255, 0.85); font: 600 12px var(--font); font-variant-numeric: tabular-nums; }
+.scene-demo .d-player span { position: static; }
+.scene-demo .d-bar { flex: 1; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.3); overflow: hidden; }
+.scene-demo .d-bar span { height: 100%; width: 38%; background: #ff3b5c; animation: d-play 240s linear infinite; }
+@keyframes d-sink { to { transform: translateY(8vmin) scale(1.04); } }
+@keyframes d-play { to { width: 100%; } }
