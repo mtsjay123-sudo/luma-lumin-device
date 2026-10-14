@@ -1110,3 +1110,59 @@ html[data-glass="clear"] :is(.sidebar, .center, .widgets) { box-shadow: inset 0 
 }
 @keyframes luma-sheen { 0%, 100% { background-position: 0 0, 120% 0; } 50% { background-position: 0 0, -20% 0; } }
 @media (prefers-reduced-motion: reduce) { .sidebar::after, .center::after { animation: none; } }
+
+/* ---------------------------------------------------------------- liquid motion ---
+   Everything moves like glass with water behind it: soft springs, a little blur that
+   clears, light that follows you. All of it switches off with Reduce Motion. */
+.msg:not(.seen) { animation: luma-liquid-in 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.15) both; }
+.msg.luma:not(.seen) .bubble { animation: luma-reveal 0.9s ease-out both; }
+@keyframes luma-liquid-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(8px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes luma-reveal {
+  from { -webkit-mask-image: linear-gradient(90deg, #000 0%, transparent 0%); mask-image: linear-gradient(90deg, #000 0%, transparent 0%); }
+  to { -webkit-mask-image: linear-gradient(90deg, #000 100%, transparent 130%); mask-image: linear-gradient(90deg, #000 100%, transparent 130%); }
+}
+
+/* While Luma thinks, the composer glows like light moving through glass */
+body.thinking .composer { animation: luma-aura 2.6s ease-in-out infinite; }
+@keyframes luma-aura {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(138, 92, 255, 0.35), 0 8px 34px -6px rgba(138, 92, 255, 0.45); }
+  33% { box-shadow: 0 0 0 1px rgba(70, 200, 255, 0.4), 0 8px 34px -6px rgba(70, 200, 255, 0.5); }
+  66% { box-shadow: 0 0 0 1px rgba(255, 110, 190, 0.35), 0 8px 34px -6px rgba(255, 110, 190, 0.45); }
+}
+
+/* Jelly press: squish on press, spring back on release */
+:is(.pill, .nav-item, .send, .round-btn, .icon-btn, .starter, .site, .news-item, .news-row, .wait-card, .thread-item, .segmented button) {
+  transition: transform 0.38s cubic-bezier(0.3, 1.6, 0.5, 1), background-color 0.2s, box-shadow 0.25s;
+}
+:is(.pill, .nav-item, .send, .round-btn, .icon-btn, .starter, .site, .news-item, .news-row, .wait-card, .thread-item, .segmented button):active {
+  transform: scale(0.94); transition-duration: 0.08s;
+}
+
+/* Cards float up a hair under the pointer */
+:is(.card.connect-card, .later-row, .app-card, .idea-grid > *, .goal-list > *):hover { transform: translateY(-2px); box-shadow: 0 18px 40px -22px rgba(40, 20, 90, 0.45); }
+:is(.card.connect-card, .later-row, .app-card, .idea-grid > *, .goal-list > *) { transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.25, 1.2), box-shadow 0.3s; }
+
+/* Switching screens glides like panes of glass */
+.view:not([hidden]) { animation: luma-view-in 0.42s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
+@keyframes luma-view-in { from { opacity: 0; transform: translateY(8px) scale(0.99); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* A droplet of light where you tap */
+.luma-drop {
+  position: fixed; z-index: 9999; pointer-events: none; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(180, 160, 255, 0.35) 45%, transparent 70%);
+  animation: luma-drop 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes luma-drop { from { transform: scale(0.3); opacity: 0.9; } to { transform: scale(5.5); opacity: 0; } }
+
+/* The status dot breathes while Luma works */
+body.thinking .status small { background: linear-gradient(90deg, var(--muted), #8a5cff, #46c8ff, var(--muted)) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: luma-flow 2.4s linear infinite; }
+@keyframes luma-flow { to { background-position: -300% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .msg:not(.seen), .msg.luma:not(.seen) .bubble, body.thinking .composer, .view:not([hidden]), .luma-drop, body.thinking .status small { animation: none !important; }
+  :is(.pill, .nav-item, .send, .round-btn, .icon-btn, .starter):active { transform: none; }
+}

@@ -1145,6 +1145,18 @@
   }
 
   // -------------------------------------------------------------- nav ---
+  // A droplet of light wherever you tap something.
+  addEventListener("pointerdown", (e) => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || !e.target.closest?.("button, .nav-item, a, .news-item")) return;
+    const d = document.createElement("span");
+    d.className = "luma-drop";
+    d.style.left = e.clientX + "px"; d.style.top = e.clientY + "px";
+    document.body.append(d);
+    setTimeout(() => d.remove(), 650);
+  }, { passive: true });
+  // While Luma works, the composer and status glow.
+  setInterval(() => document.body.classList.toggle("thinking", Boolean(state.busy)), 150);
+
   // Liquid glass: the panels catch the light where your pointer is, like Vision Pro glass.
   addEventListener("pointermove", (e) => {
     document.documentElement.style.setProperty("--mx", e.clientX + "px");
