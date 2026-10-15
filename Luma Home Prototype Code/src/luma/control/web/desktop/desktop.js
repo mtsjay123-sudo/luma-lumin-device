@@ -2152,7 +2152,20 @@
       c.append(foot);
       box.append(c);
     }
-    if (!(state.home?.helpers || []).length) box.append(el("p", "lede", "No goals yet. Try a price watch: I'll check every day and tell you when it drops."));
+    if (!(state.home?.helpers || []).length) {
+      const e = el("section", "goal-starters");
+      e.append(el("h3", null, "Start with one of these"));
+      const row = el("div", "goal-start-row");
+      for (const [emoji, title, sub, kind] of [["🏷️", "Watch a price", "Tell me when it drops", "price_watch"], ["📬", "Inbox check", "Every morning: what needs you", "inbox_digest"],
+        ["📱", "Feed catch-up", "The good parts of your feed", "feed_digest"], ["☀️", "Morning agenda", "Your day, before you ask", "agenda"], ["🎯", "Anything", "Say it in your own words", "goal"]]) {
+        const b = btn("", "goal-start", () => { goalKind = kind; renderGoals(); $("goal-form").querySelector("input, textarea")?.focus(); $("goal-form").scrollIntoView({ behavior: "smooth", block: "center" }); });
+        b.title = "Set this up above";
+        b.append(el("span", "e", emoji), el("b", null, title), el("small", null, sub));
+        row.append(b);
+      }
+      e.append(row);
+      box.append(e);
+    }
   }
   function spark(values) {
     const w = 260, h = 34, min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
@@ -2455,7 +2468,27 @@
         t.append(tile);
       }
     }
-    if (!box.children.length) box.append(el("p", "lede", "Nothing yet. Ask me for a deck, a price check or a text and it'll show up here."));
+    // Always a way to make something new: a shelf of starters (and the whole page, when it's empty).
+    const starters = el("section", "lib-make" + (box.children.length ? "" : " first"));
+    starters.append(el("h2", null, box.children.length ? "Make something new" : "Nothing here yet. What should I make?"));
+    const shelf = el("div", "lib-shelf");
+    for (const [cls, k, title, sub, say] of [
+      ["deck", "Deck", "A pitch deck", "Ten slides with speaker notes", "make me a pitch deck about "],
+      ["doc", "Doc", "A document", "A plan, a letter, a one-pager", "write me a document about "],
+      ["pdf", "PDF", "A PDF", "Ready to send or print", "make a PDF of "],
+      ["app", "App", "A small app", "A tool that runs right here", "build me a small app that "],
+      ["pod", "Podcast", "A podcast", "Two voices, any topic", "make a podcast about "],
+      ["deal", "Deal", "A price check", "Every store, the real cheapest", "find the cheapest "],
+    ]) {
+      const t = btn("", "lib-start ls-" + cls, () => { go("chat"); prefill(say); });
+      t.title = `Ask Luma: “${say.trim()} …”`;
+      const art = el("div", "lib-art");
+      art.append(el("span", "k", k), el("span", "lines"));
+      t.append(art, el("b", null, title), el("small", null, sub));
+      shelf.append(t);
+    }
+    starters.append(shelf);
+    box.append(starters);
   }
 
   // -------------------------------------------------------------- apps ---

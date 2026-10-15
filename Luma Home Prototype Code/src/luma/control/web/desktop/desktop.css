@@ -2105,3 +2105,33 @@ body.thinking .dc-orb { animation: orbit-spin 1.6s linear infinite; }
 .b-who { cursor: pointer; }
 .work-row { width: 100%; text-align: left; } .work-row:hover b { text-decoration: underline; }
 .nw .nw-feature-cap .n-meta { color: rgba(255, 255, 255, 0.72); }
+
+/* Library: a shelf of things to make */
+.lib-make { margin-top: 26px; }
+.lib-make.first { margin-top: 6px; }
+.lib-make h2 { font-family: var(--serif); font-weight: 400; font-size: 28px; margin: 0 0 14px; }
+.lib-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.lib-start { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 12px 12px 14px; border-radius: 22px; background: var(--si-glass); border: 1px solid var(--si-glass-line); box-shadow: var(--si-shadow-sm); transition: transform 0.18s, box-shadow 0.18s; }
+.lib-start:hover { transform: translateY(-3px) rotate(-0.4deg); box-shadow: var(--si-shadow); }
+.lib-start b { font-size: 14px; font-weight: 640; margin-top: 8px; }
+.lib-start small { font-size: 12px; color: var(--muted); }
+.lib-art { position: relative; height: 112px; border-radius: 14px; overflow: hidden; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; }
+.lib-art .k { align-self: flex-start; font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.22); }
+.lib-art .lines { height: 34px; background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0 4px, transparent 4px 11px); width: 70%; border-radius: 2px; opacity: 0.8; }
+.lib-start.ls-deck .lib-art { background: linear-gradient(135deg, #1b1f4b, #5b3cc4 60%, #ff7a59); }
+.lib-start.ls-doc .lib-art { background: linear-gradient(135deg, #f4efe6, #d9cdb8); color: #3a3226; }
+.lib-start.ls-doc .lib-art .lines { background: repeating-linear-gradient(180deg, rgba(58, 50, 38, 0.35) 0 4px, transparent 4px 11px); }
+.lib-start.ls-doc .lib-art .k { background: rgba(58, 50, 38, 0.12); }
+.lib-start.ls-pdf .lib-art { background: linear-gradient(135deg, #e5262f, #ff8a5c); }
+.lib-start.ls-app .lib-art { background: linear-gradient(135deg, #0f8f6b, #3ee6b8); }
+.lib-start.ls-pod .lib-art { background: radial-gradient(circle at 70% 30%, #ff5fa2, #6a2bd9 70%); }
+.lib-start.ls-deal .lib-art { background: linear-gradient(135deg, #f5b860, #ff7a1a); }
+/* Goals: starters when there are none */
+.goal-starters h3 { margin: 6px 2px 12px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+.goal-start-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.goal-start { display: grid; gap: 4px; text-align: left; padding: 16px; border-radius: 20px; background: var(--si-glass); border: 1px solid var(--si-glass-line); box-shadow: var(--si-shadow-sm); transition: transform 0.15s; }
+.goal-start:hover { transform: translateY(-2px); }
+.goal-start .e { font-size: 24px; } .goal-start b { font-size: 14px; } .goal-start small { color: var(--muted); font-size: 12px; }
+.link-addr { height: 36px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font-size: 13px; }
+.lib-shelf, .goal-start-row { align-content: start; align-items: start; grid-auto-rows: max-content; }
+.lib-make { flex: none; }
