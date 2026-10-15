@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, quote_plus, urlsplit
+from luma.llm.brain import BrainUnavailable
 from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
 from luma.integrations.phone_app import PhoneApp
 
@@ -192,6 +193,7 @@ def home_payload(agent, owner=True):
                      'style': agent.store.setting('their_style') or ''} if owner and agent.mode != 'kids' else None,
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
         'glance': _glance(agent) if owner and agent.mode != 'kids' else None,
+        'signup': agent.signup_status() if owner and agent.mode != 'kids' else {'done': True},
     }
 
 
@@ -588,6 +590,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if companion: return self.send({'error':'Set the household personality on the Mac.'},403)
                         if set(data)=={'name'}: data={**(agent.store.setting('personality') or {}),'name':data['name']}
                         result={'profile':agent.set_profile(data)}
+                    elif path=='/api/signup':
+                        if companion: return self.send({'error':'Sign up on the Mac.'},403)
+                        result=agent.complete_signup(data)
                     elif path=='/api/about':
                         if companion: return self.send({'error':'Set this up on the Mac.'},403)
                         result={'about':agent.set_about(data)}
@@ -863,9 +868,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     else: return self.send({'error':'Not found'},404)
                 if result.get('state')=='pending' and not result.get('event_id'): ctx.publish(result)
                 return self.send(result)
+            except BrainUnavailable as e: return self.send({'error':str(e),'brain_down':True},503)
             except (ValueError,TypeError,KeyError) as e: return self.send({'error':str(e)},400)
             except RuntimeError as e: return self.send({'error':str(e)},502)
-            except Exception: return self.send({'error':'The operation could not be confirmed. Check the device terminal; no success was assumed.'},500)
+            except Exception:
+                import traceback; traceback.print_exc()  # into the runtime log, so a problem can be found and fixed
+                return self.send({'error':"Something went wrong on my side, and nothing was sent or bought. Try that again. If it keeps happening, Help → Runtime Log shows why."},500)
 
     server=ThreadingHTTPServer((bind or phone_host or '127.0.0.1',port),Handler)
     server.daemon_threads=True
@@ -895,14 +903,19 @@ def serve(agent,port,phone_host=None,phone_port=8096):
     ctx=server.control_context
     if phone_host: ctx.start_phone(phone_host,phone_port)
     print(f'LUMA local control: http://127.0.0.1:{server.server_port}/',flush=True)
+    try:
+        from luma.llm import brain as _brain
+        h=_brain.health()
+        print('LUMA brain: '+('ready' if h['ok'] else 'NOT READY - '+h['say']),flush=True)  # the first thing to check in the runtime log
+    except Exception as error: print(f'LUMA brain check failed: {error}',flush=True)
     if ctx.phone_origin: print('LUMA phone connection: '+ctx.phone_origin,flush=True)
     def hands_free():
         try:
             from luma.orchestrator import start_hands_free
             start_hands_free(agent,server.agent_stop)
-        except ImportError as error:
+        except Exception as error:  # never let the microphone take Luma down
             # The desktop app installs Luma without voice; typing still works.
-            print(f'LUMA voice is off ({error.name or error} is not installed). Install the voice extras to talk out loud.',flush=True)
+            print(f'LUMA voice is off ({getattr(error,"name",None) or error}). Typing and the app\'s own voice still work.',flush=True)
     threading.Thread(target=hands_free,daemon=True).start()
     def ears():
         # The desktop app gets Luma's speech model ready in the background, so the mic is quick the first time.

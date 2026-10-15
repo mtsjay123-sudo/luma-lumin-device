@@ -311,7 +311,7 @@ class MindTests(unittest.TestCase):
         self.assertEqual(len(about["people"]), 1)
         self.assertEqual(self.agent.profile["name"], "Xiena")
         texts = [m["text"] for m in self.store.all("memory", 50) if m.get("source") == "about_you"]
-        self.assertIn("My birthday is October 14", texts)
+        self.assertIn("Your birthday is October 14", texts)
         self.assertIn("Maya's birthday is March 2", texts)
         with self.assertRaises(ValueError):
             self.agent.set_about({"birthday": "nonsense"})

@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld("lumaDesktop", {
   useDevice: (entry) => ipcRenderer.invoke("luma:use-device", { url: entry?.url, origin: entry?.origin, fingerprint: entry?.fingerprint }),
   useLocal: () => ipcRenderer.invoke("luma:use-local"),
   prefersDevice: () => ipcRenderer.invoke("luma:device-pref"),
+  // Luma's runtime stopped and the app started it again: the page says so, kindly.
+  onRestarted: (callback) => ipcRenderer.on("luma:restarted", (_event, info) => callback(info)),
+  // Repair: reinstall Luma's tools and fetch its brain again, then start fresh.
+  repair: () => ipcRenderer.invoke("luma:repair"),
 });
 
 window.addEventListener("DOMContentLoaded", () => {

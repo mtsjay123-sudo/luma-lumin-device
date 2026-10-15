@@ -133,7 +133,19 @@ def _data_uri(data):
 
 
 def look(image_bytes, question=None, name=""):
-    """What's in the picture, in Luma's own words. Raises ValueError if vision isn't ready or the image is bad."""
+    """What's in the picture, in Luma's own words. Raises ValueError if vision isn't ready or the image is bad.
+    When Luma is serving, the looking happens in the brain's own process, so a crash there can't take Luma down."""
+    from luma.llm import worker
+    if worker.enabled():
+        if not isinstance(image_bytes, (bytes, bytearray)) or not image_bytes:
+            raise ValueError("Give me a photo to look at.")
+        if not available():
+            raise ValueError("not_ready")
+        return worker.brain().call("look", {"image_bytes": bytes(image_bytes), "question": question})
+    return _look_here(image_bytes, question, name)
+
+
+def _look_here(image_bytes, question=None, name="", cancel_event=None, on_text=None):
     if not isinstance(image_bytes, (bytes, bytearray)) or not image_bytes:
         raise ValueError("Give me a photo to look at.")
     if len(image_bytes) > _MAX_IMAGE_BYTES:

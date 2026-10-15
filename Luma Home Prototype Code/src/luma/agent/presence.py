@@ -165,7 +165,7 @@ def check_in_line(topic, seed):
     return CHECK_INS[seed % len(CHECK_INS)].format(topic=topic)
 
 
-BIRTHDAY = re.compile(r"(?:\b(?P<who>[A-Z][a-z]+)(?:'s|’s)\s+|\b(?P<my>[Mm]y|[Oo]ur)\s+(?:(?P<rel>[a-z]+)(?:'s|’s)?\s+)?)"
+BIRTHDAY = re.compile(r"(?:\b(?P<who>[A-Z][a-z]+)(?:'s|’s)\s+|\b(?P<my>[Mm]y|[Oo]ur|[Yy]our)\s+(?:(?P<rel>[a-z]+)(?:'s|’s)?\s+)?)"
                       r"(?P<what>birthday|bday|anniversary)\s+is\s+(?:on\s+)?(?P<month>[A-Za-z]+)\.?\s+(?P<day>\d{1,2})")
 
 

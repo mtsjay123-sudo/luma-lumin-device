@@ -327,4 +327,7 @@ function needsSetup(home) {
   return !fs.existsSync(pythonPath(home)) || !state.packages || !model || !voiceReady(home);
 }
 
-module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady };
+// Repair: the next start reinstalls Luma's tools and checks its brain file again.
+function forgetInstall(home) { writeState(home, { packages: null, browser: null }); }
+
+module.exports = { forgetInstall, ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady };

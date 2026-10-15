@@ -1661,3 +1661,130 @@ body.speaking .si-orb.huge > i { animation-duration: 2.2s; }
 @keyframes si-unwheel { to { transform: rotate(-360deg) scaleY(3.7037); } }
 .ts-system { perspective: none; transform-style: flat; }
 @media (prefers-reduced-motion: reduce) { .ts-system .spin, .ts-system .planet { animation: none !important; } }
+.brain-health { margin: 8px 0; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.45; }
+.brain-health.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--ink); }
+.brain-health.ok { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--muted); }
+.brain-help { margin-top: 2px; }
+
+/* ======================================================================
+   Talking, as an aura. No planets, no hard circle: light that breathes.
+   Cool while it listens, swirling violet while it thinks, warm while it
+   speaks, and it moves with your voice and with Luma's.
+   ====================================================================== */
+.talk-space { background: #050509; }
+.talk-space::before { display: none; }
+.ts-aura { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ts-grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>"); }
+.ts-words { bottom: 13vh; }
+.ts-line { display: block; -webkit-line-clamp: unset; max-height: 4.6em; overflow: hidden; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.35); animation: none; }
+.ts-line .w { opacity: 0.28; transition: opacity 0.25s ease, filter 0.25s ease; filter: blur(0.4px); }
+.ts-line .w.on { opacity: 1; filter: none; }
+.ts-line.still .w { opacity: 1; filter: none; }
+.ts-you { color: rgba(255, 255, 255, 0.62); }
+.ts-state::before { transition: background 0.4s, box-shadow 0.4s; }
+.ts-btn { -webkit-app-region: no-drag; }
+
+/* ======================================================================
+   Sign up. One question at a time over a living aura; a zodiac reveal;
+   and at the end, the first memories Luma keeps, appearing as cards.
+   ====================================================================== */
+.signup { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; background: #06060b; color: #f4f3f8; overflow: hidden; font-family: var(--font); }
+.signup[hidden] { display: none; }
+.su-aura { position: absolute; inset: 0; width: 100%; height: 100%; }
+.su-top { position: absolute; top: 0; left: 0; right: 0; height: 74px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px 0 92px; -webkit-app-region: drag; }
+.su-brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 22px; }
+.su-brand img { border-radius: 7px; }
+.su-brand em { font-style: italic; color: rgba(255, 255, 255, 0.6); }
+.su-private { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+.su-steps { display: flex; gap: 6px; }
+.su-steps i { width: 22px; height: 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); transition: background 0.4s, width 0.4s; }
+.su-steps i.on { background: #fff; width: 34px; }
+.su-steps i.done { background: rgba(255, 255, 255, 0.5); }
+.su-card { position: relative; width: min(580px, calc(100vw - 32px)); max-height: calc(100vh - 120px); overflow-y: auto; padding: 46px 48px 34px; border-radius: 32px;
+  background: rgba(14, 14, 22, 0.52); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 50px 120px -40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(40px) saturate(150%); backdrop-filter: blur(40px) saturate(150%); scrollbar-width: none; }
+.su-card::-webkit-scrollbar { display: none; }
+.su-back { position: absolute; top: 18px; left: 18px; width: 36px; height: 36px; border-radius: 50%; color: rgba(255, 255, 255, 0.7); background: rgba(255, 255, 255, 0.06); font-size: 16px; }
+.su-back:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.su-back[hidden] { display: none; }
+.su-pane { display: flex; flex-direction: column; gap: 14px; animation: su-in 0.55s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes su-in { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.su-pane h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1.02; letter-spacing: -0.015em; }
+.su-pane h1 em { font-style: italic; }
+.su-pane .su-sub { margin: 0 0 6px; font-size: 15px; line-height: 1.55; color: rgba(255, 255, 255, 0.66); }
+.su-label { font-size: 11px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); margin: 8px 0 -4px; }
+.su-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.su-row.three { grid-template-columns: 1.3fr 0.7fr 1fr; }
+.su-in, .su-sel { width: 100%; height: 54px; padding: 0 18px; border-radius: 16px; font-size: 16px; color: #fff; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); outline: none; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; }
+.su-sel { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' stroke='white' stroke-opacity='.6' stroke-width='1.6' fill='none'/></svg>"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 36px; }
+.su-sel option { color: #111; }
+.su-in::placeholder { color: rgba(255, 255, 255, 0.38); }
+.su-in:focus, .su-sel:focus { border-color: rgba(190, 170, 255, 0.7); background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 4px rgba(140, 110, 255, 0.18); }
+.su-in.bad { border-color: #ff6b7a; }
+.su-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.su-chip { height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; color: rgba(255, 255, 255, 0.86); background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); transition: background 0.2s, transform 0.15s; }
+.su-chip:hover { background: rgba(255, 255, 255, 0.13); transform: translateY(-1px); }
+.su-chip.on { background: #fff; color: #0b0b12; border-color: #fff; }
+.su-go { align-self: flex-start; margin-top: 10px; height: 54px; padding: 0 28px; border-radius: 999px; font-size: 15.5px; font-weight: 650; color: #0a0a12; background: #fff; box-shadow: 0 18px 40px -16px rgba(150, 120, 255, 0.8); transition: transform 0.15s, opacity 0.2s; }
+.su-go:hover { transform: translateY(-2px); }
+.su-go:disabled { opacity: 0.5; transform: none; }
+.su-link { align-self: flex-start; font-size: 13.5px; color: rgba(255, 255, 255, 0.62); text-decoration: underline; text-underline-offset: 3px; }
+.su-link:hover { color: #fff; }
+.su-fine { font-size: 12.5px; line-height: 1.5; color: rgba(255, 255, 255, 0.45); margin: 4px 0 0; }
+.su-error { min-height: 18px; margin: 12px 0 0; font-size: 13.5px; color: #ff9aa5; }
+.su-person { display: grid; grid-template-columns: 1.2fr 1fr 0.8fr 0.6fr; gap: 8px; }
+.su-person .su-in, .su-person .su-sel { height: 48px; font-size: 14.5px; padding: 0 12px; }
+.su-person .su-sel { padding-right: 28px; background-position: right 10px center; }
+.su-code { display: flex; gap: 8px; }
+.su-code input { width: 52px; height: 60px; text-align: center; font-size: 24px; border-radius: 14px; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); outline: none; }
+.su-code input:focus { border-color: rgba(190, 170, 255, 0.8); }
+.su-mems { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px 2px; scrollbar-width: none; }
+.su-mem { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.1); font-size: 15px;
+  animation: su-mem 0.6s cubic-bezier(.2, .8, .2, 1) both; }
+.su-mem span { font-size: 20px; }
+@keyframes su-mem { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+/* the zodiac reveal */
+.su-zodiac { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(60% 60% at 50% 45%, rgba(14, 10, 40, 0.55), rgba(3, 3, 8, 0.94)); animation: su-in 0.6s ease both; }
+.signup.revealing .su-card, .signup.revealing .su-top { opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
+.su-zodiac[hidden] { display: none; }
+.su-stars { width: min(520px, 80vw); height: auto; margin-bottom: -40px; overflow: visible; }
+.su-stars line { stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.9; stroke-dasharray: 200; stroke-dashoffset: 200; animation: su-draw 1.6s ease forwards; }
+.su-stars circle { fill: #fff; opacity: 0; animation: su-star 0.6s ease forwards; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9)); }
+@keyframes su-draw { to { stroke-dashoffset: 0; } }
+@keyframes su-star { to { opacity: 1; } }
+.su-glyph { font-size: 92px; line-height: 1; margin: 0 0 8px; background: linear-gradient(135deg, #fff, var(--el, #c9b8ff)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 30px var(--el, #8a5cff)); animation: su-glyph 1.2s cubic-bezier(.2, 1.4, .3, 1) both 0.3s; font-family: "Apple Symbols", "Segoe UI Symbol", "Noto Sans Symbols", serif; }
+@keyframes su-glyph { from { opacity: 0; transform: scale(0.4) rotate(-30deg); } to { opacity: 1; transform: none; } }
+.su-k { margin: 0; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); animation: su-in 0.6s ease both 0.6s; }
+.su-sign { margin: 6px 0 4px; font-family: var(--serif); font-weight: 400; font-size: clamp(64px, 9vw, 112px); line-height: 0.95; letter-spacing: -0.02em; animation: su-in 0.8s ease both 0.75s; }
+.su-dates { margin: 0; font-size: 14px; color: rgba(255, 255, 255, 0.62); animation: su-in 0.6s ease both 0.95s; }
+.su-line { margin: 18px 0 26px; max-width: 460px; font-family: var(--serif); font-style: italic; font-size: 26px; line-height: 1.2; color: rgba(255, 255, 255, 0.9); animation: su-in 0.7s ease both 1.15s; }
+.su-zodiac .su-go { align-self: center; animation: su-in 0.6s ease both 1.4s; }
+@media (max-width: 640px) { .su-card { padding: 40px 22px 26px; } .su-pane h1 { font-size: 36px; } .su-person { grid-template-columns: 1fr 1fr; } .su-top { padding: 0 16px 0 80px; } .su-private { display: none; } }
+.signup { transition: opacity 0.6s ease; }
+.signup.leaving { opacity: 0; pointer-events: none; }
+
+/* The deck: solid cards, the ones behind dimmed (no text showing through), quiet icon actions */
+.mem-card { overflow: hidden; }
+.mem-card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: #0b0b0e; opacity: var(--dim, 0); pointer-events: none; transition: opacity 0.5s; z-index: 2; }
+:root[data-theme="light"] .mem-card::before { background: #e9e9ee; }
+.mem-card .meta { flex-wrap: wrap; row-gap: 6px; }
+.mem-card .round-btn.mini { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.mem-card .round-btn.mini:hover { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.mem-card .round-btn.mini svg { width: 15px; height: 15px; }
+.mem-card.goals .art { background: linear-gradient(155deg, #ffd27a, #ff7a59); }
+@media (max-width: 1400px) { .mem-stage { grid-template-columns: 190px minmax(0, 1fr) 40px; gap: 16px; } .mem-card { grid-template-columns: 58px minmax(0, 1fr) 104px; padding: 20px; } .mem-card .art { font-size: 38px; } .mem-tag { font-size: 22px; } .mem-card .text { font-size: 23px; } }
+
+/* ---------------------------------------------------------------- smooth at any size ---
+   Nothing animates behind glass, and nothing big runs a blur filter every frame: the
+   backdrop stays still, the stage's colours are soft gradients that only move. */
+.scene i { animation: none !important; filter: none !important; opacity: 0.16; }
+.si-aurora { filter: none; inset: -12%; }
+.si-aurora i { will-change: transform; }
+.si-aurora i:nth-child(1) { background: radial-gradient(closest-side, #ff5a36, rgba(255, 90, 54, 0.35) 55%, transparent); width: 46%; height: 80%; left: 8%; top: 30%; }
+.si-aurora i:nth-child(2) { background: radial-gradient(closest-side, #2f6df6, rgba(47, 109, 246, 0.35) 55%, transparent); width: 42%; height: 84%; left: 30%; top: 26%; }
+.si-aurora i:nth-child(3) { background: radial-gradient(closest-side, #f3efe6, rgba(243, 239, 230, 0.25) 55%, transparent); width: 36%; height: 76%; left: 48%; top: 34%; }
+.si-aurora i:nth-child(4) { background: radial-gradient(closest-side, #ff8a2b, rgba(255, 138, 43, 0.35) 55%, transparent); width: 42%; height: 80%; left: 58%; top: 28%; }
+.si-aurora i:nth-child(5) { background: radial-gradient(closest-side, #7c4dff, rgba(124, 77, 255, 0.3) 55%, transparent); width: 76%; height: 56%; left: 12%; top: 74%; }
+@keyframes luma-view-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.chat-view.is-empty .composer { -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%); }

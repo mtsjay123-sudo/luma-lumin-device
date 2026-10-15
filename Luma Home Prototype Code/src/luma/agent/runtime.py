@@ -2003,6 +2003,92 @@ class Agent:
         if not self.store.setting("first_seen"): self.store.set_setting("first_seen", self.clock())
         return about
 
+    # -- signing up: who they are, in their words, kept from the very first minute ------------
+    ZODIAC = [((1, 20), "Aquarius"), ((2, 19), "Pisces"), ((3, 21), "Aries"), ((4, 20), "Taurus"), ((5, 21), "Gemini"), ((6, 21), "Cancer"),
+              ((7, 23), "Leo"), ((8, 23), "Virgo"), ((9, 23), "Libra"), ((10, 23), "Scorpio"), ((11, 22), "Sagittarius"), ((12, 22), "Capricorn")]
+
+    @classmethod
+    def zodiac(cls, month, day):
+        """The sun sign for a birthday (the day each sign starts, in order)."""
+        sign = "Capricorn"
+        for (m, d), name in cls.ZODIAC:
+            if (month, day) < (m, d):
+                return sign
+            sign = name
+        return sign
+
+    def complete_signup(self, data):
+        """The sign-up form: their name, birthday, how to reach them, their people and favorites.
+        Saved to their profile and About you, and turned into memories they can see right away."""
+        if self.mode == "kids": raise ValueError("Ask a grown-up to set Luma up.")
+        if not isinstance(data, dict): raise ValueError("Fill in the sign-up form.")
+        clean = lambda v, n=80: " ".join(str(v or "").split())[:n]
+        first, last = clean(data.get("first"), 40), clean(data.get("last"), 40)
+        if not first or not re.fullmatch(r"[^\d@<>{}]{1,40}", first): raise ValueError("Tell me your first name.")
+        if not last or not re.fullmatch(r"[^\d@<>{}]{1,40}", last): raise ValueError("Tell me your last name.")
+        dob = clean(data.get("dob"), 10)
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", dob)
+        if not m: raise ValueError("Pick your date of birth.")
+        born = datetime(int(m[1]), int(m[2]), int(m[3])).date()
+        today = datetime.fromtimestamp(self.clock(), self.zone).date()
+        age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+        if age < 13: raise ValueError("Luma needs a grown-up to set it up for anyone under 13.")
+        if age > 120: raise ValueError("That birth year doesn't look right.")
+        email = clean(data.get("email"), 120).lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", email): raise ValueError("That email doesn't look right.")
+        phone = re.sub(r"[^\d+]", "", str(data.get("phone") or ""))
+        if not re.fullmatch(r"\+?\d{10,15}", phone): raise ValueError("That phone number doesn't look right.")
+        sign = self.zodiac(born.month, born.day)
+        people = []
+        partner = data.get("partner") if isinstance(data.get("partner"), dict) else {}
+        status = clean(data.get("relationship"), 30).lower()
+        if partner.get("name"):
+            people.append({"name": clean(partner.get("name"), 40), "relation": clean(partner.get("relation") or "partner", 30).lower(), "birthday": clean(partner.get("birthday"), 10)})
+        for p in (data.get("people") or [])[:6]:
+            if isinstance(p, dict) and clean(p.get("name"), 40):
+                people.append({"name": clean(p.get("name"), 40), "relation": clean(p.get("relation"), 30).lower(), "birthday": clean(p.get("birthday"), 10)})
+        interests = data.get("interests") if isinstance(data.get("interests"), list) else []
+        about = {**(self.store.setting("about") or {}), "birthday": dob, "people": people,
+                 "work": clean(data.get("work"), 120), "home": clean(data.get("home"), 80), "music": clean(data.get("music"), 160),
+                 "food": clean(data.get("food"), 160), "interests": ", ".join(clean(i, 30) for i in interests[:12] if clean(i, 30)),
+                 "goals": clean(data.get("goals"), 300)}
+        about = self.set_about({**about, "name": first})
+        self.store.set_setting("account_profile", {"first": first, "last": last, "email": email, "phone": phone, "dob": dob, "sign": sign,
+                                                   "relationship": status, "signed_up": self.clock()})
+        # What they told Luma, as memories they can see, edit or delete under Identity.
+        for old in self.store.all("memory", 1000):
+            if old.get("source") == "signup": self.store.delete("memory", old["id"])
+        lines = [f"Your name is {first} {last}", f"You're a {sign}, born {born.strftime('%B')} {born.day}, {born.year}"]
+        rel = {"dating": "You're seeing someone", "married": "You're married", "engaged": "You're engaged", "single": "You're single", "complicated": "It's complicated, romantically"}.get(status)
+        if rel and partner.get("name"):
+            rel = {"dating": f"You're dating {clean(partner['name'], 40)}", "married": f"You're married to {clean(partner['name'], 40)}",
+                   "engaged": f"You're engaged to {clean(partner['name'], 40)}"}.get(status, rel)
+        if rel: lines.append(rel)
+        for i, p in enumerate(people):
+            said = i == 0 and partner.get("name") and rel and partner["name"] in rel  # "You're dating Jay" already says it
+            if p["relation"] and p["name"] and not said: lines.append(f"{p['name']} is your {p['relation']}")
+        work = about.get("work") or ""
+        if work:
+            student = re.match(r"(?i)(?:student|study|studying|school|college)", work)
+            at_place = re.match(r"(?i)(?:at|in|for)\b", work)
+            lines.append(f"You're a student: {work}" if student else f"You work {work}" if at_place else f"You work as {work}")
+        if about.get("home"): lines.append(f"You live in {about['home']}")
+        if about.get("music"): lines.append(f"You love {about['music']}")
+        if about.get("food"): lines.append(f"Your favorite food is {about['food']}")
+        if about.get("interests"): lines.append(f"You're into {about['interests']}")
+        if about.get("goals"): lines.append(f"Your goal: {about['goals']}")
+        saved = []
+        for i, line in enumerate(lines):
+            row = self.store.put("memory", {"text": line, "source": "signup", "created": self.clock() + i * 0.001}, f"signup-{i}")
+            saved.append({"id": row["id"], "text": line})
+        saved += [{"id": r["id"], "text": r["text"]} for r in self.store.all("memory", 200) if r.get("source") == "about_you"]
+        self.store.set_setting("signed_up", True)
+        return {"profile": self.store.setting("account_profile"), "sign": sign, "memories": saved, "about": about}
+
+    def signup_status(self):
+        prof = self.store.setting("account_profile") or {}
+        return {"done": bool(self.store.setting("signed_up")), "first": prof.get("first", ""), "sign": prof.get("sign", "")}
+
     # -- how they talk: Luma catches on and talks back the same way --------------------------
     SLANG = ("bet", "fr", "ngl", "tf", "lol", "lmao", "bro", "bruh", "nah", "yeah", "lowkey", "highkey", "deadass", "finna", "ima", "gonna", "wanna",
              "tbh", "idk", "rn", "smh", "fam", "dope", "lit", "vibe", "yo", "aight", "ight", "yup", "nope", "omg", "pls", "thx", "ty", "my g", "twin", "gang")

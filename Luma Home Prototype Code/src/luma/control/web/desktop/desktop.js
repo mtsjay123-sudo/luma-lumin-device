@@ -82,7 +82,7 @@
   async function api(path, data) {
     const r = await fetch(path, data === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(d.error || "Luma couldn't do that."), { status: r.status });
+    if (!r.ok) throw Object.assign(new Error(d.error || "Luma couldn't do that."), { status: r.status, data: d });
     return d;
   }
   function el(tag, cls, text) {
@@ -285,6 +285,8 @@
   const fromApp = (g) => { const next = cleanGlass(g); if (!next) return false; glass = next; applyGlass(); keepGlass(); return true; };
   desk?.getGlass?.().then((g) => { if (!fromApp(g)) setGlass({}); }).catch(() => {});
   desk?.onGlass?.((g) => { if (fromApp(g) && state.view === "settings") renderSettings(); });
+  // Luma's engine stopped and the app started it again: say so once, kindly, and carry on.
+  desk?.onRestarted?.(() => { toast("Luma hit a snag and restarted. Everything's still here."); mood("idle", "Here with you"); refreshHome().catch(() => {}); });
   // Make a picture small on this computer before it goes anywhere.
   async function shrinkPhoto(file, side, maxChars) {
     const img = await createImageBitmap(file).catch(() => { throw new Error("That isn't a picture Luma can read."); });
@@ -417,6 +419,7 @@
         const extra = m.result ? rich(m.result) : null;
         if (extra) row.append(extra);
         if (m.result?.walk) row.append(walkStrip(m.result.walk));
+        if (m.result?.brain_down) row.append(brainHelp());
         if (m.result?.photo) { const a = el("div", "actions"); a.append(btn("Choose a photo", "pill soft small", () => $("photo-input").click(), "image")); row.append(a); }
         if (m.result?.choices?.length) row.append(choiceChips(m.result.choices));
         if (m.result?.noticed?.length) row.append(rememberedNote(m.result.noticed));
@@ -508,6 +511,19 @@
   }
   function memEmoji(t) {
     const x = String(t || "").toLowerCase();
+    const sign = /you're an? (aries|taurus|gemini|cancer|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)\b/.exec(x);
+    const signName = sign && sign[1][0].toUpperCase() + sign[1].slice(1);
+    if (signName && SIGNS[signName]) return SIGNS[signName][0] + "\ufe0e";
+    if (/^your name is/.test(x)) return "👋";
+    if (/dating|married|engaged|seeing someone|boyfriend|girlfriend|husband|wife|partner|romantic/.test(x)) return "💞";
+    if (/your (mom|mother|dad|father|sister|brother|son|daughter|grandma|grandpa|aunt|uncle|cousin|family)\b/.test(x)) return "💛";
+    if (/is your (best friend|friend|bestie|roommate)/.test(x)) return "🤝";
+    if (/^you're a student|^you work/.test(x)) return "💼";
+    if (/^you live/.test(x)) return "🏠";
+    if (/^your goal/.test(x)) return "🎯";
+    if (/^your favorite food/.test(x)) return "🍽️";
+    if (/^you're into/.test(x)) return "✨";
+    if (/^you love/.test(x) && /music|song|rap|r&b|pop|jazz|rock|country|hip|artist|album|drake|beyonc|taylor/.test(x)) return "🎧";
     return /keys?\b/.test(x) ? "🔑" : /birthday|anniversary/.test(x) ? "🎂" : /allerg/.test(x) ? "🥜" : /wallet|purse/.test(x) ? "👛" : /\bcar\b|park/.test(x) ? "🚗"
       : /phone|charger/.test(x) ? "📱" : /passport|flight|trip/.test(x) ? "✈️" : /\bhate|can't stand/.test(x) ? "🙅" : /\blove|like|favorite/.test(x) ? "💛" : /glasses/.test(x) ? "👓" : "🧠";
   }
@@ -631,6 +647,15 @@
     e.append(tools, stage, floats("left"), floats("right"));
     renderDocks();
     return e;
+  }
+
+  // When the brain can't think: what fixes it, one tap away.
+  function brainHelp() {
+    const a = el("div", "actions brain-help");
+    if (desk?.repair) a.append(btn("Repair Luma", "pill primary small", async () => { toast("Repairing. Luma restarts in a moment."); await desk.repair(); }, "refresh"));
+    a.append(btn("Brain settings", "pill soft small", () => go("settings"), "cpu"));
+    a.append(btn("Try again", "pill soft small", () => { const last = [...items(state.thread)].reverse().find((x) => x.role === "you"); if (last) send(last.text); }, "refresh"));
+    return a;
   }
 
   // Step by step: where they are in a walkthrough.
@@ -1455,7 +1480,7 @@
     } catch (e) {
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
       pushLocal(thread, { role: "you", text });
-      pushLocal(thread, { role: "luma", text: e.status ? e.message : "I can't reach my brain right now. Is Luma running?" });
+      pushLocal(thread, { role: "luma", text: e.status ? e.message : "I can't reach my brain right now. Give me a second, I restart on my own.", result: e.data?.brain_down || !e.status ? { brain_down: true } : undefined });
       mood(e.status ? "idle" : "sleepy", e.status ? "Here with you" : "Can't reach Luma");
       talkBack({ text: e.status ? e.message : "I can't reach my brain right now." });
     } finally {
@@ -1970,16 +1995,18 @@
   // Like a soul file and a memory file, but friendly: who Luma is with you, and what it knows.
   const SOURCES = { explicit_user_request: "You told me", noticed_in_conversation: "I noticed", feedback: "From your feedback", about_you: "About you", grill: "From an interview" };
   // Memories as a 3D timeline: newest in front, older ones stacked back into the distance, filtered by kind.
-  const MEM_TAGS = [["all", "Everything"], ["places", "Places"], ["people", "People"], ["dates", "Dates"], ["health", "Health"], ["likes", "Likes"], ["you", "About you"], ["notes", "Notes"]];
-  const MEM_ART = { places: "📍", people: "💞", dates: "🎂", health: "🩺", likes: "💛", you: "🪞", notes: "🗒️" };
+  const MEM_TAGS = [["all", "Everything"], ["you", "About you"], ["people", "People"], ["dates", "Dates"], ["likes", "Likes"], ["goals", "Goals"], ["places", "Places"], ["health", "Health"], ["notes", "Notes"]];
+  const MEM_ART = { places: "📍", people: "💞", dates: "🎂", health: "🩺", likes: "💛", you: "🪞", goals: "🎯", notes: "🗒️" };
   function memTag(m) {
     const t = String(m.text || "").toLowerCase();
-    if (m.source === "grill" || m.source === "about_you") return "you";
+    if (m.source === "grill") return "you";
+    if (/^your goal|\bmy goal\b|\bi want to\b|\bi'm trying to\b/.test(t)) return "goals";
     if (/^your .+ (?:is|are) (?:on|in|at|by|under|inside|next to|behind|near)\b/.test(t)) return "places";
     if (/birthday|anniversary|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d/.test(t)) return "dates";
     if (/\b(?:allerg\w*|vegetarian|vegan|gluten|lactose|diabetic|medication|meds|asthma|doctor|dentist)\b/.test(t)) return "health";
-    if (/\b(?:love|loves|like|likes|hate|hates|favorite|favourite|prefer|can't stand)\b/.test(t)) return "likes";
-    if (/\b(?:mom|mother|dad|father|sister|brother|boyfriend|girlfriend|wife|husband|friend|boss|son|daughter|grandma|grandpa|aunt|uncle|partner|kids?)\b/.test(t)) return "people";
+    if (/\b(?:love|loves|like|likes|hate|hates|favorite|favourite|prefer|can't stand)\b|^you're into\b/.test(t)) return "likes";
+    if (/\b(?:mom|mother|dad|father|sister|brother|boyfriend|girlfriend|wife|husband|friend|bestie|roommate|boss|son|daughter|grandma|grandpa|aunt|uncle|cousin|partner|kids?|dating|married|engaged|seeing someone)\b/.test(t)) return "people";
+    if (m.source === "signup" || m.source === "about_you" || /^(?:your name is|you're an? |you work|you live)/.test(t)) return "you";
     return "notes";
   }
   function memoryStage(all) {
@@ -2007,7 +2034,8 @@
         if (k < 0) { c.style.transform = "translate3d(0, 150px, 90px) rotateX(-10deg)"; c.style.opacity = "0"; c.style.pointerEvents = "none"; }
         else {
           c.style.transform = `translate3d(0, ${-k * 38}px, ${-k * 115}px) rotateX(${k ? 5 : 0}deg)`;
-          c.style.opacity = String(Math.max(0, 1 - k * 0.17));
+          c.style.opacity = k > 4 ? "0" : "1";  // solid cards: the ones behind dim instead of showing through
+          c.style.setProperty("--dim", String(Math.min(0.75, k * 0.16)));
           c.style.pointerEvents = k > 4 ? "none" : "auto";
         }
         c.style.zIndex = String(100 - Math.abs(k));
@@ -2049,10 +2077,14 @@
         const text = el("div", "text", m.text);
         const meta = el("div", "meta");
         meta.append(el("span", null, (SOURCES[m.source] || "Saved") + (m.created ? " · " + ago(m.created) : "")), el("span", "spacer"));
-        meta.append(btn("Edit", "pill quiet small", () => { text.contentEditable = "true"; text.focus(); }, "compose"));
-        meta.append(btn("Forget", "pill quiet small", async () => {
+        const edit = btn("", "round-btn mini", () => { text.contentEditable = "true"; text.focus(); }, "compose");
+        edit.setAttribute("aria-label", "Edit this memory");
+        meta.append(edit);
+        const forget = btn("", "round-btn mini", async () => {
           try { await api("/api/memory/delete", { id: m.id }); sorted.splice(sorted.indexOf(m), 1); all.splice(all.indexOf(m), 1); drawTags(); drawDeck(); toast("Forgotten."); } catch (e) { toast(e.message); }
-        }, "trash"));
+        }, "trash");
+        forget.setAttribute("aria-label", "Forget this memory");
+        meta.append(forget);
         text.addEventListener("blur", async () => {
           text.contentEditable = "false";
           const next = text.textContent.trim();
@@ -2061,7 +2093,8 @@
         });
         text.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); text.blur(); } });
         body.append(el("span", "chip", (MEM_TAGS.find(([k]) => k === tag) || [0, "Notes"])[1]), text, meta);
-        c.append(when, body, el("div", "art", MEM_ART[tag]));
+        const own = memEmoji(m.text);
+        c.append(when, body, el("div", "art", own === "🧠" ? MEM_ART[tag] : own));
         c.addEventListener("click", (e) => { if (i !== focus && !e.target.closest("button")) { focus = i; place(); } });
         deck.append(c);
       });
@@ -2644,6 +2677,12 @@
     if (!b) return item;
     const g = el("div", "grow");
     g.append(el("div", "title", "Luma's brain"), el("div", "sub", `Thinking with ${b.thinking_with}. Approvals, rules and everything Luma does stay on this computer either way.`));
+    const hl = b.health;
+    if (hl && (!hl.ok || hl.say)) {
+      const note = el("div", "brain-health " + (hl.ok ? "ok" : "bad"), hl.say || "");
+      g.append(note);
+      if (!hl.ok && desk?.repair) g.append(btn("Repair Luma", "pill primary small", async () => { toast("Repairing. Luma restarts in a moment."); await desk.repair(); }, "refresh"));
+    }
     const redo = async (body, ok) => {
       try { await api("/api/brain", body); await refreshHome(); if (ok) toast(ok); renderSettings(); }
       catch (e) { toast(e.message); }
@@ -3256,7 +3295,8 @@
     dropTake(); // never record Luma's own voice as yours
     const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1600);
     const parts = speechParts(clean);
-    talkLine(clean);
+    talkLine(clean, true);
+    const before = parts.map((_, k) => parts.slice(0, k).join(" ").split(" ").filter(Boolean).length);
     Object.assign(voice, { said: clean, talking: true, talkAt: performance.now(), echo: 0, loudMs: 0 });
     document.body.classList.add("speaking");
     mood("happy", "Talking");
@@ -3266,11 +3306,15 @@
       const a = new Audio();
       a.preload = "auto";
       a.src = "/api/tts?text=" + encodeURIComponent(parts[k]);
+      tapAudio(a);
+      const count = parts[k].split(" ").filter(Boolean).length;
+      a.ontimeupdate = () => { if (a.duration > 0) lightWords(before[k] + Math.ceil(count * Math.min(1, a.currentTime / a.duration + 0.05))); };
       a.load();  // starts making the audio now, so it's ready the moment the one before it ends
       return a;
     };
     const finish = () => {
       if (gen !== speak.gen) return;
+      lightWords(1e6);
       clearTimeout(speak.watch);
       speak.audio = speak.next = null;
       Object.assign(voice, { talking: false, quietAt: performance.now(), left: "" });
@@ -3421,7 +3465,8 @@
     }
     if (!voice.on && !voice.wake) return;
     if (lv < gate) voice.floor = voice.floor * 0.98 + lv * 0.02; // learn how quiet the room is
-    if (voice.on) document.documentElement.style.setProperty("--level", Math.min(1, lv * 14).toFixed(3));
+    voice.levelNow = Math.min(1, lv * 14);
+    if (voice.on) document.documentElement.style.setProperty("--level", voice.levelNow.toFixed(3));
     const t = voice.take;
     if (!t) {
       voice.coolMs = lv < gate ? voice.coolMs + dt : 0;
@@ -3626,33 +3671,116 @@
     if (n === 1) return what ? `Still going. ${what}.` : "Still working on it.";
     return "Still at it. I'll tell you the moment it's done.";
   }
-  // Deep space for talking: a star field drawn once per size, twinkling in CSS.
-  function drawStars() {
-    const c = $("ts-stars");
-    if (!c) return;
-    const w = window.innerWidth, h = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (c.dataset.size === `${w}x${h}`) return;
-    c.dataset.size = `${w}x${h}`;
-    c.width = w * dpr; c.height = h * dpr;
+  // ---------------------------------------------------------------- aura ---
+  // Talking looks like an aura: a few soft lights drawn small on a canvas and scaled up (smooth and
+  // cheap), mixing like light does. Cool while Luma listens, swirling violet while it thinks, warm
+  // while it speaks; it swells with your voice, and with Luma's own as it plays.
+  const AURA = {
+    listening: ["#2f6dff", "#35d0ff", "#8a5cff", "#2ee6c5", "#5b7cff"],
+    thinking: ["#8a5cff", "#ff4fa0", "#4b3cff", "#c86bff", "#5a8bff"],
+    speaking: ["#ff6b5b", "#ffb347", "#ff4fa0", "#ffd166", "#ff8fb1"],
+    waiting: ["#ffd166", "#ff9f68", "#ffe29a", "#ffb86b", "#c9a6ff"],
+  };
+  const aura = { raf: 0, t: 0, cur: null, level: 0 };
+  const rgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const auraMood = () => document.body.classList.contains("speaking") ? "speaking" : (state.busy || voice.pending) ? "thinking" : voice.expect ? "waiting" : "listening";
+  // How loud Luma is right now, from the voice that's playing (or a gentle pulse if the browser won't say).
+  function outLevel() {
+    if (!document.body.classList.contains("speaking")) return 0;
+    const an = speak.an;
+    if (an && speak.ctx?.state === "running") {
+      const data = speak.bins || (speak.bins = new Uint8Array(an.frequencyBinCount));
+      an.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) { const v = (data[i] - 128) / 128; sum += v * v; }
+      return Math.min(1, Math.sqrt(sum / (data.length / 4)) * 4.5);
+    }
+    return 0.35 + 0.25 * Math.sin(performance.now() / 140) * Math.sin(performance.now() / 410);
+  }
+  // Luma's voice runs through an analyser so the aura can move with it (only when audio is allowed to run).
+  function tapAudio(a) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      speak.ctx = speak.ctx || new AC();
+      if (speak.ctx.state !== "running") { speak.ctx.resume().catch(() => {}); return; }  // never route audio into a silent context
+      if (!speak.an) { speak.an = speak.ctx.createAnalyser(); speak.an.fftSize = 512; speak.an.connect(speak.ctx.destination); }
+      speak.ctx.createMediaElementSource(a).connect(speak.an);
+    } catch (_) { /* the aura falls back to a gentle pulse */ }
+  }
+  function paintAura(c, mood, lvl, aura, palette) {
+    const W = Math.max(64, Math.round(window.innerWidth / 4)), H = Math.max(48, Math.round(window.innerHeight / 4));
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
     const g = c.getContext("2d");
-    g.scale(dpr, dpr);
-    const n = Math.round((w * h) / 3200);
-    for (let i = 0; i < n; i++) {
-      const r = Math.random() ** 3 * 1.5 + 0.25, a = 0.25 + Math.random() * 0.75;
-      const tint = Math.random();
-      g.fillStyle = tint < 0.08 ? `rgba(180,200,255,${a})` : tint < 0.13 ? `rgba(255,210,190,${a})` : `rgba(255,255,255,${a})`;
-      g.beginPath(); g.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2); g.fill();
+    const want = (palette || AURA[mood] || AURA.listening).map(rgb);
+    if (!aura.cur) aura.cur = want.map((x) => x.slice());
+    aura.cur.forEach((col, i) => { for (let k = 0; k < 3; k++) col[k] += (want[i][k] - col[k]) * 0.035; });
+    aura.level += (lvl - aura.level) * (lvl > aura.level ? 0.35 : 0.08);
+    aura.t += 0.0045 * (mood === "thinking" ? 2.6 : mood === "speaking" ? 1.5 : 1);
+    g.globalCompositeOperation = "source-over";
+    g.clearRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+    const cx = W / 2, cy = H * 0.44, m = Math.min(W, H);
+    const spread = m * (0.34 + aura.level * 0.16);
+    aura.cur.forEach((col, i) => {
+      const a = aura.t * (0.6 + i * 0.21) + i * 1.9;
+      const x = cx + Math.cos(a) * spread * (0.62 + 0.18 * Math.sin(aura.t * 0.9 + i));
+      const y = cy + Math.sin(a * 1.13 + i) * spread * 0.42;
+      const r = m * (0.42 + 0.1 * Math.sin(aura.t * 1.4 + i * 2.1) + aura.level * 0.22);
+      const grad = g.createRadialGradient(x, y, 0, x, y, r);
+      const c3 = col.map(Math.round).join(",");
+      grad.addColorStop(0, `rgba(${c3},${0.34 + aura.level * 0.26})`);
+      grad.addColorStop(0.45, `rgba(${c3},${0.11 + aura.level * 0.08})`);
+      grad.addColorStop(1, `rgba(${c3},0)`);
+      g.fillStyle = grad;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+    });
+    // a soft bright heart, never a hard circle
+    const core = m * (0.1 + aura.level * 0.12 + 0.015 * Math.sin(aura.t * 3));
+    const cg = g.createRadialGradient(cx, cy, 0, cx, cy, core * 2.6);
+    cg.addColorStop(0, `rgba(255,250,255,${0.2 + aura.level * 0.32})`);
+    cg.addColorStop(0.4, "rgba(255,240,255,0.06)");
+    cg.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = cg;
+    g.fillRect(cx - core * 2.6, cy - core * 2.6, core * 5.2, core * 5.2);
+    // light that hugs the edges of the window and travels around it, like a voice assistant's glow
+    const edge = 0.1 + aura.level * (mood === "speaking" ? 0.5 : 0.32);
+    const per = 2 * (W + H), n = 14, er = m * 0.2;
+    for (let k = 0; k < n; k++) {
+      let d = ((k / n) + aura.t * 0.05) % 1 * per;
+      let x, y;
+      if (d < W) { x = d; y = 0; } else if ((d -= W) < H) { x = W; y = d; } else if ((d -= H) < W) { x = W - d; y = H; } else { x = 0; y = H - (d - W); }
+      const col = aura.cur[k % aura.cur.length].map(Math.round).join(",");
+      const eg = g.createRadialGradient(x, y, 0, x, y, er);
+      eg.addColorStop(0, `rgba(${col},${edge})`);
+      eg.addColorStop(1, `rgba(${col},0)`);
+      g.fillStyle = eg;
+      g.fillRect(x - er, y - er, er * 2, er * 2);
     }
   }
-  window.addEventListener("resize", () => { if (voice.on) drawStars(); });
-  function talkLine(text) {
+  function auraFrame() {
+    const c = $("ts-aura");
+    if (!c || !document.body.classList.contains("talk")) { aura.raf = 0; return; }
+    paintAura(c, auraMood(), Math.max(voice.levelNow && !voice.talking ? voice.levelNow : 0, outLevel()), aura);
+    document.documentElement.style.setProperty("--aura-level", aura.level.toFixed(3));
+    aura.raf = requestAnimationFrame(auraFrame);
+  }
+  function startAura() { if (!aura.raf) aura.raf = requestAnimationFrame(auraFrame); }
+  // Luma's words, lit up as they're spoken.
+  function talkLine(text, live = false) {
     const line = $("talk-line");
     if (!line || !text) return;
-    line.textContent = String(text).replace(/\s+/g, " ").slice(0, 360);
-    line.style.animation = "none"; void line.offsetWidth; line.style.animation = "";
+    line.replaceChildren();
+    const words = String(text).replace(/\s+/g, " ").trim().slice(0, 360).split(" ");
+    words.forEach((w, i) => { const sp = el("span", "w", w); line.append(sp, document.createTextNode(i < words.length - 1 ? " " : "")); });
+    line.classList.toggle("still", !live);
+  }
+  function lightWords(upTo) {
+    const ws = document.querySelectorAll("#talk-line .w");
+    ws.forEach((w, i) => w.classList.toggle("on", i < upTo));
   }
   function paintVoice() {
-    if (voice.on) drawStars();
+    if (voice.on) startAura();
     const ts = $("talk-state");
     if (ts) ts.textContent = voice.talking ? "Speaking" : state.busy ? "Thinking" : voice.expect ? "Your call" : "Listening";
     $("top-talk").classList.toggle("on", voice.on);
@@ -3789,9 +3917,44 @@
     showPops($("talk-pops"), cards, (c) => go(c.focusId === "news" ? "news" : c.focusId === "browser" ? "browser" : "chat"));
   }
 
-  // ----------------------------------------------------------- welcome ---
-  // Signed out? A beautiful welcome every time Luma opens, until they sign in (or choose this computer only).
-  const welcome = { phone: "", name: "" };
+  // ----------------------------------------------------------- sign up ---
+  // Everyone starts here, once, and can't skip it: who they are, their birthday (and a zodiac
+  // reveal), how to reach them, their people, their favorites. It all becomes Luma's first
+  // memories of them, saved on this computer and on the Identity page from minute one.
+  const SIGNS = {
+    Aries: ["♈", "March 21 – April 19", "Fire", "Bold, first in, and never boring."],
+    Taurus: ["♉", "April 20 – May 20", "Earth", "Steady, loyal, and serious about good food."],
+    Gemini: ["♊", "May 21 – June 20", "Air", "Curious, quick, and impossible to bore."],
+    Cancer: ["♋", "June 21 – July 22", "Water", "A big heart, a great memory, and fiercely protective."],
+    Leo: ["♌", "July 23 – August 22", "Fire", "Warm, magnetic, and born for the spotlight."],
+    Virgo: ["♍", "August 23 – September 22", "Earth", "A sharp eye, a kind heart, and always a plan."],
+    Libra: ["♎", "September 23 – October 22", "Air", "Charming, fair, and a little bit of a romantic."],
+    Scorpio: ["♏", "October 23 – November 21", "Water", "Deep, loyal, and you always just know."],
+    Sagittarius: ["♐", "November 22 – December 21", "Fire", "Free, funny, and always up for an adventure."],
+    Capricorn: ["♑", "December 22 – January 19", "Earth", "Driven, patient, and quietly hilarious."],
+    Aquarius: ["♒", "January 20 – February 18", "Air", "Original, independent, and a little ahead of everyone."],
+    Pisces: ["♓", "February 19 – March 20", "Water", "Dreamy, intuitive, and deeply kind."],
+  };
+  const ELEMENT = { Fire: ["#ff6b3d", "#ffb347", "#ff4f7a", "#ffd166", "#ff8f5a"], Earth: ["#7fbf7a", "#d9b66a", "#4f9a6b", "#c7d67a", "#a8835a"],
+    Air: ["#9ecbff", "#c9b8ff", "#7fe0ff", "#e6d8ff", "#8aa8ff"], Water: ["#2f6dff", "#2ee6c5", "#4b3cff", "#35d0ff", "#6a5cff"] };
+  // A few stars per sign, drawn as a little constellation (a shape to enjoy, not a star chart): each is a list of strokes.
+  const SKY = {
+    Aries: [[[60, 150], [150, 110], [230, 105], [300, 130]]],
+    Taurus: [[[60, 60], [140, 120], [200, 140], [260, 120], [330, 60]], [[200, 140], [200, 190]]],
+    Gemini: [[[110, 50], [120, 120], [125, 190]], [[270, 50], [265, 120], [258, 190]], [[120, 120], [265, 120]]],
+    Cancer: [[[200, 60], [200, 130], [120, 190]], [[200, 130], [290, 190]]],
+    Leo: [[[80, 170], [150, 150], [220, 160], [280, 120], [300, 70], [250, 40], [220, 80], [280, 120]]],
+    Virgo: [[[60, 80], [130, 100], [200, 90], [250, 140], [320, 160]], [[200, 90], [210, 190]]],
+    Libra: [[[90, 150], [200, 70], [310, 150], [90, 150]]],
+    Scorpio: [[[60, 60], [120, 80], [180, 100], [230, 140], [280, 180], [340, 170], [350, 120]]],
+    Sagittarius: [[[80, 180], [160, 130], [240, 90], [320, 50]], [[160, 130], [240, 160]], [[240, 90], [180, 60]]],
+    Capricorn: [[[60, 70], [150, 120], [250, 170], [330, 90], [200, 80], [60, 70]]],
+    Aquarius: [[[50, 120], [110, 90], [170, 120], [230, 90], [290, 120], [350, 90]]],
+    Pisces: [[[50, 60], [120, 110], [200, 170], [280, 110], [350, 60]], [[200, 170], [200, 210]]],
+  };
+  const signup = { step: 0, data: { people: [], interests: [] }, mode: "signup", verified: false, sent: false, raf: 0, aura: { t: 0, cur: null, level: 0 }, palette: null };
+  const STEPS = ["hello", "name", "birthday", "contact", "people", "world", "done"];
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   function e164(raw) {
     const d = String(raw || "").replace(/[^\d+]/g, "");
     if (/^\+\d{10,15}$/.test(d)) return d;
@@ -3800,93 +3963,275 @@
     if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
     return "";
   }
-  function welcomeStep(step) {
-    for (const [id, on] of [["w-start", step === "start"], ["w-verify", step === "verify"], ["w-call", step === "call"]]) $(id).hidden = !on;
-    $("w-skip").hidden = step !== "start";
-    $("w-error").textContent = "";
-    const sub = { start: "Your own super intelligence. It remembers what matters, gets things done, and always asks before it sends or buys anything.",
-      verify: `I texted a 6-digit code to ${welcome.phone}. Type it here.`, call: `You're in, ${welcome.name}. One last thing: what would you like to call me?` }[step];
-    $("welcome-sub").textContent = sub;
-    $("w-fine").hidden = step === "call";
-    if (step === "verify") $("w-code").querySelector("input")?.focus();
-    if (step === "start") $("w-name").focus();
+  function suAuraLoop() {
+    const c = $("su-aura");
+    if (!c || $("welcome").hidden) { signup.raf = 0; return; }
+    paintAura(c, "listening", 0.12 + 0.08 * Math.sin(performance.now() / 900), signup.aura, signup.palette);
+    signup.raf = requestAnimationFrame(suAuraLoop);
   }
-  function codeBoxes() {
-    const box = $("w-code");
-    box.replaceChildren();
-    for (let i = 0; i < 6; i++) {
-      const c = el("input", "code-box");
-      Object.assign(c, { inputMode: "numeric", maxLength: 1, autocomplete: i === 0 ? "one-time-code" : "off" });
-      c.setAttribute("aria-label", `Digit ${i + 1}`);
-      c.addEventListener("input", () => {
-        c.value = c.value.replace(/\D/g, "").slice(-1);
-        if (c.value && c.nextElementSibling) c.nextElementSibling.focus();
-        if ([...box.children].every((x) => x.value)) $("w-verify").requestSubmit();
+  const suInput = (id, ph, value = "", type = "text", extra = {}) => { const i = el("input", "su-in"); Object.assign(i, { id, placeholder: ph, value, type, ...extra }); return i; };
+  function suSelect(id, label, options, value = "") {
+    const sel = el("select", "su-sel");
+    sel.id = id;
+    sel.setAttribute("aria-label", label);
+    sel.append(Object.assign(el("option", null, label), { value: "", disabled: true, selected: !value }));
+    for (const [v, t] of options) sel.append(Object.assign(el("option", null, t), { value: v, selected: String(v) === String(value) }));
+    return sel;
+  }
+  function suChips(options, picked, multi, onPick) {
+    const row = el("div", "su-chips");
+    for (const o of options) {
+      const b = el("button", "su-chip" + ((multi ? picked.includes(o) : picked === o) ? " on" : ""), o);
+      b.type = "button";
+      b.addEventListener("click", () => {
+        if (multi) { b.classList.toggle("on"); onPick(o, b.classList.contains("on")); }
+        else { row.querySelectorAll(".su-chip").forEach((x) => x.classList.toggle("on", x === b)); onPick(o); }
       });
-      c.addEventListener("keydown", (e) => { if (e.key === "Backspace" && !c.value && c.previousElementSibling) c.previousElementSibling.focus(); });
-      c.addEventListener("paste", (e) => {
-        const digits = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6);
-        if (!digits) return;
-        e.preventDefault();
-        [...box.children].forEach((x, k) => { x.value = digits[k] || ""; });
-        if (digits.length === 6) $("w-verify").requestSubmit();
-      });
-      box.append(c);
+      row.append(b);
     }
+    return row;
   }
+  const suErr = (t) => { $("su-error").textContent = t || ""; };
+  function suPaint() {
+    const name = STEPS[signup.step];
+    $("su-steps").replaceChildren(...STEPS.slice(1, -1).map((_, k) => el("i", k + 1 === signup.step ? "on" : k + 1 < signup.step ? "done" : "")));
+    $("su-back").hidden = signup.step === 0 || name === "done";
+    suErr("");
+    const pane = $("su-pane");
+    const fresh = pane.cloneNode(false);
+    pane.replaceWith(fresh);
+    const f = fresh, d = signup.data;
+    const go = (label = "Continue →") => { const b = el("button", "su-go", label); b.type = "submit"; return b; };
+    const h1 = (html) => { const h = el("h1"); h.innerHTML = html; return h; };
+    if (name === "hello") {
+      f.append(h1("Hi. I'm <em>Luma.</em>"), el("p", "su-sub", "Your first taste of super intelligence. Let's set you up: a minute, a few questions, and I'll remember what matters. Everything you share stays encrypted on this computer."), go("Let's go →"));
+      const link = el("button", "su-link", "I already have an account");
+      link.type = "button";
+      link.addEventListener("click", () => { signup.mode = "signin"; signup.step = STEPS.indexOf("contact"); suPaint(); });
+      f.append(link);
+    } else if (name === "name") {
+      f.append(h1("What's your <em>name?</em>"), el("p", "su-sub", "First and last, so I know what to call you."));
+      const row = el("div", "su-row");
+      row.append(suInput("su-first", "First name", d.first || "", "text", { autocomplete: "given-name", maxLength: 40 }), suInput("su-last", "Last name", d.last || "", "text", { autocomplete: "family-name", maxLength: 40 }));
+      f.append(row, go());
+    } else if (name === "birthday") {
+      f.append(h1(`When's your <em>birthday${d.first ? ", " + d.first.replace(/[<>&]/g, "") : ""}?</em>`), el("p", "su-sub", "I'll never let it pass quietly. And I'm curious what you are."));
+      const [y, m, dd] = (d.dob || "--").split("-");
+      const row = el("div", "su-row three");
+      const thisYear = new Date().getFullYear();
+      row.append(suSelect("su-month", "Month", MONTHS.map((n, i) => [String(i + 1).padStart(2, "0"), n]), m),
+        suSelect("su-day", "Day", Array.from({ length: 31 }, (_, i) => [String(i + 1).padStart(2, "0"), String(i + 1)]), dd),
+        suSelect("su-year", "Year", Array.from({ length: 100 }, (_, i) => [String(thisYear - 13 - i), String(thisYear - 13 - i)]), y));
+      f.append(row, go("Reveal my sign →"));
+    } else if (name === "contact") {
+      const back = signup.mode === "signin";
+      f.append(h1(back ? "Welcome <em>back.</em>" : "How can I <em>reach you?</em>"),
+        el("p", "su-sub", back ? "Your number and email, and I'll text you a code to make sure it's you." : "Your email and mobile number. I'll text a code to make sure it's really you."));
+      f.append(suInput("su-email", "Email", d.email || "", "email", { autocomplete: "email", maxLength: 120 }), suInput("su-phone", "Mobile number", d.phoneShown || "", "tel", { autocomplete: "tel", inputMode: "tel" }));
+      if (signup.sent && !signup.verified) {
+        f.append(el("p", "su-label", "The 6-digit code I texted you"));
+        const code = el("div", "su-code");
+        for (let i = 0; i < 6; i++) {
+          const c = el("input");
+          Object.assign(c, { inputMode: "numeric", maxLength: 1, autocomplete: i === 0 ? "one-time-code" : "off" });
+          c.setAttribute("aria-label", `Digit ${i + 1}`);
+          c.addEventListener("input", () => { c.value = c.value.replace(/\D/g, "").slice(-1); if (c.value && c.nextElementSibling) c.nextElementSibling.focus(); if ([...code.children].every((x) => x.value)) f.requestSubmit(); });
+          c.addEventListener("keydown", (e) => { if (e.key === "Backspace" && !c.value && c.previousElementSibling) c.previousElementSibling.focus(); });
+          c.addEventListener("paste", (e) => { const t = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6); if (!t) return; e.preventDefault(); [...code.children].forEach((x, k) => { x.value = t[k] || ""; }); if (t.length === 6) f.requestSubmit(); });
+          code.append(c);
+        }
+        code.id = "su-code";
+        f.append(code, go("Verify →"));
+        const resend = el("button", "su-link", "Use a different number");
+        resend.type = "button";
+        resend.addEventListener("click", () => { signup.sent = false; suPaint(); });
+        f.append(resend);
+      } else f.append(go(signup.verified ? "Continue →" : "Text me a code →"));
+      f.append(el("p", "su-fine", "Your number signs you in to Luma on your phone too. I never share it, and texts only go out when you say so."));
+    } else if (name === "people") {
+      f.append(h1("Is there someone <em>special?</em>"), el("p", "su-sub", "So I remember the people who matter to you, and never miss their birthday."));
+      const status = d.relationship || "";
+      const rel = el("div");
+      const partnerBox = el("div");
+      const drawPartner = () => {
+        partnerBox.replaceChildren();
+        if (!["Dating", "Engaged", "Married"].includes(d.relationship)) return;
+        const p = d.partner || (d.partner = {});
+        partnerBox.append(el("p", "su-label", "Who's the lucky one?"));
+        const row = el("div", "su-row");
+        const nm = suInput("su-partner", "Their name", p.name || "", "text", { maxLength: 40 });
+        nm.addEventListener("input", () => { p.name = nm.value; });
+        row.append(nm, suChipsSelect(p));
+        partnerBox.append(row, el("p", "su-label", "Their birthday"), monthDay("su-pbday", p.birthday, (v) => { p.birthday = v; }));
+      };
+      rel.append(suChips(["Single", "Dating", "Engaged", "Married", "It's complicated", "Rather not say"], status, false, (o) => { d.relationship = o; drawPartner(); }));
+      drawPartner();
+      f.append(rel, partnerBox, el("p", "su-label", "Anyone else whose birthday I should never miss?"));
+      const list = el("div", "su-people");
+      const drawPeople = () => {
+        list.replaceChildren();
+        d.people.forEach((p, i) => {
+          const row = el("div", "su-person");
+          const nm = suInput(`su-pn-${i}`, "Name", p.name || "", "text", { maxLength: 40 });
+          nm.addEventListener("input", () => { p.name = nm.value; });
+          const rs = suSelect(`su-pr-${i}`, "Who", ["Mom", "Dad", "Sister", "Brother", "Best friend", "Friend", "Son", "Daughter", "Grandma", "Grandpa", "Aunt", "Uncle", "Cousin", "Coworker"].map((x) => [x, x]), p.relation);
+          rs.addEventListener("change", () => { p.relation = rs.value; });
+          const bd = monthDay(`su-pb-${i}`, p.birthday, (v) => { p.birthday = v; }, true);
+          row.append(nm, rs, ...bd.children);
+          list.append(row);
+        });
+      };
+      drawPeople();
+      const add = el("button", "su-link", "+ Add someone");
+      add.type = "button";
+      add.addEventListener("click", () => { if (d.people.length < 6) { d.people.push({}); drawPeople(); } });
+      if (!d.people.length) d.people.push({});
+      drawPeople();
+      f.append(list, add, go());
+    } else if (name === "world") {
+      f.append(h1("A few of your <em>favorites.</em>"), el("p", "su-sub", "Whatever you feel like sharing. It helps me talk like I know you."));
+      const row1 = el("div", "su-row"), row2 = el("div", "su-row");
+      row1.append(suInput("su-work", "What you do (job or school)", d.work || "", "text", { maxLength: 120 }), suInput("su-home", "Where you live (city)", d.home || "", "text", { maxLength: 80 }));
+      row2.append(suInput("su-music", "Music you love", d.music || "", "text", { maxLength: 160 }), suInput("su-food", "Favorite food", d.food || "", "text", { maxLength: 160 }));
+      f.append(row1, row2, el("p", "su-label", "You're into"),
+        suChips(["Music", "Sports", "Fashion", "Tech", "Gaming", "Movies", "Cooking", "Fitness", "Travel", "Art", "Business", "Reading", "Faith", "Cars"], d.interests, true,
+          (o, on) => { d.interests = on ? [...new Set([...d.interests, o])] : d.interests.filter((x) => x !== o); }),
+        suInput("su-goals", "One thing you want this year", d.goals || "", "text", { maxLength: 300 }), go("Finish →"));
+    } else if (name === "done") {
+      f.append(h1(`Nice to meet you, <em>${(d.first || "").replace(/[<>&]/g, "")}.</em>`), el("p", "su-sub", "Here's what I'll remember. You can see, change or delete any of it under Identity."));
+      const mems = el("div", "su-mems");
+      (signup.saved || []).forEach((m, i) => {
+        const card = el("div", "su-mem");
+        card.style.animationDelay = `${i * 110}ms`;
+        card.append(el("span", null, memEmoji(m.text)), document.createTextNode(m.text));
+        mems.append(card);
+      });
+      f.append(mems, go("Start talking →"));
+    }
+    f.addEventListener("submit", (e) => { e.preventDefault(); suNext(); });
+    setTimeout(() => f.querySelector("input:not([type=hidden]), select")?.focus(), 60);
+  }
+  function suChipsSelect(p) {
+    const sel = suSelect("su-prel", "They're your", ["boyfriend", "girlfriend", "partner", "husband", "wife", "fiancé", "fiancée"].map((x) => [x, x[0].toUpperCase() + x.slice(1)]), p.relation);
+    sel.addEventListener("change", () => { p.relation = sel.value; });
+    return sel;
+  }
+  function monthDay(id, value, onChange, bare = false) {
+    const [m, dd] = (value || "-").split("-");
+    const box = el("div", bare ? "" : "su-row");
+    const ms = suSelect(id + "-m", "Month", MONTHS.map((n, i) => [String(i + 1).padStart(2, "0"), bare ? n.slice(0, 3) : n]), m);
+    const ds = suSelect(id + "-d", "Day", Array.from({ length: 31 }, (_, i) => [String(i + 1).padStart(2, "0"), String(i + 1)]), dd);
+    const sync = () => onChange(ms.value && ds.value ? `${ms.value}-${ds.value}` : "");
+    ms.addEventListener("change", sync); ds.addEventListener("change", sync);
+    box.append(ms, ds);
+    return box;
+  }
+  function zodiacOf(month, day) {
+    const starts = [[1, 20, "Aquarius"], [2, 19, "Pisces"], [3, 21, "Aries"], [4, 20, "Taurus"], [5, 21, "Gemini"], [6, 21, "Cancer"], [7, 23, "Leo"], [8, 23, "Virgo"], [9, 23, "Libra"], [10, 23, "Scorpio"], [11, 22, "Sagittarius"], [12, 22, "Capricorn"]];
+    let sign = "Capricorn";
+    for (const [m, d, n] of starts) { if (month < m || (month === m && day < d)) return sign; sign = n; }
+    return sign;
+  }
+  function revealSign(sign) {
+    const [glyph, dates, element, line] = SIGNS[sign];
+    signup.palette = ELEMENT[element];
+    const z = $("su-zodiac");
+    z.style.setProperty("--el", ELEMENT[element][0]);
+    $("su-glyph").textContent = glyph + "︎";
+    $("su-sign").textContent = sign;
+    $("su-dates").textContent = `${dates} · ${element}`;
+    $("su-line").textContent = line;
+    const svg = $("su-stars");
+    svg.replaceChildren();
+    const ns = "http://www.w3.org/2000/svg";
+    const strokes = SKY[sign];
+    const links = strokes.flatMap((line) => line.slice(1).map((p, i) => [line[i], p]));
+    const pts = [...new Map(strokes.flat().map((p) => [p.join(","), p])).values()];
+    links.forEach(([a, b], i) => { const l = document.createElementNS(ns, "line"); l.setAttribute("x1", a[0]); l.setAttribute("y1", a[1]); l.setAttribute("x2", b[0]); l.setAttribute("y2", b[1]); l.style.animationDelay = `${0.2 + i * 0.18}s`; svg.append(l); });
+    pts.forEach((p, i) => { const c = document.createElementNS(ns, "circle"); c.setAttribute("cx", p[0]); c.setAttribute("cy", p[1]); c.setAttribute("r", i % 2 ? 2.4 : 3.2); c.style.animationDelay = `${0.1 + i * 0.15}s`; svg.append(c); });
+    z.hidden = false;
+    $("welcome").classList.add("revealing");
+    // replay the animations each time
+    z.querySelectorAll("*").forEach((n) => { n.style.animationName = "none"; void n.offsetWidth; n.style.animationName = ""; });
+    $("su-zodiac-ok").focus();
+  }
+  $("su-zodiac-ok").addEventListener("click", () => { $("su-zodiac").hidden = true; $("welcome").classList.remove("revealing"); signup.step++; suPaint(); });
+  async function suNext() {
+    const d = signup.data, name = STEPS[signup.step];
+    const v = (id) => ($(id)?.value || "").trim();
+    try {
+      if (name === "name") {
+        d.first = v("su-first"); d.last = v("su-last");
+        if (!d.first) { suErr("What's your first name?"); $("su-first").classList.add("bad"); return; }
+        if (!d.last) { suErr("And your last name?"); $("su-last").classList.add("bad"); return; }
+      } else if (name === "birthday") {
+        const m = v("su-month"), dd = v("su-day"), y = v("su-year");
+        if (!m || !dd || !y) { suErr("Pick the month, day and year."); return; }
+        const when = new Date(Number(y), Number(m) - 1, Number(dd));
+        if (when.getMonth() !== Number(m) - 1) { suErr("That date doesn't exist. Check the day."); return; }
+        d.dob = `${y}-${m}-${dd}`;
+        revealSign(zodiacOf(Number(m), Number(dd)));
+        return;  // "That's me" moves on
+      } else if (name === "contact") {
+        d.email = v("su-email").toLowerCase();
+        d.phoneShown = v("su-phone");
+        d.phone = e164(d.phoneShown);
+        if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.email)) { suErr("That email doesn't look right."); $("su-email").classList.add("bad"); return; }
+        if (!d.phone) { suErr("Use your mobile number, like (919) 555-0123."); $("su-phone").classList.add("bad"); return; }
+        if (!signup.verified && !signup.sent) {
+          try {
+            await api("/api/account/start", { name: [d.first, d.last].filter(Boolean).join(" ") || "Luma user", phone: d.phone });
+            signup.sent = true; suPaint(); return;
+          } catch (e) {
+            // No connection to Luma's service right now: carry on, and verify the number later in Settings.
+            if (!e.status || e.status >= 500) { signup.verified = false; toast("I couldn't text a code right now. You can verify your number later in Settings."); }
+            else { suErr(e.message); return; }
+          }
+        } else if (signup.sent && !signup.verified) {
+          const code = [...($("su-code")?.children || [])].map((x) => x.value).join("");
+          if (code.length < 6) { suErr("Type all 6 digits."); return; }
+          try { await api("/api/account/finish", { code }); signup.verified = true; }
+          catch (e) { suErr(e.message || "That code didn't work. Check the text and try again."); return; }
+        }
+        if (signup.mode === "signin" && !d.first) { signup.step = STEPS.indexOf("name"); suPaint(); return; }
+      } else if (name === "people") {
+        if (["Dating", "Engaged", "Married"].includes(d.relationship) && !(d.partner?.name || "").trim()) { suErr("What's their name?"); return; }
+      } else if (name === "world") {
+        Object.assign(d, { work: v("su-work"), home: v("su-home"), music: v("su-music"), food: v("su-food"), goals: v("su-goals") });
+        const out = await api("/api/signup", {
+          first: d.first, last: d.last, dob: d.dob, email: d.email, phone: d.phone, relationship: (d.relationship || "").toLowerCase().replace("it's ", ""),
+          partner: d.partner?.name ? { name: d.partner.name.trim(), relation: d.partner.relation || "partner", birthday: d.partner.birthday || "" } : null,
+          people: d.people.filter((p) => (p.name || "").trim()).map((p) => ({ name: p.name.trim(), relation: (p.relation || "").toLowerCase(), birthday: p.birthday || "" })),
+          work: d.work, home: d.home, music: d.music, food: d.food, interests: d.interests, goals: d.goals,
+        });
+        signup.saved = out.memories || [];
+      } else if (name === "done") {
+        await refreshHome();
+        hideWelcome();
+        toast(`Welcome, ${d.first}. I'm all yours.`);
+        return;
+      }
+      signup.step = Math.min(STEPS.length - 1, signup.step + 1);
+      suPaint();
+    } catch (e) { suErr(e.message || "That didn't go through. Try again."); }
+  }
+  $("su-back").addEventListener("click", () => { $("su-zodiac").hidden = true; signup.step = Math.max(0, signup.step - 1); suPaint(); });
   function showWelcome() {
     document.body.classList.add("welcoming");
     $("welcome").hidden = false;
-    codeBoxes();
-    welcomeStep("start");
+    const prof = state.home?.signup || {};
+    if (prof.first && !signup.data.first) signup.data.first = prof.first;
+    signup.step = 0;
+    suPaint();
+    if (!signup.raf) signup.raf = requestAnimationFrame(suAuraLoop);
   }
   function hideWelcome() {
     $("welcome").classList.add("leaving");
     setTimeout(() => { $("welcome").hidden = true; $("welcome").classList.remove("leaving"); document.body.classList.remove("welcoming"); input.focus(); }, 650);
   }
-  $("w-start").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    welcome.name = $("w-name").value.trim();
-    welcome.phone = e164($("w-phone").value);
-    if (!welcome.phone) { $("w-error").textContent = "That number doesn't look right. Use your mobile number, like (919) 555-0123."; return; }
-    $("w-send").disabled = true; $("w-send").textContent = "Sending…";
-    try { await api("/api/account/start", { name: welcome.name, phone: welcome.phone }); welcomeStep("verify"); }
-    catch (err) { $("w-error").textContent = err.message || "That didn't go through. Try again in a moment."; }
-    finally { $("w-send").disabled = false; $("w-send").textContent = "Text me a code"; }
-  });
-  $("w-verify").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const code = [...$("w-code").children].map((x) => x.value).join("");
-    if (code.length < 6) { $("w-error").textContent = "Type all 6 digits."; return; }
-    $("w-check").disabled = true; $("w-check").textContent = "Checking…";
-    try {
-      await api("/api/account/finish", { code });
-      await refreshHome();
-      const chips = $("w-chips");
-      chips.replaceChildren(...["Luma", "Nova", "Sage", "Echo", "Atlas"].map((n) => btn(n, "pill soft", () => { $("w-callname").value = n; $("w-call").requestSubmit(); })));
-      welcomeStep("call");
-    } catch (err) {
-      $("w-error").textContent = err.message || "That code didn't work. Check the text and try again.";
-      [...$("w-code").children].forEach((x) => { x.value = ""; });
-      $("w-code").firstElementChild?.focus();
-    } finally { $("w-check").disabled = false; $("w-check").textContent = "Sign in"; }
-  });
-  $("w-call").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = $("w-callname").value.trim() || "Luma";
-    try { await api("/api/identity", { assistant_name: name }); } catch (_) { /* keep going */ }
-    state.assistantName = name === "Luma" ? null : name;
-    await refreshHome();
-    hideWelcome();
-    toast(name === "Luma" ? `Nice to meet you, ${welcome.name}.` : `${name} it is. Nice to meet you, ${welcome.name}.`);
-  });
-  $("w-back").addEventListener("click", () => welcomeStep("start"));
-  $("w-skip").addEventListener("click", () => { try { sessionStorage.setItem("luma-welcome-skip", "1"); } catch (_) { /* fine */ } hideWelcome(); });
+  // Mandatory: until they've signed up, this is the only screen.
   function maybeWelcome() {
-    const acct = state.home?.account;
-    if (!acct || acct.signed_in) return;
-    try { if (sessionStorage.getItem("luma-welcome-skip")) return; } catch (_) { /* show it */ }
-    showWelcome();
+    if (state.home?.signup && !state.home.signup.done) showWelcome();
   }
 
   // Touch ID lock: on open, and after Luma's been in the background a while.

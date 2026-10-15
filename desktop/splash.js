@@ -16,6 +16,8 @@ if (state === "missing" || state === "failed") {
   $("actions").hidden = false;
   $("choose").addEventListener("click", () => window.lumaDesktop?.chooseFolder());
   $("retry").addEventListener("click", () => window.lumaDesktop?.retry());
+  // Repair reinstalls Luma's tools and checks its brain file, then starts fresh.
+  $("repair").addEventListener("click", () => { $("detail").textContent = "Repairing… this can take a few minutes."; window.lumaDesktop?.repair(); });
 }
 if (state === "setup") $("progress").hidden = false;
 

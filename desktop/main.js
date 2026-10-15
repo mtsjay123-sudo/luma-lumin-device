@@ -145,9 +145,39 @@ function keepAwakeWhileWorking() {
   }, 20000);
 }
 
+// If Luma's runtime ever stops on its own, start it again (a little later each time) and tell the page.
+// Five stops in two minutes means something is really wrong: say so instead of looping.
+let lastStart = null;
+let stops = [];
+const runtimeLog = () => path.join(app.getPath("userData"), "luma-runtime.log");
+function logTail(lines = 40) {
+  try { const text = fs.readFileSync(runtimeLog(), "utf8"); return text.split("\n").slice(-lines).join("\n"); } catch { return ""; }
+}
+function onRuntimeExit(child, code, signal) {
+  if (child !== runtime) return;
+  runtime = null;
+  if (quitting || !lastStart) return;
+  const now = Date.now();
+  stops = stops.filter((t) => now - t < 120000).concat(now);
+  writeConfig({ lastStop: { at: now, code, signal, tail: logTail(30) } });
+  if (stops.length >= 5) {
+    if (win && !win.isDestroyed()) splash("failed", "Luma keeps stopping on this computer. Help → Runtime Log shows why, or use Repair below.");
+    return;
+  }
+  setTimeout(async () => {
+    if (quitting || runtime || (await ping())) return;
+    const again = await startRuntime(lastStart.dir, lastStart.python, lastStart.extraEnv);
+    if (again.ok && win && !win.isDestroyed()) {
+      if (!win.webContents.getURL().startsWith(ORIGIN)) win.loadURL(HOME_URL);
+      else win.webContents.send("luma:restarted", { code, signal });
+    }
+  }, Math.min(10000, 800 * stops.length));
+}
+
 async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
+  lastStart = { dir, python, extraEnv };
   if (await ping()) return { ok: true };
-  const log = fs.openSync(path.join(app.getPath("userData"), "luma-runtime.log"), "a");
+  const log = fs.openSync(runtimeLog(), "a");
   runtime = spawn(python, ["-m", "luma.cli", "serve", "--port", String(PORT)], {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
@@ -155,7 +185,8 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
     cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), LUMA_TTS_MODEL_PATH: path.join(setup.voiceDir(setupHome()), "kokoro-v1.0.int8.onnx"), LUMA_TTS_VOICES_PATH: path.join(setup.voiceDir(setupHome()), "voices-v1.0.bin"), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
-  runtime.on("exit", () => { runtime = null; });
+  const child = runtime;
+  child.on("exit", (code, signal) => onRuntimeExit(child, code, signal));
   // The first start loads the model; give it time.
   for (let i = 0; i < 240; i++) {
     if (await ping()) return { ok: true };
@@ -293,6 +324,14 @@ function createWindow({ bounds, url } = {}) {
     event.preventDefault();
     openOutside(url);
   });
+  // If the page itself ever crashes or hangs, bring it back instead of leaving a blank window.
+  w.webContents.on("render-process-gone", (_e, details) => {
+    if (w !== win || details.reason === "clean-exit") return;
+    setTimeout(() => { if (!w.isDestroyed()) w.loadURL(HOME_URL); }, 600);
+  });
+  let hung = null;
+  w.on("unresponsive", () => { hung = setTimeout(() => { if (!w.isDestroyed()) w.webContents.reload(); }, 8000); });
+  w.on("responsive", () => { clearTimeout(hung); hung = null; });
   w.webContents.on("did-fail-load", (_e, code, _desc, url) => {
     if (w !== win || code === -3) return;
     if (url.startsWith(ORIGIN)) setTimeout(boot, 1500);
@@ -470,6 +509,17 @@ if (!app.requestSingleInstanceLock()) {
     const trusted = (event) => { const url = event.senderFrame?.url || ""; return url.startsWith("file://") || url.startsWith(ORIGIN + "/"); };
     ipcMain.handle("luma:choose-folder", (event) => trusted(event) && chooseFolder());
     ipcMain.handle("luma:retry", (event) => { if (!trusted(event)) return false; boot(); return true; });
+    // Repair: stop Luma, reinstall its tools on the next start (its brain file is checked again too), start fresh.
+    ipcMain.handle("luma:repair", async (event) => {
+      if (!trusted(event)) return false;
+      lastStart = null;  // stopping on purpose: no automatic restart
+      stops = [];
+      if (runtime) { const r = runtime; runtime = null; r.kill("SIGTERM"); }
+      for (let i = 0; i < 20 && (await ping()); i++) await sleep(250);
+      try { setup.forgetInstall(setupHome()); } catch { /* nothing installed yet */ }
+      boot();
+      return true;
+    });
     // See-through: only the desktop page in Luma's own window, and only valid values (cleanGlass).
     const fromHome = (event) => event.sender === win?.webContents && ((event.senderFrame?.url || "").startsWith(HOME_URL) || onDevice(event.senderFrame?.url));
     // Open the paired device's Luma in this window, or come back to this computer's.

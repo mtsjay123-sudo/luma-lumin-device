@@ -20,6 +20,9 @@ _inference_lock = threading.RLock()
 def use_model_path(path):
     """Think with this model file from the next message on (None: the default one)."""
     global _override, _llm
+    from luma.llm import worker
+    if worker.enabled():
+        worker.brain().use_model_path(path)
     with _inference_lock:
         _override = path
         if _llm is not None and _llm_path != (path or LLAMA_MODEL_PATH):
@@ -92,7 +95,15 @@ def fit_history(messages, token_count, budget):
 
 
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
-    """Generate a constrained proposal; execution remains in the runtime."""
+    """Generate a constrained proposal; execution remains in the runtime. Runs in the brain's own process when Luma is serving."""
+    from luma.llm import worker
+    if worker.enabled():
+        return worker.brain().call("plan", {"messages": messages, "memories": memories, "tools": tools, "mode": mode, "profile": profile},
+                                   cancel_event=cancel_event, on_text=on_text)
+    return _plan_here(messages, memories, tools, mode, profile, cancel_event, on_text)
+
+
+def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
     profile = normalize_profile(profile)
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
     prompt = build_plan_prompt(memories, tools, mode, profile, now)
@@ -135,6 +146,14 @@ def _silence_stderr():
         os.close(old)
 
 
+def _gpu_layers():
+    """Read when the model loads: the brain process may have been told to stay off the graphics chip."""
+    try:
+        return int(os.environ.get("LUMA_GPU_LAYERS", LLAMA_GPU_LAYERS))
+    except ValueError:
+        return LLAMA_GPU_LAYERS
+
+
 def _load_model():
     global _llm, _llm_path
     if _llm is not None:
@@ -154,7 +173,7 @@ def _load_model():
         _llm = Llama(
             model_path=str(model_path),
             n_ctx=LLAMA_CONTEXT_SIZE,
-            n_gpu_layers=LLAMA_GPU_LAYERS,
+            n_gpu_layers=_gpu_layers(),
             n_threads=LLAMA_THREADS,
             n_batch=min(LLAMA_BATCH_SIZE, LLAMA_CONTEXT_SIZE),
             chat_format=LLAMA_CHAT_FORMAT,
@@ -222,6 +241,13 @@ def _sanitize(text: str) -> str:
 
 def rewrite(prompt: str, max_tokens: int = 90, cancel_event=None) -> str:
     """A quick, short, low-temperature pass (no persona, no tools, no history): turning a messy message into a clear one."""
+    from luma.llm import worker
+    if worker.enabled():
+        return worker.brain().call("rewrite", {"prompt": prompt, "max_tokens": max_tokens}, cancel_event=cancel_event)
+    return _rewrite_here(prompt, max_tokens, cancel_event)
+
+
+def _rewrite_here(prompt: str, max_tokens: int = 90, cancel_event=None, on_text=None) -> str:
     with _model_access(cancel_event):
         model = _load_model()
         return _complete(model, cancel_event, messages=[{"role": "system", "content": "You rewrite messages into clear instructions. Answer with the rewrite only."},
@@ -231,6 +257,13 @@ def rewrite(prompt: str, max_tokens: int = 90, cancel_event=None) -> str:
 
 def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
+    from luma.llm import worker
+    if worker.enabled():
+        return worker.brain().call("generate", {"messages": messages, "max_tokens": max_tokens, "system_prompt": system_prompt}, cancel_event=cancel_event)
+    return _generate_here(messages, max_tokens, system_prompt, cancel_event)
+
+
+def _generate_here(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None, on_text=None) -> str:
     full_messages = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + messages
     with _model_access(cancel_event):
         model = _load_model()

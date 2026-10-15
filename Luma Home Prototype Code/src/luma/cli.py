@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--phone-host',help='Optional private Wi-Fi IPv4 for the HTTPS phone companion')
     parser.add_argument('--phone-port',type=int,default=8096)
     args=parser.parse_args()
+    # Serving: the model thinks in a process of its own, so if it ever crashes, Luma doesn't.
+    if args.command=='serve': os.environ.setdefault('LUMA_BRAIN_WORKER','1')
     from luma.agent.runtime import Agent
     agent=Agent(use_model=not args.no_model)
     if args.command=='serve':

@@ -57,6 +57,52 @@ def init(store):
     global _store
     _store = store
     _apply_local()
+    from luma.llm import worker
+    if worker.enabled():
+        # If the bigger brain crashes for lack of memory, the brain process falls back on its own; remember that choice.
+        worker.brain().on_change = lambda which: store.set_setting("brain_local", which)
+
+
+class BrainUnavailable(ValueError):
+    """The local brain can't think right now. The message says why, in plain words, and what fixes it."""
+
+
+def health():
+    """Can the local brain think, and if not, why not (checked without loading anything)."""
+    import importlib.util
+    from luma.llm import inference, worker
+    if importlib.util.find_spec("llama_cpp") is None:
+        return {"ok": False, "reason": "engine", "say": "My brain's engine didn't finish installing. Use Repair in Settings and I'll reinstall it."}
+    path = inference._override or LLAMA_MODEL_PATH
+    if not path.exists():
+        return {"ok": False, "reason": "model", "say": "My brain's model file is missing. Use Repair in Settings and I'll download it again."}
+    if path.stat().st_size < 200 * 2 ** 20:
+        return {"ok": False, "reason": "model", "say": "My brain's model file is incomplete. Use Repair in Settings and I'll download it again."}
+    out = {"ok": True, "reason": None, "say": ""}
+    if worker.enabled():
+        state = worker.brain().state()
+        out["process"] = state
+        if state["resting"]:
+            out.update(ok=False, reason="crashing", say=state["note"])
+        elif state["note"]:
+            out["say"] = state["note"]
+    return out
+
+
+def _local(call, *args, **kwargs):
+    """The local brain, with its failures turned into something a person can act on."""
+    from luma.llm import inference, worker
+    try:
+        return call(*args, **kwargs)
+    except inference.GenerationCancelled:
+        raise
+    except (worker.BrainCrashed, worker.BrainResting) as error:
+        raise BrainUnavailable(str(error) if isinstance(error, worker.BrainResting) else
+                               "My brain hit a snag and restarted. Say that again and I'll answer.") from error
+    except (FileNotFoundError, ImportError, RuntimeError, MemoryError, OSError) as error:
+        h = health()
+        raise BrainUnavailable(h["say"] if not h["ok"] else
+                               "My brain couldn't start on this computer just now. Close a few big apps and try again, or turn on the cloud brain in Settings.") from error
 
 
 def _apply_local():
@@ -109,6 +155,7 @@ def status():
                   "models": cloud.MODELS, "last_error": (_store.setting("brain_cloud_error") if _store else None)},
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb),
                   "fetching": progress(), "fetch_error": fetching["error"]},
+        "health": health(),
         "thinking_with": cloud.MODELS.get(_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL), "Claude") if cloud_on() else local_name,
     }
 
@@ -127,7 +174,7 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
             raise
         except Exception as error:  # offline, out of credit, a refusal: the local brain answers this turn
             _store.set_setting("brain_cloud_error", _plain_error(error))
-    return inference.plan(messages, memories, tools, mode, profile=profile, cancel_event=cancel_event, on_text=on_text)
+    return _local(inference.plan, messages, memories, tools, mode, profile=profile, cancel_event=cancel_event, on_text=on_text)
 
 
 def rewrite(prompt, max_tokens=90, cancel_event=None):
@@ -138,7 +185,7 @@ def rewrite(prompt, max_tokens=90, cancel_event=None):
             return cloud.rewrite(cloud_key(), prompt, max_tokens=max_tokens, model=_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL))
         except Exception as error:
             _store.set_setting("brain_cloud_error", _plain_error(error))
-    return inference.rewrite(prompt, max_tokens=max_tokens, cancel_event=cancel_event)
+    return _local(inference.rewrite, prompt, max_tokens=max_tokens, cancel_event=cancel_event)
 
 
 def _plain_error(error):

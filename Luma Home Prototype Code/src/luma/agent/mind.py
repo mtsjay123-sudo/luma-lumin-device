@@ -91,7 +91,7 @@ def birthday_memories(about):
     """Birthdays as sentences Luma's reminders already understand."""
     lines = []
     if about.get("birthday"):
-        lines.append("My birthday is " + _say_day(about["birthday"]))
+        lines.append("Your birthday is " + _say_day(about["birthday"]))
     for p in about.get("people", []):
         if p.get("birthday") and re.fullmatch(r"[A-Z][a-z]+", p["name"].split()[0] or ""):
             lines.append(f"{p['name'].split()[0]}'s birthday is {_say_day(p['birthday'])}")
