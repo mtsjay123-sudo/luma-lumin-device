@@ -1674,7 +1674,12 @@ class Agent:
         except ValueError as error:
             self.activity.finish("", "failed")
             if str(error) == "not_ready":
-                return {"text": "I can't see photos just yet — my vision model is still downloading in the background. Try again in a few minutes and I'll take a real look.", "vision_pending": True}
+                vision.fetch_in_background()  # start fetching my eyes right now, if nothing is yet
+                pct = vision.progress()
+                why = f" (last try stopped: {vision.fetching['error']})" if vision.fetching.get("error") and pct is None else ""
+                return {"text": ("My eyes are downloading for the first time" + (f", {pct}% done" if pct is not None else "") +
+                                 ". It's a one-time download (about 3 GB, free). Share the photo again in a few minutes and I'll take a real look." + why),
+                        "vision_pending": True, "vision_progress": pct}
             return {"text": str(error)}
         except Exception as error:
             self.activity.finish("", "failed")

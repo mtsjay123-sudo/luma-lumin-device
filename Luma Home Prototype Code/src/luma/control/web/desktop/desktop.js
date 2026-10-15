@@ -1100,13 +1100,29 @@
 
   // --------------------------------------------------------- see a photo ---
   // Show Luma a picture: it looks at it on this computer and talks about it. Nothing is uploaded anywhere.
+  // Any photo, any size: shrink it to a clear 1600px JPEG here; HEIC goes as is (the Mac converts it).
+  async function readyPhoto(file) {
+    const type = (file.type || "").toLowerCase();
+    if (/heic|heif/.test(type) || /\.hei[cf]$/i.test(file.name || "")) return new Blob([file], { type: "image/heic" });
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      return await new Promise((ok) => c.toBlob((b) => ok(b || file), "image/jpeg", 0.88));
+    } catch (_) { return file; }
+  }
   async function see(file, question) {
-    if (!file || !file.type.startsWith("image/") || state.busy) return;
-    if (file.size > 12_000_000) { toast("That photo's a bit big. Try one under 12 MB."); return; }
+    if (!file || state.busy) return;
+    if (!(file.type || "").startsWith("image/") && !/\.(hei[cf]|jpe?g|png|webp|gif)$/i.test(file.name || "")) { toast("That isn't a photo I can open."); return; }
+    file = await readyPhoto(file);
+    if (file.size > 40_000_000) { toast("That photo's too big. Try one under 40 MB."); return; }
     if (state.view !== "chat") go("chat");
     const thread = state.thread;
     let preview = null;
-    try { preview = URL.createObjectURL(file); } catch (_) { /* fine */ }
+    // A data: preview (the page's security rules don't allow blob: images).
+    if (file.type !== "image/heic") preview = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => ok(null); fr.readAsDataURL(file); });
     pushLocal(thread, { role: "you", photo: preview, text: question || "", optimistic: true });
     state.busy = true;
     mood("thinking", "Looking at the photo");

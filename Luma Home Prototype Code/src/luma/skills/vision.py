@@ -43,6 +43,67 @@ def available():
     return bool(model_path() and projector_path())
 
 
+# Luma fetches its own eyes the first time you share a photo (free, from Hugging Face), and says how far along it is.
+REPO = "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF"
+fetching = {"running": False, "done": 0, "total": 0, "error": None}
+
+
+def progress():
+    """0-100 while the vision files download, or None when nothing is downloading."""
+    if not fetching["running"]: return None
+    return int(100 * fetching["done"] / fetching["total"]) if fetching["total"] else 0
+
+
+def fetch_in_background():
+    if available() or fetching["running"]:
+        return
+    fetching.update(running=True, done=0, total=0, error=None)
+    threading.Thread(target=_fetch, name="luma-vision-fetch", daemon=True).start()
+
+
+def _fetch():
+    import json, urllib.request
+    try:
+        os.makedirs(str(VISION_DIR), exist_ok=True)
+        with urllib.request.urlopen(f"https://huggingface.co/api/models/{REPO}", timeout=30) as r:
+            names = [s["rfilename"] for s in json.load(r).get("siblings", []) if s.get("rfilename", "").endswith(".gguf")]
+        main = next((n for n in names if "q4_k_m" in n.lower() and "mmproj" not in n.lower()), None) or next(n for n in names if "mmproj" not in n.lower())
+        proj = next((n for n in names if "mmproj" in n.lower() and "f16" in n.lower()), None) or next(n for n in names if "mmproj" in n.lower())
+        wanted = [n for n in (proj, main) if not os.path.exists(os.path.join(str(VISION_DIR), os.path.basename(n)))]
+        sizes = {}
+        for n in wanted:
+            req = urllib.request.Request(f"https://huggingface.co/{REPO}/resolve/main/{n}", method="HEAD")
+            with urllib.request.urlopen(req, timeout=30) as r:
+                sizes[n] = int(r.headers.get("Content-Length") or 0)
+        fetching["total"] = sum(sizes.values()) or 1
+        for n in wanted:
+            final = os.path.join(str(VISION_DIR), os.path.basename(n))
+            part = final + ".part"
+            with urllib.request.urlopen(f"https://huggingface.co/{REPO}/resolve/main/{n}", timeout=60) as r, open(part, "wb") as out:
+                while True:
+                    chunk = r.read(1 << 20)
+                    if not chunk: break
+                    out.write(chunk)
+                    fetching["done"] += len(chunk)
+            os.replace(part, final)  # only a complete file ever counts
+    except Exception as error:
+        fetching["error"] = str(error)[:200]
+    finally:
+        fetching["running"] = False
+
+
+def as_jpeg(data, kind):
+    """HEIC/HEIF (iPhone and Mac photos) -> JPEG with macOS's own converter."""
+    import subprocess, sys, tempfile
+    if sys.platform != "darwin":
+        raise ValueError("That's an iPhone-style HEIC photo. Save it as JPEG and share it again.")
+    with tempfile.TemporaryDirectory(prefix="luma-photo-") as folder:
+        src, dst = os.path.join(folder, "in.heic"), os.path.join(folder, "out.jpg")
+        with open(src, "wb") as f: f.write(data)
+        subprocess.run(["sips", "-s", "format", "jpeg", "-Z", "1600", src, "--out", dst], check=True, capture_output=True, timeout=60)
+        with open(dst, "rb") as f: return f.read()
+
+
 def _load():
     global _model
     with _lock:

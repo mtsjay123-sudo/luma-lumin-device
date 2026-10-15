@@ -512,3 +512,22 @@ class SignInConnectorTests(unittest.TestCase):
         self.assertEqual(added["name"], "Notion")
         with self.assertRaises(Exception):
             self.agent.connectors.sign_in_finish(q["state"][0], "CODE-9")  # one use only
+
+
+class PhotosTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.agent, self.store = agent_with(Path(self.temp.name), now=lambda: NOW)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_no_eyes_yet_starts_fetching_them_and_says_how_far(self):
+        from luma.skills import vision
+        with mock.patch.object(vision, "available", return_value=False), mock.patch.object(vision, "fetch_in_background") as fetch, \
+                mock.patch.dict(vision.fetching, {"running": True, "done": 34, "total": 100, "error": None}):
+            reply = self.agent.see(b"\\xff\\xd8\\xff" + b"0" * 2000, "what's this?")
+        fetch.assert_called_once()
+        self.assertIn("34% done", reply["text"])
+        self.assertTrue(reply["vision_pending"])

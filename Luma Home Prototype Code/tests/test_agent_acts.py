@@ -367,10 +367,12 @@ class VisionTests(unittest.TestCase):
 
     def test_asking_about_a_photo_before_the_model_is_ready_is_honest(self):
         from luma.skills import vision
+        from unittest import mock
         self.assertFalse(vision.available())  # nothing downloaded in the test
-        out = self.agent.see(b"\xff\xd8\xff" + b"0" * 2000, "what is this?")
+        with mock.patch.object(vision, "fetch_in_background"):  # no real download in a test
+            out = self.agent.see(b"\xff\xd8\xff" + b"0" * 2000, "what is this?")
         self.assertTrue(out["vision_pending"])
-        self.assertIn("still downloading", out["text"])
+        self.assertIn("downloading for the first time", out["text"])
         self.assertNotIn("I can see", out["text"].split(".")[0])  # no pretending to describe it
 
     def test_a_good_look_is_remembered_in_the_chat(self):
