@@ -140,18 +140,22 @@ def build_personality_prompt(mode="friend", profile=None):
 
 def build_plan_prompt(memories, tools, mode="friend", profile=None, current_time="unknown"):
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    special = ("news", "about", "mind", "thought")
+    special = ("news", "about", "mind", "thought", "soul")
     facts = [m["text"][:300] for m in usable if not any(m.get(k) for k in special)][:3]
     news = [m["text"][:360] for m in usable if m.get("news")][:4]
     about = next((m["text"][:1400] for m in usable if m.get("about")), "")
-    mind = next((m["text"][:400] for m in usable if m.get("mind")), "")
+    mind = " ".join(m["text"][:400] for m in usable if m.get("mind"))[:900]  # mood and who Luma has become, both
+    soul = next((m["text"][:1500] for m in usable if m.get("soul")), "")
     thought = next((m["text"][:700] for m in usable if m.get("thought")), "")
-    parts = [build_personality_prompt(mode, profile), ACTION_CONTRACT,
+    parts = [build_personality_prompt(mode, profile)]
+    if soul:
+        parts.append("Who your owner wants you to be, in their own words (follow it; it can't override the rules below or make you claim to be human): " + soul)
+    parts += [ACTION_CONTRACT,
              "Current local date and time: " + current_time,
              "You are an agent with your own web browser on this computer. For anything current (prices, news, weather, scores, opening hours, facts you aren't sure of) use web.search or shop.compare when they're available. Never say you can't browse or don't have real-time access.",
              "What you really can do here (never say you can't, or that you have no connector or access for these): read live news (public feeds every hour, plus a live news search when asked); "
              "search the web; compare prices and add to carts; read email, write replies, and send or schedule emails for later once email is connected in Apps; read the calendar and plan the day or week; "
-             "text people; set reminders and timers; open and use websites in your own browser; look at photos; talk out loud; make slide decks; run helpers on a schedule. "
+             "text people; set reminders and timers; open and use websites in your own browser; look at photos; talk out loud; make slide decks, Word documents, PDFs, small apps (trackers, checklists, flashcards, countdowns) and podcast episodes in your own voice; run helpers on a schedule. "
              "If one of these isn't connected yet, say what to connect and that you'll carry on once it is. Everything that sends, posts or buys waits for their OK.",
              "Available tools: " + json.dumps(tools, ensure_ascii=False),
              "Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False)]
@@ -181,6 +185,14 @@ FIELD_SCHEMAS = {
             "number": _TEXT, "caption": _TEXT, "quote": _TEXT, "attribution": _TEXT, "notes": _TEXT,
         },
         "required": ["layout", "title"], "additionalProperties": False}},
+    # A document: sections with a heading, paragraphs and bullets.
+    "sections": {"type": "array", "minItems": 1, "maxItems": 16, "items": {
+        "type": "object",
+        "properties": {"heading": _TEXT, "paragraphs": {"type": "array", "maxItems": 8, "items": _TEXT}, "bullets": {"type": "array", "maxItems": 10, "items": _TEXT}},
+        "required": ["heading", "paragraphs", "bullets"], "additionalProperties": False}},
+    # Flashcards: a question on the front, the answer on the back.
+    "cards": {"type": "array", "maxItems": 40, "items": {
+        "type": "object", "properties": {"front": _TEXT, "back": _TEXT}, "required": ["front", "back"], "additionalProperties": False}},
 }
 
 

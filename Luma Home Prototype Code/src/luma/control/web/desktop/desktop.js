@@ -328,8 +328,8 @@
     feed_digest: { icon: "insta", k: "feed", label: "Feed catch-up" }, agenda: { icon: "calendar", k: "today", label: "Morning agenda" },
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
-  const EVERY = { hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
+  const EVERY = { every_30m: "Every 30 minutes", hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
+  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -522,7 +522,7 @@
     if (r.connect) return connectCard(r);
     if (r.section === "news" && r.results && r.results.length) return newsCard(r.results);
     if (r.kind === "shopping" && r.offers) return products(r);
-    if (r.file && r.file.url) return deckCard(r.file);
+    if (r.file && r.file.url) return fileCard(r.file);
     if (r.messages && r.messages.length) return mailCard(r.messages);
     if (r.events) return agendaCard(r.events);
     if (r.message_draft && ["draft", "quota"].includes(r.state)) return draftCard(r.message_draft, r.state === "quota");
@@ -937,6 +937,76 @@
     c.append(actions);
     return c;
   }
+  // Things Luma made: a deck, a document, a PDF or a small app.
+  function fileCard(f) {
+    if (f.kind === "app") return madeAppCard(f);
+    if (f.kind === "podcast") return podcastCard(f);
+    if (f.kind === "docx" || f.kind === "pdf") return docCard(f);
+    return deckCard(f);
+  }
+  const openFile = (f) => api("/api/files/open", { id: f.id || String(f.url).split("/").pop() }).then(() => toast("Opening it…")).catch((e) => toast(e.message));
+  function docCard(f) {
+    const c = el("div", "card box made-doc");
+    const head = el("div", "card-head");
+    const t = el("div");
+    t.append(el("div", "t", f.title || f.name), el("div", "s", f.kind === "pdf" ? "PDF" : "Word document · opens in Word or Pages"));
+    head.append(chip("update", f.kind === "pdf" ? "pdf" : "doc", "chip-ic"), t, el("span", "spacer"));
+    const dl = el("a", "pill soft small");
+    dl.append(icon("down"), document.createTextNode("Download"));
+    dl.href = f.url;
+    head.append(btn("Open", "pill primary small", () => openFile(f)), dl);
+    c.append(head);
+    const outline = (f.outline || []).filter((s) => s.title);
+    if (outline.length) {
+      const ol = el("ol", "doc-outline");
+      for (const s of outline.slice(0, 8)) { const li = el("li"); li.append(el("b", null, s.title)); if (s.points?.[0]) li.append(el("span", null, " — " + String(s.points[0]).slice(0, 110))); ol.append(li); }
+      c.append(ol);
+    }
+    return c;
+  }
+  function podcastCard(f) {
+    const c = el("div", "card box made-podcast");
+    const head = el("div", "card-head");
+    const t = el("div");
+    const mins = f.seconds ? `${Math.floor(f.seconds / 60)}:${String(f.seconds % 60).padStart(2, "0")}` : "";
+    t.append(el("div", "t", f.title || "Episode"), el("div", "s", `Podcast${mins ? " · " + mins : ""} · in Luma's voice`));
+    head.append(chip("update", "podcast", "chip-ic"), t, el("span", "spacer"));
+    const dl = el("a", "pill soft small");
+    dl.append(icon("down"), document.createTextNode("Download"));
+    dl.href = f.url;
+    head.append(dl);
+    const audio = el("audio", "podcast-audio");
+    audio.controls = true;
+    audio.preload = "metadata";
+    audio.src = f.url;
+    audio.addEventListener("play", () => { try { hush(); } catch (_) { /* Luma isn't talking */ } });
+    c.append(head, audio);
+    if (f.script) {
+      const more = el("details", "podcast-script");
+      more.append(el("summary", null, "Read along"), el("p", null, f.script));
+      c.append(more);
+    }
+    return c;
+  }
+  function madeAppCard(f) {
+    const c = el("div", "card box made-app");
+    const head = el("div", "card-head");
+    const t = el("div");
+    t.append(el("div", "t", f.title || f.name), el("div", "s", { tracker: "Tracker", checklist: "Checklist", flashcards: "Flashcards", countdown: "Countdown" }[f.app] || "App"));
+    head.append(chip("update", "app", "chip-ic"), t, el("span", "spacer"));
+    const dl = el("a", "pill soft small");
+    dl.append(icon("down"), document.createTextNode("Download"));
+    dl.href = f.url;
+    head.append(btn("Open in browser", "pill primary small", () => openFile(f)), dl);
+    const frame = el("iframe", "app-frame");
+    frame.setAttribute("sandbox", "allow-scripts allow-downloads");
+    frame.title = f.title || "App";
+    frame.loading = "lazy";
+    frame.src = f.url + "?view=1";
+    c.append(head, frame, el("div", "help", "Try it here. Open it in your browser to keep what you add."));
+    return c;
+  }
+
   function deckCard(f) {
     const c = el("div", "card box");
     const head = el("div", "card-head");
@@ -946,7 +1016,7 @@
     const dl = el("a", "pill primary small");
     dl.append(icon("down"), document.createTextNode("Download"));
     dl.href = f.url;
-    head.append(dl);
+    head.append(btn("Open", "pill soft small", () => openFile(f)), dl);
     c.append(head, slides(f));
     return c;
   }
@@ -1699,6 +1769,91 @@
     return s;
   }
 
+  // ---------------------------------------------------------- identity ---
+  // Like a soul file and a memory file, but friendly: who Luma is with you, and what it knows.
+  const SOURCES = { explicit_user_request: "You told me", noticed_in_conversation: "I noticed", feedback: "From your feedback", about_you: "About you", grill: "From an interview" };
+  async function renderIdentity() {
+    const box = $("identity");
+    box.replaceChildren(el("p", "lede", "Loading…"));
+    let d = state.data;
+    try { d = state.data = await api("/api/state"); state.status = d.status; } catch (_) { /* show what we have */ }
+    await refreshHome().catch(() => {});
+    const id = state.home?.identity;
+    box.replaceChildren();
+    if (!id) { box.append(el("p", "lede", "Identity is for grown-ups. Switch out of kids mode to see it.")); return; }
+
+    const soul = el("div", "card box id-card");
+    soul.append(el("div", "t", "Soul"), el("div", "s", "Who Luma should be with you, in your words. It shapes every reply. It can't make Luma pretend to be human, or skip asking you before it sends or buys anything."));
+    const ta = el("textarea", "id-soul");
+    Object.assign(ta, { value: id.soul || "", maxLength: 1500, rows: 5, placeholder: "Like: Talk to me like a sharp older sister. Honest, funny, no fluff. Push me on my goals and call me out when I'm procrastinating." });
+    const count = el("span", "s", `${(id.soul || "").length}/1500`);
+    ta.addEventListener("input", () => { count.textContent = `${ta.value.length}/1500`; });
+    const sa = el("div", "row-actions");
+    sa.append(count, el("span", "spacer"), btn("Save soul", "pill primary small", async () => {
+      try { await api("/api/identity", { soul: ta.value }); toast(ta.value.trim() ? "Saved. That's who I'll be." : "Back to my usual self."); await refreshHome(); } catch (e) { toast(e.message); }
+    }, "spark"));
+    soul.append(ta, sa);
+    box.append(soul);
+
+    if (id.self) {
+      const me = el("div", "card box id-card");
+      me.append(el("div", "t", "Who Luma has become"), el("div", "s", "What Luma has learned about itself from talking with you. It grows a little every night."), el("p", "id-self", id.self));
+      me.append(btn("Start fresh", "pill quiet small", async () => {
+        if (!confirm("Forget who Luma has become and start fresh? Your memories stay.")) return;
+        try { await api("/api/identity", { reset_self: true }); renderIdentity(); } catch (e) { toast(e.message); }
+      }));
+      box.append(me);
+    }
+
+    const mem = el("div", "card box id-card");
+    const all = (d?.memories || []).filter((m) => m.text && !m.news);
+    mem.append(el("div", "t", `Memory · ${all.length}`), el("div", "s", "Everything Luma remembers about you. Click one to change it."));
+    const add = el("form", "id-add");
+    const input = el("input");
+    Object.assign(input, { placeholder: "Something Luma should always remember…", maxLength: 500 });
+    const go1 = el("button", "pill primary small", "Remember"); go1.type = "submit";
+    add.append(input, go1, btn("Grill me", "pill soft small", () => { go("chat"); send("grill me"); }, "chat"));
+    add.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      try { await api("/api/memory/add", { text: input.value.trim() }); input.value = ""; toast("I'll remember that."); renderIdentity(); } catch (err) { toast(err.message); }
+    });
+    const find = el("input", "id-find");
+    Object.assign(find, { type: "search", placeholder: "Search memories" });
+    const list = el("div", "id-list");
+    const draw = () => {
+      const q = find.value.trim().toLowerCase();
+      list.replaceChildren();
+      const shown = all.filter((m) => !q || m.text.toLowerCase().includes(q));
+      if (!shown.length) list.append(el("p", "s", all.length ? "Nothing matches." : "Nothing yet. Tell Luma something, or say “grill me” and it'll ask."));
+      for (const m of shown.slice(0, 200)) {
+        const row = el("div", "id-mem");
+        const text = el("div", "id-text", m.text);
+        text.contentEditable = "true";
+        text.spellcheck = true;
+        text.addEventListener("blur", async () => {
+          const next = text.textContent.trim();
+          if (!next || next === m.text) { text.textContent = m.text; return; }
+          try { await api("/api/memory/save", { id: m.id, text: next }); m.text = next; toast("Updated."); } catch (e) { toast(e.message); text.textContent = m.text; }
+        });
+        text.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); text.blur(); } });
+        const meta = el("div", "id-meta", `${SOURCES[m.source] || "Saved"}${m.created ? " · " + ago(m.created) : ""}`);
+        const del = btn("×", "pill quiet small id-del", async () => {
+          try { await api("/api/memory/delete", { id: m.id }); all.splice(all.indexOf(m), 1); draw(); } catch (e) { toast(e.message); }
+        });
+        del.title = "Forget this";
+        const body = el("div", "grow");
+        body.append(text, meta);
+        row.append(body, del);
+        list.append(row);
+      }
+    };
+    find.addEventListener("input", draw);
+    draw();
+    mem.append(add, find, list);
+    box.append(mem);
+  }
+
   // ----------------------------------------------------------- library ---
   async function renderLibrary() {
     const box = $("library");
@@ -1719,6 +1874,21 @@
         cap.append(el("div", "t", f.title || f.name), el("div", "s", `${f.slides || "?"} slides · ${ago(f.created)}`));
         tile.append(thumb, cap);
         tile.addEventListener("click", () => { const b = el("div"); b.append(deckCard(f)); openSheet(f.title || f.name, b); });
+        t.append(tile);
+      }
+    }
+    const made = (d?.files || []).filter((f) => ["docx", "pdf", "app", "podcast"].includes(f.kind));
+    if (made.length) {
+      const t = section("Documents, apps and podcasts");
+      for (const f of made) {
+        const tile = el("button", "tile card");
+        tile.type = "button";
+        const thumb = el("div", `slide made-thumb kind-${f.kind}`);
+        thumb.append(el("span", "k", f.kind === "app" ? "App" : f.kind === "pdf" ? "PDF" : f.kind === "podcast" ? "Podcast" : "Doc"), el("span", "t", f.title || f.name));
+        const cap = el("div", "cap");
+        cap.append(el("div", "t", f.title || f.name), el("div", "s", ago(f.created)));
+        tile.append(thumb, cap);
+        tile.addEventListener("click", () => { const b = el("div"); b.append(fileCard({ ...f, url: f.url })); openSheet(f.title || f.name, b); });
         t.append(tile);
       }
     }
@@ -1956,7 +2126,7 @@
       box.append(ac);
     }
     const presets = con.app_presets || [];
-    const nc = appCard("Connect any app", "Hugging Face, Supabase, Figma, AWS, GitHub and any app with an MCP connector", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
+    const nc = appCard("Connect any app", "Notion, Linear, Hugging Face, Supabase, Figma, GitHub, 500+ more through Composio, and any app with an MCP connector", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
     nc.append(strip(["huggingface", "supabase", "figma", "amazonaws", "github", "notion"]));
     const f2 = el("form");
     const pick = el("select");
@@ -1970,7 +2140,9 @@
     const sync = () => {
       const p = presets.find((x) => x.id === pick.value) || {};
       about.textContent = p.about || "";
-      name2.hidden = where.hidden = p.id !== "custom";
+      name2.hidden = p.id !== "custom";
+      where.hidden = !(p.id === "custom" || p.needs === "url");
+      where.placeholder = p.needs === "url" ? `Your ${p.name.split(" (")[0]} MCP link (https://…)` : "MCP address (https://…) or the command from the app's docs";
       folder.hidden = p.needs !== "folder";
       token.hidden = !(p.needs === "token" || p.id === "custom");
       go2.textContent = p.needs === "signin" ? `Connect ${p.name}` : "Connect";
@@ -1982,6 +2154,7 @@
       e.preventDefault();
       const v = where.value.trim();
       const p = presets.find((x) => x.id === pick.value) || {};
+      if (p.needs === "url" && !/^https:\/\//i.test(v)) { toast(`Paste the https:// link ${p.name.split(" (")[0]} gave you.`); return; }
       // Sign in with the app itself (like ChatGPT and Claude connectors): for sign-in apps, or any https address with no token.
       if (p.needs === "signin" || (p.id === "custom" && /^https:\/\//i.test(v) && !token.value)) {
         go2.disabled = true; go2.textContent = "Opening sign-in…";
@@ -2065,6 +2238,76 @@
     it.append(g, sw);
     return it;
   }
+  // Luma's brain: the local one, a bigger local one, or Claude with your own key.
+  function brainCard() {
+    const b = state.home?.brain;
+    const item = el("div", "item brain-item");
+    if (!b) return item;
+    const g = el("div", "grow");
+    g.append(el("div", "title", "Luma's brain"), el("div", "sub", `Thinking with ${b.thinking_with}. Approvals, rules and everything Luma does stay on this computer either way.`));
+    const redo = async (body, ok) => {
+      try { await api("/api/brain", body); await refreshHome(); if (ok) toast(ok); renderSettings(); }
+      catch (e) { toast(e.message); }
+    };
+    // On this computer
+    const local = el("div", "brain-row");
+    const lt = el("div", "grow");
+    lt.append(el("div", "t", "On this computer"));
+    const L = b.local || {};
+    if (L.fetching != null) {
+      lt.append(el("div", "sub", `Getting the bigger brain… ${L.fetching}%`));
+      const bar = el("div", "brain-bar"); const fill = el("i"); fill.style.width = `${L.fetching}%`; bar.append(fill); lt.append(bar);
+      clearTimeout(brainCard.timer);
+      brainCard.timer = setTimeout(() => state.view === "settings" && refreshHome().then(renderSettings), 3000);
+      local.append(lt);
+    } else if (L.big_ready) {
+      lt.append(el("div", "sub", L.name.startsWith("Qwen3 30B") ? "The bigger brain (Qwen3 30B), free and private." : "The small, fast brain. The bigger one is downloaded and ready."));
+      local.append(lt, btn(L.name.startsWith("Qwen3 30B") ? "Use the small one" : "Use the bigger one", "pill soft small", () => redo({ action: L.name.startsWith("Qwen3 30B") ? "use_small" : "use_big" })));
+    } else if (L.big_fits) {
+      lt.append(el("div", "sub", `${L.name} now. This computer has ${L.ram_gb} GB of memory, enough for a much bigger brain that still runs here, free and private.`));
+      if (L.fetch_error) lt.append(el("div", "sub warn", L.fetch_error));
+      local.append(lt, btn("Get the bigger brain", "pill primary small", () => redo({ action: "get_bigger" }, "Downloading it in the background. Luma keeps working meanwhile.")));
+    } else {
+      lt.append(el("div", "sub", `${L.name}. The bigger local brain needs 24 GB of memory and this computer has ${L.ram_gb} GB, so the cloud brain below is the big upgrade here.`));
+      local.append(lt);
+    }
+    // In the cloud, with your key
+    const C = b.cloud || {};
+    const cloud = el("div", "brain-row");
+    const ct = el("div", "grow");
+    ct.append(el("div", "t", "Cloud brain (Claude)"));
+    const model = el("select", "brain-model");
+    for (const [id, label] of Object.entries(C.models || {})) { const o = el("option", null, label); o.value = id; o.selected = id === C.model; model.append(o); }
+    if (C.on) {
+      ct.append(el("div", "sub", "On. Your messages go to Anthropic to be answered, on your own key and account."));
+      if (C.last_error) ct.append(el("div", "sub warn", C.last_error));
+      model.addEventListener("change", () => redo({ action: "cloud_on", model: model.value }, "Switched."));
+      const a = el("div", "row-actions");
+      a.append(model, btn("Turn off", "pill soft small", () => redo({ action: "cloud_off" }, "Back to thinking on this computer only.")),
+        btn("Forget key", "pill quiet small danger", () => redo({ action: "forget_key" }, "Key removed.")));
+      cloud.append(ct, a);
+    } else {
+      ct.append(el("div", "sub", "The biggest jump: plans long, messy tasks like the best cloud assistants. Off by default; when on, your messages go to Anthropic to be answered, on your own key."));
+      const f = el("form", "brain-form");
+      const key = el("input"); Object.assign(key, { type: "password", placeholder: C.has_key ? "Key saved (paste a new one to replace it)" : "Anthropic API key (sk-ant-…)", autocomplete: "off" });
+      const go1 = el("button", "pill primary small", "Turn on"); go1.type = "submit";
+      const help = el("div", "help");
+      help.append(document.createTextNode("Get a key at "), linkOut("console.anthropic.com", "https://console.anthropic.com/settings/keys", ""), document.createTextNode(". It's kept encrypted on this computer."));
+      f.append(key, model, go1, help);
+      f.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (!key.value.trim() && !C.has_key) { toast("Paste your Anthropic API key first."); return; }
+        go1.disabled = true; go1.textContent = "Checking…";
+        redo({ action: "cloud_on", key: key.value.trim() || undefined, model: model.value }, "Cloud brain on.").finally(() => { key.value = ""; });
+      });
+      ct.append(f);
+      cloud.append(ct);
+    }
+    g.append(local, cloud);
+    item.append(g);
+    return item;
+  }
+
   async function renderSettings() {
     try { const d = await api("/api/state"); state.data = d; state.status = d.status; } catch (_) { /* keep going */ }
     const s = state.status || {};
@@ -2103,6 +2346,7 @@
     aug.append(el("div", "title", "About you"), el("div", "sub", done ? "Your birthday, your people, what you're into — Luma uses this everywhere." : "Tell Luma about you once, so it actually knows you."));
     au.append(aug, btn(done ? "Edit" : "Set it up", "pill " + (done ? "soft" : "primary") + " small", () => aboutSheet(), "people"));
     box.append(au);
+    box.append(brainCard());
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
     box.append(toggleRow("Deeper mind", "Luma takes a second look at its own answer and fixes anything it's unsure of or made up. A little slower, a lot sharper.", s.deep_mind !== false, (on) => api("/api/setting", { key: "deep_mind", value: on })));
     box.append(toggleRow("Weigh it out", "On a real question, Luma looks at it a few ways, picks what holds up, and checks facts before answering — how a small brain beats a big one. Needs Deeper mind on.", s.deliberate !== false, (on) => api("/api/setting", { key: "deliberate", value: on })));
@@ -2394,6 +2638,7 @@
     if (view === "ideas") renderIdeas();
     if (view === "goals") renderGoals();
     if (view === "library") renderLibrary();
+    if (view === "identity") renderIdentity();
     if (view === "apps") renderApps();
     if (view === "rules") renderRules();
     if (view === "settings") renderSettings();

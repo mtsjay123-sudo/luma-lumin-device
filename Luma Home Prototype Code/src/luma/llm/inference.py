@@ -12,7 +12,18 @@ from luma.config import (LLAMA_MODEL_PATH, LLAMA_CONTEXT_SIZE, LLAMA_GPU_LAYERS,
 from luma.llm.prompts import SYSTEM_PROMPT, build_plan_prompt, normalize_profile, proposal_schema
 
 _llm = None
+_llm_path = None
+_override = None  # a bigger model, once it's downloaded and verified (see luma.llm.brain)
 _inference_lock = threading.RLock()
+
+
+def use_model_path(path):
+    """Think with this model file from the next message on (None: the default one)."""
+    global _override, _llm
+    with _inference_lock:
+        _override = path
+        if _llm is not None and _llm_path != (path or LLAMA_MODEL_PATH):
+            _llm = None  # loaded fresh on the next call
 
 
 class GenerationCancelled(Exception):
@@ -86,8 +97,8 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
     prompt = build_plan_prompt(memories, tools, mode, profile, now)
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
-    if any("slides" in spec.get("fields", {}).values() for spec in tools.values()):
-        max_tokens = 1800  # a whole deck outline in one constrained answer
+    if any({"slides", "sections", "cards"} & set(spec.get("fields", {}).values()) for spec in tools.values()):
+        max_tokens = 1800  # a whole deck, document or set of cards in one constrained answer
     with _model_access(cancel_event):
         model = _load_model()
         _check_cancel(cancel_event)
@@ -125,22 +136,23 @@ def _silence_stderr():
 
 
 def _load_model():
-    global _llm
+    global _llm, _llm_path
     if _llm is not None:
         return _llm
+    model_path = _override or LLAMA_MODEL_PATH
     try:
         from llama_cpp import Llama
     except ImportError as e:
         raise RuntimeError("llama-cpp-python not installed — run scripts/setup_mac.sh") from e
 
-    if not LLAMA_MODEL_PATH.exists():
+    if not model_path.exists():
         raise FileNotFoundError(
-            f"Model not found at {LLAMA_MODEL_PATH}. Check LUMA_MODEL_PATH or run scripts/download_models.sh for the original model."
+            f"Model not found at {model_path}. Check LUMA_MODEL_PATH or run scripts/download_models.sh for the original model."
         )
 
     with _silence_stderr():
         _llm = Llama(
-            model_path=str(LLAMA_MODEL_PATH),
+            model_path=str(model_path),
             n_ctx=LLAMA_CONTEXT_SIZE,
             n_gpu_layers=LLAMA_GPU_LAYERS,
             n_threads=LLAMA_THREADS,
@@ -148,6 +160,7 @@ def _load_model():
             chat_format=LLAMA_CHAT_FORMAT,
             verbose=False,
         )
+    _llm_path = model_path
     return _llm
 
 

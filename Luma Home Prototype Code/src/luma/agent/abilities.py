@@ -37,6 +37,7 @@ AREAS = [
     ("voice", r"voice|talk(?:ing)?|speak(?:ing)?|listen(?:ing)?|hear(?:ing)?|mic(?:rophone)?"),
     ("reminders", r"remind(?:ers?)?|timers?|alarms?|notes?|to-?dos?|tasks?"),
     ("decks", r"slides?|decks?|powerpoint|keynote|presentations?"),
+    ("documents", r"documents?|docs?|word docs?|pdfs?|letters?|reports?|resumes?|essays?|trackers?|checklists?|flash ?cards?|apps?|podcasts?|dashboards?"),
     ("chrome", r"(?:google )?chrome|my browser|(?:my )?tabs?"),
     ("web", r"internet|the web|web|online|google|search(?:ing)?|brows(?:e|ing|er)|look(?:ing)? things up|data|information|info|updates?|sports scores?|scores?|stocks?"),
 ]
@@ -90,7 +91,9 @@ def overview(state):
         f"• Photos: drop one in and ask me about it{eyes}.",
         "• Voice: tap the mic and just talk. I answer out loud and keep listening.",
         "• Your Chrome: add Luma for Chrome (Connectors) and I open tabs, play music in a tab in the back, and read the page you're on.",
-        "• Slide decks from an idea, and thinking through big decisions with you.",
+        "• Make things: slide decks, Word documents, PDFs, little apps (trackers, checklists, flashcards, countdowns) and podcast episodes in my own voice.",
+        "• Get to know you: say “grill me” and I'll interview you, and you can see and edit everything I remember under Identity.",
+        "• Thinking through big decisions with you.",
         "• Helpers that run on their own: price watches, a morning inbox check, a daily news card.",
     ]
     if apps:
@@ -131,6 +134,10 @@ def about(key, state):
         return "Yes. “Remind me in 20 minutes to …”, “remind me tomorrow at 9 to …”, timers, notes, and things you want me to remember."
     if key == "decks":
         return "Yes. Say “make a pitch deck for …” and I'll build a PowerPoint you can open in Keynote too."
+    if key == "documents":
+        return ("Yes. Ask for a document (“write a one-page proposal for…”, it opens in Word or Pages), a PDF, a little app "
+                "(“make me a spending tracker”, “packing list: passport, charger”, “flashcards for Spanish verbs”, “countdown to Christmas”) "
+                "or a podcast (“make me a morning podcast”). Everything lands in your Library.")
     if key == "chrome":
         if state.get("chrome"):
             return "Yes, Luma for Chrome is connected. Say “open YouTube”, “play some lofi” (it plays in a tab in the back) or “what's on this page?”."

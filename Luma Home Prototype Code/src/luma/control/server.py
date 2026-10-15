@@ -134,8 +134,15 @@ def home_payload(agent, owner=True):
         'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
         'about_done': bool((agent.store.setting('about') or {}).get('asked')) if agent.mode != 'kids' else True,
         'model': {'on': agent.use_model},
+        'brain': _brain_status() if owner else None,
+        'identity': {'soul': agent.store.setting('soul') or '', 'self': agent.store.setting('self_model') or ''} if owner and agent.mode != 'kids' else None,
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
     }
+
+
+def _brain_status():
+    from luma.llm import brain
+    return brain.status()
 
 
 def make_server(agent, port=8095, *, context=None, phone_host=None):
@@ -244,14 +251,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 if not row or files not in target.parents or not target.is_file(): return self.send({'error':'File not found'},404)
                 data = target.read_bytes()
                 self.send_response(200)
-                kind = 'application/vnd.openxmlformats-officedocument.presentationml.presentation' if target.suffix == '.pptx' else 'application/octet-stream'
+                kind = {'.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        '.pdf': 'application/pdf', '.html': 'text/html; charset=utf-8', '.wav': 'audio/wav'}.get(target.suffix, 'application/octet-stream')
                 safe = ''.join(c for c in row['name'] if c.isalnum() or c in '-_.') or 'luma-file'
-                for k, v in {'Content-Type': kind, 'Content-Length': str(len(data)), 'Content-Disposition': f'attachment; filename="{safe}"',
-                             'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}.items(): self.send_header(k, v)
+                headers = {'Content-Type': kind, 'Content-Length': str(len(data)), 'Content-Disposition': f'attachment; filename="{safe}"',
+                           'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
+                if target.suffix == '.html' and 'view=1' in (urlsplit(self.path).query or ''):
+                    # A Luma-made app, shown inside Luma: its own sandbox, no network, no way to reach Luma's controls.
+                    headers.update({'Content-Disposition': 'inline', 'Content-Security-Policy': "sandbox allow-scripts allow-downloads; default-src 'none'; "
+                                    "script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'"})
+                for k, v in headers.items(): self.send_header(k, v)
                 self.end_headers()
                 return self.wfile.write(data)
             if path=='/api/activity':
-                return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5]})
+                return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5],'due_soon':agent.due_soon()})
             if path=='/api/activity/shot':
                 image=agent.activity.image()
                 if not image: return self.send({'error':'No picture yet'},404)
@@ -304,7 +318,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
                 about_data = (agent.store.setting('about') or {}) if adult and not companion else {}
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',40) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'created':f.get('created')} for f in agent.store.all('file',20)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',300) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'app':f.get('app'),'seconds':f.get('seconds'),'script':f.get('script'),'created':f.get('created')} for f in agent.store.all('file',40)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
@@ -496,6 +510,22 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/memory/add':
+                        if companion or agent.mode=='kids': return self.send({'error':'Add memories on the Mac.'},403)
+                        text=' '.join(str(data.get('text') or '').split())
+                        if not 2<=len(text)<=500: raise ValueError('Write the memory in a sentence (up to 500 characters).')
+                        from luma.memory.store import reject_payment_secrets
+                        reject_payment_secrets(text)
+                        result={'memory':agent.store.put('memory',{'text':text,'source':'explicit_user_request','created':agent.clock()})}
+                    elif path=='/api/identity':
+                        # Luma's soul: who the owner wants it to be, in their words. And a fresh start for who it has become.
+                        if companion or agent.mode=='kids': return self.send({'error':'Change who Luma is on the Mac.'},403)
+                        if 'soul' in data:
+                            soul=str(data.get('soul') or '').strip()
+                            if len(soul)>1500: raise ValueError('Keep the soul under 1,500 characters.')
+                            agent.store.set_setting('soul',soul or None)
+                        if data.get('reset_self'): agent.store.set_setting('self_model',None)
+                        result={'identity':{'soul':agent.store.setting('soul') or '','self':agent.store.setting('self_model') or ''}}
                     elif path=='/api/threads/new': result=agent.new_thread(data.get('title'))
                     elif path=='/api/threads/delete': result=agent.delete_thread(str(data.get('id','')))
                     elif path=='/api/shop/compare':
@@ -522,6 +552,29 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif path=='/api/cards/read': result={'card':agent.feed.mark_read(data.get('id'))}
                     elif path=='/api/cards/delete': result={'deleted':agent.feed.delete(data.get('id'))}
                     elif path=='/api/feedback': result=agent.feedback(str(data.get('id','')),data.get('value'),data.get('note'))
+                    elif path=='/api/files/open':
+                        # Open something Luma made in this computer's own app for it (Word, Pages, Preview, your browser).
+                        if companion: return self.send({'error':'Open files on the Mac.'},403)
+                        row=agent.store.get('file',str(data.get('id','')))
+                        files=agent.files_dir.resolve()
+                        target=Path(row['path']).resolve() if row else None
+                        if not row or files not in target.parents or not target.is_file(): raise ValueError('That file is gone.')
+                        opener=['open',str(target)] if os.uname().sysname=='Darwin' else ['xdg-open',str(target)]
+                        try: subprocess.Popen(opener,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                        except OSError as error: raise ValueError("This computer has nothing to open that with.") from error
+                        result={'opened':row['name']}
+                    elif path=='/api/brain':
+                        # Which brain Luma thinks with: the local one, a bigger local one, or Claude with the owner's own key.
+                        if companion or agent.mode=='kids': return self.send({'error':'Change Luma\'s brain on the Mac.'},403)
+                        from luma.llm import brain
+                        action=data.get('action')
+                        if action=='cloud_on': result=brain.set_cloud(True,key=data.get('key'),model=data.get('model'))
+                        elif action=='cloud_off': result=brain.set_cloud(False)
+                        elif action=='forget_key': result=brain.forget_key()
+                        elif action=='get_bigger': result=brain.fetch_bigger()
+                        elif action in {'use_small','use_big'}: brain.use_small(action=='use_small'); result=brain.status()
+                        else: raise ValueError('Choose a brain setting.')
+                        result={'brain':result}
                     elif path=='/api/rules':
                         if companion: return self.send({'error':'Change rules on the Mac.'},403)
                         result={'rules':agent.rules.set(str(data.get('id','')),str(data.get('value','')))}

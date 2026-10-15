@@ -133,7 +133,8 @@ function keepAwakeWhileWorking() {
       res.on("data", (c) => { body += c; });
       res.on("end", () => {
         let busy = false;
-        try { busy = ["running", "paused"].includes(JSON.parse(body).activity?.state); } catch { /* not ready */ }
+        // Working on something, or an email or reminder is due soon: don't let the computer doze off on it.
+        try { const d = JSON.parse(body); busy = ["running", "paused"].includes(d.activity?.state) || d.due_soon === true; } catch { /* not ready */ }
         if (busy && awake === null) awake = powerSaveBlocker.start("prevent-app-suspension");
         if (!busy && awake !== null) { powerSaveBlocker.stop(awake); awake = null; }
       });

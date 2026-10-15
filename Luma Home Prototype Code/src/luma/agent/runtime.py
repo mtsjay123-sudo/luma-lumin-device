@@ -73,6 +73,12 @@ TOOLS = {
                         "layout is title, section, bullets, big_number (number like '$4B' plus caption), quote (quote plus attribution) or closing. "
                         "A pitch deck: title, problem, solution, why now, market (big_number), product, business model, traction, competition, team, the ask, closing. "
                         "theme is midnight, daylight, ember or forest", {"title": "string", "subtitle": "text", "theme": "text", "slides": "slides"}, kids=True),
+    "doc.create": Tool("Write a document the owner can open in Word, Pages or as a PDF: a letter, report, plan, essay, resume, itinerary, guide, proposal. "
+                       "format is docx or pdf (pdf only if they ask for a PDF). Each section has a heading, full-sentence paragraphs and optional bullets. Write the real content, not placeholders",
+                       {"title": "string", "subtitle": "text", "format": "text", "sections": "sections"}, kids=True),
+    "app.create": Tool("Make a small app they can use right away, as one web page. kind is tracker (rows of data with columns, adds up number columns: spending, workouts, habits), "
+                       "checklist (items to tick off: packing, to-dos, groceries), flashcards (study cards with a front and back) or countdown (to a date, date as YYYY-MM-DD). "
+                       "columns and items are comma-separated; leave fields a kind doesn't use empty", {"title": "string", "kind": "string", "columns": "text", "items": "text", "cards": "cards", "date": "text"}, kids=True),
     "browser.open": Tool("Open a website in Luma's own browser and read it, like instagram.com or a store page", {"url": "string"}, "browser"),
     "browser.read": Tool("Read the page that's open in Luma's browser", {}, "browser"),
     "browser.scroll": Tool("Scroll the open page down or up and read what appears; times is 1-5", {"direction": "string", "times": "integer"}, "browser"),
@@ -232,6 +238,8 @@ class Agent:
         self.connectors = Connectors(self.store, on_tools=register_connector_tools)
         if self.store.setting("connectors", []):
             threading.Thread(target=self.connectors.start_all, name="luma-connectors", daemon=True).start()
+        from luma.llm import brain
+        brain.init(self.store)  # a bigger local brain if it's here; the cloud brain if they turned it on
         self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
         self.now_playing = None
         self.last_offers = []  # the latest price comparison, for "add the cheapest to my cart"
@@ -365,6 +373,8 @@ class Agent:
             (r"\b(?:talk|speak|style|tone|reply|replies)\b", {"personality.set_style"}),
             (r"\b(?:contacts?|number|save|add)\b.*\+?\d[\d\s().-]{8,}|\b(?:who have i saved|my contacts|my people)\b", {"contacts.save", "contacts.list"}),
             (r"\b(?:deck|slides?|presentation|pitch|powerpoint|keynote)\b", {"deck.create"}),
+            (r"\b(?:document|doc|docx|word|pdf|letter|report|essay|resume|cv|itinerary|write-?up|memo|proposal|cover letter|one-?pager|guide|plan for)\b", {"doc.create"}),
+            (r"\b(?:app|tracker|track my|checklist|check list|to-?do list|packing list|flash ?cards?|study (?:guide|cards)|quiz me|countdown|habit|budget|spending)\b", {"app.create"}),
             (r"\b(?:instagram|insta|ig|tiktok|twitter|facebook|reddit|youtube|linkedin|website|site|browser|web ?page|feed|\w+\.(?:com|org|net|io|co))\b|\b(?:open|go to|scroll|check)\b", {"browser.open", "browser.read", "browser.scroll"}),
             (r"\b(?:click|tap|press|type|fill|add to cart)\b", {"browser.click", "browser.type", "browser.read"}),
             (r"\b(?:cheapest|cheaper|lowest price|best price|best deal|compare prices?|price of|how much (?:is|are|does)|buy|shop(?:ping)?|deal|gifts?|presents?)\b", {"shop.compare"}),
@@ -399,9 +409,9 @@ class Agent:
 
     def call_planner(self, messages, context, allowed, cancel_event, profile=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
-        from luma.llm.inference import plan
-        return plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
-                    on_text=getattr(self, "_on_text", None))
+        from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
+        return brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
+                          on_text=getattr(self, "_on_text", None))
 
     def enable(self, service, value):
         if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser", "mail", "calendar", "connectors"}: raise ValueError("Unknown integration.")
@@ -611,6 +621,8 @@ class Agent:
             return {"contacts": [{"name": c["name"], "nicknames": c.get("aliases", [])} for c in people],
                     "summary": ("You've saved " + ", ".join(c["name"] for c in people[:12]) + ".") if people else "You haven't saved anyone yet."}
         if name == "deck.create": return self._create_deck(args)
+        if name == "doc.create": return self._create_doc(args)
+        if name == "app.create": return self._create_app(args)
         if name == "shop.compare": return self.shop(args["query"], max_price=args["max_price"] or None)
         if name.startswith("mcp."):
             try:
@@ -631,6 +643,228 @@ class Agent:
     @property
     def files_dir(self):
         return self.store.db_path.parent / "files"
+
+    def _create_doc(self, args):
+        """A Word document or a PDF Luma wrote, saved here and listed in the Library."""
+        from luma.skills import documents
+        spec = documents.validate_doc(args)
+        ident = secrets.token_hex(6)
+        name = documents.safe_filename(spec["title"], spec["format"])
+        path = self.files_dir / f"{ident}-{name}"
+        (documents.build_pdf if spec["format"] == "pdf" else documents.build_docx)(spec, path)
+        outline = [{"layout": "section", "title": s["heading"][:90], "big": "", "points": (s["bullets"] or s["paragraphs"])[:3]} for s in spec["sections"]][:16]
+        row = self.store.put("file", {"name": name, "path": str(path), "kind": spec["format"], "title": spec["title"], "outline": outline,
+                                      "sections": len(spec["sections"]), "created": self.clock()}, ident)
+        what = "PDF" if spec["format"] == "pdf" else "document"
+        return {"file": {"id": row["id"], "name": name, "url": "/files/" + row["id"], "kind": spec["format"], "title": spec["title"], "outline": outline},
+                "summary": f"Your {what} is ready: {spec['title']}, {len(spec['sections'])} section{'s' if len(spec['sections']) != 1 else ''}. Open it below, or ask me to change anything."}
+
+    def _create_app(self, args):
+        """A small app (tracker, checklist, flashcards, countdown) as one page that works offline."""
+        from luma.skills import documents
+        spec = documents.validate_app(args)
+        ident = secrets.token_hex(6)
+        name = documents.safe_filename(spec["title"], "html")
+        path = self.files_dir / f"{ident}-{name}"
+        documents.build_app(spec, path)
+        row = self.store.put("file", {"name": name, "path": str(path), "kind": "app", "app": spec["kind"], "title": spec["title"], "created": self.clock()}, ident)
+        how = {"tracker": "Add rows and it keeps the totals", "checklist": "Tick things off as you go", "flashcards": f"{len(spec.get('cards', []))} cards, tap to flip",
+               "countdown": "It counts down live"}[spec["kind"]]
+        return {"file": {"id": row["id"], "name": name, "url": "/files/" + row["id"], "kind": "app", "app": spec["kind"], "title": spec["title"]},
+                "summary": f"Made you a {spec['kind']}: {spec['title']}. {how}. Try it below, or open it in your browser to keep using it."}
+
+    # -- podcasts: the news and your day, as an episode in Luma's own voice ----------
+    PODCAST = re.compile(r"\bpodcast\b|\b(?:audio|spoken) (?:briefing|version|summary|recap)\b|\bread (?:me )?(?:the |my |today'?s )?(?:news|day|briefing) (?:out loud|aloud)\b", re.I)
+    PODCAST_ABOUT = re.compile(r"\b(?:about|on|covering)\s+(?P<topic>[^.?!]{3,60}?)\s*[.?!]*$", re.I)
+
+    def _podcast(self, text, lowered, cancel_event=None):
+        """'Make me a morning podcast': a two-minute episode from what's new and what's on today, recorded here."""
+        if not self.PODCAST.search(lowered) or self.mode == "kids" or re.search(r"\b(?:what|which|recommend|favorite|best|listen(?:ing)? to|subscribe)\b.*\bpodcasts?\b", lowered):
+            return None
+        about = self.PODCAST_ABOUT.search(text)
+        topic = about["topic"].strip() if about and not re.search(r"\b(?:news|my day|today|this morning)\b", about["topic"], re.I) else ""
+        try:
+            items = self.news_feed(query=topic or None).get("items", [])[:6]
+        except Exception:
+            items = []
+        day = "" if topic else self.briefing_text()
+        name = (self.profile.get("name") or "").strip()
+        hour = datetime.fromtimestamp(self.clock(), self.zone).hour
+        greeting = "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "Good evening"
+        script = ""
+        if self.use_model:
+            heads = [str(h.get("source")) + ": " + str(h.get("title")) for h in items]
+            prompt = (f"Write a two-minute spoken podcast episode{' about ' + topic if topic else ' for ' + (name or 'your owner') + ' to start their day'}. You're the host: warm, quick, a little witty. "
+                      "Plain spoken sentences only: no headings, no lists, no stage directions, no emoji. Mention the outlet when you use a headline. About 300 words. "
+                      f"Headlines (data): {json.dumps(heads, ensure_ascii=False)}. Their day (data): {day or 'nothing scheduled'}.")
+            try:
+                with self.lock:
+                    out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+                script = str((out or {}).get("text") or "").strip()
+            except Exception:
+                script = ""
+        if len(script) < 120:
+            lines = [f"{greeting}{', ' + name if name else ''}. This is Luma, and here's {'the latest on ' + topic if topic else 'your rundown'}."]
+            for i, h in enumerate(items):
+                lines.append(("First up" if i == 0 else "Next" if i < len(items) - 1 else "And finally") + f", from {h['source']}: {h['title']}.")
+            if day: lines.append(f"As for your day: {day}")
+            if not items and not day: lines.append("It's a quiet one. No big headlines I could reach right now, and nothing on your calendar.")
+            lines.append("That's it from me. Go have a good one.")
+            script = " ".join(lines)
+        title = f"{'On ' + topic.title() if topic else 'Your ' + datetime.fromtimestamp(self.clock(), self.zone).strftime('%A') + ' rundown'}"
+        ident = secrets.token_hex(6)
+        from luma.skills.documents import safe_filename
+        name_file = safe_filename(title, "wav")
+        path = self.files_dir / f"{ident}-{name_file}"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            from luma.audio.tts import synthesize
+            prefs = self.voice_preferences if isinstance(self.voice_preferences, dict) else {}
+            synthesize(script, str(path), voice=prefs.get("voice") or "luma")
+            import wave
+            with wave.open(str(path)) as wav:
+                seconds = round(wav.getnframes() / wav.getframerate())
+        except Exception:
+            return {"text": "My voice is still downloading, so I can't record it yet. Here's the episode to read instead:\n\n" + script}
+        row = self.store.put("file", {"name": name_file, "path": str(path), "kind": "podcast", "title": title, "script": script, "seconds": seconds, "created": self.clock()}, ident)
+        mins = f"{seconds // 60}:{seconds % 60:02d}"
+        return {"file": {"id": row["id"], "name": name_file, "url": "/files/" + row["id"], "kind": "podcast", "title": title, "script": script, "seconds": seconds},
+                "summary": f"Your episode's ready: {title}, {mins}. Press play below. It's in your Library too."}
+
+    # -- grill me: Luma interviews you until it really gets it ---------------------
+    GRILL_START = re.compile(r"^\W*(?:(?:hey|ok|okay|yo|luma|please|can you|could you)\W+)*(?:grill me|interview me|get to know me(?: better)?|learn (?:all )?about me|ask me (?:everything|questions|a bunch of questions))"
+                             r"(?:\s+(?:about|on|for)\s+(?P<topic>.+?))?\W*$", re.I)
+    GRILL_STOP = re.compile(r"^\W*(?:stop|done|that'?s (?:it|enough|all)|enough|i'?m done|we'?re done|end (?:it|the interview)|no more( questions)?|later|pause)\W*$", re.I)
+    GRILL_SKIP = re.compile(r"^\W*(?:skip|pass|next|next question|i don'?t know|idk|no idea|not sure)\W*$", re.I)
+    GRILL_ASIDE = re.compile(r"^\W*(?:remind me (?:to|in|at|on|tomorrow|tonight)|e-?mail \w+ (?:saying|about|that|at|tomorrow)|text \w+ (?:saying|that)|play (?:me |some )|"
+                             r"open (?:up )?(?:youtube|google|gmail|my |the )|search (?:for )?|look up|what'?s the (?:weather|news|time)|turn (?:on|off) the)\b", re.I)
+    GRILL_GENERAL = ["What do you do, and what does a normal week look like for you?",
+                     "What are the three things you most want to get done in the next 90 days?",
+                     "What's eating most of your time right now that you wish someone else handled?",
+                     "Who are the people you deal with most (family, team, clients), and what should I know about them?",
+                     "How do you like me to talk to you: straight to the point, or more back and forth?",
+                     "When should I never bother you, and when do you want me to nudge you?",
+                     "Which apps and tools do you live in every day?",
+                     "What's one goal you keep putting off, and what's really in the way?",
+                     "What does a great day look like for you, start to finish?",
+                     "What should I always remember about you that most people get wrong?"]
+    GRILL_TOPIC = ["What is {t}, in a sentence or two, like you'd tell a friend?", "What does done look like for {t}? How will you know it worked?",
+                   "When does {t} need to happen, and what happens if it slips?", "Who else is involved in {t}, and what do they own?",
+                   "What's the riskiest or hardest part of {t}?", "What have you already tried for {t}, and what happened?",
+                   "What would you want me to handle for {t}, and what do you want to keep for yourself?", "Anything about {t} I'd get wrong if I guessed?"]
+
+    def _grill(self, text, lowered, cancel_event=None):
+        """'Grill me about my launch': one question at a time, every answer kept as a memory, until they say stop."""
+        if self.mode == "kids":
+            return None
+        state = self.store.setting("grilling")
+        start = self.GRILL_START.match(text.strip())
+        if start:
+            topic = (start["topic"] or "").strip(" .?!")
+            state = {"topic": topic, "asked": [], "answers": 0, "started": self.clock()}
+            question = self._grill_question(state, cancel_event)
+            state["asked"].append(question)
+            self.store.set_setting("grilling", state)
+            yours = re.sub(r"\b(?:my|mine)\b", "your", topic, flags=re.I)
+            lead = f"Okay, let's get into {yours}." if topic else "Okay, let's do this. I'll ask, you answer, and I'll remember all of it."
+            return {"text": f"{lead} Say “skip” to pass or “stop” when you've had enough.\n\n{question}", "asked": True, "grill": True}
+        if not state or self.clock() - state.get("started", 0) > 6 * 3600:
+            return None
+        if self.GRILL_ASIDE.match(lowered):
+            self.store.set_setting("grilling", None)  # they moved on to something else: so does Luma
+            return None
+        if self.GRILL_STOP.match(lowered):
+            self.store.set_setting("grilling", None)
+            got = state.get("answers", 0)
+            about = f" about {state['topic']}" if state.get("topic") else ""
+            return {"text": (f"Got it. I saved {got} thing{'s' if got != 1 else ''} you told me{about}. You can see and edit all of it under Identity. Say “grill me” anytime to keep going."
+                             if got else "No problem, we'll do it another time."), "section": "identity"}
+        question = state["asked"][-1] if state.get("asked") else ""
+        if not self.GRILL_SKIP.match(lowered):
+            from luma.memory.store import reject_payment_secrets
+            note = f"{(state.get('topic') or 'About them').capitalize()}: asked “{question}” They said: {' '.join(text.split())}"[:500]
+            try:
+                reject_payment_secrets(note)
+                self.store.put("memory", {"text": note, "source": "grill", "topic": state.get("topic") or "", "created": self.clock()})
+                state["answers"] = state.get("answers", 0) + 1
+            except ValueError:
+                pass  # never keep card numbers or passwords, even if they say them
+        if len(state.get("asked", [])) >= 12:
+            self.store.set_setting("grilling", None)
+            return {"text": f"That's a great picture. I saved {state['answers']} things, and I'll use them from now on. They're all under Identity if you want to change anything.", "section": "identity"}
+        nxt = self._grill_question(state, cancel_event)
+        state["asked"].append(nxt)
+        self.store.set_setting("grilling", state)
+        return {"text": nxt, "asked": True, "grill": True}
+
+    def _grill_question(self, state, cancel_event=None):
+        topic, asked = state.get("topic") or "", state.get("asked") or []
+        if self.use_model:
+            notes = [m["text"] for m in self.store.all("memory", 40) if m.get("source") == "grill"][:8]
+            prompt = (f"You're interviewing your owner to really understand {topic or 'them, their life and work'}. Ask the single most useful next question: "
+                      "specific, one sentence, building on what they said, never one you already asked.\nAlready asked: " + json.dumps(asked[-8:], ensure_ascii=False)
+                      + "\nWhat they said: " + json.dumps(notes, ensure_ascii=False) + "\nAnswer with just the question.")
+            try:
+                with self.lock:
+                    out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+                question = (out.get("text") if isinstance(out, dict) else "") or ""
+                question = question.strip().split("\n")[0].strip('" ')
+                if question.endswith("?") and 8 < len(question) < 240 and question not in asked:
+                    return question
+            except Exception:
+                pass
+        # Their words, turned around: "my launch" is "your launch" when Luma asks about it.
+        said = re.sub(r"\b(?:my|mine)\b", "your", re.sub(r"\b(?:i'm|i am)\b", "you're", re.sub(r"\b(?:me|myself)\b", "you", topic, flags=re.I), flags=re.I), flags=re.I)
+        bank = [q.format(t=said) for q in self.GRILL_TOPIC] if topic else self.GRILL_GENERAL
+        return next((q for q in bank if q not in asked), self.GRILL_GENERAL[len(asked) % len(self.GRILL_GENERAL)])
+
+    APP_REQUEST = re.compile(r"^\W*(?:(?:can you|could you|please|luma|hey)\W+)*(?:make|build|create|give|set up)\s+(?:me\s+)?(?:a|an|my)\s+(?P<what>[a-z' -]{0,40}?)\s*"
+                             r"(?P<kind>tracker|checklist|check list|to-?do list|packing list|shopping list|countdown)(?:\s+(?:for|to|until)\s+(?P<target>[^:]+?))?(?:\s*[:\-]\s*(?P<items>.+))?\W*$", re.I)
+
+    def _app_request(self, text):
+        """'Make me a spending tracker', 'packing list: passport, charger', 'countdown to Christmas': made right away, no model needed."""
+        m = self.APP_REQUEST.match(text.strip())
+        if not m or self.mode == "kids" and m["kind"].lower() == "tracker" and "spend" in (m["what"] or ""):
+            return None
+        kind = m["kind"].lower()
+        what = (m["what"] or "").strip()
+        if kind == "countdown":
+            target = (m["target"] or what or "").strip()
+            when = self._countdown_date(target)
+            if not when: return {"text": f"Counting down to when? Give me a date, like “countdown to 2026-12-25”."}
+            return self.propose("app.create", {"title": f"Countdown to {target.title()}" if target else "Countdown", "kind": "countdown", "columns": "", "items": "", "cards": [], "date": when})
+        if kind == "tracker":
+            columns = {"spending": "Date, What, Amount", "expense": "Date, What, Amount", "budget": "Date, What, Amount", "workout": "Date, Exercise, Sets, Reps, Weight",
+                       "habit": "Date, Habit, Done", "water": "Date, Glasses", "sleep": "Date, Hours", "reading": "Date, Book, Pages", "mileage": "Date, Trip, Miles"}
+            cols = next((v for k, v in columns.items() if k in what.lower()), "Date, What, Amount" if not what else f"Date, {what.title()}, Amount")
+            return self.propose("app.create", {"title": f"{what.title()} Tracker".strip() if what else "Tracker", "kind": "tracker", "columns": cols, "items": "", "cards": [], "date": ""})
+        items = m["items"] or ""
+        title = (what.title() + " " if what else "") + ("Packing List" if "packing" in kind else "Shopping List" if "shopping" in kind else "Checklist")
+        if not items:
+            starters = {"packing": "Passport or ID, Phone charger, Toothbrush, Clothes, Medications, Headphones",
+                        "shopping": "Milk, Eggs, Bread, Fruit, Coffee"}
+            items = next((v for k, v in starters.items() if k in kind or k in what.lower()), "")
+            if not items: return {"text": f"What goes on it? Say it like “{kind}: first thing, second thing, third thing”.", "asked": True}
+        return self.propose("app.create", {"title": title.strip(), "kind": "checklist", "columns": "", "items": items, "cards": [], "date": ""})
+
+    def _countdown_date(self, target):
+        target = (target or "").strip().lower()
+        now = datetime.fromtimestamp(self.clock(), self.zone)
+        named = {"christmas": (12, 25), "new year": (1, 1), "new years": (1, 1), "new year's": (1, 1), "halloween": (10, 31), "valentine's day": (2, 14), "valentines day": (2, 14),
+                 "independence day": (7, 4), "the 4th of july": (7, 4), "4th of july": (7, 4)}
+        for name, (month, day) in named.items():
+            if name in target:
+                when = now.replace(month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                if when <= now: when = when.replace(year=now.year + 1)
+                return when.date().isoformat()
+        hit = re.search(r"\d{4}-\d{2}-\d{2}", target)
+        if hit: return hit[0]
+        try:
+            from luma.agent.later_mail import when as said_when
+            at, _ = said_when(target, self.clock(), self.zone)
+            return datetime.fromtimestamp(at, self.zone).date().isoformat() if at else None
+        except Exception:
+            return None
 
     def _create_deck(self, args):
         from luma.skills.decks import build_deck, safe_filename, validate_outline
@@ -1246,6 +1480,17 @@ class Agent:
             self.activity.finish("", "failed")
             raise
 
+    def due_soon(self, window=20 * 60):
+        """Is something due in the next little while (a scheduled email, a reminder)? The app keeps the computer awake for it."""
+        now = self.clock()
+        if any(now - 300 <= r.get("send_at", 0) <= now + window for r in self.later_mail()):
+            return True
+        for task in self.store.all("task", 500):
+            due = task.get("due")
+            if not task.get("done") and isinstance(due, (int, float)) and now - 60 <= due <= now + window:
+                return True
+        return False
+
     def later_mail(self):
         return sorted((r for r in self.store.all("mail_later", 500) if r.get("state") == "scheduled"), key=lambda r: r["send_at"])
 
@@ -1385,7 +1630,7 @@ class Agent:
         try:
             with self.lock:
                 if self.planner is None:  # the real model: a tiny, fast pass, not a whole reply
-                    from luma.llm.inference import rewrite
+                    from luma.llm.brain import rewrite
                     said = rewrite(prompt, cancel_event=cancel_event or threading.Event())
                 else:
                     out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
@@ -1508,7 +1753,7 @@ class Agent:
         params = {"price_watch": {"query": detail, "target": args["target_price"] or None}, "feed_digest": {"site": (detail or "instagram").lower().split()[0]},
                   "goal": {"goal": detail}}.get(kind, {})
         row = self.helpers.create(kind, params=params, every=args["every"])
-        every = {"hourly": "every hour", "every_6h": "every few hours", "daily": "every day", "weekly": "every week"}[row["every"]]
+        every = {"every_30m": "every half hour", "hourly": "every hour", "every_6h": "every few hours", "daily": "every day", "weekly": "every week"}[row["every"]]
         return {"helper": row, "section": "goals", "summary": f"Done. I'll {self._helper_phrase(row)} {every}, and I'm starting now."}
 
     @staticmethod
@@ -1741,6 +1986,8 @@ class Agent:
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
         out.append({"mind": True, "text": mind.self_line(self.store.setting("self_model"))})
+        soul = self.store.setting("soul")
+        if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
         if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
             try:
                 with self.lock:
@@ -2376,7 +2623,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome", "grill") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2604,7 +2851,7 @@ class Agent:
         with self.lock:
             from luma.agent.later_mail import fix_typos
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
-            if lowered in {"hush", "not now", "stop"}:
+            if lowered in {"hush", "not now", "stop"} and not (self.store.setting("grilling") and lowered == "stop"):
                 self.hush(); return {"text": "Okay, I'll keep quiet for half an hour."}
             if lowered in {"mute", "privacy on"}:
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
@@ -2613,6 +2860,8 @@ class Agent:
                 return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
             followup = self._contact_followup(text)
             if followup is not None: return followup
+            grilled = self._grill(text, lowered, cancel_event)  # mid-interview, an answer is an answer
+            if grilled is not None: return grilled
             if lowered.rstrip(".!") in {"forget that", "forget what i just said", "don't remember that", "do not remember that", "scratch that"}:
                 return self.forget_last()
             if re.search(r"\bwhat (?:did|have) (?:i|we) (?:say|said|tell you|told you|talk|talked|mention|mentioned)\b", lowered):
@@ -2661,6 +2910,10 @@ class Agent:
                 delay = int(m[1]) * (60 if m[2].lower().startswith("minute") else 3600 if m[2].lower().startswith("hour") else 86400)
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
                 return self.propose("tasks.create", {"title": m[3], "due": datetime.fromtimestamp(self.clock()+delay, self.zone).isoformat()})
+            podcast = self._podcast(text, lowered, cancel_event)
+            if podcast is not None: return podcast
+            made = self._app_request(text)
+            if made is not None: return made
             if lowered.startswith("search ") and not (self.chrome.connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
             # Common ways of asking for a text are drafted by rules, not the model,
             # so nothing gets added to what the owner said.

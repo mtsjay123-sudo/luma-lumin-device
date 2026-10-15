@@ -59,6 +59,9 @@ PRESETS = [
     {"id": "atlassian", "name": "Jira & Confluence", "about": "Atlassian's Jira and Confluence. Press Connect and sign in.", "url": "https://mcp.atlassian.com/v1/sse", "needs": "signin"},
     {"id": "asana", "name": "Asana", "about": "Your tasks and projects. Press Connect and sign in to Asana.", "url": "https://mcp.asana.com/sse", "needs": "signin"},
     {"id": "stripe", "name": "Stripe", "about": "Payments, customers and invoices. Press Connect and sign in to Stripe.", "url": "https://mcp.stripe.com", "needs": "signin"},
+    # One connector, hundreds of apps (YouTube, Reddit, LinkedIn, HubSpot, Perplexity…): paste the MCP link Composio gives you.
+    {"id": "composio", "name": "Composio (500+ apps)", "about": "YouTube, Reddit, LinkedIn, HubSpot, Perplexity and hundreds more through one connector. "
+     "At composio.dev, connect the apps you want, make an MCP server, and paste its link here.", "needs": "url"},
     {"id": "custom", "name": "Any MCP app", "about": "Paste the app's MCP address. If it supports sign-in (most new ones do, like Higgsfield or Canva), I'll open it for you; or paste a token or the command from its docs."},
 ]
 

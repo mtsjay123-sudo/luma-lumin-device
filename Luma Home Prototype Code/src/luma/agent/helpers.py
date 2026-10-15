@@ -13,7 +13,7 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-EVERY = {"hourly": 3600, "every_6h": 6 * 3600, "daily": 86400, "weekly": 7 * 86400}
+EVERY = {"every_30m": 1800, "hourly": 3600, "every_6h": 6 * 3600, "daily": 86400, "weekly": 7 * 86400}
 KINDS = {
     "price_watch": "Price watch",
     "inbox_digest": "Inbox check",
@@ -23,6 +23,7 @@ KINDS = {
     "ideas": "Ideas",
     "news": "News",
     "reflect": "Reflection",
+    "heartbeat": "Heartbeat",
 }
 FEED_KEEP = 200
 
@@ -166,6 +167,9 @@ class Helpers:
         # Every night, Luma reflects on its conversations and rewires its sense of itself.
         if not any(r.get("kind") == "reflect" for r in self.store.all("helper", 60)):
             self.create("reflect", every="daily", at="03:30", system=True, run_now=False)
+        # Every 30 minutes, a quiet look around: a meeting about to start, new email, a reminder coming due. Speaks up only when something's new.
+        if not any(r.get("kind") == "heartbeat" for r in self.store.all("helper", 60)):
+            self.create("heartbeat", every="every_30m", system=True, run_now=False)
 
     # -- running ---------------------------------------------------------------
     def due(self, now):
@@ -242,6 +246,53 @@ class Helpers:
         title = f"{query}: {shopping.money(best['price'])} at {best['store']}"
         return {"card": {"kind": "deal", "title": title, "body": result["text"], "items": result["offers"][:6], "url": best.get("url")},
                 "notify": notify, "state": state}
+
+    def _run_heartbeat(self, row):
+        """What needs them in the next half hour or so, said once. Nothing new: nothing said."""
+        now = self.agent.clock()
+        told = set(row.get("told") or [])
+        lines, items, fresh = [], [], []
+        cal = self.agent.calendar
+        if cal.connected():
+            try:
+                for event in cal.agenda(1, 0) + cal.agenda(1, 1):
+                    key = f"event:{event.get('title')}:{int(event.get('start', 0))}"
+                    if not event.get("all_day") and 0 <= event.get("start", 0) - now <= 45 * 60 and key not in told:
+                        mins = max(1, round((event["start"] - now) / 60))
+                        lines.append(f"{event['title']} starts in {mins} minute{'s' if mins != 1 else ''}.")
+                        fresh.append(key)
+            except Exception:
+                pass
+        for task in self.agent.store.all("task", 200):
+            due = task.get("due")
+            if isinstance(due, str):
+                try: due = datetime.fromisoformat(due).timestamp()
+                except ValueError: due = None
+            key = f"task:{task.get('id')}"
+            if not task.get("done") and isinstance(due, (int, float)) and due - now <= 30 * 60 and due > now - 3600 and key not in told:
+                lines.append(f"Coming up: {task.get('title')}.")
+                fresh.append(key)
+        if self.agent.mail.status().get("connected"):
+            try:
+                unread = self.agent.mail.inbox(limit=10, unread_only=True)
+                new = [m for m in unread if f"mail:{m['id']}" not in told]
+                if new:
+                    who = ", ".join(dict.fromkeys(m["from"].split("<")[0].strip().strip('"') for m in new[:3]))
+                    lines.append(f"{len(new)} new email{'s' if len(new) != 1 else ''}, from {who}.")
+                    items += [{"title": m["subject"], "from": m["from"], "snippet": m["snippet"], "id": m["id"]} for m in new[:5]]
+                    fresh += [f"mail:{m['id']}" for m in new]
+            except Exception:
+                pass
+        for mail in self.agent.later_mail():
+            key = f"later:{mail['id']}"
+            if 0 <= mail.get("send_at", 0) - now <= 30 * 60 and key not in told:
+                lines.append(f"Your email to {mail['to']} goes out soon.")
+                fresh.append(key)
+        state = {"told": (list(told) + fresh)[-400:]}
+        if not lines:
+            return {"state": state}
+        text = " ".join(lines)
+        return {"card": {"kind": "today", "title": "Heads up", "body": text, "items": items}, "notify": text, "state": state}
 
     def _run_inbox_digest(self, row):
         mail = self.agent.mail

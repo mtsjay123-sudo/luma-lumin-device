@@ -32,7 +32,7 @@ TOOL_CATEGORY = {
     "shop.add_to_cart": "cart",
     "memory.remember": "reminders", "memory.recall": "reminders", "tasks.in": "reminders", "tasks.create": "reminders",
     "tasks.list": "reminders", "tasks.complete": "reminders", "routines.create": "reminders", "helpers.create": "reminders",
-    "messages.prepare": "drafts", "mail.draft": "drafts", "deck.create": "drafts",
+    "messages.prepare": "drafts", "mail.draft": "drafts", "deck.create": "drafts", "doc.create": "drafts", "app.create": "drafts",
     "mail.inbox": "inbox", "mail.read": "inbox", "calendar.agenda": "inbox",
     "sms.send": "texts", "mac_messages.send": "texts", "luma.send": "texts",
     "mail.send": "email", "mail.schedule": "email", "mail.send_web": "email",
