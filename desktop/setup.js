@@ -24,7 +24,7 @@ const MODEL = {
 };
 // Enough to run Luma Desktop. Voice (Whisper, Kokoro) is optional and much larger.
 // tzdata: Windows has no time-zone database of its own, and Luma plans your day in yours.
-const PACKAGES = ["llama-cpp-python>=0.3.9", "cryptography>=44", "qrcode==8.2", "python-pptx>=1.0,<2", "playwright>=1.56,<2", "numpy", "python-dotenv", "tzdata", "faster-whisper>=1.1,<2", "av>=11,<14"];  // PyAV 14 breaks faster-whisper's decoding
+const PACKAGES = ["llama-cpp-python>=0.3.9", "cryptography>=44", "qrcode==8.2", "python-pptx>=1.0,<2", "playwright>=1.56,<2", "numpy", "python-dotenv", "tzdata", "faster-whisper>=1.1,<2"];
 const UA = { "User-Agent": "LumaDesktop/1.0 (+https://github.com/mtsjay123-sudo/luma-lumin-device)" };
 
 const triple = () => ({

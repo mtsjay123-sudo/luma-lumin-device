@@ -47,6 +47,24 @@ def _get_model() -> WhisperModel:
 _PHANTOMS = {"", "you", "thank you", "thanks for watching", "thank you for watching", "bye", "okay", "so"}
 
 
+def _wav_samples(data):
+    """16-bit PCM WAV -> mono float32 at 16 kHz, the way Whisper wants it. None if it isn't that."""
+    import io, wave
+    import numpy as np
+    try:
+        with wave.open(io.BytesIO(data)) as clip:
+            if clip.getsampwidth() != 2: return None
+            channels, rate = clip.getnchannels(), clip.getframerate()
+            pcm = np.frombuffer(clip.readframes(clip.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+    except (wave.Error, EOFError):
+        return None
+    if channels > 1:
+        pcm = pcm.reshape(-1, channels).mean(axis=1)
+    if rate != 16000 and len(pcm):
+        pcm = np.interp(np.linspace(0, len(pcm), int(len(pcm) * 16000 / rate), endpoint=False), np.arange(len(pcm)), pcm).astype(np.float32)
+    return pcm
+
+
 def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, keep: tuple = ()) -> str:
     """Text from a short recording made in Luma's window. Nothing leaves this computer.
 
@@ -56,13 +74,19 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
     import tempfile
     if len(data) < _MIN_AUDIO_BYTES:
         return ""
-    with tempfile.TemporaryDirectory(prefix="luma-voice-") as folder:
-        path = os.path.join(folder, "clip" + suffix)
-        with open(path, "wb") as handle:
-            handle.write(data)
-        segments, _info = _get_model().transcribe(path, beam_size=1 if quick else 3, language="en", vad_filter=True,
-                                                  condition_on_previous_text=False)
+    options = dict(beam_size=1 if quick else 3, language="en", vad_filter=True, condition_on_previous_text=False)
+    samples = _wav_samples(data) if suffix == ".wav" else None
+    if samples is not None:
+        # Plain WAV from Luma's window: straight to Whisper, no audio decoder involved at all.
+        segments, _info = _get_model().transcribe(samples, **options)
         text = " ".join(seg.text.strip() for seg in segments).strip()
+    else:
+        with tempfile.TemporaryDirectory(prefix="luma-voice-") as folder:
+            path = os.path.join(folder, "clip" + suffix)
+            with open(path, "wb") as handle:
+                handle.write(data)
+            segments, _info = _get_model().transcribe(path, **options)
+            text = " ".join(seg.text.strip() for seg in segments).strip()
     said = text.lower().strip(" .!?,")
     return "" if said in _PHANTOMS and said not in keep else text
 

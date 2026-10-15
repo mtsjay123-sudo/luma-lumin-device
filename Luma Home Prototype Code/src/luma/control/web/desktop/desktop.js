@@ -2672,8 +2672,29 @@
     if (/\b(?:and|or|but|so|to|that|the|a|an|my|your|for|with|about|because|if|of|in|on|at|from|um|uh|like)$/i.test(voice.partial.replace(/[\s.,…!?]+$/, ""))) return VOICE.hangTrailing;
     return VOICE.hang;
   }
+  // The recording becomes plain 16 kHz WAV right here, so Luma's ears never depend on a video decoder.
+  async function asWav(blob) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC();
+    try {
+      const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const rate = 16000;
+      const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * rate)), rate);
+      const src = off.createBufferSource();
+      src.buffer = decoded; src.connect(off.destination); src.start();
+      const pcm = (await off.startRendering()).getChannelData(0);
+      const out = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+      const tag = (at, str) => { for (let i = 0; i < str.length; i++) out.setUint8(at + i, str.charCodeAt(i)); };
+      tag(0, "RIFF"); out.setUint32(4, 36 + pcm.length * 2, true); tag(8, "WAVE"); tag(12, "fmt ");
+      out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true); out.setUint32(24, rate, true);
+      out.setUint32(28, rate * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true); tag(36, "data"); out.setUint32(40, pcm.length * 2, true);
+      for (let i = 0; i < pcm.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+      return new Blob([out.buffer], { type: "audio/wav" });
+    } finally { ctx.close().catch(() => {}); }
+  }
   async function hear(blob, purpose = "") {
     if (!blob || blob.size < 1200) return "";
+    try { blob = await asWav(blob); } catch (_) { /* send it as recorded; the server can still try */ }
     const r = await fetch("/api/listen" + (purpose ? "?for=" + purpose : ""), { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(d.error || "I couldn't hear that."), { status: r.status });
