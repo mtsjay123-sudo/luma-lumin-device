@@ -291,16 +291,17 @@ const VOICE_FILES = ["kokoro-v1.0.int8.onnx", "voices-v1.0.bin"];
 const VOICE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/";
 function voiceDir(home) { return path.join(home, "models", "kokoro-82m"); }
 function voiceReady(home) { return VOICE_FILES.every((f) => fs.existsSync(path.join(voiceDir(home), f))) && readState(home).voice === 1; }
-async function ensureVoice(home, onLine = () => {}) {
+async function ensureVoice(home, onLine = () => {}, report = () => {}) {
   if (voiceReady(home)) return voiceDir(home);
   const python = pythonPath(home);
   const env = { PIP_DISABLE_PIP_VERSION_CHECK: "1", PYTHONNOUSERSITE: "1" };
+  report({ step: "voice", label: "Getting Luma's voice", fraction: 0.05, detail: "about 120 MB, one time" });
   await run(python, ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary", "kokoro-onnx>=0.4,<1"], { env, onLine });
-  for (const f of VOICE_FILES) {
+  for (const [k, f] of VOICE_FILES.entries()) {
     const dest = path.join(voiceDir(home), f);
     if (fs.existsSync(dest)) continue;
     onLine(`voice: getting ${f}`);
-    await download(VOICE_URL + f, dest, {});
+    await download(VOICE_URL + f, dest, { onBytes: (d, t) => report({ step: "voice", label: "Getting Luma's voice", fraction: 0.1 + 0.9 * ((k + (t ? d / t : 0)) / VOICE_FILES.length), detail: mb(d, t) }) });
   }
   writeState(home, { ...readState(home), voice: 1 });
   return voiceDir(home);
@@ -314,6 +315,8 @@ async function ensure(home, report = () => {}, { skipModel = false } = {}) {
   const browserEnv = await ensureBrowser(home, python, report);
   const env = { ...browserEnv, PYTHONNOUSERSITE: "1" };
   if (!skipModel) env.LUMA_MODEL_PATH = await ensureModel(home, report);
+  // Luma's own natural voice comes with it, so it never has to talk in a robotic system voice.
+  try { await ensureVoice(home, () => {}, report); } catch (_) { /* it retries on the next launch; typing still works */ }
   report({ step: "done", label: "Starting Luma", fraction: 1 });
   return { python, env };
 }
@@ -321,7 +324,7 @@ async function ensure(home, report = () => {}, { skipModel = false } = {}) {
 function needsSetup(home) {
   const state = readState(home);
   const model = (process.env.LUMA_MODEL_PATH && fs.existsSync(process.env.LUMA_MODEL_PATH)) || fs.existsSync(path.join(home, "models", MODEL.file));
-  return !fs.existsSync(pythonPath(home)) || !state.packages || !model;
+  return !fs.existsSync(pythonPath(home)) || !state.packages || !model || !voiceReady(home);
 }
 
 module.exports = { ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady };

@@ -135,7 +135,7 @@ class ControlTests(unittest.TestCase):
             else: sys.modules['luma.audio.stt']=old
     def test_sharing_a_photo_goes_to_the_local_vision_and_rejects_non_images(self):
         seen=[]
-        self.agent.see=lambda image,question='',thread='main': seen.append((len(image),question,thread)) or {'text':'I see a cat.','section':'vision'}
+        self.agent.see=lambda image,question='',thread='main',thumb=None: seen.append((len(image),question,thread)) or {'text':'I see a cat.','section':'vision'}
         req=urllib.request.Request(self.base+'/api/see?q=what%20is%20this&thread=main',data=b'\xff\xd8\xff'+b'0'*500,headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'image/jpeg'})
         with urllib.request.urlopen(req) as r:self.assertEqual(json.load(r)['text'],'I see a cat.')
         self.assertEqual(seen,[(503,'what is this','main')])

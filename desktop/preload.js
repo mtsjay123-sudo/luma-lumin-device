@@ -16,6 +16,13 @@ contextBridge.exposeInMainWorld("lumaDesktop", {
   getGlass: () => ipcRenderer.invoke("luma:glass-get"),
   setGlass: (glass) => ipcRenderer.invoke("luma:glass-set", { mode: glass?.mode, clarity: glass?.clarity, onTop: glass?.onTop }),
   onGlass: (callback) => ipcRenderer.on("luma:glass", (_event, glass) => callback(glass)),
+  // Touch ID lock: can this Mac do it, and ask for a fingerprint (true only if it matched).
+  canLock: () => ipcRenderer.invoke("luma:can-lock"),
+  unlock: () => ipcRenderer.invoke("luma:unlock"),
+  // Luma Link: open the paired device's Luma in this window, or come back to this computer's.
+  useDevice: (entry) => ipcRenderer.invoke("luma:use-device", { url: entry?.url, origin: entry?.origin, fingerprint: entry?.fingerprint }),
+  useLocal: () => ipcRenderer.invoke("luma:use-local"),
+  prefersDevice: () => ipcRenderer.invoke("luma:device-pref"),
 });
 
 window.addEventListener("DOMContentLoaded", () => {

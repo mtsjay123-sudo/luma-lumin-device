@@ -377,12 +377,13 @@ class VisionTests(unittest.TestCase):
 
     def test_a_good_look_is_remembered_in_the_chat(self):
         from luma.skills import vision
-        orig = vision.look
+        orig, ready = vision.look, vision.available
         vision.look = lambda data, q=None, name="": "A golden retriever on a beach at sunset."
+        vision.available = lambda: True
         try:
             out = self.agent.see(b"\xff\xd8\xff" + b"0" * 2000, "what's in this?")
         finally:
-            vision.look = orig
+            vision.look, vision.available = orig, ready
         self.assertIn("golden retriever", out["text"])
         self.assertEqual(self.agent.transcripts["main"][-1]["text"], "A golden retriever on a beach at sunset.")
         self.assertIn("photo", self.agent.transcripts["main"][-2]["text"])

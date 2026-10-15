@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import re
 
+YES_WORDS = (r"yes|yeah|yea|yep|yup|ya|yes sir|yessir|yesss*|sure|ok|okay|k|kk|bet|perfect|cool|great|nice|dope|looks good|sounds good|"
+             r"say less|fasho|for sure|fs|facts|absolutely|definitely|of course|lets go|let'?s go|let'?s do it|that works|works for me|love it|lgtm|correct|right")
 CONFIRM = re.compile(
-    r"^(?:(?:yes|yeah|yea|yep|yup|ya|sure|ok|okay|bet|perfect|cool|great|looks good|sounds good)[,!.\s]*)?(?:please )?"
-    r"(?:(?:go ahead and )?send(?: it| that| that text| the text)?(?: now)?|do it|go ahead|go for it|confirm|ship it|approved?|"
-    r"yes|yeah|yea|yep|yup|sure|ok|okay|bet|looks good|sounds good)(?: please)?[.!\s]*$", re.I)
+    r"^(?:(?:" + YES_WORDS + r")[,!.\s]*){0,3}(?:please |pls |go ahead and |yeah )?"
+    r"(?:(?:go ahead and )?send(?: it| that| that text| the text| the email| it now| it off)?(?: now)?|do it|do that|go ahead|go for it|fire away|fire it off|"
+    r"confirm|ship it|approved?|run it|book it|post it|schedule it|go|" + YES_WORDS + r")(?: (?:please|pls|thanks|thank you|bro|fam|twin|luma))?[.!\s]*$", re.I)
 CANCEL = re.compile(
-    r"^(?:(?:no|nah|nope|ok|okay|wait|actually)[,!.\s]+)?"
+    r"^(?:(?:no|nah|nope|ok|okay|wait|actually|hold up|hol up|hang on)[,!.\s]+)?"
     r"(?:no|nah|nope|no thanks|no thank you|don'?t|don'?t send(?: it| that)?|do not send(?: it| that)?|cancel(?: it| that)?|"
-    r"never ?mind|scrap (?:it|that)|hold off|forget it|not yet)[.!\s]*$", re.I)
+    r"never ?mind|scrap (?:it|that)|scratch (?:it|that)|hold off|hold up|wait|forget it|not yet|not now|chill|stop)[.!\s]*$", re.I)
 
 ROUTE_LABELS = {
     "mac_imessage": "your number",

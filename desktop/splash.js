@@ -20,8 +20,8 @@ if (state === "missing" || state === "failed") {
 if (state === "setup") $("progress").hidden = false;
 
 // Each step reports its own progress; the bar shows the whole setup, weighted by how long each takes.
-const ORDER = ["python", "packages", "browser", "model", "done"];
-const WEIGHT = { python: 0.05, packages: 0.25, browser: 0.1, model: 0.6 };
+const ORDER = ["python", "packages", "browser", "model", "voice", "done"];
+const WEIGHT = { python: 0.05, packages: 0.22, browser: 0.08, model: 0.57, voice: 0.08 };
 window.lumaDesktop?.onSetup?.((p) => {
   if (state !== "setup") return;
   const at = ORDER.indexOf(p.step);

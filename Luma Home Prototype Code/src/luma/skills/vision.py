@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import glob
+import re
 import os
 import threading
 
@@ -159,3 +160,53 @@ def warm_up():
             _load()
     except Exception as error:
         print(f"[vision] not ready: {error}", flush=True)
+
+
+# -- Apple's own on-device recognition: text in the photo and what's in it, no download --------------
+APPLE_READ_JS = r"""
+ObjC.import('Foundation');
+ObjC.import('Vision');
+function run(argv) {
+  const url = $.NSURL.fileURLWithPath(argv[0]);
+  const handler = $.VNImageRequestHandler.alloc.initWithURLOptions(url, $.NSDictionary.dictionary);
+  const text = $.VNRecognizeTextRequest.alloc.init;
+  text.setRecognitionLevel(0);
+  text.setUsesLanguageCorrection(true);
+  const kinds = $.VNClassifyImageRequest.alloc.init;
+  handler.performRequestsError($([text, kinds]), null);
+  const lines = [], labels = [];
+  const tr = text.results;
+  if (tr && tr.count) for (let i = 0; i < tr.count; i++) {
+    const c = tr.objectAtIndex(i).topCandidates(1);
+    if (c.count) lines.push(c.objectAtIndex(0).string.js);
+  }
+  const kr = kinds.results;
+  if (kr && kr.count) for (let i = 0; i < Math.min(kr.count, 80); i++) {
+    const o = kr.objectAtIndex(i);
+    if (o.confidence > 0.25) labels.push(o.identifier.js);
+  }
+  return JSON.stringify({ text: lines, labels: labels.slice(0, 12) });
+}
+"""
+
+
+def apple_read(image_bytes):
+    """On a Mac: the words in a photo and what's in it, from macOS's own Vision framework. None elsewhere."""
+    import json, subprocess, sys, tempfile
+    if sys.platform != "darwin":
+        return None
+    with tempfile.TemporaryDirectory(prefix="luma-look-") as folder:
+        path = os.path.join(folder, "photo.jpg" if bytes(image_bytes[:3]) == _JPEG else "photo.png")
+        with open(path, "wb") as f:
+            f.write(bytes(image_bytes))
+        try:
+            out = subprocess.run(["osascript", "-l", "JavaScript", "-e", APPLE_READ_JS, path], capture_output=True, text=True, timeout=25)
+            data = json.loads(out.stdout.strip() or "{}")
+        except Exception:
+            return None
+    words = [str(w).strip() for w in data.get("text") or [] if str(w).strip()]
+    labels = [str(l).replace("_", " ") for l in data.get("labels") or [] if str(l).strip()]
+    return {"text": words[:120], "labels": labels} if words or labels else None
+
+
+READING = re.compile(r"\b(?:read|says?|text|written|words?|transcribe|what does (?:it|this) say|copy)\b", re.I)

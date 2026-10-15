@@ -54,7 +54,6 @@
           <h1 class="top-title" id="top-title" hidden></h1>
         </div>
         <div class="top-right">
-          <button class="icon-btn" id="top-spatial" aria-label="Spatial mode" title="Spatial mode (⌘⇧S)" data-icon="spatial"></button>
           <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
           <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
           <button class="icon-btn" id="top-glass" aria-label="See-through" title="See-through: let what's behind Luma show through" aria-pressed="false" data-icon="seethrough"></button>
@@ -164,18 +163,7 @@
     <!-- In a voice conversation, what Luma pulls up floats in like a memory -->
     <div class="talk-pops" id="talk-pops" aria-live="polite"></div>
 
-    <!-- Spatial mode: Luma's work floating around you, like visionOS -->
-    <div class="spatial" id="spatial" hidden aria-label="Spatial mode">
-      <div class="sp-backdrop"></div>
-      <nav class="sp-rail" id="sp-rail" aria-label="Panels"></nav>
-      <div class="sp-stage" id="sp-stage"></div>
-      <div class="sp-pops" id="sp-pops" aria-live="polite"></div>
-      <div class="sp-presence">
-        <button class="sp-orb" id="sp-orb" type="button" aria-label="Talk to Luma"><span class="orb"><i></i><i></i><i></i></span></button>
-        <span class="sp-status" id="sp-status">Tap the orb and talk</span>
-      </div>
-      <button class="sp-exit icon-btn" id="sp-exit" type="button" aria-label="Leave spatial mode" title="Leave (Esc)" data-icon="x"></button>
-    </div>
+
 
     <!-- Right: Luma's computer, waiting on you, up next, events, tasks, goals -->
     <aside class="widgets" id="widgets" aria-label="At a glance">
@@ -201,6 +189,46 @@
       <div class="palette-results" id="palette-results" role="listbox"></div>
     </div>
   </div>
+<!-- Welcome: signing in to Luma (a texted code proves it's you) -->
+  <div class="welcome" id="welcome" hidden role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="welcome-card">
+      <img class="welcome-logo" src="/desktop/logo" alt="" />
+      <h1 class="welcome-title" id="welcome-title">Meet Luma <span class="si">S.I.</span></h1>
+      <p class="welcome-sub" id="welcome-sub">Your own super intelligence. It remembers what matters, gets things done, and always asks before it sends or buys anything.</p>
+      <form class="welcome-form" id="w-start">
+        <input id="w-name" placeholder="Your first name" autocomplete="given-name" maxlength="40" required />
+        <input id="w-phone" placeholder="Mobile number" inputmode="tel" autocomplete="tel" required />
+        <button class="pill primary big" type="submit" id="w-send">Text me a code</button>
+      </form>
+      <form class="welcome-form" id="w-verify" hidden>
+        <div class="code-boxes" id="w-code" role="group" aria-label="6-digit code"></div>
+        <button class="pill primary big" type="submit" id="w-check">Sign in</button>
+        <button class="w-link" type="button" id="w-back">Use a different number</button>
+      </form>
+      <form class="welcome-form" id="w-call" hidden>
+        <div class="w-chips" id="w-chips"></div>
+        <input id="w-callname" placeholder="Or type a name" maxlength="20" />
+        <button class="pill primary big" type="submit">Let's go</button>
+      </form>
+      <p class="welcome-fine" id="w-fine">We text you a code to make sure it's really you. Your memories, chats and photos stay encrypted on this computer.</p>
+      <p class="welcome-error" id="w-error" role="alert"></p>
+      <button class="w-link" type="button" id="w-skip">Continue on this computer only</button>
+    </div>
+  </div>
+
+  <!-- Locked with Touch ID -->
+  <div class="lockscreen" id="lockscreen" hidden role="dialog" aria-modal="true" aria-label="Luma is locked">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="welcome-card small">
+      <img class="welcome-logo" src="/desktop/logo" alt="" />
+      <h1 class="welcome-title">Luma is locked</h1>
+      <p class="welcome-sub">Your memories and chats are private. Use Touch ID to come back in.</p>
+      <button class="pill primary big" type="button" id="unlock-btn">Unlock with Touch ID</button>
+    </div>
+  </div>
+
+
   <div class="toast" id="toast" role="status"></div>
   <script src="/desktop/desktop.js"></script>
 </body>

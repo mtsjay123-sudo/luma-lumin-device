@@ -7,7 +7,7 @@
 // Closing the window doesn't stop Luma: it stays in the menu bar (or the system
 // tray on Windows) and starts at login, so your Goals keep running.
 "use strict";
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session, powerSaveBlocker, net } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session, powerSaveBlocker, net, systemPreferences } = require("electron");
 const { spawn, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -118,10 +118,11 @@ let visionTried = false;
 function fetchVisionInBackground() {
   if (visionTried || !app.isPackaged) return;
   visionTried = true;
+  // The voice came with setup; Luma's eyes (the photo model) start downloading right away, in the background.
   setTimeout(() => {
     setup.ensureVoice(setupHome(), () => {}).catch(() => { /* try again next launch */ })
       .finally(() => setup.ensureVision(setupHome(), () => {}).catch(() => { /* try again next launch */ }));
-  }, 60000);
+  }, 3000);
 }
 
 function keepAwakeWhileWorking() {
@@ -288,11 +289,15 @@ function createWindow({ bounds, url } = {}) {
   const openOutside = (url) => { if (/^(https?|sms|mailto|tel|facetime):/i.test(url)) shell.openExternal(url); };
   w.webContents.setWindowOpenHandler(({ url }) => { openOutside(url); return { action: "deny" }; });
   w.webContents.on("will-navigate", (event, url) => {
-    if (url.startsWith(ORIGIN + "/") || url.startsWith("file://")) return;
+    if (url.startsWith(ORIGIN + "/") || url.startsWith("file://") || onDevice(url)) return;
     event.preventDefault();
     openOutside(url);
   });
-  w.webContents.on("did-fail-load", (_e, code, _desc, url) => { if (w === win && url.startsWith(ORIGIN) && code !== -3) setTimeout(boot, 1500); });
+  w.webContents.on("did-fail-load", (_e, code, _desc, url) => {
+    if (w !== win || code === -3) return;
+    if (url.startsWith(ORIGIN)) setTimeout(boot, 1500);
+    else if (onDevice(url)) w.loadURL(HOME_URL);  // the device went away: carry on with this computer's Luma
+  });
 
   if (url) w.loadURL(url); else boot();
 }
@@ -381,6 +386,17 @@ function buildMenu() {
   ]));
 }
 
+// ------------------------------------------------------------ Luma Link ---
+// The window can open your Luma device's own Luma over Wi-Fi. Only the device paired from Settings
+// (its address and its certificate's fingerprint, pinned at pairing) is ever trusted.
+const linkedDevice = () => { const d = readConfig().device; return d && /^https:\/\/[\w.-]+:\d{2,5}$/.test(d.origin || "") && /^sha256\//.test(d.fingerprint || "") ? d : null; };
+const onDevice = (url) => { const d = linkedDevice(); return Boolean(d && String(url || "").startsWith(d.origin + "/")); };
+app.on("certificate-error", (event, _contents, url, _error, certificate, callback) => {
+  const d = linkedDevice();
+  if (d && String(url).startsWith(d.origin + "/") && certificate.fingerprint === d.fingerprint) { event.preventDefault(); callback(true); return; }
+  callback(false);
+});
+
 // ----------------------------------------------------- menu bar / tray ---
 const LOGIN_ARGS = ["--hidden"];
 const canStartAtLogin = process.platform === "darwin" || process.platform === "win32";
@@ -455,10 +471,33 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle("luma:choose-folder", (event) => trusted(event) && chooseFolder());
     ipcMain.handle("luma:retry", (event) => { if (!trusted(event)) return false; boot(); return true; });
     // See-through: only the desktop page in Luma's own window, and only valid values (cleanGlass).
-    const fromHome = (event) => event.sender === win?.webContents && (event.senderFrame?.url || "").startsWith(HOME_URL);
+    const fromHome = (event) => event.sender === win?.webContents && ((event.senderFrame?.url || "").startsWith(HOME_URL) || onDevice(event.senderFrame?.url));
+    // Open the paired device's Luma in this window, or come back to this computer's.
+    ipcMain.handle("luma:use-device", (event, entry) => {
+      if (!fromHome(event) || !entry) return false;
+      const origin = String(entry.origin || ""), fingerprint = String(entry.fingerprint || ""), url = String(entry.url || "");
+      if (!/^https:\/\/(?:10|172|192)\.[\d.]+:\d{2,5}$|^https:\/\/127\.0\.0\.1:\d{2,5}$/.test(origin) || !/^sha256\/[A-Za-z0-9+/=]{40,}$/.test(fingerprint) || !url.startsWith(origin + "/link/enter?")) return false;
+      writeConfig({ device: { origin, fingerprint, prefer: true } });
+      win.loadURL(url);
+      return true;
+    });
+    ipcMain.handle("luma:use-local", (event) => {
+      if (!fromHome(event)) return false;
+      const d = readConfig().device;
+      if (d) writeConfig({ device: { ...d, prefer: false } });
+      win.loadURL(HOME_URL);
+      return true;
+    });
+    ipcMain.handle("luma:device-pref", (event) => (fromHome(event) ? Boolean(linkedDevice()?.prefer) : false));
     ipcMain.handle("luma:glass-get", (event) => (fromHome(event) ? cleanGlass(readConfig().glass) : null));
     ipcMain.handle("luma:glass-set", (event, g) => { const next = fromHome(event) && cleanGlass(g); return next ? setGlass(next) : null; });
     // "Hey Luma" brings the window up.
+    // Lock Luma with Touch ID: the page asks, the Mac checks the fingerprint, the page only learns yes or no.
+    ipcMain.handle("luma:can-lock", (event) => fromHome(event) && process.platform === "darwin" && systemPreferences.canPromptTouchID());
+    ipcMain.handle("luma:unlock", async (event) => {
+      if (!fromHome(event) || process.platform !== "darwin" || !systemPreferences.canPromptTouchID()) return false;
+      try { await systemPreferences.promptTouchID("unlock Luma"); return true; } catch { return false; }
+    });
     ipcMain.handle("luma:show", (event) => { if (!trusted(event) || !win) return false; startHidden = false; win.show(); win.focus(); return true; });
     session.defaultSession.on("will-download", (_event, item) => {
       item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename()));

@@ -134,3 +134,25 @@ def rewrite(key, prompt, max_tokens=300, model=DEFAULT_MODEL):
         fallbacks="default",
     )
     return _final_text(message).strip()
+
+
+def look(key, image_bytes, question=None, model=DEFAULT_MODEL):
+    """Claude looks at the photo (only when the cloud brain is on): what's in it, and any text, read exactly."""
+    import base64
+    data = bytes(image_bytes)
+    kind = "image/jpeg" if data[:3] == b"\xff\xd8\xff" else "image/png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "image/webp" if data[8:12] == b"WEBP" else "image/gif" if data[:4] == b"GIF8" else None
+    if not kind:
+        raise ValueError("That doesn't look like a photo I can read.")
+    ask = " ".join(str(question or "").split())[:500] or "What's in this picture? Tell me like a friend looking at it with me, and read out any text that matters."
+    message = _client(key).beta.messages.create(
+        model=model if model in MODELS else DEFAULT_MODEL,
+        max_tokens=4096,
+        system="You are Luma, looking at a photo your owner shared. Describe only what you can actually see, read text exactly, say when you're unsure, "
+               "and never identify a real person from their face. Warm and brief, plain sentences.",
+        messages=[{"role": "user", "content": [{"type": "image", "source": {"type": "base64", "media_type": kind, "data": base64.b64encode(data).decode()}},
+                                               {"type": "text", "text": ask}]}],
+        output_config={"effort": "low"},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+    )
+    return " ".join(_final_text(message).split())[:2000]

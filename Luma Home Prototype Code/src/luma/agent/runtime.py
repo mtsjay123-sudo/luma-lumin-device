@@ -241,6 +241,9 @@ class Agent:
         from luma.llm import brain
         brain.init(self.store)  # a bigger local brain if it's here; the cloud brain if they turned it on
         self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
+        from luma.control.link import LinkClient
+        self.link = LinkClient(self)  # paired with a Luma device over Wi-Fi
+        self.link_host = None  # set when other computers can connect to this Luma (the device)
         self.now_playing = None
         self.last_offers = []  # the latest price comparison, for "add the cheapest to my cart"
         self.pending_mail = None  # an email they're still telling Luma about: who, what, when
@@ -576,8 +579,11 @@ class Agent:
             profile=self.set_profile({**self.profile,**args})
             return {"profile":profile,"summary":"Got it, I'll talk like that from now on."}
         if name == "memory.remember":
-            existing = next((m for m in self.store.all("memory", 1000) if m["text"].strip().casefold() == args["text"].strip().casefold()), None)
-            row = existing or self.store.put("memory", {"text": args["text"], "source": "explicit_user_request"})
+            existing = next((m for m in self.store.all("memory", 100000) if m["text"].strip().casefold() == args["text"].strip().casefold()), None)
+            if not existing and self.memory_quota()["full"]:
+                return {"summary": f"My memory's full on the free plan ({self.FREE_MEMORIES} things). Get Luma Plus and I'll remember everything, backed up "
+                                   "and private. Or clear a few old ones under Identity.", "memory_full": True, "section": "identity"}
+            row = existing or self.store.put("memory", {"text": args["text"], "source": "explicit_user_request", "created": self.clock()})
             return {"summary": "Got it, I'll remember that.", "memory": row}
         if name == "memory.recall": return {"memories": self.store.recall(args["query"])}
         if name == "tasks.in":
@@ -944,10 +950,16 @@ class Agent:
     SEARCH_ON = re.compile(r"^\W*(?:(?:can you|could you|please|hey|luma)\W+)*(?:search|look up|find)\s+(?P<q>.+?)\s+on\s+(?P<site>youtube|google)(?:\s+(?:in|on) chrome)?\W*$", re.I)
     READ_TAB = re.compile(r"\b(?:what'?s on (?:this|my|the) (?:page|tab|screen)|(?:summari[sz]e|read|explain|sum up)(?: me)? (?:this|my|the) (?:page|tab|article)|what am i looking at|what tabs? (?:do i have|are) open)\b", re.I)
 
+    def _hands(self):
+        """Who can open tabs and play music for Luma right now: Chrome here, or (on the device) the paired laptop."""
+        if self.chrome.connected() or not self.link_host:
+            return self.chrome
+        return self.link_host if self.link_host.connected() else self.chrome
+
     def _play_in_chrome(self, what):
         """Ask Chrome to play it, then remember what came on, or leave a card if it couldn't start."""
         self.now_playing = None
-        got = self.chrome.send("play", wait=60, query=what) or {}
+        got = self._hands().send("play", wait=60, query=what) or {}
         if got.get("playing"):
             self.now_playing = str(got["playing"])[:120]
         elif got.get("error"):
@@ -976,21 +988,22 @@ class Agent:
         reading = self.READ_TAB.search(lowered)
         if not target and not reading:
             return None
-        if not self.chrome.connected():
+        hands = self._hands()
+        if not hands.connected():
             if not wants_chrome: return None
             how = ("Luma for Chrome isn't connected yet. Open Connectors, tap Luma for Chrome, add it to Chrome once, "
                    "type the 6-letter code it shows, and then I can open tabs and play music in your Chrome.")
             return {"text": how, "section": "apps", "open": "apps"}
         if target:
             label, url = target
-            self.chrome.send("open", url=url)
+            hands.send("open", url=url)
             return {"text": f"Opened {label} in Chrome.", "chrome": "open", "url": url}
         if re.search(r"tabs? (?:do i have|are) open", lowered):
-            got = self.chrome.send("tabs", wait=8) or {}
+            got = hands.send("tabs", wait=8) or {}
             tabs = [t for t in got.get("tabs") or [] if t.get("title")]
             if not tabs: return {"text": "I couldn't see your tabs just now. Is Chrome open?"}
             return {"text": f"You have {len(tabs)} tab{'s' if len(tabs) != 1 else ''} open: " + "; ".join(t["title"][:60] for t in tabs[:8]) + ("…" if len(tabs) > 8 else ".")}
-        got = self.chrome.send("read", wait=8) or {}
+        got = hands.send("read", wait=8) or {}
         page = str(got.get("text") or "").strip()
         if got.get("error") or not page:
             return {"text": "I couldn't read that tab. Chrome doesn't let extensions read its own pages (like settings or the new tab page), so click into the page you mean and ask again."}
@@ -1555,7 +1568,7 @@ class Agent:
         except Exception: apps = []
         mail = self.mail.status()
         return {"mail": mail.get("connected"), "mail_address": mail.get("address"), "calendar": self.calendar.connected(),
-                "vision": vision.available(), "apps": apps, "chrome": self.chrome.connected()}
+                "vision": vision.available(), "apps": apps, "chrome": self._hands().connected()}
 
     def capabilities_reply(self, text, lowered, cancel_event=None):
         """'What can you do?', 'do you have a connector for news?': answered from what's really here, never a made-up no."""
@@ -1977,6 +1990,42 @@ class Agent:
         if not self.store.setting("first_seen"): self.store.set_setting("first_seen", self.clock())
         return about
 
+    # -- how they talk: Luma catches on and talks back the same way --------------------------
+    SLANG = ("bet", "fr", "ngl", "tf", "lol", "lmao", "bro", "bruh", "nah", "yeah", "lowkey", "highkey", "deadass", "finna", "ima", "gonna", "wanna",
+             "tbh", "idk", "rn", "smh", "fam", "dope", "lit", "vibe", "yo", "aight", "ight", "yup", "nope", "omg", "pls", "thx", "ty", "my g", "twin", "gang")
+
+    def _learn_style(self, text):
+        """Every message adds to how Luma knows they talk: length, case, slang, emoji. Written down so replies match."""
+        stats = dict(self.store.setting("style_stats") or {"n": 0, "words": 0, "lower": 0, "emoji": 0, "slang": {}, "punct": 0})
+        words = re.findall(r"[A-Za-z']+", text)
+        if not words:
+            return
+        stats["n"] += 1
+        stats["words"] += len(words)
+        stats["lower"] += int(text == text.lower())
+        stats["emoji"] += int(bool(re.search(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", text)))
+        stats["punct"] += int(bool(re.search(r"[.!?]\s*$", text)))
+        low = " " + " ".join(w.lower() for w in words) + " "
+        slang = dict(stats.get("slang") or {})
+        for w in self.SLANG:
+            if f" {w} " in low: slang[w] = slang.get(w, 0) + 1
+        stats["slang"] = dict(sorted(slang.items(), key=lambda kv: -kv[1])[:12])
+        self.store.set_setting("style_stats", stats)
+        if stats["n"] >= 3 and stats["n"] % 3 == 0:
+            n = stats["n"]
+            bits = []
+            avg = stats["words"] / n
+            bits.append("short messages" if avg < 9 else "longer, detailed messages" if avg > 25 else "medium-length messages")
+            if stats["lower"] / n > 0.6: bits.append("mostly lowercase")
+            if stats["punct"] / n < 0.3: bits.append("barely any punctuation")
+            if stats["emoji"] / n > 0.3: bits.append("uses emoji")
+            used = [w for w, c in stats["slang"].items() if c >= 2][:6]
+            casual = bool(used) or stats["lower"] / n > 0.6
+            line = ("How they talk: " + ", ".join(bits) + (". Slang they use: " + ", ".join(f"“{w}”" for w in used) if used else "") + ". "
+                    + ("Match their energy: keep it short and casual, talk like they do, use their words naturally (never forced), no corporate tone."
+                       if casual else "Match their style: clear and natural, about as long as they write."))
+            self.store.set_setting("their_style", line)
+
     def _mind_context(self, text, cancel_event=None):
         """Who they are, how Luma feels, and (when it matters) what Luma thought before answering."""
         from luma.agent import mind
@@ -1988,6 +2037,10 @@ class Agent:
         out.append({"mind": True, "text": mind.self_line(self.store.setting("self_model"))})
         soul = self.store.setting("soul")
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
+        style = self.store.setting("their_style")
+        if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:400]})
+        called = self.store.setting("assistant_name")
+        if called and self.mode != "kids": out.append({"mind": True, "text": f"Your owner named you {called}. That's your name with them now; answer to it."})
         if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
             try:
                 with self.lock:
@@ -1998,37 +2051,81 @@ class Agent:
                 pass
         return out
 
-    def see(self, image_bytes, question=None, thread="main"):
-        """Look at a photo the owner shared. Local only; nothing is sent anywhere."""
+    def see(self, image_bytes, question=None, thread="main", thumb=None):
+        """Look at a photo the owner shared. Every way Luma has of seeing, best first, and it always answers in the chat:
+        the cloud brain (if they turned it on), Luma's own vision model, then the Mac's built-in text and object recognition."""
         from luma.skills import vision
         if self.mode == "kids":
             return {"text": "Ask a grown-up to look at photos with Luma."}
+        question = " ".join(str(question or "").split())[:500]
         self.activity.start("vision", "Looking at the photo")
-        try:
-            said = vision.look(image_bytes, question)
-        except ValueError as error:
+        said, notes = None, []
+        from luma.llm import brain
+        if brain.cloud_on():
+            try:
+                from luma.llm import cloud
+                said = cloud.look(brain.cloud_key(), image_bytes, question, model=self.store.setting("brain_cloud_model", cloud.DEFAULT_MODEL))
+            except Exception as error:
+                notes.append(type(error).__name__)
+        reading = bool(vision.READING.search(question))
+        if not said and vision.available() and not reading:
+            try:
+                said = vision.look(image_bytes, question)
+            except ValueError as error:
+                if str(error) != "not_ready": notes.append(str(error))
+            except Exception as error:  # the vision model wouldn't run here: keep going, don't give up
+                notes.append(type(error).__name__)
+        if not said:
+            apple = vision.apple_read(image_bytes)
+            if apple:
+                said = self._from_apple(apple, question)
+        if not said and vision.available() and reading:
+            try: said = vision.look(image_bytes, question)
+            except Exception as error: notes.append(type(error).__name__)
+        result = {"text": said, "section": "vision"} if said else None
+        if not result:
+            vision.fetch_in_background()  # start fetching my eyes right now, if nothing is yet
+            pct = vision.progress()
+            why = f" (the last try stopped: {vision.fetching['error']})" if vision.fetching.get("error") and pct is None else ""
+            text = ("I can't see photos on this computer yet: my eyes are downloading for the first time" + (f", {pct}% done" if pct is not None else "") +
+                    ". It's a one-time download, free. Share it again in a few minutes and I'll take a real look." + why)
+            result = {"text": text, "vision_pending": True, "vision_progress": pct}
             self.activity.finish("", "failed")
-            if str(error) == "not_ready":
-                vision.fetch_in_background()  # start fetching my eyes right now, if nothing is yet
-                pct = vision.progress()
-                why = f" (last try stopped: {vision.fetching['error']})" if vision.fetching.get("error") and pct is None else ""
-                return {"text": ("My eyes are downloading for the first time" + (f", {pct}% done" if pct is not None else "") +
-                                 ". It's a one-time download (about 3 GB, free). Share the photo again in a few minutes and I'll take a real look." + why),
-                        "vision_pending": True, "vision_progress": pct}
-            return {"text": str(error)}
-        except Exception as error:
-            self.activity.finish("", "failed")
-            return {"text": "I had trouble looking at that one: " + str(error)[:160]}
-        self.activity.finish("Had a look.")
-        # Keep a short note in the chat so the next messages have context.
+        else:
+            self.activity.finish("Had a look.")
+        # Always in the chat: the photo (a small copy) and what Luma said, so nothing disappears.
         log = self.transcripts.setdefault(thread, [])
-        log.append({"role": "you", "text": ("[photo] " + question).strip() if question else "[shared a photo]", "at": self.clock()})
-        log.append({"role": "luma", "text": said, "at": self.clock()})
+        mine = {"role": "you", "text": question or "", "at": self.clock()}
+        if isinstance(thumb, str) and thumb.startswith("data:image/") and len(thumb) < 90_000: mine["photo"] = thumb
+        else: mine["text"] = ("[photo] " + question).strip() if question else "[shared a photo]"
+        log.append(mine)
+        log.append({"role": "luma", "text": result["text"], "at": self.clock()})
         del log[:-80]
         self._save_chat(thread)
-        self.history.append({"role": "user", "content": "[I showed you a photo] " + (question or "")})
-        self.history.append({"role": "assistant", "content": said})
-        return {"text": said, "section": "vision"}
+        self.history.append({"role": "user", "content": "[I showed you a photo] " + question})
+        self.history.append({"role": "assistant", "content": result["text"]})
+        return result
+
+    def _from_apple(self, apple, question):
+        """Answer from what the Mac's own recognition found: the text in the photo and what's in it."""
+        words, labels = apple.get("text") or [], apple.get("labels") or []
+        if self.use_model:
+            prompt = ("I shared a photo. On-device recognition found these things in it: " + json.dumps(labels) + ". The text in it reads: "
+                      + json.dumps(words[:80], ensure_ascii=False) + ". " + (f"My question: {question}. " if question else "Tell me what it is and anything that matters in it. ")
+                      + "Answer naturally in a few sentences, using only that. Quote text exactly. Don't invent details you weren't given.")
+            try:
+                with self.lock:
+                    out = self.call_planner([{"role": "user", "content": prompt}], [], {}, threading.Event())
+                text = str((out or {}).get("text") or "").strip() if isinstance(out, dict) else ""
+                if text: return text
+            except Exception:
+                pass
+        parts = []
+        if labels: parts.append("It looks like " + ", ".join(labels[:5]) + ".")
+        if words:
+            shown = " ".join(words)[:700]
+            parts.append(("Here's what it says: " if parts else "Here's the text in it: ") + "“" + shown + "”")
+        return " ".join(parts) or None
 
     def correct(self, draft, text, cancel_event=None):
         """A second look that catches a guess that's wrong, made up or too sure, and fixes it. The corrector layer."""
@@ -2623,7 +2720,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome", "grill") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome", "grill", "noticed", "memory_full", "choices", "peek", "renamed") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2675,9 +2772,15 @@ class Agent:
                 if result.get("message_draft"): self.last_draft = result["message_draft"]["id"]
                 reply = result.get("text") or result.get("summary") or "Read the verified result in the local controls."
                 self.last_reply = reply
+                if not result.get("choices") and result.get("state") != "pending" and isinstance(reply, str):
+                    picks = presence.options_in(reply)
+                    if picks: result["choices"] = picks
                 if self.mode != "kids" and not agent_mode and not result.get("forgotten"):
-                    noticed = self._notice(text)
+                    self.memory_full = False
+                    noticed = [] if result.get("noticed") else self._notice(text)
                     if noticed: result["noticed"] = noticed
+                    if getattr(self, "memory_full", False): result["memory_full"] = True
+                    self._learn_style(text)
                     self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
                 self.history.append({"role":"assistant", "content":observation(result)})
@@ -2763,17 +2866,157 @@ class Agent:
             raise ValueError("Unsupported setting.")
         return self.presence_settings
 
+    # -- the chat runs everything: every page, one sentence away ------------------------------
+    VIEWS = [
+        ("feed", r"(?:my |the )?feed"), ("news", r"(?:the )?news(?: page| tab)?"), ("ideas", r"(?:some |any |my |the )?ideas"),
+        ("goals", r"(?:my |the )?(?:goals|helpers|routines|schedule|scheduled (?:stuff|tasks))"), ("identity", r"(?:my |your )?(?:memories|memory|identity|soul)"),
+        ("library", r"(?:my |the )?(?:library|files|documents|docs|decks|stuff you made|things you made)"), ("browser", r"(?:your |the |luma'?s )?browser"),
+        ("apps", r"(?:my |the )?(?:connectors|connections|connected apps|integrations)"), ("settings", r"(?:the |your )?settings"), ("rules", r"(?:my |the |your )?rules"),
+    ]
+    OPEN_WORDS = r"(?:open|show(?: me)?|go to|take me to|pull up|bring up|switch to|let me see|check|what'?s (?:in|on)|what are|list)"
+
+    def _navigate(self, text, lowered):
+        """'Show me my goals', 'what do you remember about me', 'open the library': the answer right here, and the page one tap away."""
+        if self.mode == "kids":
+            return None
+        if re.search(r"\bwhat (?:do you|have you) (?:know|remember(?:ed)?) about me\b", lowered):
+            view = "identity"
+        else:
+            view = next((v for v, words in self.VIEWS if re.fullmatch(r"\W*(?:(?:hey|yo|luma|please|can you|could you)\W+)*" + self.OPEN_WORDS + r"\s+(?:me\s+)?" + words + r"(?:\s+(?:page|tab|please|for me|real quick|rn))*\W*", lowered)), None)
+        if not view:
+            return None
+        go = bool(re.match(r"\W*(?:(?:hey|yo|luma|please|can you|could you)\W+)*(?:open|go to|take me to|switch to|bring up)\b", lowered))
+        out = {"open": view, "section": view} if go else {"peek": view, "section": view}
+        if view == "feed":
+            cards = [c for c in self.feed.list(10) if not c.get("read")][:3] or self.feed.list(3)
+            out["text"] = ("Here's what's new: " + " · ".join(c["title"] for c in cards) + ".") if cards else "Your feed's empty right now. Set a goal and I'll start filling it."
+        elif view == "ideas":
+            ideas = self.ideas()[:3]
+            out["text"] = ("A few ideas: " + " · ".join(str(i.get("title") or i.get("text") or i)[:80] for i in ideas) + ".") if ideas else "No ideas yet. Tell me what you're into and I'll come up with some."
+            out["choices"] = [str(i.get("title") or i.get("text"))[:60] for i in ideas if isinstance(i, dict) and (i.get("title") or i.get("text"))][:3]
+        elif view == "goals":
+            helpers = [h for h in self.helpers.list() if not h.get("system")]
+            out["text"] = ("Running for you: " + " · ".join(h["title"] for h in helpers[:5]) + ".") if helpers else "Nothing running on its own yet. Try “every morning, check my email” or “tell me when AirPods drop under $150”."
+        elif view == "identity":
+            mems = self.store.all("memory", 6)
+            q = self.memory_quota()
+            out["text"] = (("Here's some of what I know: " + " · ".join(m["text"] for m in mems[:5]) + f". That's {q['used']} things in all; they're all under Identity.")
+                           if mems else "Not much yet. Tell me about you as we go and I'll catch it, or say “grill me” and I'll ask.")
+        elif view == "library":
+            files = self.store.all("file", 5)
+            out["text"] = ("Recent: " + " · ".join(f.get("title") or f.get("name") for f in files[:4]) + ".") if files else "Nothing made yet. Ask me for a deck, a doc, a tracker or a podcast."
+        else:
+            out["text"] = {"news": "Here's the news.", "browser": "Here's my browser.", "apps": "Here are your connectors.", "settings": "Here are your settings.",
+                           "rules": "Here are your rules."}.get(view, "Here you go.")
+            out["open"] = view
+        return out
+
+    def _rename(self, text):
+        """'I'm gonna call you Nova': Luma takes the name, everywhere."""
+        m = re.match(r"^\W*(?:(?:hey|yo|luma|okay|ok)\W+)*(?:i'?m (?:gonna|going to) call you|i(?:'ll| will) call you|your name is(?: now)?|call yourself|change your name to|from now on you'?re|you'?re now called)\s+(?P<name>[A-Za-z][A-Za-z'-]{1,19})\W*$", text.strip(), re.I)
+        if not m or self.mode == "kids":
+            return None
+        name = m["name"][0].upper() + m["name"][1:]
+        if name.lower() in {"luma", "back", "it", "that"}:
+            self.store.set_setting("assistant_name", None)
+            return {"text": "Luma it is. Back to my name.", "renamed": "Luma"}
+        self.store.set_setting("assistant_name", name)
+        return {"text": f"{name} it is. I like it.", "renamed": name}
+
+    # -- memory that just catches things ---------------------------------------------------
+    FREE_MEMORIES = 200
+
+    def memory_quota(self):
+        """How much Luma can remember on this plan. Free keeps the newest 200; Luma Plus remembers everything."""
+        account = self.cloud.cached_account() or {}
+        plus = str(account.get("plan") or "").lower() in {"plus", "pro", "premium"} or bool(account.get("plus"))
+        used = len(self.store.all("memory", 100000))
+        return {"used": used, "limit": None if plus else self.FREE_MEMORIES, "plan": "plus" if plus else "free",
+                "full": (not plus) and used >= self.FREE_MEMORIES}
+
+    def remember_fact(self, fact, source="noticed_in_conversation", **extra):
+        """Keep one fact. A newer 'where my keys are' replaces the old one. Returns the row, None if already known, or 'full'."""
+        existing = self.store.all("memory", 100000)
+        low = fact.casefold()
+        if any(low in m["text"].casefold() or m["text"].casefold() in low for m in existing):
+            return None
+        where = presence.location_fact(fact.replace("Your ", "my ", 1)) if fact.startswith("Your ") else None
+        if where:
+            for m in existing:
+                old = presence.location_fact(m["text"].replace("Your ", "my ", 1)) if m["text"].startswith("Your ") else None
+                if old and old[0] == where[0]:
+                    self.store.delete("memory", m["id"])  # the keys moved
+        elif self.memory_quota()["full"]:
+            return "full"
+        return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), **extra})
+
+    REMIND_LATER = re.compile(r"\b(?:and\s+|so\s+|,\s*)?(?:can you\s+|please\s+)?remind me(?: about (?:it|that|this))?(?P<when>\s+(?:later(?: on| today| tonight)?|in a (?:bit|while|little)|tonight|this (?:afternoon|evening)|tomorrow(?: morning)?|before i leave))\b[.!]*", re.I)
+
+    def _memo(self, text, lowered):
+        """Memory that just catches it: where things are, and 'remind me later' with no time given."""
+        if self.mode == "kids":
+            return None
+        asked = presence.WHERE.search(text)
+        if asked:
+            obj = " ".join(asked["obj"].lower().split())
+            hits = [m for m in self.store.all("memory", 100000) if m["text"].startswith("Your ") and presence.location_fact(m["text"].replace("Your ", "my ", 1))
+                    and presence.location_fact(m["text"].replace("Your ", "my ", 1))[0].split()[-1] == obj.split()[-1]]
+            if hits:
+                hit = max(hits, key=lambda m: m.get("created", 0))
+                when = presence.said_when(hit.get("created"), self.clock(), self.zone)
+                return {"text": f"{hit['text']}. You told me {when}." if when else f"{hit['text']}.", "memory": hit["id"]}
+            return {"text": f"You haven't told me where your {obj} {'are' if obj.split()[-1] in presence.PLURAL else 'is'}. Next time just say “I left my {obj} on the…” and I'll keep track."}
+        later = self.REMIND_LATER.search(text)
+        facts = presence.notice_facts(self.REMIND_LATER.sub("", text) if later else text)
+        places = [f for f in facts if f.startswith("Your ")]
+        if not later and not (places and len(presence.clauses(text)) == 1 and not re.search(r"\?|\b(?:what|how|why|can you|could you|help)\b", lowered)):
+            return None
+        if later and not facts and len(text.split()) > 14:
+            return None  # a longer request with "remind me later" in it: let the normal path handle it
+        saved = []
+        for fact in facts:
+            row = self.remember_fact(fact)
+            if row and row != "full":
+                saved.append({"id": row["id"], "text": fact})
+        self.last_noticed = [r["id"] for r in saved]
+        lead = " ".join(f"{f}." for f in (places or facts)) or ""
+        if not later:
+            obj = presence.location_fact(places[0].replace("Your ", "my ", 1))[0]
+            return {"text": f"Got it. {lead} Just ask “where {'are' if obj.split()[-1] in presence.PLURAL else 'is'} my {obj}” when you need it.", "noticed": saved}
+        when = later["when"].strip().lower()
+        now = datetime.fromtimestamp(self.clock(), self.zone)
+        if "tomorrow" in when:
+            due = (now + timedelta(days=1)).replace(hour=9 if "morning" in when or when == "tomorrow" else 9, minute=0, second=0, microsecond=0)
+        elif "tonight" in when or "evening" in when:
+            due = now.replace(hour=20, minute=0, second=0, microsecond=0)
+            if due <= now: due = now + timedelta(hours=1)
+        elif "afternoon" in when:
+            due = now.replace(hour=15, minute=0, second=0, microsecond=0)
+            if due <= now: due = now + timedelta(hours=1)
+        elif "today" in when:
+            due = now + timedelta(hours=3)
+        else:
+            due = now + timedelta(hours=1)
+        about = (places[0] if places else facts[0] if facts else re.sub(r"^\W*(?:i\s+)?", "", self.REMIND_LATER.sub("", text)).strip(" ,.")) or "what you told me"
+        title = about[0].upper() + about[1:]
+        result = self.propose("tasks.create", {"title": title[:160], "due": due.isoformat()})
+        if isinstance(result, dict) and result.get("state") != "failed":
+            spoken = due.strftime("%-I:%M %p").replace(":00 ", " ")
+            result["text"] = (f"Got it. {lead} " if lead else "Got it. ") + f"I'll remind you at {spoken}" + (" tomorrow." if due.date() > now.date() else ".")
+            if saved: result["noticed"] = saved
+        return result
+
     def _notice(self, text):
         """Keep durable facts the owner mentions, and plan to check back on things coming up."""
         self.last_noticed = []
         saved = []
         if self.store.setting("learn_from_chat", True):
-            existing = [m["text"].casefold() for m in self.store.all("memory", 1000)]
             for fact in presence.notice_facts(text):
-                if any(fact.casefold() in e or e in fact.casefold() for e in existing):
+                row = self.remember_fact(fact)
+                if row == "full":
+                    self.memory_full = True
                     continue
-                try: row = self.store.put("memory", {"text": fact, "source": "noticed_in_conversation"})
-                except ValueError: continue
+                if not row: continue
                 self.last_noticed.append(row["id"])
                 saved.append({"id": row["id"], "text": fact})
         if self.store.setting("check_ins", True):
@@ -2848,6 +3091,7 @@ class Agent:
         if not isinstance(text, str) or not text.strip() or len(text) > 4000: raise ValueError("Enter 1–4000 characters.")
         text = text.strip()
         reject_payment_secrets(text)
+        text = presence.strip_wake(text)  # "Hey Luma, ...", "Luna, by the way ...": the request is what comes after
         with self.lock:
             from luma.agent.later_mail import fix_typos
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
@@ -2862,6 +3106,12 @@ class Agent:
             if followup is not None: return followup
             grilled = self._grill(text, lowered, cancel_event)  # mid-interview, an answer is an answer
             if grilled is not None: return grilled
+            memo = self._memo(text, lowered)  # "I left my keys on the counter, remind me later", "where are my keys?"
+            if memo is not None: return memo
+            named = self._rename(text)
+            if named is not None: return named
+            place = self._navigate(text, lowered)  # every page runs through the chat
+            if place is not None: return place
             if lowered.rstrip(".!") in {"forget that", "forget what i just said", "don't remember that", "do not remember that", "scratch that"}:
                 return self.forget_last()
             if re.search(r"\bwhat (?:did|have) (?:i|we) (?:say|said|tell you|told you|talk|talked|mention|mentioned)\b", lowered):
@@ -2914,7 +3164,7 @@ class Agent:
             if podcast is not None: return podcast
             made = self._app_request(text)
             if made is not None: return made
-            if lowered.startswith("search ") and not (self.chrome.connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
+            if lowered.startswith("search ") and not (self._hands().connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
             # Common ways of asking for a text are drafted by rules, not the model,
             # so nothing gets added to what the owner said.
             texted = self._text_request(text)
@@ -2927,7 +3177,7 @@ class Agent:
             if music and self.mode != "kids" and not re.match(r"(?:a game|with|around|it cool|it safe)\b", music["what"]):
                 what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", music["what"]).strip(" ,.") or "music for right now"
                 from urllib.parse import quote_plus
-                if self.chrome.connected():
+                if self._hands().connected():
                     # Their own Chrome, in a tab of its own behind what they're doing: music in the back.
                     threading.Thread(target=self._play_in_chrome, args=(what,), name="luma-chrome-play", daemon=True).start()
                     return {"text": f"Playing {what} in Chrome, in a tab in the back. Say \"what's playing\" or ask for something else anytime.", "section": "music", "chrome": "play"}
@@ -3033,7 +3283,8 @@ class Agent:
                     if name in {"tasks.create", "tasks.in", "routines.create"}:
                         # The model guessed a time that doesn't work: ask, don't show an error.
                         what = str((arguments or {}).get("title") or "that").strip().rstrip(".")
-                        return {"text": f"When should I remind you to {what[:1].lower() + what[1:]}? Like “tomorrow at 9am” or “in 20 minutes”.", "asked": True}
+                        return {"text": f"When should I remind you to {what[:1].lower() + what[1:]}? Like “tomorrow at 9am” or “in 20 minutes”.", "asked": True,
+                                "choices": [f"In 1 hour", "Tonight at 8", "Tomorrow at 9am"]}
                     if name != "messages.prepare":
                         return {"text": "I couldn't do that one: " + str(error) + " Tell me a bit more and I'll try again."}
                     body = str((arguments or {}).get("body") or "").strip()

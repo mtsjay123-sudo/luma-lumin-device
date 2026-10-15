@@ -98,6 +98,58 @@ class ControlContext:
             return self.phone_origin
 
 
+def start_link(ctx, bind='0.0.0.0', port=None, discovery_port=None):
+    """Let a paired laptop reach this Luma over Wi-Fi (on the device, or a computer acting as the hub)."""
+    from luma.control import link as luma_link
+    with ctx.lock:
+        if getattr(ctx, 'link_server', None): return link_status(ctx)
+        host = luma_link.LinkHost(ctx.agent)
+        cert, key = luma_link.certificate(ctx.agent.store.db_path.parent / 'link-tls', lan_addresses())
+        server = make_server(ctx.agent, luma_link.LINK_PORT if port is None else port, context=ctx, link=host, bind=bind)
+        try:
+            tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            tls.minimum_version = ssl.TLSVersion.TLSv1_2
+            tls.load_cert_chain(cert, key)
+            server.socket = tls.wrap_socket(server.socket, server_side=True)
+        except Exception:
+            server.server_close(); raise
+        host.port = server.server_port
+        host.fingerprint = luma_link.fingerprints(cert)[0]
+        if os.environ.get('LUMA_LINK_HOST') == '1':  # the device itself: say the code when a computer is looking for it
+            def announce(code):
+                try:
+                    from luma.audio.tts import speak
+                    speak('A computer wants to pair with me. The code is ' + ', '.join(' '.join(code[i:i+3]) for i in (0, 3)) + '.')
+                except Exception:
+                    pass
+            host.announce = announce
+        ctx.link_discovery = host.start_discovery(luma_link.DISCOVERY_PORT if discovery_port is None else discovery_port, bind='' if bind == '0.0.0.0' else bind)
+        ctx.link_server, ctx.agent.link_host = server, host
+        threading.Thread(target=server.serve_forever, daemon=True, name='luma-link').start()
+    return link_status(ctx)
+
+
+def stop_link(ctx):
+    with ctx.lock:
+        server = getattr(ctx, 'link_server', None)
+        if server:
+            server.shutdown(); server.server_close()
+            try: ctx.link_discovery.close()
+            except Exception: pass
+        ctx.link_server = ctx.link_discovery = None
+        ctx.agent.link_host = None
+    return link_status(ctx)
+
+
+def link_status(ctx):
+    agent = ctx.agent
+    host = getattr(agent, 'link_host', None)
+    device = agent.link.device()
+    return {'device': device, 'online': agent.link.online() if device else False,
+            'host': {'on': bool(host), 'code': host.code() if host else None, 'name': host.name() if host else None,
+                     'peers': host.peers() if host else [], 'laptop_here': host.connected() if host else False, 'addresses': lan_addresses()}}
+
+
 def home_payload(agent, owner=True):
     """Everything the Luma Desktop home screen shows, in one request."""
     now = agent.clock()
@@ -130,14 +182,25 @@ def home_payload(agent, owner=True):
             'app_presets': agent.connectors.presets(),
             'chrome': agent.chrome.status() if owner else None,
         },
-        'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or '')},
+        'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or ''), 'assistant': agent.store.setting('assistant_name') or ''},
         'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
         'about_done': bool((agent.store.setting('about') or {}).get('asked')) if agent.mode != 'kids' else True,
         'model': {'on': agent.use_model},
         'brain': _brain_status() if owner else None,
-        'identity': {'soul': agent.store.setting('soul') or '', 'self': agent.store.setting('self_model') or ''} if owner and agent.mode != 'kids' else None,
+        'account': _account(agent) if owner else None,
+        'identity': {'soul': agent.store.setting('soul') or '', 'self': agent.store.setting('self_model') or '', 'memory': agent.memory_quota(),
+                     'style': agent.store.setting('their_style') or ''} if owner and agent.mode != 'kids' else None,
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
     }
+
+
+def _account(agent):
+    """Who's signed in to Luma here (never the credential itself)."""
+    creds = agent.cloud.credentials or {}
+    account = agent.cloud.cached_account() or {}
+    phone = str(creds.get('phone') or '')
+    return {'signed_in': agent.cloud.signed_in(), 'name': creds.get('name') or '', 'phone': ('•••• ' + phone[-4:]) if phone else '',
+            'plan': account.get('plan') or 'free', 'lock': bool(agent.store.setting('lock_touchid', False))}
 
 
 def _brain_status():
@@ -145,10 +208,11 @@ def _brain_status():
     return brain.status()
 
 
-def make_server(agent, port=8095, *, context=None, phone_host=None):
+def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, bind=None):
     root_context = context is None
     ctx = context or ControlContext(agent)
-    companion = phone_host is not None
+    linked = link is not None  # Luma Link: a paired laptop's window, over HTTPS, as the owner
+    companion = phone_host is not None and not linked
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -159,15 +223,26 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
 
         def authorities(self):
             port = self.server.server_port
+            if linked: return {f'{h}:{port}' for h in ['127.0.0.1','localhost','luma.local',*lan_addresses()]}
             return {f'{phone_host}:{port}'} if companion else {f'127.0.0.1:{port}', f'localhost:{port}'}
 
         def valid_host(self): return self.headers.get('Host') in self.authorities()
 
         def valid_origin(self):
-            scheme = 'https' if companion else 'http'
+            scheme = 'https' if companion or linked else 'http'
             return self.headers.get('Origin') in {f'{scheme}://{a}' for a in self.authorities()}
 
+        def bearer(self):
+            auth = self.headers.get('Authorization','')
+            return auth[7:].strip() if auth.startswith('Bearer ') else None
+
         def authenticated(self):
+            if linked:
+                cookies = SimpleCookie()
+                try: cookies.load(self.headers.get('Cookie', ''))
+                except Exception: cookies = SimpleCookie()
+                token = cookies.get('luma_link')
+                return bool(link.peer(token.value if token else None) or link.peer(self.bearer()))
             cookies = SimpleCookie()
             try: cookies.load(self.headers.get('Cookie', ''))
             except Exception: return False
@@ -208,7 +283,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
         def do_GET(self):
             if not self.valid_host(): return self.send({'error':'Invalid device host'},403)
             path = urlsplit(self.path).path
-            if path=='/api/ext/next' and not companion:
+            if linked and path.startswith('/link/'):
+                return self.link_get(path)
+            if path=='/api/ext/next' and not companion and not linked:
                 # Luma for Chrome keeps this one request open; its paired token is its pass, not a cookie.
                 token=(parse_qs(urlsplit(self.path).query).get('token') or [''])[0]
                 if not agent.chrome.valid(token): return self.send({'error':'Pair Luma for Chrome again.'},403)
@@ -229,7 +306,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='font/woff2')
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
-                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion)
+                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion and not linked)
             if path=='/api/connect/oauth/callback' and not companion:
                 # The app's sign-in page sends the owner's browser back here; the one-time state proves it's the sign-in Luma started.
                 q=parse_qs(urlsplit(self.path).query)
@@ -321,8 +398,46 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                 return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',300) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'app':f.get('app'),'seconds':f.get('seconds'),'script':f.get('script'),'created':f.get('created')} for f in agent.store.all('file',40)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
             return self.send({'error':'Not found'},404)
 
+        def link_get(self, path):
+            q = parse_qs(urlsplit(self.path).query)
+            if path == '/link/ping':
+                return self.send({'ok': bool(link.peer(self.bearer())), 'name': link.name()})
+            if path == '/link/enter':
+                # The laptop's window, coming in with its one-minute ticket: a 30-day session, then the device's own Luma.
+                session = link.redeem((q.get('ticket') or [''])[0])
+                if not session: return self.send({'error': 'That link expired. Open Luma on your laptop again.'}, 403)
+                self.send_response(302)
+                self.send_header('Location', '/desktop/')
+                self.send_header('Set-Cookie', f'luma_link={session}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            peer = link.peer(self.bearer())
+            if not peer: return self.send({'error': 'Pair this computer with your Luma first.'}, 403)
+            if path == '/link/hands/next':
+                return self.send({'job': link.next(25)})
+            return self.send({'error': 'Not found'}, 404)
+
+        def link_post(self, path):
+            if not ctx.allowed(('link', self.client_address[0]), 6 if path == '/link/pair' else 600): return self.send({'error': 'Too many tries. Wait a minute.'}, 429)
+            try: data = json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0), 4_000_000)) or b'{}')
+            except Exception: return self.send({'error': 'Bad request'}, 400)
+            if path == '/link/pair':
+                try: return self.send(link.pair(data.get('code'), data.get('name')))
+                except ValueError as error: return self.send({'error': str(error)}, 403)
+            peer = link.peer(self.bearer())
+            if not peer: return self.send({'error': 'Pair this computer with your Luma first.'}, 403)
+            if path == '/link/ticket': return self.send({'ticket': link.ticket(peer['id'])})
+            if path == '/link/memory/sync': return self.send({'memories': link.sync(data.get('memories'))})
+            if path == '/link/hands/done':
+                link.done(data.get('id'), data.get('result'))
+                return self.send({'ok': True})
+            return self.send({'error': 'Not found'}, 404)
+
         def do_POST(self):
             path = urlsplit(self.path).path
+            if linked and path.startswith('/link/') and self.valid_host():
+                return self.link_post(path)
             if path in {'/api/ext/pair','/api/ext/done'} and not companion and self.valid_host():
                 return self.chrome_extension(path)
             if not self.valid_host() or not self.valid_origin(): return self.send({'error':'Device origin required'},403)
@@ -348,7 +463,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     except Exception as error: return self.send({'error':str(error)[:200] if isinstance(error,ValueError) else "I couldn't open that HEIC photo. Save it as JPEG and share it again."},415)
                 question=parse_qs(urlsplit(self.path).query).get('q',[''])[0][:500]
                 thread=parse_qs(urlsplit(self.path).query).get('thread',['main'])[0]
-                result=agent.see(image,question,thread=thread if thread in agent.threads else 'main')
+                thumb=self.headers.get('X-Luma-Thumb') or None  # a small copy for the chat history
+                result=agent.see(image,question,thread=thread if thread in agent.threads else 'main',thumb=thumb)
                 ctx.publish(result)
                 return self.send(result)
             if path=='/api/listen':
@@ -443,6 +559,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                     elif key=='muted' and type(value) is bool: agent.set_muted(value)
                     elif key=='hush': agent.hush()
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
+                    elif key=='lock_touchid' and type(value) is bool: agent.store.set_setting('lock_touchid',value)
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
@@ -525,6 +642,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                             if len(soul)>1500: raise ValueError('Keep the soul under 1,500 characters.')
                             agent.store.set_setting('soul',soul or None)
                         if data.get('reset_self'): agent.store.set_setting('self_model',None)
+                        if 'assistant_name' in data:
+                            called=re.sub(r"[^A-Za-z' -]","",str(data.get('assistant_name') or '')).strip()[:20]
+                            agent.store.set_setting('assistant_name',None if not called or called.lower()=='luma' else called)
                         result={'identity':{'soul':agent.store.setting('soul') or '','self':agent.store.setting('self_model') or ''}}
                     elif path=='/api/threads/new': result=agent.new_thread(data.get('title'))
                     elif path=='/api/threads/delete': result=agent.delete_thread(str(data.get('id','')))
@@ -563,6 +683,26 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         try: subprocess.Popen(opener,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
                         except OSError as error: raise ValueError("This computer has nothing to open that with.") from error
                         result={'opened':row['name']}
+                    elif path.startswith('/api/link/'):
+                        # Luma Link from this computer: find the device, pair, open it, or let other computers connect here.
+                        if companion or linked: return self.send({'error':'Set up Luma Link from the computer itself.'},403)
+                        from luma.control import link as luma_link
+                        what=path[len('/api/link/'):]
+                        if what=='status': result=link_status(ctx)
+                        elif what=='discover':
+                            extra=[str(data.get('address')).strip()] if data.get('address') else []
+                            result={'devices':agent.link.discover(targets=extra, port=int(data.get('discovery_port') or luma_link.DISCOVERY_PORT))}
+                        elif what=='pair':
+                            result={'device':agent.link.pair(str(data.get('host') or ''),int(data.get('port') or luma_link.LINK_PORT),str(data.get('fingerprint') or ''),str(data.get('code') or ''))}
+                        elif what=='enter': result=agent.link.enter()
+                        elif what=='forget': agent.link.forget(); result=link_status(ctx)
+                        elif what=='host':
+                            result=start_link(ctx) if data.get('on') else stop_link(ctx)
+                            agent.store.set_setting('link_host',bool(data.get('on')))
+                        elif what=='revoke':
+                            if getattr(agent,'link_host',None): agent.link_host.revoke(str(data.get('id','')))
+                            result=link_status(ctx)
+                        else: return self.send({'error':'Not found'},404)
                     elif path=='/api/brain':
                         # Which brain Luma thinks with: the local one, a bigger local one, or Claude with the owner's own key.
                         if companion or agent.mode=='kids': return self.send({'error':'Change Luma\'s brain on the Mac.'},403)
@@ -660,6 +800,17 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                         agent._check('browser.open')
                         result = agent.browser.show_for_sign_in(data.get('url') or 'https://www.instagram.com/') if path.endswith('show') else agent.browser.hide()
                         if path.endswith('show'): result = {'summary': 'Sign in in the Luma browser window, then tap Done signing in.', 'url': result.get('url')}
+                    elif path in {'/api/account/start','/api/account/finish','/api/account/signout'}:
+                        # Signing in to Luma (phone number and a texted code). Doesn't change how texts are sent.
+                        if companion: return self.send({'error':'Sign in on the Mac.'},403)
+                        if not ctx.allowed(('account',self.client_address[0]),8): return self.send({'error':'Too many tries. Wait a minute and try again.'},429)
+                        if path.endswith('start'): result=agent.cloud.start_signup(data.get('name'),data.get('phone'))
+                        elif path.endswith('finish'):
+                            result=agent.cloud.finish_signup(data.get('code'),device_name='Luma')
+                            name=' '.join(str((agent.cloud.credentials or {}).get('name') or '').split())[:60]
+                            if name and not agent.profile.get('name'): agent.set_profile({**agent.profile,'name':name.split()[0]})
+                        else: result=agent.cloud.sign_out()
+                        result={**result,'account':_account(agent)}
                     elif path.startswith('/api/texting/'):
                         if companion and path not in {'/api/texting/account','/api/texting/upgrade','/api/texting/numbers'}:
                             return self.send({'error':"Set up Luma's number on the Mac."},403)
@@ -706,7 +857,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             except RuntimeError as e: return self.send({'error':str(e)},502)
             except Exception: return self.send({'error':'The operation could not be confirmed. Check the device terminal; no success was assumed.'},500)
 
-    server=ThreadingHTTPServer((phone_host or '127.0.0.1',port),Handler)
+    server=ThreadingHTTPServer((bind or phone_host or '127.0.0.1',port),Handler)
     server.daemon_threads=True
     server.agent_stop=ctx.stop
     server.control_context=ctx
@@ -751,6 +902,22 @@ def serve(agent,port,phone_host=None,phone_port=8096):
         except ImportError:
             pass
     if os.environ.get('LUMA_WHISPER_DOWNLOAD')=='1': threading.Thread(target=ears,daemon=True,name='luma-ears').start()
+    def voice():
+        # Luma's natural voice, loaded once now so the first reply plays right away.
+        try:
+            from luma.audio.tts import warm_up
+            prefs=agent.voice_preferences if isinstance(agent.voice_preferences,dict) else {}
+            warm_up(prefs.get('voice') or 'luma')
+        except Exception:
+            pass
+    threading.Thread(target=voice,daemon=True,name='luma-voice').start()
+    # Luma Link: on the device (LUMA_LINK_HOST=1) or a computer the owner made the hub, let paired laptops in;
+    # on a laptop paired with a device, keep memories in sync and be the device's hands.
+    if os.environ.get('LUMA_LINK_HOST')=='1' or agent.store.setting('link_host'):
+        try: start_link(ctx)
+        except Exception as error: print(f'LUMA link not started: {error}',flush=True)
+    try: agent.link.start()
+    except Exception: pass
     import signal
     previous_signals = {}
     def stop_on_signal(signum, frame):

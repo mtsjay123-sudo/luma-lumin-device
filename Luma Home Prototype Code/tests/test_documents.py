@@ -92,3 +92,43 @@ class LumaMakesThingsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PhotosAlwaysAnswerTests(unittest.TestCase):
+    """Every way of seeing, best first, and a reply that always lands in the chat."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "s.db", Path(self.temp.name) / "k")
+        self.agent = Agent(store=self.store, use_model=False)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_not_ready_still_answers_in_the_chat(self):
+        from unittest import mock
+        from luma.skills import vision
+        with mock.patch.object(vision, "available", return_value=False), mock.patch.object(vision, "apple_read", return_value=None), \
+             mock.patch.object(vision, "fetch_in_background"):
+            out = self.agent.see(b"\xff\xd8\xff" + b"0" * 500, "", thumb="data:image/jpeg;base64,AAAA")
+        self.assertTrue(out["vision_pending"])
+        log = self.agent.transcripts["main"]
+        self.assertEqual(log[-2]["photo"], "data:image/jpeg;base64,AAAA")
+        self.assertIn("downloading", log[-1]["text"])
+
+    def test_the_macs_own_reading_when_the_vision_model_isnt_here(self):
+        from unittest import mock
+        from luma.skills import vision
+        apple = {"text": ["WIFI: BlueHouse5G", "Password: sunflower22"], "labels": ["sign", "paper"]}
+        with mock.patch.object(vision, "available", return_value=False), mock.patch.object(vision, "apple_read", return_value=apple):
+            out = self.agent.see(b"\xff\xd8\xff" + b"0" * 500, "what does it say?")
+        self.assertIn("BlueHouse5G", out["text"])
+        self.assertIn("sign", out["text"])
+
+    def test_a_broken_vision_model_falls_through_instead_of_failing(self):
+        from unittest import mock
+        from luma.skills import vision
+        with mock.patch.object(vision, "available", return_value=True), mock.patch.object(vision, "look", side_effect=ImportError("Qwen25VLChatHandler")), \
+             mock.patch.object(vision, "apple_read", return_value={"text": [], "labels": ["dog", "beach"]}):
+            out = self.agent.see(b"\xff\xd8\xff" + b"0" * 500, "")
+        self.assertIn("dog", out["text"])

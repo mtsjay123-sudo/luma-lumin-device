@@ -16,7 +16,6 @@
     library: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     news: '<path d="M5 5.5h11v13H6.5A1.5 1.5 0 0 1 5 17V5.5Z"/><path d="M16 9h3v8.5a1 1 0 0 1-1 1h-2M8 9h5M8 12h5M8 15h3"/>',
-    spatial: '<rect x="3.5" y="7" width="9" height="10" rx="2.2"/><path d="M15.5 8.5 20 7v10l-4.5-1.5M12.5 5.5h4"/>',
     music: '<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>',
     compose: '<path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.6 3.9a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5 8.3-8.3Z"/>',
     apps: '<path d="M9 7V4M15 7V4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v4"/>',
@@ -413,6 +412,9 @@
       if (m.role !== "you") {
         const extra = m.result ? rich(m.result) : null;
         if (extra) row.append(extra);
+        if (m.result?.choices?.length) row.append(choiceChips(m.result.choices));
+        if (m.result?.noticed?.length) row.append(rememberedNote(m.result.noticed));
+        if (m.result?.memory_full) row.append(memoryFullNote());
         row.append(replyTools(m));
       }
       box.append(row);
@@ -509,6 +511,38 @@
   }
 
   // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
+  // What they call Luma (it can be renamed in a sentence: "I'm gonna call you Nova").
+  function paintName() {
+    const name = state.assistantName || state.home?.profile?.assistant || "Luma";
+    document.querySelectorAll(".sidebar .wordmark").forEach((w) => { w.textContent = name; w.setAttribute("aria-label", name); });
+  }
+
+  // Luma caught something worth keeping: a quiet note under the reply, with an undo.
+  function rememberedNote(items) {
+    const n = el("div", "remembered");
+    n.append(el("span", "ic", "🧠"), el("span", null, "Remembered: " + items.map((x) => x.text).join(" · ")));
+    const undo = btn("Undo", "pill quiet small", async () => {
+      try { for (const x of items) await api("/api/memory/delete", { id: x.id }); n.replaceChildren(el("span", null, "Okay, forgotten.")); } catch (e) { toast(e.message); }
+    });
+    n.append(undo);
+    return n;
+  }
+  function memoryFullNote() {
+    const n = el("div", "remembered full");
+    n.append(el("span", "ic", "🧠"), el("span", null, "My memory's full on the free plan. Luma Plus remembers everything, backed up and private."));
+    n.append(linkOut("Get Luma Plus", "https://lumin-holdings-site.vercel.app/luma-plus.html", "pill primary small"), btn("Clear some", "pill quiet small", () => go("identity")));
+    return n;
+  }
+  // Tappable answers when Luma asks a question with a few choices.
+  function choiceChips(choices) {
+    const row = el("div", "choices");
+    for (const c of choices.slice(0, 6)) {
+      const b = btn(String(c), "pill soft small choice", () => { row.querySelectorAll("button").forEach((x) => { x.disabled = true; }); b.classList.add("picked"); send(String(c)); });
+      row.append(b);
+    }
+    return row;
+  }
+
   function rich(r) {
     if (r.state === "pending" && r.action) return approval(r);
     if (r.steps && r.steps.length) {
@@ -553,7 +587,8 @@
       }
       return a;
     }
-    if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Apps", "pill soft small", () => go("apps"), "apps")); return a; }
+    if (r.peek && TITLES[r.peek]) { const a = el("div", "actions"); a.append(btn(`Open ${TITLES[r.peek]}`, "pill soft small", () => go(r.peek), r.peek === "apps" ? "apps" : "right")); return a; }
+    if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Connectors", "pill soft small", () => go("apps"), "apps")); return a; }
     if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(webLink(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
     return null;
   }
@@ -1187,9 +1222,27 @@
       return await new Promise((ok) => c.toBlob((b) => ok(b || file), "image/jpeg", 0.88));
     } catch (_) { return file; }
   }
+  // A small copy of the photo for the chat history (the full one goes to Luma to look at).
+  async function thumbOf(file) {
+    try {
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      const url = c.toDataURL("image/jpeg", 0.7);
+      return url.length < 56000 ? url : null;  // it rides in a request header, which has a size limit
+    } catch (_) { return null; }
+  }
+  const PHOTO_TYPES = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic", heif: "image/heif" };
   async function see(file, question) {
-    if (!file || state.busy) return;
-    if (!(file.type || "").startsWith("image/") && !/\.(hei[cf]|jpe?g|png|webp|gif)$/i.test(file.name || "")) { toast("That isn't a photo I can open."); return; }
+    if (!file) return;
+    if (state.busy) { toast("One sec, I'm finishing something. Send the photo again in a moment."); return; }
+    const ext = (String(file.name || "").split(".").pop() || "").toLowerCase();
+    if (!(file.type || "").startsWith("image/")) {
+      if (!PHOTO_TYPES[ext]) { toast("That isn't a photo I can open. Try a JPEG, PNG or HEIC."); return; }
+      file = new File([file], file.name || "photo." + ext, { type: PHOTO_TYPES[ext] });  // some drags arrive with no type
+    }
     file = await readyPhoto(file);
     if (file.size > 40_000_000) { toast("That photo's too big. Try one under 40 MB."); return; }
     if (state.view !== "chat") go("chat");
@@ -1202,12 +1255,15 @@
     mood("thinking", "Looking at the photo");
     renderChat(); resize(); watchActivity(true);
     try {
+      const thumb = file.type === "image/heic" ? null : await thumbOf(file);
       const r = await fetch("/api/see?q=" + encodeURIComponent(question || "") + "&thread=" + encodeURIComponent(thread),
-        { method: "POST", headers: { "Content-Type": file.type }, body: file });
+        { method: "POST", headers: { "Content-Type": file.type || "image/jpeg", ...(thumb ? { "X-Luma-Thumb": thumb } : {}) }, body: file });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || "I couldn't look at that photo.");
+      if (!r.ok) throw new Error(d.error || "I couldn't look at that photo. Try it again?");
       await loadThread(thread);
       state.local[thread] = (state.local[thread] || []).filter((m) => !m.optimistic);
+      const shown = state.transcripts[thread] || [];
+      if (d.text && !JSON.stringify(shown).includes(JSON.stringify(d.text).slice(1, 60))) pushLocal(thread, { role: "luma", text: d.text });
       mood(d.vision_pending ? "idle" : "happy", d.vision_pending ? "Here with you" : "Had a look", 3000);
       talkBack(d);
     } catch (e) {
@@ -1255,9 +1311,11 @@
       else if (r.kind === "shopping" && r.best) mood("happy", "Found it for " + money(r.best.price), 5000);
       else if (r.file || r.helper || r.state === "succeeded" || r.task) mood("happy", "Done", 3500);
       else mood("idle", "Here with you");
-      if (r.open === "apps") setTimeout(() => go("apps"), 900);
+      // "Open my goals": Luma answers, then takes you there. "Show me my goals": the answer here, the page one tap away.
+      if (r.open && TITLES[r.open]) setTimeout(() => go(r.open), 900);
+      if (r.renamed) { state.assistantName = r.renamed === "Luma" ? null : r.renamed; paintName(); }
       if (r.open_url && safeUrl(r.open_url)) window.open(r.open_url, "_blank", "noopener");
-      if (spatial.open) spatialPop(r); else talkPop(r);
+      talkPop(r);
       // In a conversation Luma says it out loud (asking for your OK if it needs it) and keeps listening.
       talkBack(r);
     } catch (e) {
@@ -1807,7 +1865,18 @@
 
     const mem = el("div", "card box id-card");
     const all = (d?.memories || []).filter((m) => m.text && !m.news);
-    mem.append(el("div", "t", `Memory · ${all.length}`), el("div", "s", "Everything Luma remembers about you. Click one to change it."));
+    mem.append(el("div", "t", `Memory · ${all.length}`), el("div", "s", "Everything Luma remembers about you. It catches things as you talk: just say them. Click one to change it."));
+    const q = id.memory;
+    if (q) {
+      const meter = el("div", "mem-meter");
+      if (q.limit) {
+        const bar = el("div", "brain-bar"); const fill = el("i"); fill.style.width = `${Math.min(100, Math.round(100 * q.used / q.limit))}%`; bar.append(fill);
+        meter.append(el("div", "s", `${q.used} of ${q.limit} memories on the free plan`), bar);
+        if (q.used >= q.limit * 0.8) meter.append(linkOut("Unlimited memory with Luma Plus", "https://lumin-holdings-site.vercel.app/luma-plus.html", "pill primary small"));
+      } else meter.append(el("div", "s", `${q.used} memories · Luma Plus: unlimited`));
+      mem.append(meter);
+    }
+    if (id.style) mem.append(el("div", "s id-style", id.style.split(". Match")[0] + "."));
     const add = el("form", "id-add");
     const input = el("input");
     Object.assign(input, { placeholder: "Something Luma should always remember…", maxLength: 500 });
@@ -2238,6 +2307,80 @@
     it.append(g, sw);
     return it;
   }
+  // ---------------------------------------------------------- Luma Link ---
+  // Your Luma device and this computer, one Luma over Wi-Fi. The window opens the device's Luma when it's
+  // around and this computer's when it isn't; memories stay in sync; this computer is the device's hands.
+  const onDevicePage = location.protocol === "https:";
+  function linkCard() {
+    const item = el("div", "item link-item");
+    const g = el("div", "grow");
+    g.append(el("div", "title", "Your Luma device"));
+    item.append(g);
+    if (onDevicePage) {
+      g.append(el("div", "sub", "You're on your Luma device right now, over Wi-Fi. Everything you do here lives on the device."));
+      if (desk?.useLocal) item.append(btn("Use this computer instead", "pill soft small", () => desk.useLocal()));
+      return item;
+    }
+    const body = el("div", "link-body");
+    g.append(el("div", "sub", "Your Luma device is its own computer. Pair it with this one and they work as one: same memory, and the device can use this computer's Chrome."), body);
+    api("/api/link/status", {}).then((st) => {
+      body.replaceChildren();
+      if (st.device) {
+        const row = el("div", "link-row");
+        row.append(el("span", "dot " + (st.online ? "on" : "off")), el("span", "grow", `${st.device.name} · ${st.online ? "connected" : "not reachable right now"}`));
+        if (st.online && desk?.useDevice) row.append(btn("Open it", "pill primary small", () => openDevice()));
+        row.append(btn("Forget", "pill quiet small danger", async () => { if (!confirm(`Forget ${st.device.name}? You can pair again anytime.`)) return; await api("/api/link/forget", {}); renderSettings(); }));
+        body.append(row);
+      } else {
+        const find = btn("Find my Luma", "pill primary small", async () => {
+          find.disabled = true; find.textContent = "Looking on your Wi-Fi…";
+          try {
+            const r = await api("/api/link/discover", { address: addr.value.trim() || undefined });
+            list.replaceChildren();
+            if (!r.devices.length) list.append(el("div", "sub", "No Luma found yet. Make sure it's on and on the same Wi-Fi, or type its address."));
+            for (const d of r.devices) list.append(btn(`${d.name} · ${d.host}`, "pill soft small", () => askCode(d)));
+          } catch (e) { toast(e.message); }
+          find.disabled = false; find.textContent = "Find my Luma";
+        }, "search");
+        const addr = el("input", "link-addr"); addr.placeholder = "Or its address, like 192.168.1.42";
+        const list = el("div", "link-list");
+        const askCode = (d) => {
+          list.replaceChildren();
+          const f = el("form", "link-code");
+          const code = el("input"); Object.assign(code, { inputMode: "numeric", maxLength: 6, placeholder: "6-digit code on your Luma" });
+          const go1 = el("button", "pill primary small", "Pair"); go1.type = "submit";
+          f.append(el("div", "sub", `${d.name} is showing (and saying) a 6-digit code.`), code, go1);
+          f.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            go1.disabled = true; go1.textContent = "Pairing…";
+            try { await api("/api/link/pair", { host: d.host, port: d.port, fingerprint: d.fingerprint, code: code.value.trim() }); toast(`Paired with ${d.name}.`); renderSettings(); }
+            catch (err) { toast(err.message); go1.disabled = false; go1.textContent = "Pair"; }
+          });
+          list.append(f);
+          code.focus();
+        };
+        body.append(el("div", "row-actions"), list);
+        body.firstChild.append(find, addr);
+      }
+      // This computer as the hub: let other computers connect here.
+      const host = st.host || {};
+      const hub = toggleRow("Let my other computers connect to this Luma", host.on ? `Pairing code: ${host.code} · ${(host.peers || []).length} paired` : "Turn on for the Luma device itself, or to make this computer the hub.",
+        Boolean(host.on), async (on) => { await api("/api/link/host", { on }); renderSettings(); });
+      hub.classList.add("nested");
+      body.append(hub);
+    }).catch(() => body.replaceChildren(el("div", "sub", "Luma Link isn't available here.")));
+    return item;
+  }
+  async function openDevice() {
+    try { const entry = await api("/api/link/enter", {}); if (!(await desk?.useDevice?.(entry))) toast("Couldn't open your Luma device."); }
+    catch (e) { toast(e.message); }
+  }
+  // Opening Luma: if the paired device is around (and that's what they last used), go straight to it.
+  async function preferDevice() {
+    if (onDevicePage || !desk?.prefersDevice || !(await desk.prefersDevice())) return;
+    try { const st = await api("/api/link/status", {}); if (st.device && st.online) await openDevice(); } catch (_) { /* stay on this computer */ }
+  }
+
   // Luma's brain: the local one, a bigger local one, or Claude with your own key.
   function brainCard() {
     const b = state.home?.brain;
@@ -2346,6 +2489,23 @@
     aug.append(el("div", "title", "About you"), el("div", "sub", done ? "Your birthday, your people, what you're into — Luma uses this everywhere." : "Tell Luma about you once, so it actually knows you."));
     au.append(aug, btn(done ? "Edit" : "Set it up", "pill " + (done ? "soft" : "primary") + " small", () => aboutSheet(), "people"));
     box.append(au);
+    // Your Luma account, and locking Luma with Touch ID.
+    const acct = state.home?.account || {};
+    const acctRow = el("div", "item");
+    const acctText = el("div", "grow");
+    acctText.append(el("div", "title", acct.signed_in ? `Signed in as ${acct.name || "you"}` : "Your Luma account"),
+      el("div", "sub", acct.signed_in ? `${acct.phone} · ${acct.plan === "plus" ? "Luma Plus" : "Free plan"}` : "Sign in with your phone number to unlock Luma Plus, your phone and texting."));
+    acctRow.append(acctText, acct.signed_in
+      ? btn("Sign out", "pill quiet small", async () => { if (!confirm("Sign out of Luma on this computer? Your memories stay here.")) return; try { await api("/api/account/signout", {}); await refreshHome(); renderSettings(); } catch (e) { toast(e.message); } })
+      : btn("Sign in", "pill primary small", () => { try { sessionStorage.removeItem("luma-welcome-skip"); } catch (_) { /* fine */ } showWelcome(); }));
+    box.append(acctRow);
+    desk?.canLock?.().then((can) => {
+      if (!can) return;
+      const row = toggleRow("Lock with Touch ID", "Ask for your fingerprint when Luma opens, and after it's been away for 5 minutes.", Boolean(acct.lock),
+        async (on) => { if (on && !(await desk.unlock())) { toast("Touch ID didn't match, so it's still off."); renderSettings(); return; } return api("/api/setting", { key: "lock_touchid", value: on }).then(refreshHome); });
+      acctRow.after(row);
+    }).catch(() => {});
+    box.append(linkCard());
     box.append(brainCard());
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
     box.append(toggleRow("Deeper mind", "Luma takes a second look at its own answer and fixes anything it's unsure of or made up. A little slower, a lot sharper.", s.deep_mind !== false, (on) => api("/api/setting", { key: "deep_mind", value: on })));
@@ -2718,6 +2878,7 @@
       renderWidgets();
       const me = (h.profile?.name || "").trim();
       $("me-name").textContent = me || "You";
+      paintName();
       const face = avatarOf(30);
       face.id = "me-initial";
       $("me-initial").replaceWith(face);
@@ -2806,74 +2967,102 @@
     voice.stay = localStorage.getItem("luma-stay") === "1";
     voice.wake = localStorage.getItem("luma-wake") === "1";
   } catch (_) { /* private window */ }
-  function bestVoice() {
-    if (!("speechSynthesis" in window)) return null;
-    const score = (v) => (/premium|enhanced|natural|neural|siri/i.test(v.name) ? 40 : 0) + (/samantha|ava|zoe|allison|aria|jenny|serena|karen|moira|evan|nathan/i.test(v.name) ? 20 : 0)
-      + (/^en[-_]US/i.test(v.lang) ? 10 : 0) + (v.localService ? 5 : 0);
-    return speechSynthesis.getVoices().filter((v) => /^en[-_]/i.test(v.lang)).sort((a, b) => score(b) - score(a))[0] || null;
+  // Luma speaks only in its own natural voice (Kokoro, on this computer). Never a robotic system voice:
+  // if the voice isn't ready, Luma shows its words and says so once.
+  function speechParts(text) {
+    const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9"'“‘(])/).map((x) => x.trim()).filter(Boolean);
+    const parts = [];
+    for (const s of sentences) {
+      const last = parts[parts.length - 1];
+      // The first sentence goes alone so Luma starts talking right away; after that, bigger pieces sound smoother.
+      if (parts.length > 1 && last && last.length + s.length < 220) parts[parts.length - 1] = last + " " + s;
+      else if (parts.length === 1 && last.length < 60 && last.length + s.length < 160) parts[0] = last + " " + s;
+      else parts.push(s);
+    }
+    return parts.length ? parts : [text];
   }
-  if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => bestVoice();
+  function stopAudio() {
+    for (const a of [speak.audio, speak.next]) { try { if (a) { a.onended = a.onerror = a.onplaying = null; a.pause(); a.removeAttribute("src"); a.load(); } } catch (_) { /* gone */ } }
+    speak.audio = speak.next = null;
+  }
   function speak(text, then) {
     const gen = ++speak.gen;
     clearTimeout(speak.watch);
-    if (!("speechSynthesis" in window) || !text) { then?.(); return; }
-    speechSynthesis.cancel();
-    try { speak.audio?.pause(); } catch (_) { /* nothing playing */ }
-    setTimeout(() => { speak.noNatural = false; }, 600000);  // try the natural voice again later (it may have finished downloading)
+    stopAudio();
+    if (!text) { then?.(); return; }
+    if (speak.unready && Date.now() - speak.unready < 60000) { then?.(); return; }  // voice still installing: words on screen only
     dropTake(); // never record Luma's own voice as yours
-    const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1400);
-    // Sentence by sentence: long single utterances can stall, and this sounds more natural.
-    const parts = clean.match(/[^.!?]+[.!?]*\s*/g) || [clean];
-    const v = bestVoice();
+    const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1600);
+    const parts = speechParts(clean);
     Object.assign(voice, { said: clean, talking: true, talkAt: performance.now(), echo: 0, loudMs: 0 });
     document.body.classList.add("speaking");
     mood("happy", "Talking");
     paintVoice();
-    let i = 0;
-    const next = () => {
+    const load = (k) => {
+      if (k >= parts.length) return null;
+      const a = new Audio();
+      a.preload = "auto";
+      a.src = "/api/tts?text=" + encodeURIComponent(parts[k]);
+      a.load();  // starts making the audio now, so it's ready the moment the one before it ends
+      return a;
+    };
+    const finish = () => {
       if (gen !== speak.gen) return;
       clearTimeout(speak.watch);
-      if (i >= parts.length) {
-        Object.assign(voice, { talking: false, quietAt: performance.now(), left: "" });
-        document.body.classList.remove("speaking");
-        if (!voice.on) mood("idle", "Here with you");
-        paintVoice();
-        then?.();
-        return;
-      }
-      voice.left = parts.slice(i).join(" ");
-      const line = parts[i++].trim();
-      if (!line) { next(); return; }
-      // Luma's own natural voice (Kokoro, on this computer) when it's downloaded; the system voice until then.
-      if (!speak.noNatural) {
-        const audio = new Audio("/api/tts?text=" + encodeURIComponent(line));
-        speak.audio = audio;
-        let moved = false;
-        const step = () => { if (!moved) { moved = true; next(); } };
-        audio.onended = step;
-        audio.onerror = () => { if (moved) return; speak.noNatural = true; i--; moved = true; next(); };  // not ready: say it with the system voice
-        audio.play().catch(() => audio.onerror());
-        speak.watch = setTimeout(step, 6000 + line.length * 160);
-        return;
-      }
-      const u = new SpeechSynthesisUtterance(line);
-      if (v) u.voice = v;
-      u.rate = 1.04;
-      let moved = false;
-      const step = () => { if (!moved) { moved = true; next(); } };
-      u.onend = step;
-      u.onerror = (e) => { if (e.error !== "interrupted" && e.error !== "canceled") step(); };
-      speak.watch = setTimeout(step, 3000 + line.length * 110); // some voices never say they've finished
-      speechSynthesis.speak(u);
+      speak.audio = speak.next = null;
+      Object.assign(voice, { talking: false, quietAt: performance.now(), left: "" });
+      document.body.classList.remove("speaking");
+      if (!voice.on) mood("idle", "Here with you");
+      paintVoice();
+      then?.();
     };
-    next();
+    let i = 0;
+    speak.next = load(0);
+    const play = () => {
+      if (gen !== speak.gen) return;
+      const a = speak.next;
+      if (!a) { finish(); return; }
+      speak.audio = a;
+      voice.left = parts.slice(i).join(" ");
+      speak.next = load(i + 1);
+      let done = false;
+      const advance = () => {
+        if (done || gen !== speak.gen) return;
+        done = true;
+        clearTimeout(speak.watch);
+        try { a.pause(); } catch (_) { /* finished */ }
+        i++;
+        play();
+      };
+      a.onended = advance;
+      a.onplaying = () => {  // only now do we know how long it is: one piece never runs over the next
+        clearTimeout(speak.watch);
+        const ms = Number.isFinite(a.duration) && a.duration > 0 ? a.duration * 1000 : 20000;
+        speak.watch = setTimeout(advance, ms + 2000);
+      };
+      a.onerror = () => {
+        if (done || gen !== speak.gen) return;
+        done = true;
+        if (i === 0) {  // the voice isn't there yet: say so once, keep the words on screen, never fall back to a robot voice
+          speak.unready = Date.now();
+          if (!speak.told) { speak.told = true; toast("Luma's voice is still getting ready. You'll hear it in a minute."); }
+          finish();
+          return;
+        }
+        i++;
+        play();  // one piece failed: skip it, keep going
+      };
+      clearTimeout(speak.watch);
+      speak.watch = setTimeout(() => a.onerror?.(), 30000);  // never stuck waiting
+      a.play().catch(() => a.onerror?.());
+    };
+    play();
   }
   speak.gen = 0;
   function hush() {
     speak.gen++;
     clearTimeout(speak.watch);
-    try { speak.audio?.pause(); } catch (_) { /* already stopped */ }
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    stopAudio();
     if (voice.talking) Object.assign(voice, { talking: false, quietAt: performance.now() });
     document.body.classList.remove("speaking");
     paintVoice();
@@ -3270,138 +3459,7 @@
   if (scheme.addEventListener) scheme.addEventListener("change", () => applyTheme(theme));
 
 
-  // ------------------------------------------------------------ spatial ---
-  // Spatial mode: Luma's work floats around you as glass panels, like visionOS. The one in focus
-  // sits in front; click another and it swings forward while the rest rotate back into depth.
-  // Talk mode lives here too: an orb, and little memory cards that pop up as Luma does things.
-  const spatial = { open: false, focus: 0, timer: 0, frameHash: null, news: [], music: null };
-  const SP_PANELS = [
-    { id: "chat", title: "Chat", icon: "chat" },
-    { id: "browser", title: "Browser", icon: "globe" },
-    { id: "news", title: "News", icon: "news" },
-    { id: "now", title: "Luma is doing", icon: "spark" },
-    { id: "music", title: "Music", icon: "music" },
-  ];
-  function spPanels() { return SP_PANELS.filter((p) => p.id !== "music" || spatial.music); }
-  function openSpatial() {
-    if (spatial.open) return;
-    spatial.open = true;
-    const box = $("spatial");
-    box.hidden = false;
-    document.body.classList.add("in-spatial");
-    requestAnimationFrame(() => box.classList.add("on"));
-    document.documentElement.requestFullscreen?.().catch(() => {});
-    api("/api/news").then((d) => { spatial.news = (d.items || []).slice(0, 6); spRender(); }).catch(() => {});
-    spRender();
-    spTick();
-  }
-  function closeSpatial() {
-    if (!spatial.open) return;
-    spatial.open = false;
-    clearTimeout(spatial.timer);
-    const box = $("spatial");
-    box.classList.remove("on");
-    document.body.classList.remove("in-spatial");
-    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    setTimeout(() => { if (!spatial.open) box.hidden = true; }, 420);
-  }
-  function spFocus(i) { spatial.focus = i; spLayout(); }
-  // Where each panel sits: the focused one front and centre, the rest swung around it in depth.
-  function spLayout() {
-    const panels = [...$("sp-stage").children];
-    const n = panels.length;
-    panels.forEach((el2, i) => {
-      let d = i - spatial.focus;
-      if (d > n / 2) d -= n;
-      if (d < -n / 2) d += n;
-      const side = Math.sign(d), far = Math.abs(d);
-      const x = far === 0 ? 0 : side * (far === 1 ? 50 : 82);
-      const z = far === 0 ? 0 : far === 1 ? -420 : -760;
-      const ry = far === 0 ? 0 : -side * (far === 1 ? 20 : 28);
-      el2.style.transform = `translate3d(calc(-50% + ${x}%), -50%, ${z}px) rotateY(${ry}deg) scale(${far === 0 ? 1 : far === 1 ? 0.86 : 0.74})`;
-      el2.style.zIndex = String(10 - far);
-      el2.style.opacity = far > 2 ? "0" : String(far === 0 ? 1 : far === 1 ? 0.94 : 0.72);
-      el2.classList.toggle("focus", far === 0);
-    });
-    [...$("sp-rail").children].forEach((b, i) => b.classList.toggle("on", i === spatial.focus));
-  }
-  function spPanel(p) {
-    const card = el("section", "sp-panel");
-    card.dataset.id = p.id;
-    const head = el("header", "sp-head");
-    head.append(icon(p.icon), el("b", null, p.id === "chat" ? (threadTitle(state.thread) && threadTitle(state.thread) !== "New chat" ? threadTitle(state.thread) : "Chat") : p.title));
-    const body = el("div", "sp-body");
-    if (p.id === "chat") {
-      const list = el("div", "sp-msgs");
-      for (const m of items(state.thread).slice(-8)) {
-        if (m.role === "notice") continue;
-        list.append(el("div", "sp-msg " + (m.role === "you" ? "you" : "luma"), m.text || (m.photo ? "📷 Photo" : "")));
-      }
-      if (!list.childElementCount) list.append(el("div", "sp-empty", "Say or type anything. I'll pull things up around you as I work."));
-      const f = el("form", "sp-input");
-      const inp = el("input"); inp.placeholder = "Ask Luma anything"; inp.autocomplete = "off";
-      const go1 = btn("", "send", () => {}, "up"); go1.type = "submit"; go1.disabled = false;
-      f.append(inp, go1);
-      f.addEventListener("submit", (e) => { e.preventDefault(); const t = inp.value.trim(); if (t) { inp.value = ""; send(t); } });
-      body.append(list, f);
-      requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
-    } else if (p.id === "browser") {
-      const img = el("img", "sp-shot"); img.alt = ""; img.id = "sp-shot";
-      const src = $("b-img")?.src;
-      if (src && src.startsWith("data:")) img.src = src; else img.hidden = true;
-      const empty = el("div", "sp-empty", "Nothing open yet. Ask me to open a site, or tap here to browse.");
-      empty.hidden = !img.hidden;
-      body.append(img, empty);
-      body.addEventListener("dblclick", () => { closeSpatial(); go("browser"); });
-    } else if (p.id === "news") {
-      if (!spatial.news.length) body.append(el("div", "sp-empty", "Reading the latest…"));
-      for (const n of spatial.news) {
-        const row = el("button", "sp-news"); row.type = "button";
-        row.append(el("span", "t", n.title), el("span", "s", [n.source, n.age].filter(Boolean).join(" · ")));
-        row.addEventListener("click", () => window.open(n.url, "_blank", "noopener"));
-        body.append(row);
-      }
-    } else if (p.id === "now") {
-      const a = state.activity;
-      const steps = (a && a.steps) || [];
-      body.append(el("div", "sp-doing", a && a.state === "running" ? a.title || "Working" : "Ready when you are"));
-      for (const st of steps.slice(-6)) body.append(el("div", "sp-step" + (st.done ? " done" : ""), st.text));
-      const waiting = (state.home?.approvals || []).length;
-      if (waiting) { const w = btn(`${waiting} waiting for your OK`, "pill primary small", () => { closeSpatial(); go("chat"); }, "check"); body.append(w); }
-      for (const m of (state.home?.later_mail || []).slice(0, 3)) body.append(el("div", "sp-step", `✉️ ${m.subject} · ${new Date(m.send_at * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`));
-    } else if (p.id === "music") {
-      body.append(el("div", "sp-music-art", "🎵"), el("div", "sp-doing", spatial.music.title));
-      body.append(linkOut("Open player", spatial.music.url, "pill soft small", "external"));
-    }
-    card.append(head, body, el("div", "sp-grab"));
-    card.addEventListener("click", () => { const i = spPanels().findIndex((x) => x.id === p.id); if (i !== spatial.focus) spFocus(i); });
-    return card;
-  }
-  function spRender() {
-    if (!spatial.open) return;
-    const panels = spPanels();
-    spatial.focus = Math.min(spatial.focus, panels.length - 1);
-    $("sp-stage").replaceChildren(...panels.map(spPanel));
-    $("sp-rail").replaceChildren(...panels.map((p, i) => { const b = btn("", "sp-rail-btn", () => spFocus(i), p.icon); b.title = p.title; return b; }));
-    spLayout();
-  }
-  // Keep the live parts live: the browser picture, what Luma is doing, the talk orb.
-  async function spTick() {
-    if (!spatial.open) return;
-    try {
-      const d = await api("/api/browser/frame" + (spatial.frameHash ? "?have=" + encodeURIComponent(spatial.frameHash) : ""));
-      const f = d.frame, img = $("sp-shot");
-      if (f && img && !f.same && f.jpeg_base64) { img.src = "data:image/jpeg;base64," + f.jpeg_base64; img.hidden = false; img.nextSibling && (img.nextSibling.hidden = true); }
-      if (f) spatial.frameHash = f.hash;
-    } catch (_) { /* fine */ }
-    const now = document.querySelector('.sp-panel[data-id="now"]');
-    if (now && !document.querySelector(".sp-panel.focus .sp-input input:focus")) now.replaceWith(spPanel(SP_PANELS[3]));
-    spLayout();
-    $("sp-status").textContent = document.body.classList.contains("speaking") ? "Talking" : voice.talkMode ? "Listening…" : state.busy ? "Working on it…" : "Tap the orb and talk";
-    $("sp-orb").classList.toggle("live", voice.talkMode || state.busy || document.body.classList.contains("speaking"));
-    spatial.timer = setTimeout(spTick, 1200);
-  }
-  // Memory cards: what Luma just did pops up in space, then drifts away.
+  // --------------------------------------------------------- memory pops ---
   // What a reply pulled up, as little memory cards: an emoji stand-in and a few words.
   function popCards(r) {
     const cards = [];
@@ -3409,10 +3467,7 @@
     if (r.results && r.section === "news") r.results.slice(0, 3).forEach((n) => add("📰", n.title, "news"));
     if (r.draft_email || (r.tool || "").startsWith("mail.")) add("✉️", r.draft_email?.subject || r.arguments?.subject || "Email ready", "chat");
     if (r.task) add("⏰", r.task.title || "Reminder set", "now");
-    if (r.section === "music" && (r.open_url || r.chrome === "play")) {
-      spatial.music = { title: String(r.text || "").replace(/^Playing\s+/i, "").split(/ on | in /)[0] || "Music", url: r.open_url || "" };
-      add("🎵", spatial.music.title, "music");
-    }
+    if (r.section === "music" && (r.open_url || r.chrome === "play")) add("🎵", String(r.text || "").replace(/^Playing\s+/i, "").split(/ on | in /)[0] || "Music", "chat");
     if (r.chrome === "open") add("🌐", r.text, "browser");
     if (r.offers?.length) add("🛍️", r.best ? `${r.best.store}: ${r.best.title || r.query}` : r.query, "chat");
     if (r.file) add("📊", r.file.title || r.file.name, "chat");
@@ -3433,32 +3488,130 @@
       setTimeout(() => pop.remove(), 9000 + i * 400);
     });
   }
-  function spatialPop(r) {
-    if (!spatial.open || !r) return;
-    const cards = popCards(r);
-    spRender();
-    showPops($("sp-pops"), cards, (c) => { const k = spPanels().findIndex((p) => p.id === c.focusId); if (k >= 0) spFocus(k); });
-  }
-  // Talking (not in spatial): Luma stays a presence, and what it pulls up floats in over the window.
+  // Talking: Luma stays a presence, and what it pulls up floats in over the window like a memory.
   function talkPop(r) {
-    if (spatial.open || !r || !voice.on) return;
+    if (!r || !voice.on) return;
     const cards = popCards(r).filter((c) => c.emoji !== "💬");  // the words are already being said out loud
     showPops($("talk-pops"), cards, (c) => go(c.focusId === "news" ? "news" : c.focusId === "browser" ? "browser" : "chat"));
   }
-  $("top-spatial").addEventListener("click", openSpatial);
-  $("sp-exit").addEventListener("click", closeSpatial);
-  $("sp-orb").addEventListener("click", () => $("mic").click());
-  addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && spatial.open) closeSpatial();
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); spatial.open ? closeSpatial() : openSpatial(); }
-    if (spatial.open && !e.target.closest?.("input, textarea") && (e.key === "ArrowRight" || e.key === "ArrowLeft")) spFocus((spatial.focus + (e.key === "ArrowRight" ? 1 : -1) + spPanels().length) % spPanels().length);
+
+  // ----------------------------------------------------------- welcome ---
+  // Signed out? A beautiful welcome every time Luma opens, until they sign in (or choose this computer only).
+  const welcome = { phone: "", name: "" };
+  function e164(raw) {
+    const d = String(raw || "").replace(/[^\d+]/g, "");
+    if (/^\+\d{10,15}$/.test(d)) return d;
+    const digits = d.replace(/\D/g, "");
+    if (digits.length === 10) return "+1" + digits;
+    if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+    return "";
+  }
+  function welcomeStep(step) {
+    for (const [id, on] of [["w-start", step === "start"], ["w-verify", step === "verify"], ["w-call", step === "call"]]) $(id).hidden = !on;
+    $("w-skip").hidden = step !== "start";
+    $("w-error").textContent = "";
+    const sub = { start: "Your own super intelligence. It remembers what matters, gets things done, and always asks before it sends or buys anything.",
+      verify: `I texted a 6-digit code to ${welcome.phone}. Type it here.`, call: `You're in, ${welcome.name}. One last thing: what would you like to call me?` }[step];
+    $("welcome-sub").textContent = sub;
+    $("w-fine").hidden = step === "call";
+    if (step === "verify") $("w-code").querySelector("input")?.focus();
+    if (step === "start") $("w-name").focus();
+  }
+  function codeBoxes() {
+    const box = $("w-code");
+    box.replaceChildren();
+    for (let i = 0; i < 6; i++) {
+      const c = el("input", "code-box");
+      Object.assign(c, { inputMode: "numeric", maxLength: 1, autocomplete: i === 0 ? "one-time-code" : "off" });
+      c.setAttribute("aria-label", `Digit ${i + 1}`);
+      c.addEventListener("input", () => {
+        c.value = c.value.replace(/\D/g, "").slice(-1);
+        if (c.value && c.nextElementSibling) c.nextElementSibling.focus();
+        if ([...box.children].every((x) => x.value)) $("w-verify").requestSubmit();
+      });
+      c.addEventListener("keydown", (e) => { if (e.key === "Backspace" && !c.value && c.previousElementSibling) c.previousElementSibling.focus(); });
+      c.addEventListener("paste", (e) => {
+        const digits = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+        if (!digits) return;
+        e.preventDefault();
+        [...box.children].forEach((x, k) => { x.value = digits[k] || ""; });
+        if (digits.length === 6) $("w-verify").requestSubmit();
+      });
+      box.append(c);
+    }
+  }
+  function showWelcome() {
+    document.body.classList.add("welcoming");
+    $("welcome").hidden = false;
+    codeBoxes();
+    welcomeStep("start");
+  }
+  function hideWelcome() {
+    $("welcome").classList.add("leaving");
+    setTimeout(() => { $("welcome").hidden = true; $("welcome").classList.remove("leaving"); document.body.classList.remove("welcoming"); input.focus(); }, 650);
+  }
+  $("w-start").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    welcome.name = $("w-name").value.trim();
+    welcome.phone = e164($("w-phone").value);
+    if (!welcome.phone) { $("w-error").textContent = "That number doesn't look right. Use your mobile number, like (919) 555-0123."; return; }
+    $("w-send").disabled = true; $("w-send").textContent = "Sending…";
+    try { await api("/api/account/start", { name: welcome.name, phone: welcome.phone }); welcomeStep("verify"); }
+    catch (err) { $("w-error").textContent = err.message || "That didn't go through. Try again in a moment."; }
+    finally { $("w-send").disabled = false; $("w-send").textContent = "Text me a code"; }
   });
-  // A little depth: the panels lean toward your pointer.
-  $("spatial").addEventListener("pointermove", (e) => {
-    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
-    $("sp-stage").style.transform = `rotateY(${x * 5}deg) rotateX(${-y * 4}deg)`;
-  }, { passive: true });
-  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && spatial.open && !document.hidden) { /* stay in spatial, just windowed */ } });
+  $("w-verify").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = [...$("w-code").children].map((x) => x.value).join("");
+    if (code.length < 6) { $("w-error").textContent = "Type all 6 digits."; return; }
+    $("w-check").disabled = true; $("w-check").textContent = "Checking…";
+    try {
+      await api("/api/account/finish", { code });
+      await refreshHome();
+      const chips = $("w-chips");
+      chips.replaceChildren(...["Luma", "Nova", "Sage", "Echo", "Atlas"].map((n) => btn(n, "pill soft", () => { $("w-callname").value = n; $("w-call").requestSubmit(); })));
+      welcomeStep("call");
+    } catch (err) {
+      $("w-error").textContent = err.message || "That code didn't work. Check the text and try again.";
+      [...$("w-code").children].forEach((x) => { x.value = ""; });
+      $("w-code").firstElementChild?.focus();
+    } finally { $("w-check").disabled = false; $("w-check").textContent = "Sign in"; }
+  });
+  $("w-call").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("w-callname").value.trim() || "Luma";
+    try { await api("/api/identity", { assistant_name: name }); } catch (_) { /* keep going */ }
+    state.assistantName = name === "Luma" ? null : name;
+    await refreshHome();
+    hideWelcome();
+    toast(name === "Luma" ? `Nice to meet you, ${welcome.name}.` : `${name} it is. Nice to meet you, ${welcome.name}.`);
+  });
+  $("w-back").addEventListener("click", () => welcomeStep("start"));
+  $("w-skip").addEventListener("click", () => { try { sessionStorage.setItem("luma-welcome-skip", "1"); } catch (_) { /* fine */ } hideWelcome(); });
+  function maybeWelcome() {
+    const acct = state.home?.account;
+    if (!acct || acct.signed_in) return;
+    try { if (sessionStorage.getItem("luma-welcome-skip")) return; } catch (_) { /* show it */ }
+    showWelcome();
+  }
+
+  // Touch ID lock: on open, and after Luma's been in the background a while.
+  const lock = { hiddenAt: 0 };
+  async function lockNow() {
+    if (!state.home?.account?.lock || !(await desk?.canLock?.())) return;
+    $("lockscreen").hidden = false;
+    document.body.classList.add("locked");
+    unlockNow();
+  }
+  async function unlockNow() {
+    const ok = await desk?.unlock?.();
+    if (ok) { $("lockscreen").hidden = true; document.body.classList.remove("locked"); input.focus(); }
+  }
+  $("unlock-btn").addEventListener("click", unlockNow);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) lock.hiddenAt = Date.now();
+    else if (lock.hiddenAt && Date.now() - lock.hiddenAt > 5 * 60 * 1000) lockNow();
+  });
 
   // ------------------------------------------------------------- start ---
   applyScene();
@@ -3467,6 +3620,10 @@
     const v = location.hash.slice(1);
     await openFresh();
     if (v && v !== "chat" && document.getElementById("view-" + v)) go(v);
+    await lockNow();
+    maybeWelcome();
+    preferDevice();
+    if (onDevicePage) document.body.classList.add("on-device");
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
   });
   setInterval(refreshHome, 4000);

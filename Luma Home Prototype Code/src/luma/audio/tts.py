@@ -149,6 +149,26 @@ def _get_kokoro():
     return _kokoro
 
 
+def ready():
+    """Is Luma's natural voice installed here?"""
+    try:
+        import kokoro_onnx  # noqa: F401
+    except ImportError:
+        return False
+    return KOKORO_MODEL_PATH.is_file() and KOKORO_VOICES_PATH.is_file()
+
+
+def warm_up(voice: str = DEFAULT_VOICE):
+    """Load the voice once at startup, so the first thing Luma says isn't slow."""
+    if not ready():
+        return False
+    try:
+        _samples("Hi.", voice, None)
+        return True
+    except Exception:
+        return False
+
+
 def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, should_stop=None, speed=None) -> None:
     """Create a complete local WAV atomically; interrupted audio stays private."""
     chunks = speech_chunks(spoken_text(text))
