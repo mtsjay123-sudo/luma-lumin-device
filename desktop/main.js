@@ -282,6 +282,62 @@ function setGlass(next) {
 // From the app's menu: the page hears about it too.
 const glassFromMenu = (change) => { const next = setGlass({ ...savedGlass(), ...change }); if (win && !win.isDestroyed()) win.webContents.send("luma:glass", next); };
 
+// ----------------------------------------------------------- web browsing ---
+// The Browser page and Watch use real Chromium inside the window. They share one profile
+// (so you sign in once), look like ordinary Chrome to websites, and only show web pages.
+const WEB_PARTITION = "persist:luma-web";
+let webReady = false;
+function webSession() {
+  const ses = session.fromPartition(WEB_PARTITION);
+  if (webReady) return ses;
+  webReady = true;
+  ses.setUserAgent(ses.getUserAgent().replace(/\s(?:luma-desktop|Luma|Electron)\/\S+/gi, ""));
+  // Video can go full screen and pages can copy; a site asking for your camera, mic or location is told no.
+  const allowed = new Set(["fullscreen", "clipboard-sanitized-write", "pointerLock"]);
+  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed.has(permission)));
+  ses.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+  ses.on("will-download", (_event, item) => { item.setSavePath(uniquePath(app.getPath("downloads"), item.getFilename())); });
+  return ses;
+}
+app.on("web-contents-created", (_event, contents) => {
+  if (contents.getType() !== "webview") return;
+  // A link that opens a new tab opens right here; a sign-in popup (Google, Apple) gets its own small window.
+  contents.setWindowOpenHandler(({ url, features }) => {
+    if (!/^https?:/i.test(url)) { if (/^(mailto|sms|tel|facetime):/i.test(url)) shell.openExternal(url); return { action: "deny" }; }
+    if (features && /width|height|popup/i.test(features)) {
+      return { action: "allow", overrideBrowserWindowOptions: { width: 520, height: 680, autoHideMenuBar: true,
+        webPreferences: { partition: WEB_PARTITION, contextIsolation: true, sandbox: true, nodeIntegration: false } } };
+    }
+    contents.loadURL(url);
+    return { action: "deny" };
+  });
+  contents.on("will-navigate", (event, url) => {
+    if (/^https?:/i.test(url)) return;
+    event.preventDefault();
+    if (/^(mailto|sms|tel|facetime):/i.test(url)) shell.openExternal(url);
+  });
+});
+// Sign-ins move between this browser and Luma's own (Playwright's cookie shape on the wire).
+const SAME_TO_PW = { no_restriction: "None", lax: "Lax", strict: "Strict" };
+const SAME_FROM_PW = { None: "no_restriction", Lax: "lax", Strict: "strict" };
+function cookieOut(c) {
+  const domain = c.hostOnly ? String(c.domain || "").replace(/^\./, "") : (String(c.domain || "").startsWith(".") ? c.domain : "." + c.domain);
+  const sameSite = SAME_TO_PW[c.sameSite] || "Lax";
+  return { name: c.name, value: c.value, domain, path: c.path || "/", expires: c.session || !c.expirationDate ? -1 : Math.round(c.expirationDate),
+    httpOnly: Boolean(c.httpOnly), secure: Boolean(c.secure), sameSite: sameSite === "None" && !c.secure ? "Lax" : sameSite };
+}
+function cookieIn(c) {
+  if (!c || typeof c.name !== "string" || typeof c.value !== "string" || !c.name || c.value.length > 4096) return null;
+  const domain = String(c.domain || "").toLowerCase(), host = domain.replace(/^\./, "");
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || /^[\d.]+$/.test(host)) return null;
+  const pathPart = typeof c.path === "string" && c.path.startsWith("/") ? c.path : "/";
+  const out = { url: (c.secure ? "https://" : "http://") + host + pathPart, name: c.name, value: c.value, path: pathPart, secure: Boolean(c.secure),
+    httpOnly: Boolean(c.httpOnly), sameSite: SAME_FROM_PW[c.sameSite] || "lax" };
+  if (domain.startsWith(".")) out.domain = domain;
+  if (Number(c.expires) > 0) out.expirationDate = Number(c.expires);
+  return out;
+}
+
 // --------------------------------------------------------------- window ---
 function createWindow({ bounds, url } = {}) {
   const glass = savedGlass();
@@ -302,6 +358,8 @@ function createWindow({ bounds, url } = {}) {
     icon: path.join(__dirname, "build", "icon.png"),
     // backgroundThrottling off: Luma's page keeps checking in while hidden, so news still notifies you.
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false,
+      // The Browser page and Watch are real browsers in the window (<webview>), locked down in will-attach-webview.
+      webviewTag: true,
       // Luma answers out loud after "Hey Luma" too, without waiting for a click first.
       autoplayPolicy: "no-user-gesture-required" },
   });
@@ -323,6 +381,13 @@ function createWindow({ bounds, url } = {}) {
     if (url.startsWith(ORIGIN + "/") || url.startsWith("file://") || onDevice(url)) return;
     event.preventDefault();
     openOutside(url);
+  });
+  // The page's own browsers: web pages only, no Node, no preload, their own signed-in profile.
+  w.webContents.on("will-attach-webview", (event, prefs, params) => {
+    for (const key of Object.keys(prefs)) if (/preload/i.test(key)) delete prefs[key];
+    Object.assign(prefs, { nodeIntegration: false, nodeIntegrationInSubFrames: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, plugins: false });
+    params.partition = WEB_PARTITION;
+    if (!/^(https?:\/\/|about:blank$)/i.test(params.src || "about:blank")) event.preventDefault();
   });
   // If the page itself ever crashes or hangs, bring it back instead of leaving a blank window.
   w.webContents.on("render-process-gone", (_e, details) => {
@@ -539,6 +604,21 @@ if (!app.requestSingleInstanceLock()) {
       return true;
     });
     ipcMain.handle("luma:device-pref", (event) => (fromHome(event) ? Boolean(linkedDevice()?.prefer) : false));
+    // The window's own browser: its cookies for one site (to share a sign-in with Luma's browser), or new ones from it.
+    ipcMain.handle("luma:web-cookies-get", async (event, url) => {
+      if (!fromHome(event) || typeof url !== "string" || !/^https?:\/\//i.test(url)) return [];
+      try { return (await webSession().cookies.get({ url })).slice(0, 400).map(cookieOut); } catch { return []; }
+    });
+    ipcMain.handle("luma:web-cookies-set", async (event, list) => {
+      if (!fromHome(event) || !Array.isArray(list)) return 0;
+      let n = 0;
+      for (const c of list.slice(0, 400)) {
+        const cookie = cookieIn(c);
+        if (!cookie) continue;
+        try { await webSession().cookies.set(cookie); n++; } catch { /* a cookie the site wouldn't take */ }
+      }
+      return n;
+    });
     ipcMain.handle("luma:glass-get", (event) => (fromHome(event) ? cleanGlass(readConfig().glass) : null));
     ipcMain.handle("luma:glass-set", (event, g) => { const next = fromHome(event) && cleanGlass(g); return next ? setGlass(next) : null; });
     // "Hey Luma" brings the window up.
@@ -567,6 +647,7 @@ if (!app.requestSingleInstanceLock()) {
         shell.showItemInFolder(file);
       });
     });
+    webSession();
     createWindow();
     if (!globalShortcut.register(SUMMON, summon)) console.warn(`Couldn't register ${SUMMON}`);
     app.on("activate", () => { if (!win) createWindow(); else win.show(); });

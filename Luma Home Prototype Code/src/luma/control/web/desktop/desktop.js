@@ -99,6 +99,74 @@
     b.addEventListener("click", onClick);
     return b;
   }
+  // Every control says what it is: hover (or tab to) anything with a name and a small glass label
+  // appears right away, instead of the browser's slow, plain one (or nothing, for icon-only buttons).
+  const tip = el("div", "tip");
+  tip.setAttribute("role", "tooltip");
+  document.body.append(tip);
+  let tipFor = null, tipTimer = 0;
+  function tipText(t) {
+    if (t.hasAttribute("title")) { t.setAttribute("data-tip", t.getAttribute("title")); t.removeAttribute("title"); }
+    const own = t.getAttribute("data-tip") || "";
+    if (own) return own;
+    const label = t.getAttribute("aria-label") || "";
+    const shown = (t.textContent || "").trim().toLowerCase();
+    return label && !shown.includes(label.toLowerCase()) ? label : "";  // icon-only controls
+  }
+  function showTip(t) {
+    const text = tipText(t);
+    if (!text || !t.isConnected) { tip.classList.remove("on"); return; }
+    tip.textContent = text;
+    tip.classList.add("on");
+    const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let top = r.bottom + 8;
+    if (top + h > innerHeight - 6) top = r.top - h - 8;
+    const left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+  function hideTip() { clearTimeout(tipTimer); tipFor = null; tip.classList.remove("on"); }
+  document.addEventListener("pointerover", (e) => {
+    const t = e.target.closest?.("button, a, [role=button], [data-tip], [title], select");
+    if (t === tipFor) return;
+    hideTip();
+    if (!t) return;
+    tipFor = t;
+    tipText(t);  // take the native title off now, so the browser's own tooltip never doubles up
+    tipTimer = setTimeout(() => showTip(t), 260);
+  });
+  document.addEventListener("pointerdown", hideTip, true);
+  document.addEventListener("scroll", hideTip, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); }, true);
+  document.addEventListener("focusin", (e) => { const t = e.target; if (t.matches?.(":focus-visible") && t.matches("button, a, [role=button], select")) { tipFor = t; showTip(t); } });
+  document.addEventListener("focusout", hideTip);
+
+  // Whole cards act like their main button: click anywhere on an idea, an app, a settings row.
+  // (Only when there's one obvious, harmless thing to do; never a Remove or Forget.)
+  const CARD_PROXY = ".idea.card, .app-card, .card.list > .item, .goal-list > .card, .cap-card, .news-card";
+  const HARMLESS = (b) => !b.disabled && !/remove|delete|forget|sign out|disconnect|turn off|stop|cancel/i.test(b.textContent + " " + (b.getAttribute("aria-label") || ""));
+  function cardMain(card) {
+    const own = card.querySelector(":scope [data-main]");
+    if (own) return own;
+    const toggles = card.querySelectorAll("input[type=checkbox], [role=switch]");
+    if (toggles.length === 1) return toggles[0];
+    const buttons = [...card.querySelectorAll("button, a[href]")].filter((b) => b.offsetParent !== null && HARMLESS(b));
+    const primary = buttons.find((b) => b.matches(".primary, .pill.primary"));
+    if (primary) return primary;
+    return buttons.length === 1 ? buttons[0] : null;
+  }
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0) return;
+    const card = e.target.closest?.(CARD_PROXY);
+    if (!card || e.target.closest("button, a, input, select, textarea, label, summary, details, [contenteditable=true], .segmented, .chips")) return;
+    if (String(getSelection?.() || "").trim()) return;  // they're selecting text, not clicking
+    const main = cardMain(card);
+    if (main) { main.click(); main.focus?.({ preventScroll: true }); }
+  });
+  document.addEventListener("pointerover", (e) => {
+    const card = e.target.closest?.(CARD_PROXY);
+    if (card && !card.dataset.proxied) { card.dataset.proxied = "1"; card.classList.toggle("clicky", Boolean(cardMain(card))); }
+  });
+
   // Web pages open in Luma's own browser (signed in as you, and Luma can keep helping there).
   function webLink(label, href, cls, iconName) {
     const b = el("button", cls);
@@ -254,6 +322,10 @@
   // seeHow "pixels": the app's window is see-through; "fade": the whole window fades (Windows,
   // or an older app); "preview": a plain browser can't see your screen, so it shows a demo film.
   const desk = window.lumaDesktop || null;
+  // The app's real browser (see "real browser" below), the chat dock and Watch: set up first, used everywhere.
+  const native = { on: Boolean(desk?.webCookies), view: null, mode: desk?.webCookies ? "you" : "luma", url: "", title: "", shareTimer: null, follow: true };
+  const dock = { open: false };
+  const watchState = { built: false };
   const seeHow = !desk ? "preview" : desk.setGlass && desk.platform !== "win32" ? "pixels" : "fade";
   const cleanGlass = (g) => g && (g.mode === "glass" || g.mode === "clear") && typeof g.clarity === "number" && g.clarity >= 0 && g.clarity <= 90 && typeof g.onTop === "boolean"
     ? { mode: g.mode, clarity: Math.round(g.clarity), onTop: g.onTop } : null;
@@ -330,7 +402,7 @@
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
   const EVERY = { every_30m: "Every 30 minutes", hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
+  const TITLES = { work: "Luma at work", browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -583,11 +655,13 @@
     if (!f) return;
     const g = state.home?.glance?.files || { count: 0, docs: 0, recent: [] };
     f.replaceChildren();
-    const docs = el("button", "si-folder");
+    const docs = el("button", "si-folder docs");
+    docs.title = "Your documents, decks and PDFs";
     docs.type = "button";
     docs.append(el("span", "paper"), el("span", "paper"), el("span", "paper"), el("b", null, "Documents"), el("small", null, `${g.docs} file${g.docs === 1 ? "" : "s"}`));
     docs.addEventListener("click", () => go("library"));
-    const recent = el("button", "si-folder");
+    const recent = el("button", "si-folder recent");
+    recent.title = g.recent?.[0] ? "Latest: " + g.recent[0].title : "What Luma makes for you lands here";
     recent.type = "button";
     recent.append(el("span", "thumb", g.recent?.[0] ? fileEmoji(g.recent[0].kind) : "✨"), el("b", null, "Recent"), el("small", null, `${g.count} file${g.count === 1 ? "" : "s"}`));
     recent.addEventListener("click", () => go("library"));
@@ -631,10 +705,11 @@
     const aurora = el("div", "si-aurora");
     for (let i = 0; i < 5; i++) aurora.append(el("i"));
     const top = el("div", "si-stage-top");
-    const left = el("span");
+    const left = btn("", "si-stage-link", () => go("work"));
+    left.title = "See what Luma has done for you and everything it can do";
     left.append(el("b", null, "LUMA S.I."), document.createTextNode("Super Intelligence"));
-    const right = el("span");
-    right.style.textAlign = "right";
+    const right = btn("", "si-stage-link end", () => go("rules"));
+    right.title = "Your rules: what Luma does on its own and what waits for your OK";
     right.append(el("b", null, "PRIVATE"), document.createTextNode("Nothing leaves without your OK"));
     top.append(left, right);
     const hello = el("h2");
@@ -642,8 +717,11 @@
     if (name) hello.append(", ", el("em", null, name));
     hello.append(".");
     const sub = el("p");
-    sub.append("What should we ", el("span", "hl", "take on"), " today?");
+    const takeOn = btn("take on", "hl", () => go("ideas"));
+    takeOn.title = "Ideas: things Luma could take off your plate";
+    sub.append("What should we ", takeOn, " today?");
     stage.append(aurora, top, hello, sub);
+    stage.addEventListener("click", (ev) => { if (!ev.target.closest("button")) $("input").focus(); });
     e.append(tools, stage, floats("left"), floats("right"));
     renderDocks();
     return e;
@@ -874,23 +952,114 @@
       const d = await api("/api/news?" + qs.toString());
       list.replaceChildren();
       if (!d.items.length) { list.append(el("p", "lede", newsView.q ? `Nothing new on “${newsView.q}” in the last two days.` : "No headlines yet. Check your connection and refresh.")); }
-      for (const n of d.items) {
-        const row = el("button", "news-item");
-        row.type = "button";
-        row.title = n.url;
-        const meta = el("div", "n-meta");
-        const mark = brandFor(String(n.source || "").toLowerCase().replace(/[^a-z]/g, ""));
-        if (mark) meta.append(brand(mark));
-        meta.append(document.createTextNode([n.source, n.age].filter(Boolean).join(" · ")));
-        row.append(meta, el("div", "n-title", n.title));
-        if (n.snippet) row.append(el("div", "n-snip", n.snippet));
-        row.addEventListener("click", () => openInLuma(n.url));
-        list.append(row);
-      }
+      else list.append(newsChannel(d.items, d));
       $("news-checked").textContent = d.checked ? "Updated " + ago(d.checked) : "";
     } catch (e) {
       if (!quiet) list.replaceChildren(el("p", "lede", e.message));
     }
+  }
+
+  // The News page as a channel: a live ticker, the top story big, what's up next, the numbers,
+  // and every story as a card. Tap one and it opens right here to read.
+  const TOPIC_NAMES = { top: "Top", world: "World", us: "U.S.", business: "Business", tech: "Tech", sports: "Sports", science: "Science", health: "Health", entertainment: "Entertainment" };
+  function newsMeta(n) {
+    const meta = el("div", "n-meta");
+    const mark = brandFor(String(n.source || "").toLowerCase().replace(/[^a-z]/g, ""));
+    if (mark) meta.append(brand(mark));
+    meta.append(document.createTextNode([n.source, n.age].filter(Boolean).join(" · ")));
+    return meta;
+  }
+  function newsPic(n, cls) {
+    const pic = el("div", cls);
+    const tint = ["#2f6df6", "#ff5a36", "#7c4dff", "#18a874", "#ff8a2b", "#e0567f"][[...String(n.source || "x")].reduce((a, c) => a + c.charCodeAt(0), 0) % 6];
+    pic.style.setProperty("--tint", tint);
+    if (n.image) {
+      const img = el("img");
+      img.src = n.image; img.alt = ""; img.loading = "lazy"; img.decoding = "async"; img.referrerPolicy = "no-referrer";
+      img.addEventListener("error", () => { img.remove(); pic.classList.add("none"); });
+      pic.append(img);
+    } else pic.classList.add("none");
+    const mark = brandFor(String(n.source || "").toLowerCase().replace(/[^a-z]/g, ""));
+    if (!n.image) pic.append(mark ? brand(mark) : el("b", "src", (n.source || "News").slice(0, 18)));
+    return pic;
+  }
+  function newsChannel(items, d) {
+    const wrap = el("div", "nw");
+    // The ticker: everything new, rolling past.
+    const ticker = el("div", "nw-ticker");
+    const live = el("span", "nw-live");
+    live.append(el("i"), document.createTextNode("Live"));
+    const track = el("div", "nw-track");
+    const lane = el("div", "nw-lane");
+    for (const n of items.slice(0, 14)) { const t = btn(n.title, "nw-tick", () => openArticle(n)); t.title = n.source || ""; lane.append(t); }
+    track.append(lane, lane.cloneNode(true));
+    track.lastChild.setAttribute("aria-hidden", "true");
+    [...track.lastChild.children].forEach((b, i) => { b.tabIndex = -1; b.addEventListener("click", () => openArticle(items[i])); });
+    ticker.append(live, track);
+    // The top story, big.
+    const lead = items.find((n) => n.image) || items[0];
+    const feature = el("button", "nw-feature" + (lead.image ? "" : " noimg"));
+    feature.type = "button";
+    feature.title = "Read it here";
+    feature.append(newsPic(lead, "nw-feature-pic"));
+    const cap = el("div", "nw-feature-cap");
+    cap.append(el("span", "nw-badge", (TOPIC_NAMES[lead.topic] || "Top story")), el("h2", null, lead.title));
+    if (lead.snippet) cap.append(el("p", null, lead.snippet));
+    cap.append(newsMeta(lead));
+    feature.append(cap);
+    feature.addEventListener("click", () => openArticle(lead));
+    // Up next.
+    const side = el("div", "nw-side");
+    const next = el("section", "nw-next");
+    next.append(el("h3", "nw-h", "Up next"));
+    for (const n of items.filter((x) => x !== lead).slice(0, 4)) {
+      const row = btn("", "nw-next-row", () => openArticle(n));
+      row.title = n.title;
+      const txt = el("div");
+      txt.append(el("b", null, n.title), newsMeta(n));
+      row.append(newsPic(n, "nw-thumb"), txt);
+      next.append(row);
+    }
+    // The numbers.
+    const stats = el("section", "nw-stats");
+    const sources = new Set(items.map((n) => n.source).filter(Boolean));
+    const fresh = items.filter((n) => /m ago|just now|^\d+h ago/.test(n.age || "") && !/\d{2,}h/.test(n.age || "")).length;
+    const nums = el("div", "nw-nums");
+    for (const [v, k] of [[items.length, "stories"], [sources.size, "sources"], [fresh, "brand new"]]) { const c = el("div"); c.append(el("b", null, String(v)), el("small", null, k)); nums.append(c); }
+    stats.append(el("h3", "nw-h", "Right now"), nums);
+    const counts = {};
+    for (const n of items) { const t = n.topic || "top"; counts[t] = (counts[t] || 0) + 1; }
+    const most = Math.max(1, ...Object.values(counts));
+    const bars = el("div", "nw-bars");
+    for (const [t, c] of Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+      const row = btn("", "nw-bar", () => { if (NEWS_TOPICS.some(([k]) => k === t)) { newsView.topic = t; newsView.q = ""; renderNews(); } });
+      row.title = `Show ${TOPIC_NAMES[t] || t} news`;
+      const fill = el("i");
+      fill.style.width = Math.round((c / most) * 100) + "%";
+      row.append(el("span", null, TOPIC_NAMES[t] || t), el("span", "track", ""), el("b", null, String(c)));
+      row.querySelector(".track").append(fill);
+      bars.append(row);
+    }
+    stats.append(bars);
+    side.append(next, stats);
+    const top = el("div", "nw-top");
+    top.append(feature, side);
+    // Every story.
+    const grid = el("div", "nw-grid");
+    for (const n of items.filter((x) => x !== lead).slice(4)) {
+      const card = el("button", "news-card");
+      card.type = "button";
+      card.title = "Read it here";
+      card.append(newsPic(n, "nc-pic"));
+      const t = el("div", "nc-body");
+      t.append(newsMeta(n), el("div", "n-title", n.title));
+      if (n.snippet) t.append(el("div", "n-snip", n.snippet));
+      card.append(t);
+      card.addEventListener("click", () => openArticle(n));
+      grid.append(card);
+    }
+    wrap.append(ticker, top, grid);
+    return wrap;
   }
 
   function products(r) {
@@ -1344,10 +1513,11 @@
       w.className = c.className.replace("card", "widget");
       w.replaceChildren(...c.childNodes);
       w.hidden = false;
-      if (running && state.panelFor !== a.title) { state.panelFor = a.title; setPanel(true, false); }
+      if (running && state.panelFor !== a.title && state.view !== "browser") { state.panelFor = a.title; setPanel(true, false); }
     } else w.hidden = true;
     if (state.busy && state.view === "chat") renderChat();
     if (running) $("doing").textContent = (a.background ? "In the background: " : "") + a.title;
+    syncDriving();
   }
   let activityTimer = null;
   function watchActivity(on) {
@@ -1448,7 +1618,7 @@
   async function send(text, opts = {}) {
     text = String(text || "").trim();
     if (!text || state.busy) return;
-    if (state.view !== "chat") go("chat");
+    if (state.view !== "chat" && !opts.stay) go("chat");
     const thread = state.thread;
     if (voice.on) { $("talk-you").textContent = text.slice(-140); talkLine("…"); }
     pushLocal(thread, { role: "you", text, optimistic: true });
@@ -1456,6 +1626,7 @@
     mood("thinking", guessDoing(text));
     renderChat();
     resize();
+    paintDock();
     watchActivity(true);
     try {
       const r = await api("/api/chat", { text, thread });
@@ -1488,6 +1659,7 @@
       state.stick = true;
       renderChat();
       resize();
+      paintDock();
       refreshHome();
     }
   }
@@ -1523,6 +1695,8 @@
     $("top-title").textContent = TITLES[view] || "";
     if (view === "chat") { renderChat(); $("input").focus(); }
     else renderView(view);
+    hideTip();
+    paintDock();
   }
   for (const b of document.querySelectorAll(".nav-item")) b.addEventListener("click", () => {
     go(b.dataset.view);
@@ -1549,7 +1723,9 @@
   try { setPanel(localStorage.getItem("luma-panel") === "1", false); } catch (_) { setPanel(false, false); }
   $("top-panel").addEventListener("click", () => setPanel(!document.body.classList.contains("panel-open")));
   $("new-chat").addEventListener("click", newChat);
-  $("who").addEventListener("click", () => { if (state.view !== "chat") go("chat"); });
+  $("who").addEventListener("click", () => go(state.view === "chat" ? "work" : "chat"));
+  $("who").title = "What Luma is doing, and everything it's done for you";
+  document.querySelector(".sidebar .si-tag")?.addEventListener("click", () => go("work"));
   $("add").addEventListener("click", () => openPalette(""));
   $("c-make").addEventListener("click", () => prefill("make me "));
   $("c-find").addEventListener("click", () => prefill("find "));
@@ -2355,10 +2531,15 @@
     const h = state.home || {};
     const con = h.connections || {};
     const box = $("apps");
+    document.querySelector("#view-apps > .lede")?.setAttribute("hidden", "");  // the orbit says it
+    const again = !$("connect-pop").hidden && popState.item;
+    restoreCard();
     box.replaceChildren();
+    $("apps-orbit").replaceChildren(orbitHero());
 
     const mail = con.mail || {};
     const mc = appCard("Email", mail.connected ? mail.address : "Gmail, iCloud, Yahoo or your own domain", "", "brand:gmail", mail.connected);
+    mc.dataset.key = "mail";
     mc.append(strip(["gmail", "icloud", "yahoo", "email"]));
     if (mail.connected) {
       mc.append(el("div", "help", "I read your inbox, write drafts into your Drafts folder, and only send when you press Allow."));
@@ -2395,6 +2576,7 @@
 
     const cal = con.calendar || {};
     const cc = appCard("Calendar", cal.connected ? cal.host : "Google, iCloud, Outlook", "", "brand:googlecalendar", cal.connected);
+    cc.dataset.key = "calendar";
     cc.append(strip(["googlecalendar", "icloud", "microsoftoutlook"]));
     cc.append(el("div", "help", "Outlook: Settings → Calendar → Shared calendars → Publish a calendar, then paste the ICS link."));
     if (cal.connected) {
@@ -2415,11 +2597,14 @@
     }
     box.append(cc);
 
-    box.append(chromeCard(con.chrome || {}));
+    const chc = chromeCard(con.chrome || {});
+    chc.dataset.key = "chrome";
+    box.append(chc);
 
     const br = con.browser || {};
     const bc = appCard("Sign in once, and I can use it", br.available ? "Luma's own browser, signed in by you" : "Needs Luma's browser tools", "linear-gradient(135deg,#46c8ff,#8a5cff)", "globe", br.on, br.on ? "On" : "Off");
     bc.classList.add("wide");
+    bc.dataset.key = "browser";
     bc.append(el("div", "help", "Tap an app to open it in Luma's browser and sign in yourself. After that I can catch you up, compare prices and get things ready there. I never see or type passwords, and posting, sending and buying always wait for you."));
     if (br.on) {
       const sites = el("div", "site-grid");
@@ -2440,6 +2625,7 @@
 
     const tx = con.texting || {};
     const tc = appCard("Texts", "iMessage, your number or Luma's number", "", "brand:imessage", tx.enabled, tx.enabled ? "On" : "Drafts only");
+    tc.dataset.key = "texts";
     const sel = el("select");
     for (const [v, label] of [["phone_draft", "Drafts I send myself"], ["mac_imessage", "My iMessage (Mac)"], ["mac_sms", "My number by SMS (Mac)"], ["luma_number", "Luma's number"]]) { const o = el("option", null, label); o.value = v; sel.append(o); }
     sel.value = tx.route || "phone_draft";
@@ -2450,6 +2636,7 @@
     const pa = con.phone_app || {};
     const phones = pa.phones || [];
     const pc = appCard("Luma on your phone", phones.length ? phones.map((p) => p.name).join(", ") : "Talk to Luma from anywhere", "linear-gradient(135deg,#6a67f4,#d48cc4)", "phone", phones.length > 0, phones.length ? "Paired" : "Not paired");
+    pc.dataset.key = "phone";
     pc.append(el("div", "help", "Encrypted end to end. Approvals and price drops come to your lock screen."));
     const pact = el("div", "actions");
     pact.append(btn("Connect a phone", "pill soft small", async () => {
@@ -2477,6 +2664,7 @@
         list.append(c);
       }
       if (app.tools.length > 12) list.append(el("span", "tool-chip more", `+${app.tools.length - 12} more`));
+      ac.dataset.key = "app-" + app.id;
       ac.append(list, el("div", "help", "Look-ups run on their own. Anything that changes something in " + app.name + " asks you first."));
       const aa = el("div", "actions");
       aa.append(btn("Remove", "pill quiet small danger", async () => { await api("/api/connect/app_remove", { id: app.id }).catch((e) => toast(e.message)); refreshHome().then(renderApps); }));
@@ -2485,6 +2673,7 @@
     }
     const presets = con.app_presets || [];
     const nc = appCard("Connect any app", "Notion, Linear, Hugging Face, Supabase, Figma, GitHub, 500+ more through Composio, and any app with an MCP connector", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
+    nc.dataset.key = "add";
     nc.append(strip(["huggingface", "supabase", "figma", "amazonaws", "github", "notion"]));
     const f2 = el("form");
     const pick = el("select");
@@ -2543,9 +2732,15 @@
 
     const model = state.status?.model_name || "";
     const pretty = /qwen3-4b/i.test(model) ? "Qwen3 4B" : /llama-3\.2-3b/i.test(model) ? "Llama 3.2 3B" : model.replace(/[-_]Q\d.*$|\.gguf$/gi, "").replace(/[-_]/g, " ") || "Local model";
-    const mc2 = appCard("Luma's brain", pretty + ", on this computer", "linear-gradient(135deg,#111118,#3a3a46)", "cpu", h.model?.on, h.model?.on ? "Running" : "Off");
-    mc2.append(el("div", "help", "No cloud AI and no subscription. What you say stays here unless you send it."));
+    const thinking = h.brain?.thinking_with || pretty;
+    const mc2 = appCard("Luma's brain", thinking + (h.brain?.cloud?.on ? ", in the cloud" : ", on this computer"), "linear-gradient(135deg,#111118,#3a3a46)", "cpu", h.model?.on || h.brain?.cloud?.on, h.model?.on || h.brain?.cloud?.on ? "Running" : "Off");
+    mc2.dataset.key = "brain";
+    mc2.append(el("div", "help", "What you say stays here unless you send it. Pick a bigger brain or the cloud brain in Settings."));
+    const ma = el("div", "actions");
+    ma.append(btn("Brain settings", "pill soft small", () => go("settings"), "cpu"));
+    mc2.append(ma);
     box.append(mc2);
+    if (again) openConnect(again);
   }
 
   // ------------------------------------------------------------- rules ---
@@ -2936,6 +3131,7 @@
   // You can click, scroll and type on it; Luma steps back while you drive.
   const browserView = { url: "", hash: null, busy: 0, fast: 0, timer: null, typed: "", typing: null, queue: Promise.resolve() };
   async function openInLuma(href) {
+    if (native.on && !lumaDriving() && nativeOpen(href)) return;
     go("browser");
     $("b-url").value = href;
     browserLoading(true);
@@ -2954,7 +3150,7 @@
   async function browserFrame(soon) {
     clearTimeout(browserView.timer);
     if (soon) browserView.fast = Date.now() + 2500;
-    if (state.view !== "browser" || document.hidden) return;
+    if (state.view !== "browser" || document.hidden || (native.on && native.mode === "you")) return;
     try {
       // Pass the last picture's fingerprint: if the page hasn't changed, Luma skips resending it.
       const d = await api("/api/browser/frame" + (browserView.hash ? "?have=" + encodeURIComponent(browserView.hash) : ""));
@@ -2965,6 +3161,7 @@
         if (!f.same && f.jpeg_base64) { $("b-img").src = "data:image/jpeg;base64," + f.jpeg_base64; $("b-img").alt = f.title ? "Page: " + f.title : "The page"; }
         browserView.hash = f.hash;
         browserView.url = f.url;
+        paintBrowserChrome();
         if (document.activeElement !== $("b-url")) $("b-url").value = f.url;
         $("b-out").disabled = !safeUrl(f.url);
         secureUI(f.secure, f.host);
@@ -3047,13 +3244,14 @@
   $("b-url-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const v = $("b-url").value.trim();
-    if (v) { $("b-url").blur(); openInLuma(v); }
+    if (v) { $("b-url").blur(); if (native.on && native.mode === "you") nativeOpen(v); else openInLuma(v); }
   });
   $("b-url").addEventListener("focus", () => $("b-url").select());
-  $("b-back").addEventListener("click", () => drive("back"));
-  $("b-forward").addEventListener("click", () => drive("forward"));
-  $("b-reload").addEventListener("click", () => drive("reload"));
-  $("b-out").addEventListener("click", () => { if (safeUrl(browserView.url)) window.open(browserView.url, "_blank", "noopener"); });
+  const mine = () => native.on && native.mode === "you" && native.view;
+  $("b-back").addEventListener("click", () => { if (mine()) { if (native.view.canGoBack()) native.view.goBack(); } else drive("back"); });
+  $("b-forward").addEventListener("click", () => { if (mine()) { if (native.view.canGoForward()) native.view.goForward(); } else drive("forward"); });
+  $("b-reload").addEventListener("click", () => { if (mine()) native.view.reload(); else drive("reload"); });
+  $("b-out").addEventListener("click", () => { const u = mine() ? native.url : browserView.url; if (safeUrl(u)) window.open(u, "_blank", "noopener"); });
   async function signInWindow() {
     try { await api("/api/browser/show", { url: browserView.url || "https://accounts.google.com/" }); toast("Opened a real browser window. Sign in there (to Google or anywhere) — Luma never sees your password — then come back."); }
     catch (e) { toast(e.message); }
@@ -3065,12 +3263,19 @@
   // Teach: do a task once while Luma watches, then Luma can do it again whenever you ask.
   function teachUI(steps) {
     const on = steps !== null;
+    if (native.on) setBrowserMode(on ? "teach" : lumaDriving() ? "driving" : "you");
     $("b-teach").hidden = on;
     $("b-rec").hidden = !on;
     if (on) $("b-rec-count").textContent = steps === 0 ? "Watching… do the task" : `${steps} step${steps === 1 ? "" : "s"}`;
   }
   $("b-teach").addEventListener("click", async () => {
-    try { const r = await api("/api/browser/teach", { action: "start" }); teachUI(0); toast(r.summary); $("b-screen").focus(); }
+    try {
+      if (native.on && native.mode === "you") {
+        if (!native.url) { toast("Open the page where the task starts, then press Teach."); return; }
+        await shareSignIn(true);
+        await api("/api/browser/go", { url: native.url });
+      }
+      const r = await api("/api/browser/teach", { action: "start" }); teachUI(0); toast(r.summary); $("b-screen").focus(); }
     catch (e) { toast(e.message); }
   });
   $("b-rec-save").addEventListener("click", async () => {
@@ -3085,9 +3290,12 @@
     if (view === "browser") {
       $("b-done").hidden = !state.handoff;
       if (state.handoff) $("b-done").lastChild.textContent = state.handoff;
-      browserFrame(true);
-      if (!browserView.url) $("b-url").focus();
+      if (native.on) webview();
+      setBrowserMode(lumaDriving() ? "driving" : native.mode === "teach" ? "teach" : native.on ? "you" : "luma");
+      syncDriving();
+      if (!(native.on ? native.url : browserView.url)) $("b-url").focus();
     }
+    if (view === "work") renderWork();
     if (view === "feed") renderFeed();
     if (view === "news") renderNews();
     if (view === "ideas") renderIdeas();
@@ -3097,6 +3305,125 @@
     if (view === "apps") renderApps();
     if (view === "rules") renderRules();
     if (view === "settings") renderSettings();
+  }
+
+  // --------------------------------------------------------- at work ---
+  // The Overview: how long Luma has worked for you (measured, not guessed), what it did,
+  // what it's doing now, and a full rundown of what it can do, each one a tap away.
+  const CAPS = [
+    ["🧠", "Remembers everything", "Where your keys are, birthdays, what you hate on pizza.", "I left my keys on the counter", "identity"],
+    ["🛒", "Runs errands online", "Compares every store and finds the real cheapest price.", "find the cheapest AirPods Pro 2", null],
+    ["✨", "Makes things", "Pitch decks, documents, small apps and podcasts.", "make me a pitch deck about my bakery", null],
+    ["🏷️", "Watches prices", "Tells you the moment something drops.", "tell me when the PS5 drops below 400", null],
+    ["💬", "Texts & emails, with your OK", "Writes it in your voice; nothing sends without your yes.", "text mom I'm running late", null],
+    ["🗓️", "Plans your week", "Your events, to-dos and a nudge at the right time.", "plan my week", null],
+    ["🔎", "Researches anything", "Reads the top sources and gives you the short version.", "research the best running shoes for flat feet", null],
+    ["📸", "Sees your photos", "Show it a picture and ask anything about it.", null, "photo"],
+    ["🎙️", "Talks out loud", "A real conversation, hands free.", null, "talk"],
+    ["📰", "Keeps you posted", "The news that matters to you, readable right here.", null, "news"],
+    ["🖐️", "Learns a task once", "Show it once in the browser; it can do it again.", null, "browser"],
+    ["🍿", "Works while you watch", "Put on a show; Luma keeps working beside it.", null, "watch"],
+    ["🎯", "Keeps standing goals", "Checks your inbox for bills every morning, and more.", null, "goals"],
+    ["🛡️", "Follows your rules", "You decide what it does alone and what waits for you.", null, "rules"],
+  ];
+  function tryCap(say, where) {
+    if (say) { go("chat"); prefill(say); return; }
+    if (where === "photo") { go("chat"); $("photo-input").click(); return; }
+    if (where === "talk") { startConversation({ greet: true }); return; }
+    if (where === "watch") { openWatch(); return; }
+    go(where);
+  }
+  async function renderWork() {
+    const box = $("work");
+    if (!box.childElementCount) box.append(el("div", "work-loading", "Adding it up…"));
+    let d;
+    try { d = await api("/api/insights"); } catch (e) { box.replaceChildren(el("div", "work-loading", e.message)); return; }
+    if (state.view !== "work") return;
+    const grid = el("div", "work-grid");
+    // How long Luma worked: this week, with a bar for each day.
+    const hero = el("section", "work-card work-hero");
+    const head = el("div", "work-hero-head");
+    const big = el("div", "work-big");
+    const fresh = d.worked.total < 1;
+    big.append(el("small", null, fresh ? "Luma at work" : "Luma worked for you this week"), el("b", null, fresh ? "Just getting started" : d.worked.week_text));
+    if (fresh) { big.classList.add("fresh"); big.append(el("p", null, "Ask for anything and the clock starts. Every reply and every job Luma runs adds up here.")); }
+    const delta = d.worked.week - d.worked.last_week;
+    const trend = el("span", "work-trend" + (delta >= 0 ? " up" : " down"),
+      d.worked.last_week ? `${delta >= 0 ? "▲" : "▼"} ${Math.abs(Math.round((delta / Math.max(1, d.worked.last_week)) * 100))}% vs last week` : "Your first week together");
+    head.append(big, trend);
+    const bars = el("div", "work-bars");
+    const most = Math.max(60, ...d.week.map((w) => w.s));
+    for (const w of d.week) {
+      const col = el("button", "work-bar" + (w.label === "Today" ? " today" : ""));
+      col.type = "button";
+      col.title = `${w.label}: ${sayTime(w.s)} of work · ${w.chats} chat${w.chats === 1 ? "" : "s"} · ${w.tasks} job${w.tasks === 1 ? "" : "s"}`;
+      const fill = el("span", "fill");
+      fill.style.height = Math.max(4, Math.round((w.s / most) * 100)) + "%";
+      col.append(el("span", "val", w.s ? sayTime(w.s) : ""), fill, el("small", null, w.label));
+      col.addEventListener("click", () => toast(col.title));
+      bars.append(col);
+    }
+    const foot = el("div", "work-hero-foot");
+    foot.append(el("span", null, `Today ${d.worked.today_text}`), el("span", null, `All time ${d.worked.total_text}`), el("span", null, `${d.days_together} day${d.days_together === 1 ? "" : "s"} together`));
+    hero.append(head, bars, foot);
+    // Right now.
+    const now = el("section", "work-card work-now");
+    const a = d.now;
+    const running = a && ["running", "paused", "stopping"].includes(a.state);
+    now.append(el("small", "work-k", "Right now"));
+    const status = el("div", "work-status" + (running ? " live" : ""));
+    status.append(el("i"), el("b", null, running ? a.title : "Ready when you are"));
+    now.append(status, el("p", null, running ? (a.steps?.slice(-1)[0]?.text || "Working on it") : "Ask for anything, or pick something below and I'll get going."));
+    const brainLine = state.home?.brain?.thinking_with || "";
+    if (brainLine) now.append(el("div", "work-brain", "Brain: " + brainLine));
+    const nowActs = el("div", "actions");
+    nowActs.append(running ? btn("Watch it work", "pill primary small", () => go("browser"), "eye") : btn("Start a chat", "pill primary small", () => go("chat"), "chat"));
+    nowActs.append(btn("Talk", "pill soft small", () => startConversation({ greet: true }), "wave"));
+    now.append(nowActs);
+    // The numbers, each one a door.
+    const stats = el("section", "work-stats");
+    const stat = (n, label, emoji, go2, tip) => { const b = btn("", "work-stat", go2); b.title = tip; b.append(el("span", "e", emoji), el("b", null, String(n)), el("small", null, label)); stats.append(b); };
+    const c = d.counts;
+    stat(c.chats, "Conversations", "💬", () => go("chat"), "Open your chat");
+    stat(c.tasks, "Jobs done", "⚡", () => go("browser"), "Jobs Luma ran in its browser");
+    stat(c.memories, "Memories", "🧠", () => go("identity"), "Everything Luma remembers about you");
+    stat(c.files, "Things made", "📁", () => go("library"), "Decks, docs and apps Luma made");
+    stat(c.reminders, "Reminders", "⏰", () => { go("chat"); setPanel(true); }, "Your reminders, in the side panel");
+    stat(c.waiting, "Waiting on you", "✋", () => { go("chat"); setPanel(true); }, "Things that need your OK");
+    // What Luma can do.
+    const caps = el("section", "work-caps");
+    caps.append(el("h3", "work-h", "What I can do"));
+    const capGrid = el("div", "cap-grid");
+    for (const [emoji, title, line, say, where] of CAPS) {
+      const card = el("article", "cap-card");
+      const go2 = btn(say ? "Try it" : "Open", "pill soft small", () => tryCap(say, where), "right");
+      go2.dataset.main = "1";
+      if (say) go2.title = `Try: “${say}”`;
+      card.append(el("span", "cap-e", emoji), el("b", null, title), el("p", null, line));
+      if (say) card.append(el("q", null, say));
+      card.append(go2);
+      capGrid.append(card);
+    }
+    caps.append(capGrid);
+    grid.append(hero, now, stats, caps);
+    if (d.recent?.length) {
+      const rec = el("section", "work-card work-recent");
+      rec.append(el("h3", "work-h", "Recently finished"));
+      for (const r of d.recent) {
+        const row = btn("", "work-row", () => go("chat"));
+        row.title = r.summary || "See it in the chat";
+        row.append(el("span", "dot " + (r.state === "done" ? "ok" : "off")), el("b", null, r.title), el("span", "muted", r.took + " · " + ago(r.finished)));
+        rec.append(row);
+      }
+      grid.append(rec);
+    }
+    box.replaceChildren(grid);
+  }
+  function sayTime(s) {
+    s = Math.round(s || 0);
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60);
+    return m < 60 ? m + "m" : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
   }
 
   // -------------------------------------------------------------- sheet ---
@@ -4251,6 +4578,453 @@
     if (document.hidden) lock.hiddenAt = Date.now();
     else if (lock.hiddenAt && Date.now() - lock.hiddenAt > 5 * 60 * 1000) lockNow();
   });
+
+  // ------------------------------------------------------- real browser ---
+  // In the Luma app the Browser page is a real browser: Chromium right in the window, so pages,
+  // video, your cursor and your typing feel exactly like Chrome. Luma's own browser still does
+  // Luma's work (and you can watch it drive); the two share sign-ins on this computer.
+  function webview() {
+    if (!native.on) return null;
+    if (native.view) return native.view;
+    const v = document.createElement("webview");
+    v.className = "b-web";
+    v.setAttribute("partition", "persist:luma-web");
+    v.setAttribute("allowpopups", "");
+    v.setAttribute("src", "about:blank");
+    const nav = () => {
+      let u = "";
+      try { u = v.getURL(); } catch (_) { return; }
+      if (!/^https?:/i.test(u)) return;
+      native.url = u;
+      if (document.activeElement !== $("b-url")) $("b-url").value = u;
+      let h = "";
+      try { h = new URL(u).hostname; } catch (_) { /* odd */ }
+      secureUI(u.startsWith("https://"), h);
+      $("b-out").disabled = false;
+      paintBrowserChrome();
+    };
+    v.addEventListener("did-navigate", nav);
+    v.addEventListener("did-navigate-in-page", nav);
+    v.addEventListener("did-start-loading", () => { if (native.mode === "you") $("b-loading").hidden = false; });
+    v.addEventListener("did-stop-loading", () => { $("b-loading").hidden = true; nav(); shareSignIn(); });
+    v.addEventListener("did-fail-load", (e) => { if (e.isMainFrame && e.errorCode !== -3) toast("That page didn't load: " + (e.errorDescription || "no connection")); });
+    v.addEventListener("page-title-updated", (e) => { native.title = e.title || ""; });
+    $("b-screen").append(v);
+    native.view = v;
+    return v;
+  }
+  // You signed in to a site here: Luma's browser gets the same sign-in, quietly, a moment later.
+  function shareSignIn(now) {
+    clearTimeout(native.shareTimer);
+    const go2 = async () => {
+      if (!native.url) return;
+      try { const list = await desk.webCookies(native.url); if (list.length) await api("/api/browser/cookies", { action: "set", cookies: list }); } catch (_) { /* Luma's browser is off */ }
+    };
+    if (now) return go2();
+    native.shareTimer = setTimeout(go2, 2500);
+  }
+  // Luma's browser is signed in where you're about to go: bring that sign-in here first.
+  async function takeSignIn(url) {
+    if (!native.on || !safeUrl(url)) return;
+    try { const r = await api("/api/browser/cookies", { action: "get", url }); if (r.cookies?.length) await desk.setWebCookies(r.cookies); } catch (_) { /* you can sign in yourself */ }
+  }
+  function webAddress(v) {
+    v = String(v || "").trim();
+    if (/^https?:\/\//i.test(v)) return v;
+    if (!/\s/.test(v) && /^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(v)) return "https://" + v;
+    return "https://www.google.com/search?q=" + encodeURIComponent(v);
+  }
+  function nativeOpen(href) {
+    const v = webview();
+    if (!v) return false;
+    if (state.view !== "browser") go("browser");
+    setBrowserMode("you");
+    const url = webAddress(href);
+    $("b-url").value = url;
+    native.url = native.url || url;
+    v.loadURL(url).catch(() => {});
+    paintBrowserChrome();
+    return true;
+  }
+  // Who has the wheel: you (the real browser) or Luma (its own browser, live).
+  // Jobs where Luma is clicking through websites (not a quick look-up, a photo or thinking).
+  const BROWSING = new Set(["shopping", "cart", "browser", "taught"]);
+  const lumaDriving = () => { const a = state.activity; return Boolean(a && !a.background && a.state === "running" && BROWSING.has(a.kind)); };
+  function setBrowserMode(mode) {
+    native.mode = mode;
+    const s = $("b-screen");
+    s.classList.toggle("native", native.on && mode === "you");
+    s.classList.toggle("driving", mode === "driving");
+    s.classList.toggle("teaching", mode === "teach");
+    paintBrowserChrome();
+    if (mode !== "you") browserFrame(true);
+  }
+  function paintBrowserChrome() {
+    const a = state.activity;
+    const paused = Boolean(a && !a.background && a.state === "paused");
+    const who = $("b-who");
+    who.classList.toggle("luma", native.mode === "driving");
+    who.lastChild.textContent = native.mode === "driving" ? "Luma is driving" : native.mode === "teach" ? "Show Luma the task" : "You're driving";
+    $("b-handback").hidden = !paused;
+    $("b-drive").hidden = native.mode !== "driving";
+    if (native.mode === "driving") $("b-drive-what").textContent = a?.steps?.slice(-1)[0]?.text || a?.title || "Working on it";
+    const nothing = native.on && native.mode === "you" ? !native.url : $("b-img").hidden;
+    $("b-empty").hidden = !nothing;
+  }
+  async function takeOver() {
+    const a = state.activity;
+    if (!a || a.background || !BROWSING.has(a.kind)) return;
+    hideTip();
+    await control("pause");
+    const url = state.activity?.url || a.url || browserView.url;
+    if (native.on && safeUrl(url)) { await takeSignIn(url); nativeOpen(url); }
+    else setBrowserMode(native.on ? "you" : "luma");
+    toast("It's yours. Luma paused. Tap Hand back when you want it to carry on.");
+  }
+  async function handBack() {
+    if (native.on && native.url) await shareSignIn(true);
+    await control("resume");
+    setBrowserMode("driving");
+  }
+  // Luma started driving because you asked: the app goes where it's working, and the chat comes along.
+  let followed = null;
+  function syncDriving() {
+    const driving = lumaDriving();
+    document.body.classList.toggle("luma-driving", driving);
+    const a = state.activity;
+    if (driving && a.id !== followed && native.follow && (state.busy || a.kind === "taught")) { followed = a.id; go("browser"); }
+    if (state.view !== "browser") return;
+    if (driving && native.mode !== "driving" && native.mode !== "teach") setBrowserMode("driving");
+    else if (!driving && native.mode === "driving") setBrowserMode(native.on ? "you" : "luma");
+    else paintBrowserChrome();
+  }
+  $("b-screen").addEventListener("dblclick", (e) => { if (native.mode === "driving") { e.preventDefault(); takeOver(); } });
+  $("b-takeover").addEventListener("click", takeOver);
+  $("b-stay").addEventListener("click", () => { native.follow = false; go("chat"); toast("Luma keeps working. Its browser is under Browser any time."); });
+  $("b-handback").addEventListener("click", handBack);
+  $("b-who").setAttribute("role", "button");
+  $("b-who").tabIndex = 0;
+  $("b-who").addEventListener("click", () => {
+    if (native.mode === "driving") takeOver();
+    else toast(native.on ? "This is your browser. Ask Luma about the page with the orb in the corner, or press Teach to show it a task." : "You're driving Luma's browser. Luma steps back while you click and type.");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !document.body.classList.contains("luma-driving") || state.view !== "browser" || !$("palette").hidden || !$("sheet").hidden) return;
+    e.stopImmediatePropagation();
+    takeOver();
+  }, true);
+  // Ask about the page you're on: Luma opens the same page in its browser first, so you're looking at the same thing.
+  async function followMe(text) {
+    if (!native.on || native.mode !== "you" || !native.url || state.view !== "browser") return;
+    if (!/\b(this|these|that|page|site|article|product|here|it|tab)\b/i.test(text)) return;
+    await shareSignIn(true);
+    try { await api("/api/browser/go", { url: native.url }); } catch (_) { /* Luma's browser is off: it'll say so */ }
+  }
+
+  // ---------------------------------------------------------- chat dock ---
+  // On every page but the chat, the conversation keeps going in a small dock: ask from here,
+  // and Luma's answer shows up here (and in the chat), even when it takes you somewhere else.
+  function paintDock() {
+    const d = $("dock-chat");
+    const show = state.view !== "chat" && !document.body.classList.contains("welcoming");
+    d.hidden = !show;
+    if (!show) return;
+    const log = $("dc-log");
+    const all = items(state.thread).filter((m) => m.role === "you" || m.role === "luma");
+    const last = all.slice(dock.open ? -6 : -2);
+    log.replaceChildren();
+    for (const m of last) {
+      const row = el("div", "dc-msg " + m.role);
+      row.append(el("span", null, String(m.text || m.result?.summary || "").slice(0, dock.open ? 900 : 220)));
+      log.append(row);
+    }
+    if (state.busy) { const t = el("div", "dc-msg luma thinking"); t.append(el("i"), el("i"), el("i")); log.append(t); }
+    log.hidden = !last.length && !state.busy;
+    d.classList.toggle("open", dock.open);
+    if (state.view === "browser" && document.activeElement !== $("dc-input") && !state.busy) d.classList.add("tucked");
+    if (state.view !== "browser" || state.busy) d.classList.remove("tucked");
+    requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
+  }
+  $("dc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = $("dc-input").value.trim();
+    if (!text || state.busy) return;
+    $("dc-input").value = "";
+    await followMe(text);
+    send(text, { stay: true });
+  });
+  $("dc-log").addEventListener("click", () => { dock.open = !dock.open; paintDock(); });
+  // On the Browser page the dock tucks into a small orb so it never covers the page; tap it to talk.
+  $("dock-chat").addEventListener("click", (e) => {
+    if (!$("dock-chat").classList.contains("tucked")) return;
+    e.preventDefault();
+    $("dock-chat").classList.remove("tucked");
+    $("dc-input").focus();
+  }, true);
+  $("dc-input").addEventListener("blur", () => setTimeout(() => {
+    if (state.view === "browser" && !$("dc-input").value && !$("dock-chat").contains(document.activeElement)) $("dock-chat").classList.add("tucked");
+  }, 200));
+  $("dc-open").addEventListener("click", () => go("chat"));
+
+  // -------------------------------------------------------------- watch ---
+  // Multitask: a show, a game or a playlist in a small window while Luma works.
+  // In the app it's a real browser (YouTube, Twitch and the like play right here); services that need
+  // Chrome's video protection (Netflix, Disney+…) open in your own browser instead.
+  const WATCH = [
+    ["youtube", "YouTube", "https://www.youtube.com/", true], ["twitch", "Twitch", "https://www.twitch.tv/", true],
+    ["netflix", "Netflix", "https://www.netflix.com/browse", false], ["disney", "Disney+", "https://www.disneyplus.com/", false],
+    ["prime", "Prime Video", "https://www.primevideo.com/", false], ["max", "Max", "https://play.max.com/", false],
+    ["hulu", "Hulu", "https://www.hulu.com/", false], ["spotify", "Spotify", "https://open.spotify.com/", false],
+  ];
+  function openWatch(slug) {
+    const w = $("watch");
+    if (!watchState.built) buildWatch();
+    w.hidden = false;
+    document.body.classList.add("watching");
+    const pick = WATCH.find((s) => s[0] === slug) || WATCH[0];
+    if (slug || (native.on && !$("watch-body").dataset.loaded)) watchGo(pick);
+    else if (!native.on) $("watch-q").placeholder = "Paste a YouTube link…";
+  }
+  function closeWatch() {
+    const w = $("watch");
+    w.hidden = true;
+    document.body.classList.remove("watching");
+    const v = $("watch-body").querySelector("webview, iframe");
+    if (v) v.remove();  // stop the sound
+    delete $("watch-body").dataset.loaded;
+  }
+  function watchGo([slug, name, url, here], query) {
+    for (const c of $("watch-chips").children) c.classList.toggle("on", c.dataset.slug === slug);
+    if (!here) {
+      window.open(url, "_blank", "noopener");
+      toast(`${name} needs your own browser to play. It's open there; Luma keeps working here.`);
+      return;
+    }
+    const body = $("watch-body");
+    body.querySelector(".watch-empty")?.remove();
+    const target = query ? (slug === "youtube" ? "https://www.youtube.com/results?search_query=" + encodeURIComponent(query) : "https://www.twitch.tv/search?term=" + encodeURIComponent(query)) : url;
+    if (native.on) {
+      let v = body.querySelector("webview");
+      if (!v) {
+        v = document.createElement("webview");
+        v.setAttribute("partition", "persist:luma-web");
+        v.setAttribute("allowpopups", "");
+        body.append(v);
+      }
+      v.setAttribute("src", target);
+    } else {
+      // Outside the app, a YouTube link plays as an embed; anything else opens in a tab.
+      const id = /(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/.exec(query || "")?.[1];
+      if (!id) { window.open(target, "_blank", "noopener"); toast("Opened in a new tab. Paste a YouTube link here to play it in Luma."); return; }
+      body.querySelector("iframe")?.remove();
+      const f = el("iframe");
+      f.src = "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1";
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      body.append(f);
+    }
+    body.dataset.loaded = slug;
+  }
+  function buildWatch() {
+    watchState.built = true;
+    const chips = $("watch-chips");
+    for (const s of WATCH) {
+      const b = el("button", "watch-chip" + (s[3] ? "" : " out"));
+      b.type = "button";
+      b.dataset.slug = s[0];
+      const mark = BRANDS[s[0]] ? brand(s[0]) : null;
+      if (mark) b.append(mark);
+      b.append(document.createTextNode(s[1] + (s[3] ? "" : " ↗")));
+      b.title = s[3] ? `Watch ${s[1]} here while Luma works` : `${s[1]} plays in your own browser`;
+      b.addEventListener("click", () => watchGo(s));
+      chips.append(b);
+    }
+    $("watch-find").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = $("watch-q").value.trim();
+      if (!q) return;
+      const here = WATCH.find((s) => s[0] === ($("watch-body").dataset.loaded || "youtube")) || WATCH[0];
+      watchGo(here, q);
+    });
+    $("watch-close").addEventListener("click", closeWatch);
+    $("watch-size").addEventListener("click", () => $("watch").classList.toggle("big"));
+    // Drag it anywhere by its top bar.
+    const head = $("watch-head");
+    head.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button, input, form")) return;
+      const w = $("watch"), r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      w.classList.add("dragging");
+      head.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const x = Math.max(8, Math.min(innerWidth - r.width - 8, ev.clientX - dx)), y = Math.max(8, Math.min(innerHeight - 60, ev.clientY - dy));
+        w.style.left = x + "px"; w.style.top = y + "px"; w.style.right = "auto"; w.style.bottom = "auto";
+      };
+      const up = () => { w.classList.remove("dragging"); head.removeEventListener("pointermove", move); head.removeEventListener("pointerup", up); };
+      head.addEventListener("pointermove", move);
+      head.addEventListener("pointerup", up);
+    });
+  }
+  $("top-watch").addEventListener("click", () => ($("watch").hidden ? openWatch() : closeWatch()));
+
+  // --------------------------------------------------------- connect ---
+  // "What would you like to connect?": the apps orbit a plus; tap one and its card opens in a glass
+  // popup with a way back, and the others along the bottom so you can hop straight to the next.
+  const ORBIT = [
+    // inner ring
+    [["gmail", "mail", "Email", "Read your inbox, draft replies in your voice, send only with your OK."],
+     ["googlecalendar", "calendar", "Calendar", "Know what's on today and plan around it."],
+     ["imessage", "texts", "Texts", "Text people for you; you see every word first."],
+     ["instagram", "site:instagram", "Instagram", "Catch you up on your feed without the scrolling."],
+     ["amazon", "site:amazon", "Amazon", "Compare prices and get your cart ready."],
+     ["notion", "add", "Notion", "Look things up and keep notes in your workspace."]],
+    // outer ring
+    [["youtube", "watch:youtube", "YouTube", "Watch in a small window while Luma works."],
+     ["slack", "site:slack", "Slack", "Catch up on what you missed."],
+     ["github", "add", "GitHub", "Issues, pull requests and code, by name."],
+     ["google", "chrome", "Chrome", "Let Luma open tabs and help inside your own Chrome."],
+     ["tiktok", "site:tiktok", "TikTok", "What's new from the people you follow."],
+     ["icloud", "mail", "iCloud", "iCloud Mail, with an app password."],
+     ["figma", "add", "Figma", "Your files and comments, by name."],
+     ["spotify", "watch:spotify", "Spotify", "Music while you work."]],
+  ];
+  function orbitHero() {
+    const hero = el("section", "orbit-hero");
+    hero.append(el("h2", "orbit-title", "What would you like to connect?"), el("p", "orbit-sub", "Tap an app. Luma only reads until you say otherwise, and nothing goes out without your OK."));
+    const sky = el("div", "orbit-sky");
+    ORBIT.forEach((ring, r) => {
+      const ringEl = el("div", "orbit-ring r" + r);
+      ring.forEach((item, i) => {
+        const angle = (360 / ring.length) * i + (r ? 22 : 0);
+        const slot = el("div", "orbit-slot");
+        slot.style.setProperty("--a", angle + "deg");
+        const b = btn("", "orbit-app", () => openConnect(item));
+        b.title = `Connect ${item[2]}`;
+        b.append(brand(item[0]) || el("span", "brand", item[2][0]));
+        slot.append(b);
+        ringEl.append(slot);
+      });
+      sky.append(ringEl);
+    });
+    const plus = btn("", "orbit-plus", () => openConnect(["", "add", "Any app", "Notion, Linear, GitHub and 500+ more, by name."]), "plus");
+    plus.title = "Connect any other app";
+    sky.append(plus);
+    hero.append(sky);
+    const on = connectedNames();
+    if (on.length) {
+      const row = el("div", "orbit-on");
+      row.append(el("span", null, "Connected:"));
+      for (const [n, key] of on) {
+        const chip = btn(n, "orbit-on-chip", () => openConnect(["", key, n, "Connected. Here's what's set up, and how to change it."]));
+        chip.title = `${n}: see or change it`;
+        row.append(chip);
+      }
+      hero.append(row);
+    }
+    return hero;
+  }
+  function connectedNames() {
+    const con = state.home?.connections || {};
+    const out = [];
+    if (con.mail?.connected) out.push(["Email", "mail"]);
+    if (con.calendar?.connected) out.push(["Calendar", "calendar"]);
+    if (con.browser?.on) out.push(["Luma's browser", "browser"]);
+    if (con.chrome?.connected || con.chrome?.paired) out.push(["Chrome", "chrome"]);
+    if (con.texting?.enabled) out.push(["Texts", "texts"]);
+    for (const a of con.apps || []) if (a.connected) out.push([a.name, "app-" + a.id]);
+    return out;
+  }
+  const popState = { card: null, home: null, item: null };
+  function openConnect(item) {
+    const [slug, key, name, what] = item;
+    popState.item = item;
+    const pop = $("connect-pop");
+    restoreCard();
+    const head = $("cp-head");
+    head.replaceChildren();
+    const mark = slug && BRANDS[slug] ? brand(slug) : el("span", "brand cp-any", "+");
+    head.append(mark, el("h3", null, name), el("p", null, what));
+    const body = $("cp-body");
+    body.replaceChildren();
+    if (key.startsWith("site:")) {
+      const site = SITES.find(([s]) => s === key.slice(5));
+      const on = state.home?.connections?.browser?.on;
+      body.append(el("p", "cp-help", `Sign in to ${name} once in Luma's browser. Then Luma can catch you up and get things ready there. It never sees or types your password, and posting, sending or buying always waits for you.`));
+      const a = el("div", "actions");
+      if (on && site) a.append(btn(`Open ${name} to sign in`, "pill primary", () => { closeConnect(); openInLuma(site[1]); }, "globe"));
+      else a.append(btn("Turn on Luma's browser", "pill primary", async () => { try { await api("/api/setting", { key: "browser", value: true }); await refreshHome(); openConnect(item); } catch (e) { toast(e.message); } }, "globe"));
+      body.append(a);
+    } else if (key.startsWith("watch:")) {
+      body.append(el("p", "cp-help", `Put ${name} on in a small window you can drag anywhere, while Luma keeps working.`));
+      const a = el("div", "actions");
+      a.append(btn(`Open ${name}`, "pill primary", () => { closeConnect(); openWatch(key.slice(6)); }, "play"));
+      body.append(a);
+    } else {
+      const card = document.querySelector(`#apps [data-key="${key}"]`);
+      if (card) {
+        popState.home = document.createComment("card");
+        card.replaceWith(popState.home);
+        popState.card = card;
+        body.append(card);
+      }
+    }
+    const others = $("cp-others");
+    others.replaceChildren();
+    for (const o of ORBIT.flat().filter((x) => x[0] !== slug).slice(0, 12)) {
+      const b = btn("", "cp-other", () => openConnect(o));
+      b.title = o[2];
+      b.append(brand(o[0]) || el("span", "brand", o[2][0]));
+      others.append(b);
+    }
+    pop.hidden = false;
+    document.body.classList.add("popped");
+    $("cp-back").focus();
+  }
+  function restoreCard() {
+    if (popState.card && popState.home?.parentNode) popState.home.replaceWith(popState.card);
+    popState.card = popState.home = null;
+  }
+  function closeConnect() {
+    restoreCard();
+    $("connect-pop").hidden = true;
+    document.body.classList.remove("popped");
+  }
+  $("cp-back").addEventListener("click", closeConnect);
+  $("connect-pop").addEventListener("click", (e) => { if (e.target === $("connect-pop")) closeConnect(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("connect-pop").hidden) { e.stopImmediatePropagation(); closeConnect(); } }, true);
+
+  // ------------------------------------------------------------ reader ---
+  // A story from the News page, readable right here: Luma fetches it and keeps just the words.
+  async function openArticle(n) {
+    const r = $("reader");
+    r.hidden = false;
+    document.body.classList.add("popped");
+    const body = $("rd-body");
+    body.replaceChildren(thinkingRow());
+    $("rd-open").onclick = () => { closeArticle(); openInLuma(n.url); };
+    $("rd-ask").onclick = () => { closeArticle(); go("chat"); prefill(`Summarize this for me: ${n.title} ${n.url}`); };
+    try {
+      const a = await api("/api/news/read", { url: n.url });
+      body.replaceChildren();
+      if (a.image) { const img = el("img", "rd-img"); img.src = a.image; img.alt = ""; img.addEventListener("error", () => img.remove()); body.append(img); }
+      const meta = el("div", "rd-meta");
+      const mark = brandFor(String(a.source || n.source || "").toLowerCase().replace(/[^a-z]/g, ""));
+      if (mark) meta.append(brand(mark));
+      meta.append(document.createTextNode([a.source || n.source, n.age].filter(Boolean).join(" · ")));
+      body.append(meta, el("h1", "rd-title", a.title || n.title));
+      if (!a.paragraphs?.length) {
+        body.append(el("p", "rd-p muted", "This one only reads properly on its own site."));
+        const act = el("div", "actions");
+        act.append(btn("Open the full story", "pill primary", () => { closeArticle(); openInLuma(n.url); }, "globe"));
+        body.append(act);
+      }
+      for (const p of a.paragraphs || []) body.append(el("p", "rd-p", p));
+    } catch (e) {
+      body.replaceChildren(el("p", "rd-p muted", e.message), btn("Open the full story", "pill primary", () => { closeArticle(); openInLuma(n.url); }, "globe"));
+    }
+  }
+  function closeArticle() { $("reader").hidden = true; document.body.classList.remove("popped"); }
+  $("rd-close").addEventListener("click", closeArticle);
+  $("reader").addEventListener("click", (e) => { if (e.target === $("reader")) closeArticle(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("reader").hidden) { e.stopImmediatePropagation(); closeArticle(); } }, true);
 
   // ------------------------------------------------------------- start ---
   applyScene();

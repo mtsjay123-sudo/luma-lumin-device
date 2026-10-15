@@ -265,7 +265,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
         def send(self, data, status=200, kind='application/json', *, owner_cookie=False, phone_token=None):
             encoded = json.dumps(data, ensure_ascii=False).encode() if kind=='application/json' else data
             self.send_response(status)
-            for k, v in {'Content-Type':kind, 'Content-Length':str(len(encoded)), 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items(): self.send_header(k,v)
+            for k, v in {'Content-Type':kind, 'Content-Length':str(len(encoded)), 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'DENY', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self'; frame-src 'self' https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"}.items(): self.send_header(k,v)
             if owner_cookie: self.send_header('Set-Cookie',f'luma_owner={ctx.owner_session}; HttpOnly; SameSite=Strict; Path=/')
             if phone_token: self.send_header('Set-Cookie',f'luma_phone={phone_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000; Path=/')
             self.end_headers()
@@ -353,6 +353,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 for k, v in headers.items(): self.send_header(k, v)
                 self.end_headers()
                 return self.wfile.write(data)
+            if path=='/api/insights':
+                from luma.agent import insights
+                return self.send(insights.overview(agent))
             if path=='/api/activity':
                 return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5],'due_soon':agent.due_soon()})
             if path=='/api/activity/shot':
@@ -810,6 +813,23 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not row: raise ValueError('That task is gone.')
                         agent._check('browser.open')
                         with agent.lock: result=agent.taught.run(row)
+                    elif path=='/api/news/read':
+                        # A story from the News page, as plain words to read inside Luma.
+                        if agent.mode=='kids': return self.send({'error':'News is for grown-ups.'},403)
+                        from luma.skills import news
+                        try: result=news.read_article(str(data.get('url') or ''))
+                        except ValueError: raise
+                        except Exception: result={'url':data.get('url'),'title':'','source':'','image':None,'paragraphs':[]}
+                    elif path=='/api/browser/cookies':
+                        # The app's own browser and Luma's share sign-ins, both ways, on this computer only.
+                        if companion or linked: return self.send({'error':'Only on this computer.'},403)
+                        agent._check('browser.open')
+                        if data.get('action')=='get': result={'cookies':agent.browser.cookies(data.get('url') or None)}
+                        elif data.get('action')=='set':
+                            cookies=data.get('cookies')
+                            if not isinstance(cookies,list): raise ValueError('Send a list of cookies.')
+                            result={'added':agent.browser.add_cookies(cookies)}
+                        else: raise ValueError('Get or set.')
                     elif path in {'/api/browser/show', '/api/browser/hide'}:
                         if companion: return self.send({'error':"Sign in to sites on the Mac."},403)
                         agent._check('browser.open')

@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld("lumaDesktop", {
   onRestarted: (callback) => ipcRenderer.on("luma:restarted", (_event, info) => callback(info)),
   // Repair: reinstall Luma's tools and fetch its brain again, then start fresh.
   repair: () => ipcRenderer.invoke("luma:repair"),
+  // The Browser page is a real browser here: share a site's sign-in with Luma's own browser, and back.
+  webCookies: (url) => ipcRenderer.invoke("luma:web-cookies-get", String(url || "")),
+  setWebCookies: (list) => ipcRenderer.invoke("luma:web-cookies-set", Array.isArray(list) ? list.slice(0, 400) : []),
 });
 
 window.addEventListener("DOMContentLoaded", () => {

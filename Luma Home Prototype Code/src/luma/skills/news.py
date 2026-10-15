@@ -170,6 +170,7 @@ def parse(data, source):
                 when = _when(fields[key].text)
                 if when:
                     break
+        image = _image(node, summary)
         if title and link.startswith(("https://", "http://")):
             outlet = source
             if source.startswith("Google News"):  # "Headline - Outlet": credit the outlet that wrote it
@@ -178,10 +179,124 @@ def parse(data, source):
                     title, outlet = head.strip(), tail.strip()
             snippet = _clean(summary.text if summary is not None else "", 280)
             if snippet.startswith(title[:40]): snippet = ""  # Google News repeats the headline as the summary
-            out.append({"title": title, "url": link[:600], "source": outlet, "snippet": snippet, "published": when})
+            item = {"title": title, "url": link[:600], "source": outlet, "snippet": snippet, "published": when}
+            if image: item["image"] = image
+            out.append(item)
         if len(out) >= 40:
             break
     return out
+
+
+IMG_IN_HTML = re.compile(r"""<img[^>]+src=["'](https://[^"'\s>]{8,600})["']""", re.I)
+
+
+def _image(node, summary):
+    """A story's picture, if its feed has one: media:thumbnail / media:content / an image enclosure / an <img> in the summary."""
+    best = None
+    for child in node:
+        tag = child.tag.rsplit("}", 1)[-1]
+        url = child.get("url") or ""
+        if not url.startswith("https://"):
+            continue
+        if tag == "thumbnail" and not best:
+            best = url
+        elif tag == "content" and (child.get("medium") == "image" or (child.get("type") or "").startswith("image/")):
+            return url[:600]
+        elif tag == "enclosure" and (child.get("type") or "").startswith("image/"):
+            return url[:600]
+        for grand in child:  # media:group > media:content
+            if grand.tag.rsplit("}", 1)[-1] in {"content", "thumbnail"} and (grand.get("url") or "").startswith("https://"):
+                best = best or grand.get("url")
+    if best:
+        return best[:600]
+    if summary is not None and summary.text:
+        found = IMG_IN_HTML.search(summary.text)
+        if found:
+            return html.unescape(found.group(1))[:600]
+    return None
+
+
+def read_article(url, fetch=None, allow_local=False):
+    """A story, readable inside Luma: its headline, outlet, picture and paragraphs. Pages that need
+    scripts to show anything (or bounce through a redirect page) come back with no paragraphs."""
+    from html.parser import HTMLParser
+    from luma.integrations.browser import check_url
+    url = check_url(url, allow_local)
+    raw = (fetch or _fetch_page)(url, allow_local)
+    page = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)
+
+    class Reader(HTMLParser):
+        SKIP = {"script", "style", "noscript", "nav", "footer", "aside", "form", "button", "svg", "figcaption", "header"}
+
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.meta, self.paragraphs, self.title = {}, [], ""
+            self.skip, self.in_p, self.in_title, self.buf = 0, 0, False, []
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "meta":
+                key = (a.get("property") or a.get("name") or "").lower()
+                if key in {"og:title", "og:image", "og:site_name", "twitter:image", "description", "og:description"} and a.get("content"):
+                    self.meta.setdefault(key, a["content"])
+            if tag in self.SKIP:
+                self.skip += 1
+            elif tag == "p" and not self.skip:
+                self.in_p += 1
+                self.buf = []
+            elif tag == "title":
+                self.in_title = True
+
+        def handle_endtag(self, tag):
+            if tag in self.SKIP and self.skip:
+                self.skip -= 1
+            elif tag == "p" and self.in_p:
+                self.in_p -= 1
+                text = " ".join("".join(self.buf).split())
+                if len(text) >= 60 and not re.search(r"(?i)cookies|subscribe|sign up for|newsletter|all rights reserved|advertisement", text[:120]):
+                    self.paragraphs.append(text[:1500])
+            elif tag == "title":
+                self.in_title = False
+
+        def handle_data(self, data):
+            if self.in_p and not self.skip:
+                self.buf.append(data)
+            elif self.in_title:
+                self.title += data
+
+    reader = Reader()
+    try:
+        reader.feed(page[:3_000_000])
+    except Exception:
+        pass
+    image = reader.meta.get("og:image") or reader.meta.get("twitter:image") or ""
+    seen, paragraphs = set(), []
+    for p in reader.paragraphs:
+        if p not in seen:
+            seen.add(p)
+            paragraphs.append(p)
+    host = urllib.parse.urlsplit(url).hostname or ""
+    return {"url": url, "title": _clean(reader.meta.get("og:title") or reader.title, 300),
+            "source": _clean(reader.meta.get("og:site_name") or host.removeprefix("www."), 80),
+            "image": image if image.startswith("https://") else None, "paragraphs": paragraphs[:80]}
+
+
+def _fetch_page(url, allow_local=False):
+    from luma.integrations.browser import check_url
+
+    class Checked(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            check_url(newurl, allow_local)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    request = urllib.request.Request(url, headers={"User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                                                                  "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"),
+                                                   "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9"})
+    with urllib.request.build_opener(Checked).open(request, timeout=15) as response:
+        kind = response.headers.get("Content-Type", "")
+        if "html" not in kind and "xml" not in kind:
+            raise ValueError("That link isn't a web page I can read.")
+        return response.read(3_000_000)
 
 
 def _fetch(url, timeout=12, allow_local=False):

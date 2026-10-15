@@ -26,6 +26,7 @@
         <button class="nav-item" id="open-search" title="Search (⌘K)" data-icon="search">Search<kbd>⌘K</kbd></button>
       </nav>
       <nav class="nav" id="nav-main">
+        <button class="nav-item" data-view="work" data-icon="spark" title="Luma at work: what it's done for you and what it can do">Overview</button>
         <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
         <button class="nav-item" data-view="news" data-icon="news">News</button>
         <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
@@ -56,6 +57,7 @@
         <div class="top-pills" id="top-pills" aria-label="Right now"></div>
         <div class="top-right">
           <button class="pill dark top-talk" id="top-talk" type="button" title="Talk out loud (⌘⇧Space)" data-icon="wave">Talk</button>
+          <button class="icon-btn" id="top-watch" aria-label="Watch" title="Watch something while Luma works" data-icon="play"></button>
           <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
           <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
           <button class="icon-btn" id="top-glass" aria-label="See-through" title="See-through: let what's behind Luma show through" aria-pressed="false" data-icon="seethrough"></button>
@@ -78,8 +80,10 @@
         </form>
         <div class="starters" id="starters" hidden></div>
         <p class="fineprint">Luma S.I. runs on this computer. Nothing is sent or bought without your OK.</p>
-        <div class="si-dock agents" id="dock-agents" aria-label="Agents"><span class="tab">Agents</span><div class="tiles"></div></div>
-        <div class="si-dock files" id="dock-files" aria-label="Files"><span class="tab">Files</span><div class="tiles"></div></div>
+        <div class="si-docks" id="docks">
+          <div class="si-dock agents" id="dock-agents" aria-label="Agents"><span class="tab">Agents</span><div class="tiles"></div></div>
+          <div class="si-dock files" id="dock-files" aria-label="Files"><span class="tab">Files</span><div class="tiles"></div></div>
+        </div>
       </section>
 
       <section class="view feed-view" id="view-feed" hidden>
@@ -93,8 +97,9 @@
             <button class="icon-btn" id="b-forward" type="button" aria-label="Forward" title="Forward" data-icon="right"></button>
             <button class="icon-btn" id="b-reload" type="button" aria-label="Reload" title="Reload" data-icon="refresh"></button>
             <form class="b-url" id="b-url-form" autocomplete="off"><span class="b-lock" id="b-lock" data-icon="lock"></span><input id="b-url" placeholder="Search or type a web address" spellcheck="false" aria-label="Web address" /></form>
-            <span class="b-who" id="b-who"><i></i>You're driving</span>
+            <span class="b-who" id="b-who" title="Who's at the wheel"><i></i>You're driving</span>
             <button class="pill primary small" id="b-done" type="button" hidden data-icon="check">Done</button>
+            <button class="pill primary small" id="b-handback" type="button" hidden title="Let Luma carry on from here" data-icon="play">Hand back to Luma</button>
             <button class="pill soft small" id="b-teach" type="button" title="Show Luma a task once and it can do it again" data-icon="hand">Teach</button>
             <span class="b-rec" id="b-rec" hidden><i></i><span id="b-rec-count">Watching…</span>
               <input id="b-rec-name" placeholder="Name it, e.g. reorder my coffee" maxlength="60" aria-label="Name for this task" />
@@ -112,6 +117,12 @@
               <button class="pill soft small" id="b-signin" type="button" data-icon="external">Sign in to Google in a real window</button>
             </div>
             <div class="b-loading" id="b-loading" hidden><span></span></div>
+            <div class="b-drive" id="b-drive" hidden>
+              <div class="b-drive-pill"><span class="b-drive-dot"></span><b>Luma is driving</b><span id="b-drive-what"></span>
+                <button class="pill small light" id="b-takeover" type="button" title="Take the wheel (or double-click the page, or press Esc)" data-icon="hand">Take over</button>
+                <button class="pill small ghost-light" id="b-stay" type="button" title="Go back to the chat; Luma keeps working">Back to chat</button></div>
+              <p class="b-drive-hint">Double-click anywhere or press Esc to take over</p>
+            </div>
           </div>
         </div>
       </section>
@@ -125,6 +136,11 @@
         </div>
         <form class="news-search" id="news-search" autocomplete="off"><input id="news-q" placeholder="Search the news, live: the Fed, the Lakers, a company…" aria-label="Search the news" /></form>
         <div class="news-list" id="news-list"></div>
+      </section>
+
+      <section class="view page work-view" id="view-work" hidden>
+        <p class="lede">Everything I've done for you, how long I've worked, and everything I can do. Tap anything to try it.</p>
+        <div id="work"></div>
       </section>
 
       <section class="view page" id="view-ideas" hidden>
@@ -151,6 +167,8 @@
 
       <section class="view page" id="view-apps" hidden>
         <p class="lede">Connect everything here once: email, calendar, Luma's browser for any site you sign in to, and connectors (MCP) for other apps. Then just ask in any chat.</p>
+        <div id="apps-orbit"></div>
+        <h3 class="apps-all">Everything you can connect</h3>
         <div class="app-grid" id="apps"></div>
       </section>
 
@@ -244,6 +262,51 @@
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+
+  <!-- The chat, on every other page -->
+  <aside class="dock-chat" id="dock-chat" hidden aria-label="Chat with Luma">
+    <div class="dc-log" id="dc-log" title="Show more of the conversation"></div>
+    <form class="dc-form" id="dc-form" autocomplete="off">
+      <span class="dc-orb" aria-hidden="true"></span>
+      <input id="dc-input" maxlength="4000" placeholder="Ask Luma anything…" aria-label="Message to Luma" />
+      <button type="submit" class="dc-send" aria-label="Send" data-icon="up"></button>
+      <button type="button" class="dc-open" id="dc-open" aria-label="Open the full chat" title="Open the full chat" data-icon="chat"></button>
+    </form>
+  </aside>
+
+  <!-- Watch while Luma works -->
+  <section class="watch" id="watch" hidden aria-label="Watch while Luma works">
+    <header class="watch-head" id="watch-head">
+      <div class="watch-chips" id="watch-chips"></div>
+      <form class="watch-find" id="watch-find" autocomplete="off"><input id="watch-q" placeholder="Search…" aria-label="Search videos" /></form>
+      <button class="icon-btn small" id="watch-size" type="button" aria-label="Bigger or smaller" title="Bigger or smaller" data-icon="popout"></button>
+      <button class="icon-btn small" id="watch-close" type="button" aria-label="Close" title="Close" data-icon="x"></button>
+    </header>
+    <div class="watch-body" id="watch-body"><div class="watch-empty">Pick something to watch. Luma keeps working while you do.</div></div>
+  </section>
+
+  <!-- Connect: one app at a time, in liquid glass -->
+  <div class="connect-pop" id="connect-pop" hidden>
+    <div class="cp-card" role="dialog" aria-modal="true" aria-labelledby="cp-head">
+      <button class="pill quiet small cp-back" id="cp-back" type="button" data-icon="left">Back</button>
+      <div class="cp-head" id="cp-head"></div>
+      <div class="cp-body" id="cp-body"></div>
+      <div class="cp-foot"><span>Connect something else</span><div class="cp-others" id="cp-others"></div></div>
+    </div>
+  </div>
+
+  <!-- A news story, readable right here -->
+  <div class="reader" id="reader" hidden>
+    <article class="rd-card" role="dialog" aria-modal="true" aria-label="Story">
+      <div class="rd-bar">
+        <button class="pill quiet small" id="rd-close" type="button" data-icon="left">Back to the news</button>
+        <span class="spacer"></span>
+        <button class="pill soft small" id="rd-ask" type="button" data-icon="spark">Ask Luma about it</button>
+        <button class="pill soft small" id="rd-open" type="button" data-icon="globe">Full story</button>
+      </div>
+      <div class="rd-body" id="rd-body"></div>
+    </article>
+  </div>
   <script src="/desktop/desktop.js"></script>
 </body>
 </html>

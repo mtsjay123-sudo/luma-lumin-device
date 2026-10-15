@@ -111,6 +111,33 @@ def classify(item, *, submit=False, typing=False):
     return None
 
 
+COOKIE_DOMAIN = re.compile(r"^\.?(?=[a-z0-9.-]{3,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$", re.I)
+
+
+def clean_cookie(c):
+    """One cookie in Playwright's shape, checked: a public web host, sane sizes, a real SameSite. Else None."""
+    if not isinstance(c, dict):
+        return None
+    name, value, domain = c.get("name"), c.get("value"), str(c.get("domain") or "").lower()
+    if not isinstance(name, str) or not isinstance(value, str) or not 0 < len(name) <= 256 or len(value) > 4096:
+        return None
+    if not COOKIE_DOMAIN.match(domain) or re.fullmatch(r"\.?[\d.]+", domain) or domain.lstrip(".").endswith((".local", ".internal", ".lan", ".home", ".localdomain")):
+        return None
+    path = c.get("path") or "/"
+    if not isinstance(path, str) or not path.startswith("/") or len(path) > 512:
+        return None
+    try:
+        expires = float(c.get("expires", -1))
+    except (TypeError, ValueError):
+        expires = -1
+    same = c.get("sameSite") if c.get("sameSite") in {"Strict", "Lax", "None"} else "Lax"
+    secure = bool(c.get("secure"))
+    if same == "None" and not secure:
+        same = "Lax"
+    return {"name": name, "value": value, "domain": domain, "path": path, "expires": expires if expires > 0 else -1,
+            "httpOnly": bool(c.get("httpOnly")), "secure": secure, "sameSite": same}
+
+
 class BrowserSession:
     def __init__(self, profile_dir, headless=True, allow_local=False, executable=None):
         self.profile_dir = str(profile_dir)
@@ -118,6 +145,8 @@ class BrowserSession:
         self.allow_local = allow_local
         self.executable = executable
         self.items = {}
+        self._live = False  # Chromium is open (so cookies can go straight in)
+        self._pending_cookies = []  # sign-ins shared before Luma's browser was open
         self._jobs = queue.Queue()
         self._thread = None
         self._lock = threading.Lock()
@@ -142,6 +171,7 @@ class BrowserSession:
                     if fn == "_relaunch":
                         if context: context.close()
                         context = page = None
+                        self._live = False
                         self.headless = args[0]
                         reply.put((True, None)); continue
                     if context is None:
@@ -158,6 +188,13 @@ class BrowserSession:
                         options["args"] = ["--disable-blink-features=AutomationControlled"]
                         context = playwright.chromium.launch_persistent_context(self.profile_dir, **options)
                         context.set_default_timeout(20000)
+                        self._live = True
+                        if self._pending_cookies:
+                            try:
+                                context.add_cookies(self._pending_cookies)
+                            except Exception:
+                                pass
+                            self._pending_cookies = []
                         page = context.pages[0] if context.pages else context.new_page()
                     # Follow new tabs (a link that opens one, a sign-in popup) and drop the oldest past four.
                     pages = [p for p in context.pages if not p.is_closed()]
@@ -168,6 +205,7 @@ class BrowserSession:
                 except Exception as error:  # reported to the caller, never swallowed
                     reply.put((False, error))
         finally:
+            self._live = False
             try:
                 if context: context.close()
                 if playwright: playwright.stop()
@@ -402,6 +440,31 @@ class BrowserSession:
     def focused(self): return self._call("focused")
     def drive(self, kind, data=None): return self._call("drive", str(kind), dict(data or {}), timeout=30)
     def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)
+
+    # -- sign-ins shared with the window's own browser --------------------------------
+    def cookies(self, url=None):
+        """Luma's browser's cookies for one site (or none if it isn't open), so the window's browser shares the sign-in."""
+        if url is not None:
+            url = check_url(url, self.allow_local)
+        return self._call("cookies", url) if self._live else []
+
+    def add_cookies(self, cookies):
+        """Sign-ins from the window's own browser, so Luma is signed in where you are. Kept for later if Chromium isn't open."""
+        clean = [c for c in (clean_cookie(x) for x in (cookies or [])[:600]) if c]
+        if not clean:
+            return 0
+        if not self._live:
+            self._pending_cookies = (self._pending_cookies + clean)[-1200:]
+            return len(clean)
+        return self._call("add_cookies", clean)
+
+    def _do_cookies(self, page, url):
+        found = page.context.cookies([url] if url else [])
+        return [c for c in (clean_cookie(x) for x in found[:600]) if c]
+
+    def _do_add_cookies(self, page, cookies):
+        page.context.add_cookies(cookies)
+        return len(cookies)
 
     def show_for_sign_in(self, url):
         """Reopen visibly so the owner can sign in themselves; Luma never handles passwords."""

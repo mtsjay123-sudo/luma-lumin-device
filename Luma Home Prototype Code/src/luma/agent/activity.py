@@ -26,6 +26,7 @@ class Activity:
         self.current = None
         self._image = None
         self.recent = []  # finished jobs, newest first
+        self.on_finish = None  # told about each finished job (how long it took goes on the Overview page)
 
     def start(self, kind, title, background=False):
         """background jobs (a helper's scheduled run) give way as soon as the owner asks for something."""
@@ -63,6 +64,12 @@ class Activity:
             for step in self.current["steps"]: step["done"] = True
             self.current.update(state=state, summary=str(summary)[:400], finished=self.clock())
             self.recent = ([dict(self.current)] + self.recent)[:10]
+            job = dict(self.current)
+        if self.on_finish:
+            try:
+                self.on_finish(job)
+            except Exception:
+                pass
 
     # -- the owner's controls ---------------------------------------------------
     def pause(self):

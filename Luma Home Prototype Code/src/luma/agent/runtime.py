@@ -28,7 +28,7 @@ from luma.hardware.device import DeviceController
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
 from luma.agent.conversation import wants_message, style_update, grocery_request
-from luma.agent import texting, presence, understanding
+from luma.agent import texting, presence, understanding, insights
 from luma.integrations.luma_cloud import LumaCloud, QuotaReached
 from luma.agent.activity import Activity, Stopped
 from luma.agent.rules import Rules
@@ -233,6 +233,8 @@ class Agent:
         self.household = Household(self.store, now=self.clock, zone=str(self.zone))
         self.workflows = Workflows(self)
         self.activity = Activity(clock=time.time)
+        self.activity.on_finish = lambda job: insights.log(self.store, self.zone, job.get("finished") or self.clock(),
+                                                            (job.get("finished") or 0) - (job.get("started") or 0), tasks=1)
         self.rules = Rules(self.store)
         self.feed = Feed(self.store, self.clock)
         self.helpers = Helpers(self)
@@ -2396,7 +2398,7 @@ class Agent:
         else:
             hits = news.within(items, hours, now)
         return {"items": [{"title": h["title"], "url": h["url"], "source": h["source"], "snippet": h.get("snippet", ""), "published": news.when(h),
-                           "age": news.ago(news.when(h), now), "topic": h.get("topic")} for h in hits[:60]],
+                           "age": news.ago(news.when(h), now), "topic": h.get("topic"), "image": h.get("image")} for h in hits[:60]],
                 "checked": news.cached(self.store).get("fetched") or 0, "now": now, "topics": list(news.TOPICS)}
 
     def _news_context(self, text):
@@ -2816,8 +2818,13 @@ class Agent:
             main, self.history = self.history, self.threads[thread]
             if thread != "main" and self.thread_titles.get(thread) == "New chat":
                 self.thread_titles[thread] = text.strip()[:48]
+            began = time.monotonic()
             try:
                 result = self._chat_turn(text, cancel_event=cancel_event, agent_mode=agent_mode, resume_id=resume_id, on_text=on_text, channel=channel)
+                try:
+                    insights.log(self.store, self.zone, self.clock(), time.monotonic() - began, chats=1)
+                except Exception:
+                    pass
             finally:
                 self.threads[thread] = self.history
                 self.history = main if thread != "main" else self.history
