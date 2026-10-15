@@ -191,7 +191,17 @@ def home_payload(agent, owner=True):
         'identity': {'soul': agent.store.setting('soul') or '', 'self': agent.store.setting('self_model') or '', 'memory': agent.memory_quota(),
                      'style': agent.store.setting('their_style') or ''} if owner and agent.mode != 'kids' else None,
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
+        'glance': _glance(agent) if owner and agent.mode != 'kids' else None,
     }
+
+
+def _glance(agent):
+    """What floats around the home canvas: the latest things Luma remembered and made."""
+    memories = [{'id': m['id'], 'text': m['text'][:160], 'created': m.get('created'), 'source': m.get('source')}
+                for m in agent.store.all('memory', 40) if m.get('text') and not m.get('news')][:8]
+    files = agent.store.all('file', 200)
+    return {'memories': memories, 'files': {'count': len(files), 'docs': sum(1 for f in files if f.get('kind') in {'docx', 'pdf', 'deck', 'pptx'}),
+                                            'recent': [{'id': f['id'], 'title': f.get('title') or f.get('name'), 'kind': f.get('kind')} for f in files[:4]]}}
 
 
 def _account(agent):

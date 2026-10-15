@@ -65,7 +65,7 @@ class TextingTests(unittest.TestCase):
 
     def test_unknown_person_gets_asked_for_then_saved_with_their_nickname(self):
         ask = self.agent.chat("text my girl that I'll pick her up at 7")
-        self.assertIn("Who's my girl? Give me her name and number", ask["text"])
+        self.assertIn("What's your girl's name and number? Send her number", ask["text"])
         draft = self.agent.chat("Maya, 919-555-0123")
         self.assertEqual(draft["message_draft"]["to"], "+19195550123")
         self.assertEqual(draft["message_draft"]["body"], "I'll pick you up at 7")

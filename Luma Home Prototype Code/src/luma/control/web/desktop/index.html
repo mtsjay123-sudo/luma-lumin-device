@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
-  <title>Luma</title>
+  <title>Luma S.I.</title>
   <link rel="icon" href="/desktop/logo" />
   <link rel="stylesheet" href="/desktop/desktop.css" />
 </head>
@@ -19,7 +19,7 @@
     <aside class="sidebar" aria-label="Luma">
       <div class="drag"></div>
       <div class="side-head">
-        <span class="wordmark" aria-label="Luma">Luma</span>
+        <span class="wordmark" aria-label="Luma">Luma</span><span class="si-tag" title="Super Intelligence">S.I.</span>
       </div>
       <nav class="nav" id="nav-top">
         <button class="nav-item" id="new-chat" title="New chat (⌘N)" data-icon="compose">New chat</button>
@@ -53,7 +53,9 @@
           </button>
           <h1 class="top-title" id="top-title" hidden></h1>
         </div>
+        <div class="top-pills" id="top-pills" aria-label="Right now"></div>
         <div class="top-right">
+          <button class="pill dark top-talk" id="top-talk" type="button" title="Talk out loud (⌘⇧Space)" data-icon="wave">Talk</button>
           <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
           <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
           <button class="icon-btn" id="top-glass" aria-label="See-through" title="See-through: let what's behind Luma show through" aria-pressed="false" data-icon="seethrough"></button>
@@ -66,14 +68,18 @@
         <div class="thread" id="thread" aria-label="Conversation with Luma" aria-live="polite"></div>
         <form class="composer" id="composer" autocomplete="off">
           <button type="button" class="round-btn ghost" id="add" aria-label="Ideas" title="Ideas" data-icon="plus"></button>
-          <button type="button" class="round-btn ghost" id="photo-btn" aria-label="Show Luma a photo" title="Show Luma a photo" data-icon="image"></button>
+          <button type="button" class="c-pill" id="photo-btn" aria-label="Show Luma a photo" title="Show Luma a photo" data-icon="image">Image</button>
+          <button type="button" class="c-pill" id="c-make" title="Make a deck, a doc, an app or a podcast" data-icon="spark">Make</button>
+          <button type="button" class="c-pill" id="c-find" title="Find, compare, look it up" data-icon="search">Find</button>
           <input type="file" id="photo-input" accept="image/*,.heic,.heif" hidden />
           <textarea id="input" rows="1" maxlength="4000" placeholder="Ask Luma anything" aria-label="Message to Luma"></textarea>
           <button type="button" class="round-btn ghost" id="mic" aria-label="Talk to Luma" title="Talk to Luma (⌘⇧Space)" data-icon="mic"></button>
           <button type="submit" class="send" id="send" aria-label="Send" disabled data-icon="up"></button>
         </form>
         <div class="starters" id="starters" hidden></div>
-        <p class="fineprint">Luma runs on this computer. Nothing is sent or bought without your OK.</p>
+        <p class="fineprint">Luma S.I. runs on this computer. Nothing is sent or bought without your OK.</p>
+        <div class="si-dock agents" id="dock-agents" aria-label="Agents"><span class="tab">Agents</span><div class="tiles"></div></div>
+        <div class="si-dock files" id="dock-files" aria-label="Files"><span class="tab">Files</span><div class="tiles"></div></div>
       </section>
 
       <section class="view feed-view" id="view-feed" hidden>
@@ -228,6 +234,21 @@
     </div>
   </div>
 
+
+  <!-- Talking: deep space, Luma at the center, its words in large type -->
+  <div class="talk-space" id="talk-space" aria-live="polite">
+    <canvas class="ts-stars" id="ts-stars" aria-hidden="true"></canvas>
+    <div class="ts-system" aria-hidden="true">
+      <div class="orbit o1"><div class="spin"><i class="planet p1"></i></div></div>
+      <div class="orbit o2"><div class="spin"><i class="planet p2"></i></div></div>
+      <div class="orbit o3"><div class="spin"><i class="planet p3"><b></b></i></div></div>
+      <div class="orbit o4"><div class="spin"><i class="planet p4"></i></div></div>
+    </div>
+    <div class="ts-core"><span class="si-orb huge" aria-hidden="true"><i></i><i></i><i></i></span></div>
+    <div class="ts-top"><span class="ts-brand">Luma <em>S.I.</em></span><span class="ts-state" id="talk-state">Listening</span></div>
+    <div class="ts-words"><p class="ts-you" id="talk-you"></p><p class="ts-line" id="talk-line">Go ahead. I'm listening.</p></div>
+    <div class="ts-bottom"><button class="pill ts-btn" id="talk-type" type="button">Type instead</button><button class="pill ts-btn end" id="talk-end" type="button">End</button></div>
+  </div>
 
   <div class="toast" id="toast" role="status"></div>
   <script src="/desktop/desktop.js"></script>

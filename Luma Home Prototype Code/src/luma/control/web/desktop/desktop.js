@@ -334,6 +334,9 @@
   let moodTimer = null;
   function mood(name, doing, holdMs) {
     $("mascot").className = "avatar " + name;
+    document.body.dataset.mood = name;
+    const ts = $("talk-state");
+    if (ts) ts.textContent = document.body.classList.contains("speaking") ? "Speaking" : name === "thinking" || name === "working" ? "Thinking" : /yes or no/i.test(doing || "") ? "Your call" : "Listening";
     $("doing").textContent = name === "sleepy" ? "Can't reach Luma" : doing || "";
     document.body.classList.toggle("thinking", name === "thinking" || name === "working");
     const row = document.querySelector(".thinking-row .shimmer-text");
@@ -381,9 +384,10 @@
   function renderChat() {
     const box = $("thread");
     const list = items(state.thread);
-    const named = list.length ? threadTitle(state.thread) : "";
-    $("chat-title").textContent = named && named !== "New chat" ? named : "Luma";
-    $("chat-title").classList.toggle("wordmark", !named || named === "New chat");
+    // The Chat pill up top names the conversation; this pill is Luma itself.
+    $("chat-title").textContent = state.assistantName || state.home?.profile?.assistant || "Luma";
+    $("chat-title").classList.add("wordmark");
+    renderTopPills();
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.replaceChildren();
     const empty = !list.length && !state.busy;
@@ -412,6 +416,8 @@
       if (m.role !== "you") {
         const extra = m.result ? rich(m.result) : null;
         if (extra) row.append(extra);
+        if (m.result?.walk) row.append(walkStrip(m.result.walk));
+        if (m.result?.photo) { const a = el("div", "actions"); a.append(btn("Choose a photo", "pill soft small", () => $("photo-input").click(), "image")); row.append(a); }
         if (m.result?.choices?.length) row.append(choiceChips(m.result.choices));
         if (m.result?.noticed?.length) row.append(rememberedNote(m.result.noticed));
         if (m.result?.memory_full) row.append(memoryFullNote());
@@ -488,26 +494,152 @@
     ["today", "calendar", "What's on today?", "Your calendar and to-dos", "what's on my calendar today?"],
     ["people", "message", "Text my mom I'm on my way", "You approve every text", "text my mom I'm on my way"],
   ];
-  function emptyChat() {
-    // ChatGPT's first screen: one line of type, the composer right under it, a few ideas below.
-    const e = el("div", "empty");
-    const h = new Date().getHours();
-    const name = state.home?.profile?.name;
-    const hello = el("h2");
-    hello.append(h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
-    if (name) hello.append(", ", el("em", null, name));
-    e.append(hello, el("p", null, "What should I take off your plate?"));
-    const row = $("starters");
-    row.replaceChildren();
-    for (const [k, ic, title, sub, say] of STARTERS) {
-      const b = el("button", "starter " + k);
-      b.type = "button";
-      b.title = sub;
-      b.append(icon(ic), el("span", null, title));
-      b.addEventListener("click", () => send(say));
-      row.append(b);
+  // ------------------------------------------------------------ canvas ---
+  // Home is a canvas, not a chat box: one dark stage, things Luma knows floating around it,
+  // agents and files docked in the corners, the composer resting on the stage.
+  function siOrb(cls = "") { const o = el("span", "si-orb " + cls); o.setAttribute("aria-hidden", "true"); o.append(el("i"), el("i"), el("i")); return o; }
+  function prefill(text) {
+    if (state.view !== "chat") go("chat");
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    resize();
+    input.focus();
+    input.setSelectionRange(text.length, text.length);
+  }
+  function memEmoji(t) {
+    const x = String(t || "").toLowerCase();
+    return /keys?\b/.test(x) ? "🔑" : /birthday|anniversary/.test(x) ? "🎂" : /allerg/.test(x) ? "🥜" : /wallet|purse/.test(x) ? "👛" : /\bcar\b|park/.test(x) ? "🚗"
+      : /phone|charger/.test(x) ? "📱" : /passport|flight|trip/.test(x) ? "✈️" : /\bhate|can't stand/.test(x) ? "🙅" : /\blove|like|favorite/.test(x) ? "💛" : /glasses/.test(x) ? "👓" : "🧠";
+  }
+  function fileEmoji(kind) { return { deck: "📊", pptx: "📊", pdf: "📄", docx: "📝", app: "🧩", podcast: "🎙️", wav: "🎙️" }[kind] || "📁"; }
+  function floatItems() {
+    const h = state.home || {};
+    const g = h.glance || {};
+    const out = [];
+    for (const t of (h.today?.tasks || []).slice(0, 1)) out.push({ e: "⏰", t: t.title, s: "Reminder" + (t.when ? " · " + t.when : ""), tint: "peach", run: () => go("chat") });
+    for (const m of (g.memories || []).slice(0, 3)) out.push({ e: memEmoji(m.text), t: m.text, s: "Remembered" + (m.created ? " · " + ago(m.created) : ""), run: () => go("identity") });
+    const card = (h.cards || [])[0];
+    if (card) out.push({ e: "✨", t: card.title, s: "In your feed", tint: "dark", run: () => { state.feedSel = card.id; go("feed"); } });
+    const f = g.files?.recent?.[0];
+    if (f) out.push({ e: fileEmoji(f.kind), t: f.title, s: "You made this", tint: "blue", run: () => go("library") });
+    const ideas = [
+      { e: "🔑", t: "Tell me where you left your keys", s: "I'll remember", say: "I left my keys " },
+      { e: "🎧", t: "Play something chill", s: "Music", say: "play something chill", tint: "green" },
+      { e: "📰", t: "Catch me up on the news", s: "News", say: "catch me up on the news", tint: "dark" },
+      { e: "🗓️", t: "Plan my week", s: "Planning", say: "plan my week", tint: "stone" },
+      { e: "🎙️", t: "A podcast about today", s: "Made for you", say: "make me a podcast about today's news" },
+      { e: "🛍️", t: "Cheapest AirPods, five stores", s: "Shopping", say: "find the cheapest airpods", tint: "peach" },
+    ];
+    for (const i of ideas) { if (out.length >= 6) break; out.push({ ...i, run: () => (i.say.endsWith(" ") ? prefill(i.say) : send(i.say)) }); }
+    return out.slice(0, 6);
+  }
+  function floats(side) {
+    const box = el("div", "si-floats " + side);
+    const mine = floatItems().filter((_, i) => (side === "left" ? i % 2 === 0 : i % 2 === 1));
+    const spots = side === "left" ? [[6, 4, 18], [50, 36, 12], [0, 62, 24]] : [[44, 2, -18], [2, 36, -12], [48, 62, -24]];
+    mine.slice(0, 3).forEach((it, i) => {
+      const [x, y, rot] = spots[i];
+      const c = el("button", "si-float" + (it.tint ? (it.tint === "dark" ? " dark" : " tint-" + it.tint) : ""));
+      c.type = "button";
+      const t = `rotateY(${rot}deg) translateZ(${-Math.abs(rot) * 3}px)`;
+      c.style.setProperty("--t", t);
+      c.style.transform = t;
+      c.style.left = x + "%";
+      c.style.top = y + "%";
+      c.style.animationDelay = `${i * 90 + (side === "right" ? 45 : 0)}ms`;
+      c.append(el("span", "e", it.e), el("span", "t", it.t), el("span", "s", it.s));
+      c.addEventListener("click", it.run);
+      box.append(c);
+    });
+    return box;
+  }
+  function renderDocks() {
+    const a = document.querySelector("#dock-agents .tiles");
+    if (a && !a.childElementCount) {
+      for (const [k, label, say, tip] of [["green", "Researcher", "research ", "Digs into anything and reads the top sources"], ["blue", "Maker", "make me ", "Decks, docs, apps, podcasts"],
+                                         ["stone", "Planner", "plan my ", "Your day, your week, a trip"], ["peach", "Writer", "write ", "Emails, texts, captions, posts"]]) {
+        const b = btn(label, "si-agent " + k, () => prefill(say));
+        b.title = tip;
+        a.append(b);
+      }
     }
+    const f = document.querySelector("#dock-files .tiles");
+    if (!f) return;
+    const g = state.home?.glance?.files || { count: 0, docs: 0, recent: [] };
+    f.replaceChildren();
+    const docs = el("button", "si-folder");
+    docs.type = "button";
+    docs.append(el("span", "paper"), el("span", "paper"), el("span", "paper"), el("b", null, "Documents"), el("small", null, `${g.docs} file${g.docs === 1 ? "" : "s"}`));
+    docs.addEventListener("click", () => go("library"));
+    const recent = el("button", "si-folder");
+    recent.type = "button";
+    recent.append(el("span", "thumb", g.recent?.[0] ? fileEmoji(g.recent[0].kind) : "✨"), el("b", null, "Recent"), el("small", null, `${g.count} file${g.count === 1 ? "" : "s"}`));
+    recent.addEventListener("click", () => go("library"));
+    f.append(docs, recent);
+  }
+  function renderTopPills() {
+    const box = $("top-pills");
+    if (!box) return;
+    const h = state.home || {};
+    const pill = (k, v, ic, run, title) => {
+      const b = el("button", "top-pill");
+      b.type = "button";
+      if (title) b.title = title;
+      const t = el("span");
+      t.append(el("span", "k", k), el("span", "v", v));
+      b.append(t, icon(ic));
+      b.addEventListener("click", run);
+      return b;
+    };
+    const named = threadTitle(state.thread);
+    const q = h.identity?.memory;
+    box.replaceChildren(
+      pill("Chat", named && named !== "New chat" ? named : "New chat", "down", () => openPalette(""), "Your chats (⌘K)"),
+      pill("Memory", q ? `${q.used} saved` : "Yours", "right", () => go("identity"), "Everything Luma remembers"),
+      pill("Thinking", h.brain?.cloud?.on ? "Super Intelligence" : "Private, on this Mac", "right", () => go("settings"), "Luma's brain"));
+  }
+  function emptyChat() {
+    const e = el("div", "empty si-home");
+    const hour = new Date().getHours();
+    const name = (state.home?.profile?.name || "").trim().split(/\s+/)[0];
+    const tools = el("div", "si-tools");
+    const tool = (label, ic, fill) => btn(label, "si-tool", () => prefill(fill), ic);
+    const talk = el("button", "si-tool orb-btn");
+    talk.type = "button";
+    talk.title = "Talk to Luma";
+    talk.setAttribute("aria-label", "Talk to Luma");
+    talk.append(siOrb());
+    talk.addEventListener("click", () => startConversation({ greet: true }));
+    tools.append(tool("Remember", "spark", "remember "), tool("Make", "deck", "make me "), talk, tool("Find", "search", "find "), tool("Plan", "calendar", "plan my "));
+    const stage = el("div", "si-stage");
+    const aurora = el("div", "si-aurora");
+    for (let i = 0; i < 5; i++) aurora.append(el("i"));
+    const top = el("div", "si-stage-top");
+    const left = el("span");
+    left.append(el("b", null, "LUMA S.I."), document.createTextNode("Super Intelligence"));
+    const right = el("span");
+    right.style.textAlign = "right";
+    right.append(el("b", null, "PRIVATE"), document.createTextNode("Nothing leaves without your OK"));
+    top.append(left, right);
+    const hello = el("h2");
+    hello.append(hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
+    if (name) hello.append(", ", el("em", null, name));
+    hello.append(".");
+    const sub = el("p");
+    sub.append("What should we ", el("span", "hl", "take on"), " today?");
+    stage.append(aurora, top, hello, sub);
+    e.append(tools, stage, floats("left"), floats("right"));
+    renderDocks();
     return e;
+  }
+
+  // Step by step: where they are in a walkthrough.
+  function walkStrip(w) {
+    const n = el("div", "walk-strip" + (w.done ? " done" : ""));
+    const dots = el("span", "dots");
+    for (let i = 1; i <= w.of; i++) dots.append(el("i", i <= w.step ? "on" : ""));
+    n.append(dots, el("b", null, w.title), document.createTextNode(w.done ? "All set" : `Step ${w.step} of ${w.of}`));
+    return n;
   }
 
   // A runtime result becomes a card: products, a checkout, a deck, email, agenda.
@@ -1293,6 +1425,7 @@
     if (!text || state.busy) return;
     if (state.view !== "chat") go("chat");
     const thread = state.thread;
+    if (voice.on) { $("talk-you").textContent = text.slice(-140); talkLine("…"); }
     pushLocal(thread, { role: "you", text, optimistic: true });
     state.busy = true;
     mood("thinking", guessDoing(text));
@@ -1313,6 +1446,7 @@
       else mood("idle", "Here with you");
       // "Open my goals": Luma answers, then takes you there. "Show me my goals": the answer here, the page one tap away.
       if (r.open && TITLES[r.open]) setTimeout(() => go(r.open), 900);
+      if (r.talk && !voice.on) setTimeout(() => startConversation(), 400);
       if (r.renamed) { state.assistantName = r.renamed === "Luma" ? null : r.renamed; paintName(); }
       if (r.open_url && safeUrl(r.open_url)) window.open(r.open_url, "_blank", "noopener");
       talkPop(r);
@@ -1392,6 +1526,11 @@
   $("new-chat").addEventListener("click", newChat);
   $("who").addEventListener("click", () => { if (state.view !== "chat") go("chat"); });
   $("add").addEventListener("click", () => openPalette(""));
+  $("c-make").addEventListener("click", () => prefill("make me "));
+  $("c-find").addEventListener("click", () => prefill("find "));
+  $("top-talk").addEventListener("click", () => (voice.on ? endConversation("tap") : startConversation({ greet: true })));
+  $("talk-end").addEventListener("click", () => endConversation("tap"));
+  $("talk-type").addEventListener("click", () => { endConversation("tap"); setTimeout(() => input.focus(), 50); });
   // Opening Luma: the newest chat if it's still empty, otherwise a fresh one. Old chats stay in the list.
   async function openFresh() {
     await refreshHome();
@@ -1830,6 +1969,122 @@
   // ---------------------------------------------------------- identity ---
   // Like a soul file and a memory file, but friendly: who Luma is with you, and what it knows.
   const SOURCES = { explicit_user_request: "You told me", noticed_in_conversation: "I noticed", feedback: "From your feedback", about_you: "About you", grill: "From an interview" };
+  // Memories as a 3D timeline: newest in front, older ones stacked back into the distance, filtered by kind.
+  const MEM_TAGS = [["all", "Everything"], ["places", "Places"], ["people", "People"], ["dates", "Dates"], ["health", "Health"], ["likes", "Likes"], ["you", "About you"], ["notes", "Notes"]];
+  const MEM_ART = { places: "📍", people: "💞", dates: "🎂", health: "🩺", likes: "💛", you: "🪞", notes: "🗒️" };
+  function memTag(m) {
+    const t = String(m.text || "").toLowerCase();
+    if (m.source === "grill" || m.source === "about_you") return "you";
+    if (/^your .+ (?:is|are) (?:on|in|at|by|under|inside|next to|behind|near)\b/.test(t)) return "places";
+    if (/birthday|anniversary|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d/.test(t)) return "dates";
+    if (/\b(?:allerg\w*|vegetarian|vegan|gluten|lactose|diabetic|medication|meds|asthma|doctor|dentist)\b/.test(t)) return "health";
+    if (/\b(?:love|loves|like|likes|hate|hates|favorite|favourite|prefer|can't stand)\b/.test(t)) return "likes";
+    if (/\b(?:mom|mother|dad|father|sister|brother|boyfriend|girlfriend|wife|husband|friend|boss|son|daughter|grandma|grandpa|aunt|uncle|partner|kids?)\b/.test(t)) return "people";
+    return "notes";
+  }
+  function memoryStage(all) {
+    const stage = el("section", "mem-stage");
+    const side = el("div", "mem-side");
+    const tags = el("div", "mem-tags");
+    side.append(el("h3", null, "Memories"), el("p", null, "Everything I keep about you, newest in front. Scroll back through it."), tags);
+    const deck = el("div", "mem-deck");
+    deck.tabIndex = 0;
+    deck.setAttribute("aria-label", "Your memories, newest first. Use the arrow keys to move through them.");
+    const rail = el("div", "mem-rail");
+    const count = el("span", "count");
+    let filter = "all", focus = 0, shown = [];
+    const sorted = all.slice().sort((a, b) => (b.created || 0) - (a.created || 0));
+    const move = (d) => { focus = Math.max(0, Math.min(shown.length - 1, focus + d)); place(); };
+    const up = btn("", "round-btn", () => move(-1), "up");
+    up.setAttribute("aria-label", "Newer");
+    const down = btn("", "round-btn", () => move(1), "down");
+    down.setAttribute("aria-label", "Older");
+    rail.append(up, count, down);
+    stage.append(side, deck, rail);
+    function place() {
+      [...deck.querySelectorAll(".mem-card")].forEach((c, i) => {
+        const k = i - focus;
+        if (k < 0) { c.style.transform = "translate3d(0, 150px, 90px) rotateX(-10deg)"; c.style.opacity = "0"; c.style.pointerEvents = "none"; }
+        else {
+          c.style.transform = `translate3d(0, ${-k * 38}px, ${-k * 115}px) rotateX(${k ? 5 : 0}deg)`;
+          c.style.opacity = String(Math.max(0, 1 - k * 0.17));
+          c.style.pointerEvents = k > 4 ? "none" : "auto";
+        }
+        c.style.zIndex = String(100 - Math.abs(k));
+        c.classList.toggle("front", k === 0);
+      });
+      count.textContent = shown.length ? `${focus + 1} / ${shown.length}` : "";
+      up.disabled = focus <= 0;
+      down.disabled = focus >= shown.length - 1;
+    }
+    function drawTags() {
+      tags.replaceChildren();
+      for (const [k, label] of MEM_TAGS) {
+        const n = k === "all" ? sorted.length : sorted.filter((m) => memTag(m) === k).length;
+        if (k !== "all" && !n) continue;
+        const b = el("button", "mem-tag" + (k === filter ? " on" : ""));
+        b.type = "button";
+        b.append(document.createTextNode(label), el("small", null, String(n)));
+        b.addEventListener("click", () => { filter = k; focus = 0; drawTags(); drawDeck(); });
+        tags.append(b);
+      }
+    }
+    function drawDeck() {
+      shown = sorted.filter((m) => filter === "all" || memTag(m) === filter).slice(0, 60);
+      deck.replaceChildren();
+      if (!shown.length) {
+        const e = el("div", "mem-empty");
+        e.append(el("b", null, "Nothing yet"), document.createTextNode("Just talk. Say where you left your keys or when someone's birthday is, and it lands here."));
+        deck.append(e);
+        place();
+        return;
+      }
+      shown.forEach((m, i) => {
+        const tag = memTag(m);
+        const c = el("article", "mem-card " + tag);
+        const d = m.created ? new Date(m.created * 1000) : null;
+        const when = el("div", "when");
+        when.append(el("b", null, d ? String(d.getDate()) : "·"), el("small", null, d ? d.toLocaleString(undefined, { month: "short" }) + " " + d.getFullYear() : "Saved"));
+        const body = el("div", "body");
+        const text = el("div", "text", m.text);
+        const meta = el("div", "meta");
+        meta.append(el("span", null, (SOURCES[m.source] || "Saved") + (m.created ? " · " + ago(m.created) : "")), el("span", "spacer"));
+        meta.append(btn("Edit", "pill quiet small", () => { text.contentEditable = "true"; text.focus(); }, "compose"));
+        meta.append(btn("Forget", "pill quiet small", async () => {
+          try { await api("/api/memory/delete", { id: m.id }); sorted.splice(sorted.indexOf(m), 1); all.splice(all.indexOf(m), 1); drawTags(); drawDeck(); toast("Forgotten."); } catch (e) { toast(e.message); }
+        }, "trash"));
+        text.addEventListener("blur", async () => {
+          text.contentEditable = "false";
+          const next = text.textContent.trim();
+          if (!next || next === m.text) { text.textContent = m.text; return; }
+          try { await api("/api/memory/save", { id: m.id, text: next }); m.text = next; toast("Updated."); } catch (e) { toast(e.message); text.textContent = m.text; }
+        });
+        text.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); text.blur(); } });
+        body.append(el("span", "chip", (MEM_TAGS.find(([k]) => k === tag) || [0, "Notes"])[1]), text, meta);
+        c.append(when, body, el("div", "art", MEM_ART[tag]));
+        c.addEventListener("click", (e) => { if (i !== focus && !e.target.closest("button")) { focus = i; place(); } });
+        deck.append(c);
+      });
+      place();
+    }
+    deck.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaY) < 6 || !shown.length) return;
+      e.preventDefault();
+      const now = Date.now();
+      if (now - (deck.lastWheel || 0) < 240) return;
+      deck.lastWheel = now;
+      move(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+    deck.addEventListener("keydown", (e) => {
+      if (e.target.isContentEditable) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); move(1); }
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
+    });
+    drawTags();
+    drawDeck();
+    return stage;
+  }
+
   async function renderIdentity() {
     const box = $("identity");
     box.replaceChildren(el("p", "lede", "Loading…"));
@@ -1839,6 +2094,7 @@
     const id = state.home?.identity;
     box.replaceChildren();
     if (!id) { box.append(el("p", "lede", "Identity is for grown-ups. Switch out of kids mode to see it.")); return; }
+    box.append(memoryStage((d?.memories || []).filter((m) => m.text && !m.news)));
 
     const soul = el("div", "card box id-card");
     soul.append(el("div", "t", "Soul"), el("div", "s", "Who Luma should be with you, in your words. It shapes every reply. It can't make Luma pretend to be human, or skip asking you before it sends or buys anything."));
@@ -2876,6 +3132,12 @@
       handleEvents(h.events || []);
       renderThreads();
       renderWidgets();
+      renderTopPills();
+      const sig = JSON.stringify([h.glance, (h.today?.tasks || []).length, h.cards?.[0]?.id, h.profile?.name]);
+      if (sig !== state.homeSig) {
+        state.homeSig = sig;
+        if (state.view === "chat" && !state.busy && !items(state.thread).length) renderChat();
+      }
       const me = (h.profile?.name || "").trim();
       $("me-name").textContent = me || "You";
       paintName();
@@ -2994,6 +3256,7 @@
     dropTake(); // never record Luma's own voice as yours
     const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_`#>|]/g, "").replace(/\$(\d+)\.00\b/g, "$$$1").replace(/\s+/g, " ").trim().slice(0, 1600);
     const parts = speechParts(clean);
+    talkLine(clean);
     Object.assign(voice, { said: clean, talking: true, talkAt: performance.now(), echo: 0, loudMs: 0 });
     document.body.classList.add("speaking");
     mood("happy", "Talking");
@@ -3229,6 +3492,8 @@
   function showWords(text) {
     if (voice.typed || (!voice.shown && input.value.trim())) return; // never write over what you typed
     input.value = (voice.held ? voice.held + " " : "") + text;
+    const you = $("talk-you");
+    if (you) you.textContent = input.value.slice(-140);
     input.classList.add("partial");
     voice.shown = true;
     resize();
@@ -3361,7 +3626,36 @@
     if (n === 1) return what ? `Still going. ${what}.` : "Still working on it.";
     return "Still at it. I'll tell you the moment it's done.";
   }
+  // Deep space for talking: a star field drawn once per size, twinkling in CSS.
+  function drawStars() {
+    const c = $("ts-stars");
+    if (!c) return;
+    const w = window.innerWidth, h = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (c.dataset.size === `${w}x${h}`) return;
+    c.dataset.size = `${w}x${h}`;
+    c.width = w * dpr; c.height = h * dpr;
+    const g = c.getContext("2d");
+    g.scale(dpr, dpr);
+    const n = Math.round((w * h) / 3200);
+    for (let i = 0; i < n; i++) {
+      const r = Math.random() ** 3 * 1.5 + 0.25, a = 0.25 + Math.random() * 0.75;
+      const tint = Math.random();
+      g.fillStyle = tint < 0.08 ? `rgba(180,200,255,${a})` : tint < 0.13 ? `rgba(255,210,190,${a})` : `rgba(255,255,255,${a})`;
+      g.beginPath(); g.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2); g.fill();
+    }
+  }
+  window.addEventListener("resize", () => { if (voice.on) drawStars(); });
+  function talkLine(text) {
+    const line = $("talk-line");
+    if (!line || !text) return;
+    line.textContent = String(text).replace(/\s+/g, " ").slice(0, 360);
+    line.style.animation = "none"; void line.offsetWidth; line.style.animation = "";
+  }
   function paintVoice() {
+    if (voice.on) drawStars();
+    const ts = $("talk-state");
+    if (ts) ts.textContent = voice.talking ? "Speaking" : state.busy ? "Thinking" : voice.expect ? "Your call" : "Listening";
+    $("top-talk").classList.toggle("on", voice.on);
     const mic = $("mic");
     const waking = !voice.on && voice.wake && Boolean(voice.stream);
     mic.classList.toggle("on", voice.on);

@@ -28,7 +28,7 @@ from luma.hardware.device import DeviceController
 from luma.integrations.mac_messages import MacMessages
 from luma.integrations.commerce import GroceryService, validate_list
 from luma.agent.conversation import wants_message, style_update, grocery_request
-from luma.agent import texting, presence
+from luma.agent import texting, presence, understanding
 from luma.integrations.luma_cloud import LumaCloud, QuotaReached
 from luma.agent.activity import Activity, Stopped
 from luma.agent.rules import Rules
@@ -212,6 +212,10 @@ class Agent:
         self.awaiting = None  # the one text/action the owner can approve by saying "send it"
         self.awaiting_contact = None  # a text waiting on "what's their number?"
         self.last_noticed = []  # memory ids saved from the last turn, for "forget that"
+        # Where the conversation is: a "did you mean" waiting for a pick, a walkthrough step, a sentence that got cut off
+        self.offered = self.walking = self.unfinished = self.prev_request = None
+        self.calm_until = self.last_reply_at = 0
+        self.last_asked = False
         self._last_diary_prune = 0
         self._owner_queue = __import__("queue").Queue()
         self._owner_worker = None
@@ -1851,6 +1855,9 @@ class Agent:
     CART_REQUEST = re.compile(
         r"(?:(?:yes|yeah|yep|ok|okay|sure)[,!.\s]+)?(?:please\s+)?(?:add|put|throw)\s+(?P<which>it|that|that one|this one|the cheapest(?: one)?|the first(?: one)?|the second(?: one)?|the third(?: one)?|"
         r"number (?P<n>\d+)|#(?P<n2>\d+)|the (?P<store>[a-z][\w .&'-]+?) one)\s+(?:in|into|to)\s+(?:my\s+|the\s+)?(?:cart|bag|basket)(?: please)?\s*[.!]*", re.I)
+    SALE_ALERT = re.compile(r"\W*(?:(?:hey|yo|ok(?:ay)?|luma|please|can you|could you)\W+)*(?:let me know|lemme know|lmk|tell me|ping me|text me|alert me|notify me|holler at me|hit me up)\s+"
+                            r"(?:if|when|once|whenever)\s+(?:the\s+)?(?P<q>.{2,80}?)\s+(?:go|goes|is|are|drop|drops|get|gets|fall|falls|come|comes)\s+"
+                            r"(?:on sale|cheaper|down(?: in price)?|below|under|less than|for less)(?:\s+(?:than\s+)?\$?(?P<target>\d[\d,]*))?(?:\s+(?:please|pls|thanks))?\W*", re.I)
     WATCH_REQUEST = re.compile(
         r"(?:please\s+)?(?:watch|track|keep an eye on|keep watching|monitor)\s+(?:the\s+)?(?:price\s+(?:of|on|for)\s+)?(?P<q>.+?)"
         r"(?:\s+(?:price))?(?:\s+(?:and|&)\s+(?:let me know|tell me|ping me|text me|alert me))?"
@@ -1895,6 +1902,12 @@ class Agent:
             every = {"every hour": "hourly", "hourly": "hourly", "every week": "weekly", "weekly": "weekly"}.get((watch["every"] or "").lower(), "daily")
             target = int(watch["target"].replace(",", "")) if watch["target"] else None
             row = self.helpers.create("price_watch", params={"query": query, "target": target}, every=every)
+            return {"helper": row, "section": "goals", "text": f"On it. I'll {self._helper_phrase(row)}. You'll see it in Goals."}
+        sale = self.SALE_ALERT.fullmatch(text.strip())
+        if sale and self.mode != "kids":
+            query = re.sub(r"^(?:a|an|the|some|my)\s+", "", sale["q"].strip(), flags=re.I)
+            target = int(sale["target"].replace(",", "")) if sale["target"] else None
+            row = self.helpers.create("price_watch", params={"query": query, "target": target}, every="daily")
             return {"helper": row, "section": "goals", "text": f"On it. I'll {self._helper_phrase(row)}. You'll see it in Goals."}
         if grocery_request(text):
             return None  # groceries go through the grocery list and a store's own cart
@@ -2039,6 +2052,13 @@ class Agent:
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
         style = self.store.setting("their_style")
         if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:400]})
+        if self.mode != "kids":
+            read = [(i, p) for i, p in understanding.guess(text, 3) if i != "chat" and p >= 0.15]
+            if read:
+                out.append({"guess": True, "text": "A quick read of what they might want, from Luma's own understanding model (only use it if it fits what they said): "
+                            + ", ".join(f"{understanding.label(i).lower()} ({p:.0%})" for i, p in read)})
+            if self.clock() < (self.calm_until or 0):
+                out.append({"mind": True, "text": "They're frustrated with you right now. Own it in a few words, skip the cheerfulness, keep it short, and fix it one step at a time."})
         called = self.store.setting("assistant_name")
         if called and self.mode != "kids": out.append({"mind": True, "text": f"Your owner named you {called}. That's your name with them now; answer to it."})
         if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
@@ -2458,7 +2478,7 @@ class Agent:
     TEXT_REQUEST = re.compile(
         r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?"
         r"(?:(?:text|message|sms|imessage)\s+(?P<r1>.+?)\s+(?P<c1>to say|to tell (?:her|him|them)|and (?:say|tell (?:her|him|them))|to|that|saying)\s+(?P<b1>.+)"
-        r"|let\s+(?P<r2>.+?)\s+know\s+(?:that\s+)?(?P<b2>.+))", re.I | re.S)
+        r"|let\s+(?!me\b|us\b)(?P<r2>.+?)\s+know\s+(?:that\s+)?(?P<b2>.+))", re.I | re.S)
     TELL_REQUEST = re.compile(
         r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?"
         r"tell\s+(?!me\b|us\b|him\b|her\b|them\b)((?:my|our)\s+[\w'-]+|[A-Za-z][\w'-]*)\s+(?:that\s+)?(.+)", re.I | re.S)
@@ -2491,7 +2511,8 @@ class Agent:
             label = re.sub(r"^(?:my|our)\s+", "", recipient, flags=re.I).lower()
             pronoun = "her" if label in {"girl", "girlfriend", "wife", "mom", "mother", "mama", "sister", "sis", "aunt", "grandma", "daughter", "bae"} else \
                       "his" if label in {"boy", "boyfriend", "husband", "dad", "father", "brother", "bro", "uncle", "grandpa", "son"} else "their"
-            ask = f"Who's {recipient}? Give me {pronoun} name and number" if recipient.lower().startswith(("my ", "our ")) else f"What's {recipient}'s number? Send it"
+            yours = re.sub(r"^(?:my|our)\s+", "your ", recipient, flags=re.I)
+            ask = f"What's {yours}'s name and number? Send {pronoun} number" if recipient.lower().startswith(("my ", "our ")) else f"What's {recipient}'s number? Send it"
             return {"text": ask + " and I'll save it and get the text ready.", "section": "people"}
 
     @staticmethod
@@ -2720,7 +2741,9 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome", "grill", "noticed", "memory_full", "choices", "peek", "renamed") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome", "grill", "noticed", "memory_full", "choices", "peek", "renamed", "cut_off", "walk", "did_you_mean", "talk", "photo", "calm") if k in result}})
+            self.last_reply_at = self.clock()
+            self.last_asked = bool(result.get("asked") or result.get("choices"))
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2752,7 +2775,7 @@ class Agent:
         elif RETRY.match(text.strip()) and getattr(self, "last_request", None):
             text = self.last_request  # "try now", "again": do the last thing again
         else:
-            self.last_request = text.strip()
+            self.prev_request, self.last_request = getattr(self, "last_request", None), text.strip()
         event = cancel_event or self.new_turn()
         with self.lock:
             if event.is_set(): return {"state":"interrupted", "text":"Stopped before starting."}
@@ -2950,7 +2973,261 @@ class Agent:
             return "full"
         return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), **extra})
 
-    REMIND_LATER = re.compile(r"\b(?:and\s+|so\s+|,\s*)?(?:can you\s+|please\s+)?remind me(?: about (?:it|that|this))?(?P<when>\s+(?:later(?: on| today| tonight)?|in a (?:bit|while|little)|tonight|this (?:afternoon|evening)|tomorrow(?: morning)?|before i leave))\b[.!]*", re.I)
+    # ------------------------------------------------------------------
+    # Understanding: however they say it, wherever the conversation is
+    # ------------------------------------------------------------------
+    SLOT_CHOICES = {"timer": ["5 minutes", "10 minutes", "25 minutes"], "make_app": ["A tracker", "A checklist", "Flashcards", "A countdown"],
+                    "music": ["Something chill", "Today's hits", "Lofi"]}
+    REMIND_ASK = re.compile(r"^\W*(?:(?:hey|yo|ok(?:ay)?|so|um+|uh+|and|also|luma)\W+)*(?:(?:can|could|would|will) (?:you|u)(?: please)?\s+|please\s+|pls\s+|i need (?:you|u) to\s+)?(?:(?:like|just|um+|uh+|maybe|literally)\s+)*"
+                            r"(?:remind me|set (?:a|me a) reminder|ping me|nudge me|alert me|don'?t let me forget|make sure i(?: don'?t forget)?(?: remember)?|remember to tell me|"
+                            r"i (?:need|have|gotta|got|should) (?:to )?remember)\b(?P<rest>.*)$", re.I)
+
+    TASK_VERBS = {"call", "text", "email", "pay", "buy", "pick", "take", "grab", "get", "go", "send", "check", "book", "renew", "cancel", "water", "feed", "walk",
+                  "finish", "submit", "start", "clean", "do", "study", "write", "read", "move", "make", "leave", "join", "order", "return", "drink", "stretch",
+                  "meditate", "pray", "charge", "follow", "schedule", "bring", "put", "wash", "cook", "defrost", "sign", "print", "mail", "drop", "turn", "tell",
+                  "ask", "visit", "see", "meet", "reply", "respond", "eat", "sleep", "wake", "log", "file", "fill", "plan", "prep", "practice", "run", "work", "change"}
+    THEN = re.compile(r",?\s+(?:and\s+)?(?:then|after that|also|plus)\s+(?=(?:put|play|text|email|call|open|set|remind|send|make|find|check|look|tell|turn|start|add|throw|bump)\b)", re.I)
+
+    def _reminder(self, text, cancel_event=None):
+        """'remind me to call mom at 5', 'don't let me forget the trash tonight', 'ping me tmrw to pay rent': a reminder, with or without the brain."""
+        m = self.REMIND_ASK.match(text.strip())
+        if not m or self.mode == "kids":
+            return None
+        parts = [p for p in self.THEN.split(text.strip()) if p.strip()]
+        if len(parts) > 1:
+            return None if self.use_model else self.run_steps(parts[:6], cancel_event)  # several things in one breath
+        from luma.agent.later_mail import when, _strip, fix_typos
+        rest = re.sub(r"[\w/']+", lambda w: understanding.SLANG.get(w.group(0).lower(), w.group(0)) if w.group(0).lower() not in {"id", "r", "k", "cause"} else w.group(0), m["rest"])
+        rest = fix_typos(rest)
+        bare = re.fullmatch(r"\s*(?:for|at)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\W*", rest, re.I)
+        if bare: rest = " at " + bare[1]  # "set a reminder for 5"
+        now = self.clock()
+        due, spans = when(rest, now, self.zone)
+        said_when = " ".join(rest[a:b] for a, b in sorted(spans)).strip()
+        what = re.sub(r"\s+", " ", _strip(rest, spans) if spans else rest).strip(" ,.;:!?")
+        for _ in range(2):
+            what = re.sub(r"^(?:to|about|that|for|of|i|me|on|at)\s+", "", what, flags=re.I).strip(" ,.;:!?")
+        what = re.sub(r"(?:\s+(?:please|pls|plz|thanks|thank you|ok|okay|lol|real quick|for me|rn|right now|again))+$", "", what, flags=re.I).strip(" ,.;:!?")
+        if re.fullmatch(r"(?:instead|instead of (?:that|it)|of (?:it|that)|it|that|this|about (?:it|that|this))", what, re.I):
+            return None  # "just remind me instead": the conversation it belongs to knows what
+        if not what:
+            self.unfinished = {"prefix": "remind me to ", "suffix": (" " + said_when) if said_when else "", "at": now}
+            return {"text": "Sure. What should I remind you about?" if due else "Remind you to what?", "asked": True}
+        yours = re.sub(r"\bmy\b", "your", re.sub(r"\bi\b", "you", what, flags=re.I), flags=re.I)
+        joiner = "to" if what.split()[0].lower() in self.TASK_VERBS else "about"
+        if due is None and self.use_model:
+            return None  # the brain names it better ("Check Gmail") and asks when
+        if due is None:
+            self.unfinished = {"prefix": f"remind me to {what} ", "at": now}
+            return {"text": f"When should I remind you {joiner} {yours}?", "asked": True, "choices": ["In an hour", "Tonight at 8", "Tomorrow at 9am"]}
+        result = self.propose("tasks.create", {"title": (what[:1].upper() + what[1:])[:160], "due": datetime.fromtimestamp(due, self.zone).isoformat()})
+        if isinstance(result, dict) and result.get("state") != "failed":
+            at = datetime.fromtimestamp(due, self.zone)
+            today = datetime.fromtimestamp(now, self.zone).date()
+            clock = at.strftime("%-I:%M %p").replace(":00 ", " ")
+            minutes = round((due - now) / 60)
+            spoken = (f"in {minutes} minutes" if minutes < 90 and re.search(r"\bin\b", said_when) else f"at {clock}" if at.date() == today
+                      else f"tomorrow at {clock}" if at.date() == today + timedelta(days=1) else f"on {at.strftime('%A')} at {clock}" if (at.date() - today).days < 7
+                      else f"on {at.strftime('%b')} {at.day} at {clock}")
+            result["text"] = f"Got it. I'll remind you {joiner} {yours} {spoken}."
+        return result
+
+    def _reroute(self, text, cancel_event):
+        """Run a clearer version of what they said through everything Luma knows how to do. None if nothing matched."""
+        was = getattr(self, "_rerouting", False)
+        self._rerouting = True
+        try:
+            return self._chat(text, cancel_event)
+        finally:
+            self._rerouting = was
+
+    def _stopped_short(self, text):
+        if getattr(self, "_rerouting", False) or self.pending_mail or self.awaiting:
+            return None
+        ask = understanding.cut_off(text)
+        if not ask:
+            return None
+        self.unfinished = {"text": text.strip(), "at": self.clock()}
+        return {"text": ask, "asked": True, "cut_off": True}
+
+    def _walk_step(self, topic, i):
+        walk = understanding.WALKS[topic]
+        steps = walk["steps"]
+        if i >= len(steps):
+            self.walking = None
+            return {"text": "That's everything. You're all set. Want to try it now?", "walk": {"title": walk["title"], "step": len(steps), "of": len(steps), "done": True}}
+        step = steps[i]
+        last = i == len(steps) - 1
+        self.walking = None if last else {"topic": topic, "step": i, "at": self.clock()}
+        lead = ("Sure, let's do it step by step. " if len(steps) > 2 else "Sure. ") if i == 0 else ""
+        out = {"text": lead + step["say"], "walk": {"title": walk["title"], "step": i + 1, "of": len(steps), "done": last}}
+        if not last:
+            out.update(asked=True, choices=["Done, next", "I'm stuck", "Stop"])
+        if step.get("open"):
+            out["peek"] = step["open"]
+        return out
+
+    def _either(self, labels):
+        said = [l[:1].lower() + l[1:] if not l.startswith("Luma") else l for l in labels]
+        return said[0] if len(said) == 1 else ", ".join(said[:-1]) + ", or " + said[-1]
+
+    def _do_intent(self, intent, original, cancel_event, tried=False):
+        """They picked one (or the model's sure): do it, or ask for the one detail it needs."""
+        from luma.agent.scenarios import INTENTS
+        spec = INTENTS.get(intent) or {}
+        if spec.get("walk"):
+            return self._walk_step(spec["walk"], 0)
+        if spec.get("action") == "talk":
+            return {"text": "I'm listening. Go ahead.", "talk": True}
+        if spec.get("action") == "photo":
+            return {"text": "Show me. Tap the picture button next to where you type and pick a photo.", "photo": True}
+        if spec.get("say"):
+            done = self._reroute(spec["say"], cancel_event)
+            return done if done is not None else {"text": "I couldn't do that one just now. Try saying it another way?"}
+        if intent == "remember":
+            said = re.sub(r"^\W*(?:(?:hey|yo|ok(?:ay)?|luma)\W+)*(?:please\s+)?(?:remember|save (?:this|that)|note (?:that|this)|keep in mind|don'?t forget|write (?:this |that )?down|"
+                          r"make a note(?: of)?|fyi|store this|for the record|jot (?:this|that) down)\W*(?:that\s+)?", "", original or "", flags=re.I).strip(" .!?")
+            if len(said.split()) >= 2:
+                facts = presence.notice_facts(said)
+                kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row not in (None, "full")]
+                if kept:
+                    self.last_noticed = [row["id"] for _, row in kept]
+                    return {"text": "Got it. " + " ".join(f + "." for f, _ in kept), "noticed": [{"id": row["id"], "text": f} for f, row in kept]}
+                done = self.propose("memory.remember", {"text": said[:1].upper() + said[1:]})
+                return {**done, "text": "Got it, I'll remember that."}
+        if spec.get("prefix"):
+            plain = understanding.respell(original or "")
+            if plain and not tried:
+                done = self._reroute(plain, cancel_event)
+                if done is not None:
+                    return done
+            self.unfinished = {"prefix": spec["prefix"], "at": self.clock(), "intent": intent}
+            out = {"text": spec["ask"], "asked": True}
+            if intent in self.SLOT_CHOICES: out["choices"] = self.SLOT_CHOICES[intent]
+            return out
+        return None
+
+    def _offer(self, options, about):
+        self.offered = {"options": [{"intent": i, "label": understanding.label(i)} for i in options], "text": about, "at": self.clock()}
+        return [o["label"] for o in self.offered["options"]]
+
+    def _guess_and_act(self, text, lowered, cancel_event):
+        """None of the exact phrasings matched. The understanding model reads the meaning: it acts when it's sure,
+        asks "did you mean" when it's torn, and stays out of the way when it's just conversation."""
+        if self.mode == "kids" or getattr(self, "_in_steps", False):
+            return None
+        top = understanding.guess(text, 4)
+        if not top or top[0][0] == "chat":
+            return None
+        intent, p = top[0]
+        from luma.agent.scenarios import INTENTS
+        spec = INTENTS[intent]
+        if p >= 0.8:
+            if spec.get("prefix"):
+                plain = understanding.respell(text)
+                if _words(plain) != _words(text):
+                    done = self._reroute(plain, cancel_event)
+                    if done is not None:
+                        return done
+                if self.use_model:
+                    return None  # the brain can pull the details out of what they said
+                return self._do_intent(intent, text, cancel_event, tried=True)
+            if self.use_model:
+                from luma.agent.scenarios import IMPERATIVE
+                plain = understanding.normalize(text)
+                if p < 0.9 or len(plain.split()) > 8 or not (IMPERATIVE.match(plain) or re.match(r"(?:what|where|when|who|how|show|my)\b", plain)):
+                    return None  # the brain reads it, with this guess in mind
+            return self._do_intent(intent, text, cancel_event)
+        if self.use_model:
+            return None  # torn: the brain decides, with this guess in mind (see _mind_context)
+        options = [i for i, q in top if i != "chat" and q >= 0.08][:3]
+        if not options or p < 0.25:
+            return None
+        labels = self._offer(options, text)
+        return {"text": "Did you mean " + self._either(labels) + "?", "asked": True, "choices": labels + ["Something else"], "did_you_mean": True}
+
+    def _recover(self, level, aimed):
+        """'That's not what I said': own it in a few words, then get it right one step at a time."""
+        self.calm_until = self.clock() + 900
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary"
+        if not aimed:  # "ugh", "bruh" right after Luma said something
+            return {"text": "Did I get that wrong?" if not casual else "did i mess that up?", "asked": True, "choices": ["Yeah, that's wrong", "No, all good"], "calm": True}
+        sorry = ("my bad" if level < 2 else "my bad, i messed that up") if casual else ("Sorry, that's on me" if level < 2 else "Sorry, I got that wrong")
+        sorry = sorry[:1].upper() + sorry[1:]
+        before = self.prev_request
+        options = [i for i, q in understanding.guess(before, 5) if i != "chat" and q >= 0.01] if before else []
+        if options and not self.last_asked:
+            options = options[1:]  # Luma acted on its best read last time, and that was wrong
+        options = options[:3]
+        if options:
+            labels = self._offer(options, before)
+            return {"text": f"{sorry}. Did you want me to {self._either(labels)}? Or say it again your way and I'll take it slow.",
+                    "asked": True, "choices": labels + ["Something else"], "calm": True}
+        return {"text": f"{sorry}. Tell me what you need, a piece at a time, and I'll get it right.", "asked": True, "calm": True}
+
+    def _follow_through(self, text, lowered, cancel_event):
+        """What this message means given where the conversation is."""
+        if getattr(self, "_rerouting", False):
+            return None
+        now = self.clock()
+        offered, self.offered = self.offered, None
+        if offered and now - offered["at"] < 600:
+            choice = understanding.pick(text, [o["label"] for o in offered["options"]])
+            if choice == "none":
+                return {"text": "Okay, not those. Say it however you want, as much or as little as you like, and I'll work it out.", "asked": True}
+            if isinstance(choice, int):
+                return self._do_intent(offered["options"][choice]["intent"], offered["text"], cancel_event)
+        if re.fullmatch(r"\W*yeah,? that'?s wrong\W*", lowered):
+            return self._recover(1, True)
+        if re.fullmatch(r"\W*no,? all good\W*", lowered):
+            return {"text": "Cool. What's next?"}
+        walking = self.walking
+        if walking and now - walking["at"] < 1800:
+            steps = understanding.WALKS[walking["topic"]]["steps"]
+            if understanding.STOP.match(text):
+                self.walking = None
+                return {"text": "Okay, stopping there. Ask me anytime and we'll pick it back up."}
+            if understanding.NEXT.match(text):
+                return self._walk_step(walking["topic"], walking["step"] + 1)
+            if understanding.STUCK.search(text):
+                step = steps[walking["step"]]
+                self.walking = {**walking, "at": now}
+                out = {"text": step.get("stuck") or "No worries, let's slow down. " + step["say"], "asked": True, "choices": ["Got it, next", "Still stuck", "Stop"],
+                       "walk": {"title": understanding.WALKS[walking["topic"]]["title"], "step": walking["step"] + 1, "of": len(steps), "done": False}}
+                if step.get("open"): out["peek"] = step["open"]
+                return out
+            self.walking = None  # they moved on to something else
+        unfinished, self.unfinished = self.unfinished, None
+        if unfinished and now - unfinished["at"] < 300:
+            if re.match(r"^\W*(?:never ?mind|nvm|forget (?:it|that)|cancel|no+|nah|nope|stop)\W*$", lowered):
+                return {"text": "No worries."}
+            from luma.agent.scenarios import IMPERATIVE
+            asking = re.match(r"^\W*(?:hey|yo|ok(?:ay)? luma|luma|can (?:you|u)|could (?:you|u)|will (?:you|u)|please)\b", lowered)
+            commanding = unfinished.get("intent") not in (None, "remind") and (IMPERATIVE.match(lowered) or re.match(r"^\W*(?:what|where|when|who|how)\b", lowered))
+            fresh = understanding.guess(text, 1) if unfinished.get("intent") and (asking or commanding) else []
+            if fresh and fresh[0][0] not in ("chat", unfinished["intent"]) and fresh[0][1] >= (0.85 if asking else 0.97):
+                unfinished = None  # not an answer: a new request
+        if unfinished and now - unfinished["at"] < 300:
+            if re.fullmatch(r"\W*(?:ok(?:ay)?|k|kk|yes|yeah|yep|sure|alright|hm+|um+|uh+|so)\W*", lowered):
+                self.unfinished = {**unfinished, "at": now}  # "ok" isn't the answer yet
+                return {"text": "Take your time. What should it be?", "asked": True}
+            if unfinished.get("prefix"):
+                answer = text.strip().rstrip(".!")
+                if re.search(r"\b(?:a|an)\s*$", unfinished["prefix"]):
+                    answer = re.sub(r"^(?:a|an|the)\s+", "", answer, flags=re.I)
+                return unfinished["prefix"] + answer + unfinished.get("suffix", "")
+            return unfinished["text"].rstrip(".…-— ") + " " + text.strip()
+        level, aimed, rest = understanding.frustration(text)
+        if level:
+            recent = now - (self.last_reply_at or 0) < 300 and bool(self.prev_request)
+            if len(rest.split()) >= 3:
+                if aimed: self.calm_until = now + 900
+                return None  # a real request with some heat on it: do it, and keep it short
+            if aimed or (recent and not rest):
+                return self._recover(level, aimed)
+        return None
+
+    REMIND_LATER = re.compile(r"\b(?:and\s+|so\s+|,\s*)?(?:can you\s+|please\s+)?remind me(?: about (?:it|that|this))?(?P<when>\s+(?:later(?: on| today| tonight)?|in a (?:bit|while|little)|tonight|this (?:afternoon|evening)|tomorrow(?: morning)?|before i leave))\b(?=\s*(?:[.!,;]|$|and\b|so\b|please\b|pls\b|thanks\b|ok\b|lol\b))[.!]*", re.I)
 
     def _memo(self, text, lowered):
         """Memory that just catches it: where things are, and 'remind me later' with no time given."""
@@ -3095,7 +3372,7 @@ class Agent:
         with self.lock:
             from luma.agent.later_mail import fix_typos
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
-            if lowered in {"hush", "not now", "stop"} and not (self.store.setting("grilling") and lowered == "stop"):
+            if lowered in {"hush", "not now", "stop"} and not ((self.store.setting("grilling") or self.walking) and lowered == "stop"):
                 self.hush(); return {"text": "Okay, I'll keep quiet for half an hour."}
             if lowered in {"mute", "privacy on"}:
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
@@ -3104,6 +3381,16 @@ class Agent:
                 return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
             followup = self._contact_followup(text)
             if followup is not None: return followup
+            carried = self._follow_through(text, lowered, cancel_event)  # a pick from "did you mean", the next step, the rest of a cut-off sentence
+            if isinstance(carried, dict): return carried
+            if isinstance(carried, str):
+                text = presence.strip_wake(carried)
+                lowered = fix_typos(text).lower()
+            short = self._stopped_short(text)  # "remind me to" and then nothing: they got cut off
+            if short is not None: return short
+            if not self.store.setting("grilling") and not getattr(self, "_rerouting", False):
+                topic = understanding.walk_topic(text)  # "how do I get you in Chrome?": step by step
+                if topic: return self._walk_step(topic, 0)
             grilled = self._grill(text, lowered, cancel_event)  # mid-interview, an answer is an answer
             if grilled is not None: return grilled
             memo = self._memo(text, lowered)  # "I left my keys on the counter, remind me later", "where are my keys?"
@@ -3146,6 +3433,9 @@ class Agent:
                 rest = re.sub(r"^(?:do you remember|remember|recall)\s+", "", text, flags=re.I).strip()
                 asking = lowered.startswith(("recall ", "do you remember ")) or rest.endswith("?") or re.match(r"(?:where|when|what|who|how|if|whether|which)\b", rest, re.I)
                 if not asking:
+                    if re.fullmatch(r"(?:this|that|it|this for me|that for me|something)\W*", rest, re.I):
+                        self.unfinished = {"prefix": "remember ", "at": self.clock(), "intent": "remember"}
+                        return {"text": "Sure. What should I remember?", "asked": True}
                     return self.propose("memory.remember", {"text": rest})
                 found = self.propose("memory.recall", {"query": rest.rstrip("?")})
                 if self.use_model and found.get("memories"):
@@ -3160,6 +3450,8 @@ class Agent:
                 delay = int(m[1]) * (60 if m[2].lower().startswith("minute") else 3600 if m[2].lower().startswith("hour") else 86400)
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
                 return self.propose("tasks.create", {"title": m[3], "due": datetime.fromtimestamp(self.clock()+delay, self.zone).isoformat()})
+            reminder = self._reminder(text, cancel_event)
+            if reminder is not None: return reminder
             podcast = self._podcast(text, lowered, cancel_event)
             if podcast is not None: return podcast
             made = self._app_request(text)
@@ -3239,15 +3531,20 @@ class Agent:
                 name = LLAMA_MODEL_PATH.name
                 label = 'Qwen3 4B Instruct 2507' if 'Qwen3-4B-Instruct-2507' in name else 'Llama 3.2 3B Instruct' if name.startswith('Llama-3.2-3B-Instruct') else name
                 return {"text": ("I'm using " if self.use_model else "Conversation is off. The configured model is ") + label + ", running locally on this Mac. Your saved preferences shape how I reply; the model weights have not been fine-tuned."}
+            if getattr(self, "_rerouting", False):
+                return None  # the clear version matched nothing either: answer what they actually said
+            guessed = self._guess_and_act(text, lowered, cancel_event)
+            if guessed is not None: return guessed
             if not self.use_model:
                 if GREETING.fullmatch(lowered.strip(" !?.")):
                     hour = datetime.fromtimestamp(self.clock(), self.zone).hour
                     name = (self.profile.get("name") or "").split(" ")[0]
                     hello = ("Up late" if hour < 5 else "Morning" if hour < 12 else "Hey" if hour < 18 else "Evening") + (f", {name}" if name else "")
                     return {"text": f"{hello}! What can I take off your plate? I can find the cheapest price on something, go through your email, set a reminder, or make a deck."}
+                facts = presence.notice_facts(text) if self.store.setting("learn_from_chat", True) else []
+                if facts:
+                    return {"text": "Got it. " + " ".join(f + "." for f in facts[:3])}
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
-            if getattr(self, "_rerouting", False):
-                return None  # the clear version matched nothing either: answer what they actually said
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
                     and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and ACTIONISH.search(lowered):
