@@ -16,6 +16,8 @@
     library: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     news: '<path d="M5 5.5h11v13H6.5A1.5 1.5 0 0 1 5 17V5.5Z"/><path d="M16 9h3v8.5a1 1 0 0 1-1 1h-2M8 9h5M8 12h5M8 15h3"/>',
+    spatial: '<rect x="3.5" y="7" width="9" height="10" rx="2.2"/><path d="M15.5 8.5 20 7v10l-4.5-1.5M12.5 5.5h4"/>',
+    music: '<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>',
     compose: '<path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13"/><path d="M17.6 3.9a1.9 1.9 0 0 1 2.7 2.7L12 14.9l-3.5.8.8-3.5 8.3-8.3Z"/>',
     apps: '<path d="M9 7V4M15 7V4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v4"/>',
     rules: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>',
@@ -371,7 +373,7 @@
       const d = await api("/api/threads/" + encodeURIComponent(thread));
       state.transcripts[thread] = d.messages || [];
     } catch (e) {
-      if (e.status === 404 && thread !== "main") { state.thread = "main"; return loadThread("main"); }
+      if (e.status === 404 && thread !== "main") { openFresh(); return; }
     }
   }
   function threadTitle(id) { return (state.home?.threads || []).find((t) => t.id === id)?.title; }
@@ -379,8 +381,9 @@
   function renderChat() {
     const box = $("thread");
     const list = items(state.thread);
-    $("chat-title").textContent = state.thread === "main" ? "Luma" : (threadTitle(state.thread) || "Side chat");
-    $("chat-title").classList.toggle("wordmark", state.thread === "main");
+    const named = list.length ? threadTitle(state.thread) : "";
+    $("chat-title").textContent = named && named !== "New chat" ? named : "Luma";
+    $("chat-title").classList.toggle("wordmark", !named || named === "New chat");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     box.replaceChildren();
     const empty = !list.length && !state.busy;
@@ -490,7 +493,7 @@
     const hello = el("h2");
     hello.append(h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
     if (name) hello.append(", ", el("em", null, name));
-    e.append(hello, el("p", null, state.thread === "main" ? "What should I take off your plate?" : "A fresh chat. What's this one about?"));
+    e.append(hello, el("p", null, "What should I take off your plate?"));
     const row = $("starters");
     row.replaceChildren();
     for (const [k, ic, title, sub, say] of STARTERS) {
@@ -1183,6 +1186,7 @@
       else mood("idle", "Here with you");
       if (r.open === "apps") setTimeout(() => go("apps"), 900);
       if (r.open_url && safeUrl(r.open_url)) window.open(r.open_url, "_blank", "noopener");
+      if (spatial.open) spatialPop(r);
       // In a conversation Luma says it out loud (asking for your OK if it needs it) and keeps listening.
       talkBack(r);
     } catch (e) {
@@ -1233,7 +1237,6 @@
     else renderView(view);
   }
   for (const b of document.querySelectorAll(".nav-item")) b.addEventListener("click", () => {
-    if (b.dataset.view === "chat" && state.thread !== "main") { state.thread = "main"; loadThread("main").then(() => go("chat")); return; }
     go(b.dataset.view);
   });
   $("open-settings").addEventListener("click", () => go("settings"));
@@ -1260,6 +1263,13 @@
   $("new-chat").addEventListener("click", newChat);
   $("who").addEventListener("click", () => { if (state.view !== "chat") go("chat"); });
   $("add").addEventListener("click", () => openPalette(""));
+  // Opening Luma: the newest chat if it's still empty, otherwise a fresh one. Old chats stay in the list.
+  async function openFresh() {
+    await refreshHome();
+    const empty = (state.home?.threads || []).filter((t) => !t.messages && t.id !== "main").sort((a, b) => (b.updated || 0) - (a.updated || 0))[0];
+    if (empty) { state.thread = empty.id; state.transcripts[empty.id] = []; go("chat"); return; }
+    await newChat();
+  }
   async function newChat() {
     try {
       const t = await api("/api/threads/new", {});
@@ -1272,9 +1282,10 @@
   function renderThreads() {
     const box = $("threads");
     box.replaceChildren();
-    const threads = (state.home?.threads || []).filter((x) => x.id !== "main");
+    // Every chat is a chat; empty ones stay out of the list unless you're in one.
+    const threads = (state.home?.threads || []).filter((x) => x.messages || x.id === state.thread);
     if (!threads.length) {
-      const hint = el("button", "thread-item hint", "Start a side chat for anything you want to keep separate.");
+      const hint = el("button", "thread-item hint", "Your chats show up here. Start one any time.");
       hint.type = "button";
       hint.addEventListener("click", newChat);
       box.append(hint);
@@ -1297,7 +1308,7 @@
       x.title = "Delete chat";
       x.addEventListener("click", async (e) => {
         e.stopPropagation();
-        try { await api("/api/threads/delete", { id: t.id }); if (state.thread === t.id) { state.thread = "main"; await loadThread("main"); } await refreshHome(); if (state.view === "chat") renderChat(); } catch (err) { toast(err.message); }
+        try { await api("/api/threads/delete", { id: t.id }); if (state.thread === t.id) await openFresh(); await refreshHome(); if (state.view === "chat") renderChat(); } catch (err) { toast(err.message); }
       });
       b.append(x);
       b.addEventListener("click", async () => { state.thread = t.id; await loadThread(t.id); go("chat"); });
@@ -2377,7 +2388,7 @@
     };
     if (q) section("Ask Luma", [{ chip: chip("update", "chat"), title: raw, sub: "↵", run: () => send(raw) }]);
     const views = [["chat", "Main chat", "chat"], ["feed", "Feed", "feed"], ["ideas", "Ideas", "ideas"], ["goals", "Goals", "goals"], ["library", "Library", "library"], ["apps", "Apps", "apps"], ["rules", "Rules", "rules"], ["settings", "Settings", "settings"]];
-    section("Go to", views.filter(([, t]) => has(t)).slice(0, q ? 4 : 8).map(([v, t, ic]) => ({ chip: chip("setup", ic), title: t, run: () => { if (v === "chat") state.thread = "main"; go(v); } })));
+    section("Go to", views.filter(([, t]) => has(t)).slice(0, q ? 4 : 8).map(([v, t, ic]) => ({ chip: chip("setup", ic), title: t, run: () => go(v) })));
     section("Chats", (state.home?.threads || []).filter((t) => t.id !== "main" && has(t.title)).slice(0, 5).map((t) => ({ chip: chip("people", "chat"), title: t.title, run: async () => { state.thread = t.id; await loadThread(t.id); go("chat"); } })));
     section("Feed", (state.home?.cards || []).filter((c) => has(c.title) || has(c.body)).slice(0, 5).map((c) => ({ chip: chip(c.kind in KIND ? c.kind : "update", (KIND[c.kind] || KIND.update).icon), title: c.title, sub: ago(c.created), run: () => { state.feedSel = c.id; go("feed"); } })));
     section("Ideas", (state.home?.ideas || []).filter((i) => has(i.title)).slice(0, q ? 4 : 5).map((i) => ({ chip: chip(i.kind in KIND ? i.kind : "idea", (KIND[i.kind] || KIND.idea).icon), title: i.title, run: () => (/^connect my/.test(i.say) ? go("apps") : send(i.say)) })));
@@ -2959,12 +2970,185 @@
   const scheme = matchMedia("(prefers-color-scheme: dark)");
   if (scheme.addEventListener) scheme.addEventListener("change", () => applyTheme(theme));
 
+
+  // ------------------------------------------------------------ spatial ---
+  // Spatial mode: Luma's work floats around you as glass panels, like visionOS. The one in focus
+  // sits in front; click another and it swings forward while the rest rotate back into depth.
+  // Talk mode lives here too: an orb, and little memory cards that pop up as Luma does things.
+  const spatial = { open: false, focus: 0, timer: 0, frameHash: null, news: [], music: null };
+  const SP_PANELS = [
+    { id: "chat", title: "Chat", icon: "chat" },
+    { id: "browser", title: "Browser", icon: "globe" },
+    { id: "news", title: "News", icon: "news" },
+    { id: "now", title: "Luma is doing", icon: "spark" },
+    { id: "music", title: "Music", icon: "music" },
+  ];
+  function spPanels() { return SP_PANELS.filter((p) => p.id !== "music" || spatial.music); }
+  function openSpatial() {
+    if (spatial.open) return;
+    spatial.open = true;
+    const box = $("spatial");
+    box.hidden = false;
+    document.body.classList.add("in-spatial");
+    requestAnimationFrame(() => box.classList.add("on"));
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    api("/api/news").then((d) => { spatial.news = (d.items || []).slice(0, 6); spRender(); }).catch(() => {});
+    spRender();
+    spTick();
+  }
+  function closeSpatial() {
+    if (!spatial.open) return;
+    spatial.open = false;
+    clearTimeout(spatial.timer);
+    const box = $("spatial");
+    box.classList.remove("on");
+    document.body.classList.remove("in-spatial");
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    setTimeout(() => { if (!spatial.open) box.hidden = true; }, 420);
+  }
+  function spFocus(i) { spatial.focus = i; spLayout(); }
+  // Where each panel sits: the focused one front and centre, the rest swung around it in depth.
+  function spLayout() {
+    const panels = [...$("sp-stage").children];
+    const n = panels.length;
+    panels.forEach((el2, i) => {
+      let d = i - spatial.focus;
+      if (d > n / 2) d -= n;
+      if (d < -n / 2) d += n;
+      const side = Math.sign(d), far = Math.abs(d);
+      const x = far === 0 ? 0 : side * (far === 1 ? 50 : 82);
+      const z = far === 0 ? 0 : far === 1 ? -420 : -760;
+      const ry = far === 0 ? 0 : -side * (far === 1 ? 20 : 28);
+      el2.style.transform = `translate3d(calc(-50% + ${x}%), -50%, ${z}px) rotateY(${ry}deg) scale(${far === 0 ? 1 : far === 1 ? 0.86 : 0.74})`;
+      el2.style.zIndex = String(10 - far);
+      el2.style.opacity = far > 2 ? "0" : String(far === 0 ? 1 : far === 1 ? 0.94 : 0.72);
+      el2.classList.toggle("focus", far === 0);
+    });
+    [...$("sp-rail").children].forEach((b, i) => b.classList.toggle("on", i === spatial.focus));
+  }
+  function spPanel(p) {
+    const card = el("section", "sp-panel");
+    card.dataset.id = p.id;
+    const head = el("header", "sp-head");
+    head.append(icon(p.icon), el("b", null, p.id === "chat" ? (threadTitle(state.thread) && threadTitle(state.thread) !== "New chat" ? threadTitle(state.thread) : "Chat") : p.title));
+    const body = el("div", "sp-body");
+    if (p.id === "chat") {
+      const list = el("div", "sp-msgs");
+      for (const m of items(state.thread).slice(-8)) {
+        if (m.role === "notice") continue;
+        list.append(el("div", "sp-msg " + (m.role === "you" ? "you" : "luma"), m.text || (m.photo ? "📷 Photo" : "")));
+      }
+      if (!list.childElementCount) list.append(el("div", "sp-empty", "Say or type anything. I'll pull things up around you as I work."));
+      const f = el("form", "sp-input");
+      const inp = el("input"); inp.placeholder = "Ask Luma anything"; inp.autocomplete = "off";
+      const go1 = btn("", "send", () => {}, "up"); go1.type = "submit"; go1.disabled = false;
+      f.append(inp, go1);
+      f.addEventListener("submit", (e) => { e.preventDefault(); const t = inp.value.trim(); if (t) { inp.value = ""; send(t); } });
+      body.append(list, f);
+      requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+    } else if (p.id === "browser") {
+      const img = el("img", "sp-shot"); img.alt = ""; img.id = "sp-shot";
+      const src = $("b-img")?.src;
+      if (src && src.startsWith("data:")) img.src = src; else img.hidden = true;
+      const empty = el("div", "sp-empty", "Nothing open yet. Ask me to open a site, or tap here to browse.");
+      empty.hidden = !img.hidden;
+      body.append(img, empty);
+      body.addEventListener("dblclick", () => { closeSpatial(); go("browser"); });
+    } else if (p.id === "news") {
+      if (!spatial.news.length) body.append(el("div", "sp-empty", "Reading the latest…"));
+      for (const n of spatial.news) {
+        const row = el("button", "sp-news"); row.type = "button";
+        row.append(el("span", "t", n.title), el("span", "s", [n.source, n.age].filter(Boolean).join(" · ")));
+        row.addEventListener("click", () => window.open(n.url, "_blank", "noopener"));
+        body.append(row);
+      }
+    } else if (p.id === "now") {
+      const a = state.activity;
+      const steps = (a && a.steps) || [];
+      body.append(el("div", "sp-doing", a && a.state === "running" ? a.title || "Working" : "Ready when you are"));
+      for (const st of steps.slice(-6)) body.append(el("div", "sp-step" + (st.done ? " done" : ""), st.text));
+      const waiting = (state.home?.approvals || []).length;
+      if (waiting) { const w = btn(`${waiting} waiting for your OK`, "pill primary small", () => { closeSpatial(); go("chat"); }, "check"); body.append(w); }
+      for (const m of (state.home?.later_mail || []).slice(0, 3)) body.append(el("div", "sp-step", `✉️ ${m.subject} · ${new Date(m.send_at * 1000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`));
+    } else if (p.id === "music") {
+      body.append(el("div", "sp-music-art", "🎵"), el("div", "sp-doing", spatial.music.title));
+      body.append(linkOut("Open player", spatial.music.url, "pill soft small", "external"));
+    }
+    card.append(head, body, el("div", "sp-grab"));
+    card.addEventListener("click", () => { const i = spPanels().findIndex((x) => x.id === p.id); if (i !== spatial.focus) spFocus(i); });
+    return card;
+  }
+  function spRender() {
+    if (!spatial.open) return;
+    const panels = spPanels();
+    spatial.focus = Math.min(spatial.focus, panels.length - 1);
+    $("sp-stage").replaceChildren(...panels.map(spPanel));
+    $("sp-rail").replaceChildren(...panels.map((p, i) => { const b = btn("", "sp-rail-btn", () => spFocus(i), p.icon); b.title = p.title; return b; }));
+    spLayout();
+  }
+  // Keep the live parts live: the browser picture, what Luma is doing, the talk orb.
+  async function spTick() {
+    if (!spatial.open) return;
+    try {
+      const d = await api("/api/browser/frame" + (spatial.frameHash ? "?have=" + encodeURIComponent(spatial.frameHash) : ""));
+      const f = d.frame, img = $("sp-shot");
+      if (f && img && !f.same && f.jpeg_base64) { img.src = "data:image/jpeg;base64," + f.jpeg_base64; img.hidden = false; img.nextSibling && (img.nextSibling.hidden = true); }
+      if (f) spatial.frameHash = f.hash;
+    } catch (_) { /* fine */ }
+    const now = document.querySelector('.sp-panel[data-id="now"]');
+    if (now && !document.querySelector(".sp-panel.focus .sp-input input:focus")) now.replaceWith(spPanel(SP_PANELS[3]));
+    spLayout();
+    $("sp-status").textContent = document.body.classList.contains("speaking") ? "Talking" : voice.talkMode ? "Listening…" : state.busy ? "Working on it…" : "Tap the orb and talk";
+    $("sp-orb").classList.toggle("live", voice.talkMode || state.busy || document.body.classList.contains("speaking"));
+    spatial.timer = setTimeout(spTick, 1200);
+  }
+  // Memory cards: what Luma just did pops up in space, then drifts away.
+  function spatialPop(r) {
+    if (!spatial.open || !r) return;
+    const cards = [];
+    const add = (emoji, title, focusId) => cards.push({ emoji, title: String(title || "").slice(0, 70), focusId });
+    if (r.results && r.section === "news") r.results.slice(0, 3).forEach((n) => add("📰", n.title, "news"));
+    if (r.draft_email || (r.tool || "").startsWith("mail.")) add("✉️", r.draft_email?.subject || r.arguments?.subject || "Email ready", "chat");
+    if (r.task) add("⏰", r.task.title || "Reminder set", "now");
+    if (r.open_url && /music/.test(r.open_url)) { spatial.music = { title: r.text?.replace(/^Playing\s+/i, "").split(" on ")[0] || "Music", url: r.open_url }; add("🎵", spatial.music.title, "music"); }
+    if (r.state === "pending") add("✅", "Waiting for your OK", "chat");
+    if (r.steps) r.steps.forEach((st) => add("✨", st.step, "now"));
+    if (!cards.length && r.text) add("💬", r.text, "chat");
+    spRender();
+    const box = $("sp-pops");
+    cards.slice(0, 5).forEach((c, i) => {
+      const pop = el("button", "sp-pop"); pop.type = "button";
+      pop.style.left = `${12 + ((i * 19 + Math.random() * 10) % 70)}%`;
+      pop.style.top = `${8 + (i % 2) * 9 + Math.random() * 6}%`;
+      pop.style.animationDelay = `${i * 120}ms`;
+      pop.append(el("span", "e", c.emoji), el("span", "t", c.title));
+      pop.addEventListener("click", () => { const k = spPanels().findIndex((p) => p.id === c.focusId); if (k >= 0) spFocus(k); });
+      box.append(pop);
+      setTimeout(() => pop.remove(), 9000 + i * 400);
+    });
+  }
+  $("top-spatial").addEventListener("click", openSpatial);
+  $("sp-exit").addEventListener("click", closeSpatial);
+  $("sp-orb").addEventListener("click", () => $("mic").click());
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && spatial.open) closeSpatial();
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); spatial.open ? closeSpatial() : openSpatial(); }
+    if (spatial.open && !e.target.closest?.("input, textarea") && (e.key === "ArrowRight" || e.key === "ArrowLeft")) spFocus((spatial.focus + (e.key === "ArrowRight" ? 1 : -1) + spPanels().length) % spPanels().length);
+  });
+  // A little depth: the panels lean toward your pointer.
+  $("spatial").addEventListener("pointermove", (e) => {
+    const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
+    $("sp-stage").style.transform = `rotateY(${x * 5}deg) rotateX(${-y * 4}deg)`;
+  }, { passive: true });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && spatial.open && !document.hidden) { /* stay in spatial, just windowed */ } });
+
   // ------------------------------------------------------------- start ---
   applyScene();
   mood("idle", "Here with you");
-  Promise.all([loadThread("main"), refreshHome()]).then(() => {
+  Promise.all([loadThread("main"), refreshHome()]).then(async () => {
     const v = location.hash.slice(1);
-    if (v && document.getElementById("view-" + v)) go(v); else go("chat");
+    await openFresh();
+    if (v && v !== "chat" && document.getElementById("view-" + v)) go(v);
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
   });
   setInterval(refreshHome, 4000);

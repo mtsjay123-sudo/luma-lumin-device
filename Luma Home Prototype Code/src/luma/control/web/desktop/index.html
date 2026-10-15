@@ -26,7 +26,6 @@
         <button class="nav-item" id="open-search" title="Search (⌘K)" data-icon="search">Search<kbd>⌘K</kbd></button>
       </nav>
       <nav class="nav" id="nav-main">
-        <button class="nav-item active" data-view="chat" data-icon="chat">Main chat</button>
         <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
         <button class="nav-item" data-view="news" data-icon="news">News</button>
         <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
@@ -54,6 +53,7 @@
           <h1 class="top-title" id="top-title" hidden></h1>
         </div>
         <div class="top-right">
+          <button class="icon-btn" id="top-spatial" aria-label="Spatial mode" title="Spatial mode (⌘⇧S)" data-icon="spatial"></button>
           <button class="icon-btn" id="top-apps" aria-label="Apps" title="Apps" data-icon="apps"></button>
           <button class="icon-btn" id="top-rules" aria-label="Rules" title="Rules" data-icon="rules"></button>
           <button class="icon-btn" id="top-glass" aria-label="See-through" title="See-through: let what's behind Luma show through" aria-pressed="false" data-icon="seethrough"></button>
@@ -154,6 +154,19 @@
         <div class="card list" id="settings"></div>
       </section>
     </main>
+
+    <!-- Spatial mode: Luma's work floating around you, like visionOS -->
+    <div class="spatial" id="spatial" hidden aria-label="Spatial mode">
+      <div class="sp-backdrop"></div>
+      <nav class="sp-rail" id="sp-rail" aria-label="Panels"></nav>
+      <div class="sp-stage" id="sp-stage"></div>
+      <div class="sp-pops" id="sp-pops" aria-live="polite"></div>
+      <div class="sp-presence">
+        <button class="sp-orb" id="sp-orb" type="button" aria-label="Talk to Luma"><span class="orb"><i></i><i></i><i></i></span></button>
+        <span class="sp-status" id="sp-status">Tap the orb and talk</span>
+      </div>
+      <button class="sp-exit icon-btn" id="sp-exit" type="button" aria-label="Leave spatial mode" title="Leave (Esc)" data-icon="x"></button>
+    </div>
 
     <!-- Right: Luma's computer, waiting on you, up next, events, tasks, goals -->
     <aside class="widgets" id="widgets" aria-label="At a glance">

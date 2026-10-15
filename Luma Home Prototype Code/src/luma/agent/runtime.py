@@ -113,6 +113,13 @@ def _first_name(address):
     return first.capitalize() if first.isalpha() and 2 <= len(first) <= 15 and first.lower() not in {"info", "hello", "contact", "support", "admin", "team", "sales", "office", "mail", "noreply"} else str(address)
 
 
+# Only messages that ask Luma to do something get the extra "what do they mean" pass; plain talk answers straight away.
+ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?:up|me)|schedul\w*|sched\w*|shed\w*|remind\w*|remnd\w*|news\w*|headl\w*|connect\w*|link|play|open|find\w*|search|look up|"
+                       r"past \d+|last \d+|\d+ ?(?:hrs?|hours?|mins?)|"
+                       r"buy|order|book|call|calendar|plan|check|weather|price|cheapest|deck|slides?|powerpoint|cancel|add|set|turn|start|stop|show|pull up|"
+                       r"tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
+
+
 def _words(text):
     return " ".join(re.findall(r"[a-z0-9']+", str(text).lower()))
 
@@ -1307,10 +1314,14 @@ class Agent:
                   + ("Earlier:\n" + "\n".join(recent) + "\n" if recent else "") + f"Last message: {text}\nAnswer:")
         try:
             with self.lock:
-                out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+                if self.planner is None:  # the real model: a tiny, fast pass, not a whole reply
+                    from luma.llm.inference import rewrite
+                    said = rewrite(prompt, cancel_event=cancel_event or threading.Event())
+                else:
+                    out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+                    said = out.get("text") if isinstance(out, dict) else None
         except Exception:
             return None
-        said = out.get("text") if isinstance(out, dict) else None
         if not isinstance(said, str): return None
         said = said.strip().strip('"')
         steps = [m.strip() for m in re.split(r"(?:^|\s|\n)\d{1,2}[.)]\s+", said) if m.strip()]
@@ -1466,8 +1477,15 @@ class Agent:
 
     # -- side chats ----------------------------------------------------------------
     def thread_list(self):
-        return [{"id": k, "title": self.thread_titles.get(k, "Chat"), "messages": len(self.transcripts.get(k, [])),
-                 "updated": (self.transcripts.get(k) or [{}])[-1].get("at")} for k in self.threads]
+        """Every chat is just a chat. The old main chat shows up like any other once it has something in it."""
+        rows = []
+        for k in self.threads:
+            log = self.transcripts.get(k) or []
+            if k == "main" and not log: continue
+            first = next((m.get("text", "") for m in log if m.get("role") == "you" and m.get("text")), "")
+            title = self.thread_titles.get(k) or (" ".join(first.split())[:40] if first else "Earlier chat")
+            rows.append({"id": k, "title": title, "messages": len(log), "updated": log[-1].get("at") if log else None})
+        return rows
 
     def new_thread(self, title=None):
         if len(self.threads) >= 30:
@@ -2651,7 +2669,7 @@ class Agent:
                 return None  # the clear version matched nothing either: answer what they actually said
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
-                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")):
+                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and ACTIONISH.search(lowered):
                 clear = self.understand(text, cancel_event)
                 if isinstance(clear, list):
                     return self.run_steps(clear, cancel_event)

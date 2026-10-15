@@ -207,6 +207,15 @@ def _sanitize(text: str) -> str:
     return " ".join(cleaned.split())
 
 
+def rewrite(prompt: str, max_tokens: int = 90, cancel_event=None) -> str:
+    """A quick, short, low-temperature pass (no persona, no tools, no history): turning a messy message into a clear one."""
+    with _model_access(cancel_event):
+        model = _load_model()
+        return _complete(model, cancel_event, messages=[{"role": "system", "content": "You rewrite messages into clear instructions. Answer with the rewrite only."},
+                                                        {"role": "user", "content": prompt}],
+                         max_tokens=max_tokens, temperature=0.1, top_p=0.9).strip()
+
+
 def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     full_messages = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}] + messages
