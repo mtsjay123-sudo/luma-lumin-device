@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { font: 14px -apple-system, system-ui, sans-serif; width: 260px; margin: 0; padding: 16px; background: #f6f5fb; color: #16151d; }
+  h1 { font-size: 16px; margin: 0 0 6px; } p { margin: 0 0 12px; color: #5b5a66; line-height: 1.4; }
+  input { width: 100%; box-sizing: border-box; height: 36px; border-radius: 10px; border: 1px solid #d8d6e3; padding: 0 12px; font-size: 16px; letter-spacing: 3px; text-transform: uppercase; }
+  button { margin-top: 10px; width: 100%; height: 36px; border: 0; border-radius: 999px; background: #16151d; color: #fff; font-weight: 600; cursor: pointer; }
+  .ok { color: #148a45; font-weight: 600; } .err { color: #c0362c; }
+</style>
+<h1>Luma for Chrome</h1>
+<div id="paired" hidden><p class="ok">Connected to Luma.</p><p>Luma can open tabs, play music and read the page you're on.</p><button id="unpair">Disconnect</button></div>
+<div id="unpaired"><p>Open Luma → Connectors → Luma for Chrome, and type the 6-letter code here.</p>
+<input id="code" maxlength="6" placeholder="ABC234" autocomplete="off"><button id="go">Connect</button><p id="msg"></p></div>
+<script src="popup.js"></script>

@@ -37,6 +37,7 @@ AREAS = [
     ("voice", r"voice|talk(?:ing)?|speak(?:ing)?|listen(?:ing)?|hear(?:ing)?|mic(?:rophone)?"),
     ("reminders", r"remind(?:ers?)?|timers?|alarms?|notes?|to-?dos?|tasks?"),
     ("decks", r"slides?|decks?|powerpoint|keynote|presentations?"),
+    ("chrome", r"(?:google )?chrome|my browser|(?:my )?tabs?"),
     ("web", r"internet|the web|web|online|google|search(?:ing)?|brows(?:e|ing|er)|look(?:ing)? things up|data|information|info|updates?|sports scores?|scores?|stocks?"),
 ]
 NEWS_SOURCES = "Google News, BBC, NPR, The Verge, TechCrunch, Hacker News and ESPN"
@@ -88,6 +89,7 @@ def overview(state):
         "• Your sites: open Instagram, X, Reddit or any site in my own browser, catch you up, and repeat a task you show me once.",
         f"• Photos: drop one in and ask me about it{eyes}.",
         "• Voice: tap the mic and just talk. I answer out loud and keep listening.",
+        "• Your Chrome: add Luma for Chrome (Connectors) and I open tabs, play music in a tab in the back, and read the page you're on.",
         "• Slide decks from an idea, and thinking through big decisions with you.",
         "• Helpers that run on their own: price watches, a morning inbox check, a daily news card.",
     ]
@@ -129,6 +131,11 @@ def about(key, state):
         return "Yes. “Remind me in 20 minutes to …”, “remind me tomorrow at 9 to …”, timers, notes, and things you want me to remember."
     if key == "decks":
         return "Yes. Say “make a pitch deck for …” and I'll build a PowerPoint you can open in Keynote too."
+    if key == "chrome":
+        if state.get("chrome"):
+            return "Yes, Luma for Chrome is connected. Say “open YouTube”, “play some lofi” (it plays in a tab in the back) or “what's on this page?”."
+        return ("Yes, with Luma for Chrome. Open Connectors, tap Get Luma for Chrome, add it in Chrome once and type the code it shows. "
+                "Then I can open tabs, play music in a tab in the back, and read the page you're on.")
     return "Yes. I have my own browser and web search, so I look things up live: prices, weather, scores, opening hours, facts."
 
 

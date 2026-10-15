@@ -36,6 +36,7 @@ from luma.agent.helpers import Feed, Helpers, EVERY as HELPER_EVERY
 from luma.integrations.mail import Mailbox, MailError
 from luma.integrations.calendar_feed import CalendarFeed
 from luma.integrations.connectors import Connectors, ConnectorError
+from luma.integrations.chrome_bridge import ChromeBridge
 from luma.agent.rules import TOOL_CATEGORY
 
 
@@ -231,6 +232,8 @@ class Agent:
         self.connectors = Connectors(self.store, on_tools=register_connector_tools)
         if self.store.setting("connectors", []):
             threading.Thread(target=self.connectors.start_all, name="luma-connectors", daemon=True).start()
+        self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
+        self.now_playing = None
         self.last_offers = []  # the latest price comparison, for "add the cheapest to my cart"
         self.pending_mail = None  # an email they're still telling Luma about: who, what, when
         self._mail_sender, self._mail_checked = None, 0
@@ -693,6 +696,73 @@ class Agent:
             spoken = self._answer_from(question + " (Summarize what's on the feed: who posted what, anything that looks important. Skip ads.)", "browser.read", {"page": combined}, cancel_event)
             if spoken and self.NOTHING.search(spoken):
                 return self._needs_sign_in(label, url, question)
+            if spoken: result["text"] = spoken
+        return result
+
+    SITES = {"youtube": "https://www.youtube.com/", "google": "https://www.google.com/", "gmail": "https://mail.google.com/",
+             "youtube music": "https://music.youtube.com/", "spotify": "https://open.spotify.com/", "netflix": "https://www.netflix.com/",
+             "google docs": "https://docs.google.com/", "google drive": "https://drive.google.com/", "maps": "https://www.google.com/maps",
+             "google maps": "https://www.google.com/maps", "calendar": "https://calendar.google.com/", "google calendar": "https://calendar.google.com/",
+             "amazon": "https://www.amazon.com/", "chatgpt": "https://chatgpt.com/", "github": "https://github.com/", "twitch": "https://www.twitch.tv/",
+             **{k: v[1] for k, v in FEEDS.items() if len(k) > 2}}
+    OPEN_SITE = re.compile(r"^\W*(?:(?:can you|could you|please|hey|yo|luma)\W+)*(?:open|open up|pull up|go to|launch|bring up|take me to)\s+(?:up\s+)?(?:my\s+|the\s+)?"
+                           r"(?P<site>[a-z][\w.' -]{1,40}?)(?:\s+(?P<chrome>(?:in|on|with) (?:my )?(?:chrome|google chrome|my browser)))?(?:\s+(?:for me|please|real quick|rn))*\W*$", re.I)
+    SEARCH_ON = re.compile(r"^\W*(?:(?:can you|could you|please|hey|luma)\W+)*(?:search|look up|find)\s+(?P<q>.+?)\s+on\s+(?P<site>youtube|google)(?:\s+(?:in|on) chrome)?\W*$", re.I)
+    READ_TAB = re.compile(r"\b(?:what'?s on (?:this|my|the) (?:page|tab|screen)|(?:summari[sz]e|read|explain|sum up)(?: me)? (?:this|my|the) (?:page|tab|article)|what am i looking at|what tabs? (?:do i have|are) open)\b", re.I)
+
+    def _play_in_chrome(self, what):
+        """Ask Chrome to play it, then remember what came on, or leave a card if it couldn't start."""
+        self.now_playing = None
+        got = self.chrome.send("play", wait=60, query=what) or {}
+        if got.get("playing"):
+            self.now_playing = str(got["playing"])[:120]
+        elif got.get("error"):
+            self.feed.add({"kind": "update", "title": f"{what.capitalize()} didn't start", "body": f"{got['error']} Try again in a minute, or say \"open YouTube\"."})
+
+    def _chrome_request(self, text, lowered, cancel_event=None):
+        """'Open YouTube', 'search lofi on youtube', 'what's on this page': done in their own Chrome when Luma for Chrome is on."""
+        if self.mode == "kids": return None
+        from urllib.parse import quote_plus
+        target = None
+        searched = self.SEARCH_ON.match(lowered)
+        if searched:
+            q = quote_plus(searched["q"])
+            target = ("YouTube" if searched["site"] == "youtube" else "Google",
+                      f"https://www.youtube.com/results?search_query={q}" if searched["site"] == "youtube" else f"https://www.google.com/search?q={q}")
+        opened = None if searched else self.OPEN_SITE.match(lowered)
+        if opened:
+            site = opened["site"].strip(" .'")
+            if site in self.SITES:
+                target = (site.title() if site not in {"youtube", "github", "chatgpt"} else {"youtube": "YouTube", "github": "GitHub", "chatgpt": "ChatGPT"}[site], self.SITES[site])
+            elif re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}", site):
+                target = (site, "https://" + site)
+            elif not opened["chrome"]:
+                return None
+        wants_chrome = bool(opened and opened["chrome"]) or "chrome" in lowered
+        reading = self.READ_TAB.search(lowered)
+        if not target and not reading:
+            return None
+        if not self.chrome.connected():
+            if not wants_chrome: return None
+            how = ("Luma for Chrome isn't connected yet. Open Connectors, tap Luma for Chrome, add it to Chrome once, "
+                   "type the 6-letter code it shows, and then I can open tabs and play music in your Chrome.")
+            return {"text": how, "section": "apps", "open": "apps"}
+        if target:
+            label, url = target
+            self.chrome.send("open", url=url)
+            return {"text": f"Opened {label} in Chrome.", "chrome": "open", "url": url}
+        if re.search(r"tabs? (?:do i have|are) open", lowered):
+            got = self.chrome.send("tabs", wait=8) or {}
+            tabs = [t for t in got.get("tabs") or [] if t.get("title")]
+            if not tabs: return {"text": "I couldn't see your tabs just now. Is Chrome open?"}
+            return {"text": f"You have {len(tabs)} tab{'s' if len(tabs) != 1 else ''} open: " + "; ".join(t["title"][:60] for t in tabs[:8]) + ("…" if len(tabs) > 8 else ".")}
+        got = self.chrome.send("read", wait=8) or {}
+        page = str(got.get("text") or "").strip()
+        if got.get("error") or not page:
+            return {"text": "I couldn't read that tab. Chrome doesn't let extensions read its own pages (like settings or the new tab page), so click into the page you mean and ask again."}
+        result = {"text": f"That's {got.get('title') or 'the page'}: " + re.sub(r"\s+", " ", page)[:500] + "…", "url": got.get("url"), "title": got.get("title")}
+        if self.use_model and cancel_event is not None:
+            spoken = self._answer_from(text + " (Answer from the page they have open in Chrome. Keep it short.)", "browser.read", {"page": page[:6000]}, cancel_event)
             if spoken: result["text"] = spoken
         return result
 
@@ -1240,7 +1310,7 @@ class Agent:
         except Exception: apps = []
         mail = self.mail.status()
         return {"mail": mail.get("connected"), "mail_address": mail.get("address"), "calendar": self.calendar.connected(),
-                "vision": vision.available(), "apps": apps}
+                "vision": vision.available(), "apps": apps, "chrome": self.chrome.connected()}
 
     def capabilities_reply(self, text, lowered, cancel_event=None):
         """'What can you do?', 'do you have a connector for news?': answered from what's really here, never a made-up no."""
@@ -2306,7 +2376,7 @@ class Agent:
             log.append({"role": "luma", "text": (result.get("text") or result.get("summary") or "")[:4000], "at": self.clock(),
                         "result": {k: result[k] for k in ("kind", "query", "offers", "best", "checked", "skipped", "file", "state", "action", "tool", "arguments", "recipient_name",
                                                                        "expires", "activity", "events", "messages", "url", "title", "message_draft", "helper", "section", "open", "cart", "verified",
-                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url") if k in result}})
+                                                                       "sign_in", "handoff", "results", "thinking", "vision_pending", "connect", "send_at", "pending_mail", "draft_email", "steps", "open_url", "chrome") if k in result}})
             del log[:-80]
             self._save_chat(thread)
             return result
@@ -2591,7 +2661,7 @@ class Agent:
                 delay = int(m[1]) * (60 if m[2].lower().startswith("minute") else 3600 if m[2].lower().startswith("hour") else 86400)
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
                 return self.propose("tasks.create", {"title": m[3], "due": datetime.fromtimestamp(self.clock()+delay, self.zone).isoformat()})
-            if lowered.startswith("search "): return self.propose("web.search", {"query": text[7:].strip()})
+            if lowered.startswith("search ") and not (self.chrome.connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
             # Common ways of asking for a text are drafted by rules, not the model,
             # so nothing gets added to what the owner said.
             texted = self._text_request(text)
@@ -2604,7 +2674,15 @@ class Agent:
             if music and self.mode != "kids" and not re.match(r"(?:a game|with|around|it cool|it safe)\b", music["what"]):
                 what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", music["what"]).strip(" ,.") or "music for right now"
                 from urllib.parse import quote_plus
+                if self.chrome.connected():
+                    # Their own Chrome, in a tab of its own behind what they're doing: music in the back.
+                    threading.Thread(target=self._play_in_chrome, args=(what,), name="luma-chrome-play", daemon=True).start()
+                    return {"text": f"Playing {what} in Chrome, in a tab in the back. Say \"what's playing\" or ask for something else anytime.", "section": "music", "chrome": "play"}
                 return {"text": f"Playing {what} on YouTube Music. Tell me what you think of it, I've got opinions.", "open_url": "https://music.youtube.com/search?q=" + quote_plus(what), "section": "music"}
+            if re.match(r"^\W*(?:what'?s|what is|what song is|which song is) (?:this song|playing|this|on)(?: right now| rn)?\W*$", lowered) and self.now_playing:
+                return {"text": f"{self.now_playing}, playing in Chrome.", "section": "music"}
+            chromed = self._chrome_request(text, lowered, cancel_event)
+            if chromed is not None: return chromed
             truth = self._did_it(lowered)
             if truth is not None: return truth
             connecting = self._connect_request(lowered)

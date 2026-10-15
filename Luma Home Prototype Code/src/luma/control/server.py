@@ -128,6 +128,7 @@ def home_payload(agent, owner=True):
             'phone_app': None,
             'apps': agent.connectors.list() if owner else [],
             'app_presets': agent.connectors.presets(),
+            'chrome': agent.chrome.status() if owner else None,
         },
         'profile': {'name': agent.profile.get('name') or '', 'photo': str(agent.store.setting('owner_photo_at', '') or '')},
         'taught': agent.taught.list() if owner and agent.mode != 'kids' else [],
@@ -176,6 +177,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             self.end_headers()
             self.wfile.write(encoded)
 
+        def chrome_extension(self, path):
+            # Only the extension itself (or a tool with no Origin at all) may pair; a web page always sends its own Origin.
+            origin=self.headers.get('Origin') or ''
+            if origin and not origin.startswith('chrome-extension://'): return self.send({'error':'Only Luma for Chrome can pair.'},403)
+            if not ctx.allowed(('ext',self.client_address[0]),60 if path.endswith('done') else 8): return self.send({'error':'Too many tries. Wait one minute.'},429)
+            try: data=json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0),200_000)) or b'{}')
+            except Exception: return self.send({'error':'Bad request'},400)
+            if path.endswith('pair'):
+                try: return self.send({'token':agent.chrome.pair(data.get('code'))})
+                except ValueError as error: return self.send({'error':str(error)},403)
+            token=(parse_qs(urlsplit(self.path).query).get('token') or [''])[0]
+            if not agent.chrome.valid(token): return self.send({'error':'Pair Luma for Chrome again.'},403)
+            agent.chrome.done(data.get('id'),data.get('result'))
+            return self.send({'ok':True})
+
         def redirect(self, location):
             self.send_response(302)
             self.send_header('Location', location)
@@ -185,6 +201,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
         def do_GET(self):
             if not self.valid_host(): return self.send({'error':'Invalid device host'},403)
             path = urlsplit(self.path).path
+            if path=='/api/ext/next' and not companion:
+                # Luma for Chrome keeps this one request open; its paired token is its pass, not a cookie.
+                token=(parse_qs(urlsplit(self.path).query).get('token') or [''])[0]
+                if not agent.chrome.valid(token): return self.send({'error':'Pair Luma for Chrome again.'},403)
+                return self.send({'command':agent.chrome.next(25)})
             static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css'),
                       '/desktop/':('desktop/index.html','text/html'), '/desktop/desktop.js':('desktop/desktop.js','text/javascript'), '/desktop/desktop.css':('desktop/desktop.css','text/css')}
             if path=='/desktop': return self.redirect('/desktop/')
@@ -287,8 +308,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
             return self.send({'error':'Not found'},404)
 
         def do_POST(self):
-            if not self.valid_host() or not self.valid_origin(): return self.send({'error':'Device origin required'},403)
             path = urlsplit(self.path).path
+            if path in {'/api/ext/pair','/api/ext/done'} and not companion and self.valid_host():
+                return self.chrome_extension(path)
+            if not self.valid_host() or not self.valid_origin(): return self.send({'error':'Device origin required'},403)
             pairing = companion and path=='/api/phone/pair'
             if not pairing and not self.authenticated(): return self.send({'error':'Unauthorized device request'},403)
             # Driving the browser by hand is many small requests, so it has its own, larger allowance.
@@ -518,6 +541,17 @@ def make_server(agent, port=8095, *, context=None, phone_host=None):
                             result={'app':agent.connectors.add(data.get('name'),url=data.get('url') or '',command=data.get('command') or '',
                                                                token=data.get('token') or '',preset=data.get('preset'),folder=data.get('folder') or '')}
                             agent.enable('connectors',True)
+                        elif what=='chrome':
+                            # Put Luma for Chrome in a plain folder the owner can pick in Chrome's "Load unpacked", and show it.
+                            if data.get('action')=='unpair': agent.chrome.unpair(); result={'chrome':agent.chrome.status()}
+                            else:
+                                from luma.integrations.chrome_bridge import install
+                                folder=install(ROOT/'chrome',self.server.server_port)
+                                if not os.environ.get('LUMA_CHROME_DIR'):
+                                    opener=['open','-R',str(folder/'manifest.json')] if os.uname().sysname=='Darwin' else ['xdg-open',str(folder)]
+                                    try: subprocess.Popen(opener,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                                    except OSError: pass
+                                result={'folder':str(folder),'chrome':agent.chrome.status()}
                         elif what=='app_remove':
                             result=agent.connectors.remove(str(data.get('id','')))
                         elif what=='disconnect':
