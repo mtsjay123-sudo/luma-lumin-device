@@ -106,8 +106,72 @@ def speech_chunks(text, max_chars=240):
     return chunks
 
 
+def speech_plan(text, expressive=False):
+    """A whole reply as [(words to say, pause after it in ms)]: shorthand said in full, laughs and sighs
+    (real ones in an expressive voice, a beat in the plain one), and a person's pauses between phrases."""
+    from luma.audio import speakable
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Speech text cannot be empty.")
+    paragraphs = [p for p in re.split(r"\n[ \t]*\n", text) if p.strip()]
+    plan = []
+    for index, para in enumerate(paragraphs):
+        try:
+            spoken = spoken_text(para)
+        except ValueError:
+            continue
+        beats = speakable.beats(speakable.say_it(spoken))
+        for b, (words, after) in enumerate(beats):
+            last_beat = b == len(beats) - 1
+            kind = ("break" if index < len(paragraphs) - 1 else None) if last_beat else after
+            if words in (speakable.LAUGH, speakable.SIGH):
+                cue = speakable.for_voice(words, expressive)
+                if cue:
+                    plan.append((cue, speakable.pause_ms(cue, kind or "laugh")))
+                elif plan:  # the plain voice can't laugh: it takes a beat instead
+                    said, pause = plan[-1]
+                    plan[-1] = (said, pause + speakable.pause_ms(words, "laugh"))
+                continue
+            said = speakable.for_voice(words, expressive)
+            if not said or not re.search(r"\w", said):
+                continue
+            chunks = speech_chunks(said)
+            for c, chunk in enumerate(chunks):
+                plan.append((chunk, speakable.pause_ms(chunk, kind if c == len(chunks) - 1 else None)))
+    if not plan:
+        raise ValueError("Speech text cannot be empty.")
+    return plan
+
+
+def _with_pause(pcm_rate, ms):
+    """Append a pause (silence) to a phrase, so the next one starts when a person would."""
+    pcm, rate = pcm_rate
+    if not ms or ms <= 0:
+        return pcm, rate
+    return np.concatenate([pcm, np.zeros(int(rate * min(ms, 1500) / 1000), dtype=np.int16)]), rate
+
+
+def _resample(pcm, rate, target):
+    """Match one phrase's sample rate to the rest (if the voice changed mid-reply)."""
+    if rate == target or not len(pcm):
+        return pcm
+    n = max(1, int(round(len(pcm) * target / rate)))
+    return np.interp(np.linspace(0, len(pcm) - 1, n), np.arange(len(pcm)), pcm.astype(np.float32)).astype(np.int16)
+
+
 def _samples(text, voice, should_stop, speed=None):
     _check_stop(should_stop)
+    # The new expressive voice talks when it's ready; if it can't, the classic voice says the same words.
+    try:
+        from luma.audio import natural
+        if natural.speaking():
+            pcm, rate = natural.voice().say(text)
+            _check_stop(should_stop)
+            return pcm, rate
+    except SpeechCancelled:
+        raise
+    except Exception:
+        pass
+    text = re.sub(r"\[(?:laugh|chuckle|sigh|cough)\]", "", text).strip() or "."
     speed = VOICE_SPEED if speed is None else speed
     if type(speed) not in (int,float) or not math.isfinite(speed) or not 0.5 <= speed <= 1.5:
         raise ValueError("LUMA_VOICE_SPEED must be 0.5–1.5.")
@@ -149,6 +213,15 @@ def _get_kokoro():
     return _kokoro
 
 
+def expressive_now():
+    """Is the expressive voice (it can laugh and sigh) the one speaking right now?"""
+    try:
+        from luma.audio import natural
+        return natural.active()
+    except Exception:
+        return False
+
+
 def ready():
     """Is Luma's natural voice installed here?"""
     try:
@@ -170,24 +243,23 @@ def warm_up(voice: str = DEFAULT_VOICE):
 
 
 def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, should_stop=None, speed=None) -> None:
-    """Create a complete local WAV atomically; interrupted audio stays private."""
-    chunks = speech_chunks(spoken_text(text))
+    """Create a complete local WAV atomically; interrupted audio stays private.
+    Each phrase is followed by a natural pause, including the last (the gap before the next piece plays)."""
+    plan = speech_plan(text, expressive=expressive_now())
     _check_stop(should_stop)
     destination = Path(out_path)
     with tempfile.NamedTemporaryFile(prefix=".luma-speech-", suffix=".wav", dir=destination.parent, delete=False) as temporary:
         path = temporary.name
     try:
-        first_pcm, sample_rate = _samples(chunks[0], voice, should_stop, speed)
+        first_pcm, sample_rate = _with_pause(_samples(plan[0][0], voice, should_stop, speed), plan[0][1])
         with wave.open(path, "w") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(sample_rate)
             wf.writeframes(first_pcm.tobytes())
-            for chunk in chunks[1:]:
-                pcm, rate = _samples(chunk, voice, should_stop, speed)
-                if rate != sample_rate:
-                    raise RuntimeError("Speech synthesis changed sample rate mid-response.")
-                wf.writeframes(pcm.tobytes())
+            for chunk, pause in plan[1:]:
+                pcm, rate = _with_pause(_samples(chunk, voice, should_stop, speed), pause)
+                wf.writeframes(_resample(pcm, rate, sample_rate).tobytes())
         _check_stop(should_stop)
         os.replace(path, destination)
     finally:
@@ -197,9 +269,18 @@ def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, should_stop
             pass
 
 
+def silence(out_path: str, ms: int = 180, rate: int = 24000) -> None:
+    """A moment of quiet, for a piece that has nothing to say out loud (only an emoji, say)."""
+    with wave.open(out_path, "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(np.zeros(int(rate * ms / 1000), dtype=np.int16).tobytes())
+
+
 def speak(text: str, should_stop=None, voice: str = DEFAULT_VOICE, speed=None) -> bool:
     """Prefetch at most two phrases while one continuous output stream plays."""
-    return _play_phrases(iter(speech_chunks(spoken_text(text))), should_stop, voice, speed)
+    return _play_phrases(iter(speech_plan(text, expressive=expressive_now())), should_stop, voice, speed)
 
 
 def speak_stream(phrases, should_stop=None, voice: str = DEFAULT_VOICE, speed=None) -> bool:
@@ -211,7 +292,10 @@ def speak_stream(phrases, should_stop=None, voice: str = DEFAULT_VOICE, speed=No
     def chunks():
         for phrase in phrases:
             if isinstance(phrase, str) and phrase.strip():
-                yield from speech_chunks(spoken_text(phrase))
+                try:
+                    yield from speech_plan(phrase, expressive=expressive_now())
+                except ValueError:
+                    continue  # only an emoji or a mark: nothing to say
     return _play_phrases(chunks(), should_stop, voice, speed)
 
 
@@ -228,9 +312,10 @@ def _play_phrases(chunks, should_stop, voice, speed):
 
     def produce():
         try:
-            for chunk in chunks:
+            for item in chunks:
                 _check_stop(should_cancel)
-                publish(_samples(chunk, voice, should_cancel, speed))
+                chunk, pause = item if isinstance(item, tuple) else (item, 0)
+                publish(_with_pause(_samples(chunk, voice, should_cancel, speed), pause))
             publish(None)
         except Exception as error:
             publish(error)

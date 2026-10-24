@@ -1,0 +1,117 @@
+"""Render Luma's voice samples on a real Apple Silicon Mac, to listen to and compare.
+
+Run in CI (macOS runner) or on a Mac with mlx-audio installed:
+    LUMA_VOICE_PYTHON=$(which python) python scripts/voice_samples.py out/
+
+Writes one WAV per line per voice:
+  classic-*.wav     Luma's classic voice (Kokoro) with the new pauses, laughs-as-beats and slang said right
+  expressive-*.wav  Chatterbox-Turbo, learning Luma's classic voice from one short line, with real laughs
+  studio-*.wav      Qwen3-TTS 0.6B, learning the same voice
+  design-*.wav      Qwen3-TTS VoiceDesign: candidate voices for Luma's own identity, from a description
+and summary.json with which model loaded and how fast it ran (real-time factor: under 1 is faster than real time).
+"""
+import json
+import os
+import sys
+import time
+import wave
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from luma.audio import natural, tts  # noqa: E402
+
+LINES = [
+    ("late", "Okay so, you're telling me he really showed up late again? 😭 Nah, that's crazy. What did you say to him?"),
+    ("deep", "ngl gng, how hard you want me to think about this? Because I can deep dive... but if you just want my answer right now, I gotchu."),
+    ("news", "Hmm, okay. It's Friday, October twenty-fourth, and honestly the big story today is the Fed holding rates steady. Want the quick version, or the full rundown?"),
+    ("bday", "Wait, your mom's birthday is Saturday? Bet. I'll remind you Friday morning so you're not scrambling lol."),
+    ("care", "I hear you. That sounds really heavy... Take your time, I'm right here."),
+]
+
+DESIGNS = [
+    ("warm", "A warm, playful young woman in her early twenties with a relaxed American accent, quick to laugh, confident and friendly, natural conversational pacing."),
+    ("smooth", "A smooth, upbeat young African American woman, casual and expressive, with natural warmth, humor and a relaxed Southern lilt."),
+    ("late-night", "A calm, soft-spoken young woman with a slightly husky voice, intimate and reassuring, like a close friend on a late-night phone call."),
+]
+
+
+def write(path, pcm, rate):
+    with wave.open(str(path), "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(np.asarray(pcm, dtype=np.int16).tobytes())
+
+
+def render(text, expressive):
+    plan = tts.speech_plan(text, expressive=expressive)
+    pieces, rate = [], None
+    for chunk, pause in plan:
+        pcm, r = tts._with_pause(tts._samples(chunk, "luma", None), pause)
+        rate = rate or r
+        pieces.append(tts._resample(pcm, r, rate))
+    return np.concatenate(pieces), rate, plan
+
+
+def main(out):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    summary = {"lines": dict(LINES), "voices": {}}
+
+    # 1. The classic voice, with the new conversation layer.
+    natural._voice = None
+    started = time.time()
+    for name, text in LINES:
+        pcm, rate, plan = render(text, expressive=False)
+        write(out / f"classic-{name}.wav", pcm, rate)
+    summary["voices"]["classic"] = {"model": "Kokoro-82M", "seconds": round(time.time() - started, 1)}
+
+    # 2 and 3. The new open voices, each learning Luma's classic voice from one line.
+    for engine in ("expressive", "studio"):
+        v = natural.NaturalVoice()
+        natural._voice = v
+        started = time.time()
+        status = v.prepare(engine, "luma", timeout=3600)
+        entry = {"status": status, "load_seconds": round(time.time() - started, 1)}
+        if status["state"] == "ready":
+            rtfs = []
+            for name, text in LINES:
+                try:
+                    pcm, rate, plan = render(text, expressive=natural.active())
+                    write(out / f"{engine}-{name}.wav", pcm, rate)
+                    rtfs.append(v.rtf)
+                except Exception as error:
+                    entry.setdefault("errors", []).append(f"{name}: {error}")
+            entry["rtf"] = rtfs
+        summary["voices"][engine] = entry
+        v.stop()
+        natural._voice = None
+        print(engine, json.dumps(entry, indent=1), flush=True)
+
+    # 4. Candidate voices for Luma's own identity (a description, no real person's voice).
+    try:
+        from mlx_audio.tts.utils import load_model
+        model = load_model("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16")
+        designs = {}
+        for key, description in DESIGNS:
+            started = time.time()
+            audio = []
+            line = "Okay so, you're telling me he really showed up late again? Nah, that's crazy. What did you say to him?"
+            for result in model.generate_voice_design(text=line, language="English", instruct=description):
+                audio.append(np.asarray(result.audio, dtype=np.float32).reshape(-1))
+            pcm = (np.clip(np.concatenate(audio), -1, 1) * 32767).astype(np.int16)
+            write(out / f"design-{key}.wav", pcm, 24000)
+            designs[key] = {"description": description, "seconds": round(time.time() - started, 1)}
+        summary["voices"]["design"] = designs
+    except Exception as error:
+        summary["voices"]["design"] = {"error": str(error)[:400]}
+
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "voice-samples")

@@ -22,8 +22,10 @@ def play_chunks(chunks, should_stop=None) -> bool:
         import itertools
         try:
             for pcm, next_rate in itertools.chain([(first, rate)], iterator):
-                if next_rate != rate: raise ValueError("Speech sample rate changed during playback.")
                 audio = np.asarray(pcm).astype(np.float32) / 32767.0
+                if next_rate != rate and len(audio):  # the voice changed mid-reply (new voice ↔ classic): match the stream
+                    n = max(1, int(round(len(audio) * rate / next_rate)))
+                    audio = np.interp(np.linspace(0, len(audio) - 1, n), np.arange(len(audio)), audio).astype(np.float32)
                 if audio.ndim != 1 or not np.isfinite(audio).all(): raise ValueError("Invalid speech audio.")
                 for start in range(0, len(audio), block):
                     if should_stop(): stream.abort(); return False

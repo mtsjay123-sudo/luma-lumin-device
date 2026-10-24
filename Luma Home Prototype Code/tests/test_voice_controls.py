@@ -152,7 +152,9 @@ class CancellableSpeechTests(unittest.TestCase):
             with patch.object(tts, "_get_kokoro", return_value=Engine()):
                 tts.synthesize("First " + "word " * 35 + ". Second " + "word " * 35 + ".", str(output), voice="af_bella")
             with wave.open(str(output), "r") as audio:
-                self.assertEqual(audio.getnframes(), 4800)
+                # Both phrases, each followed by a person's pause (under a second and a half in all).
+                self.assertGreater(audio.getnframes(), 4800)
+                self.assertLess(audio.getnframes(), 4800 + int(24000 * 1.5))
                 self.assertEqual(audio.getframerate(), 24000)
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
 

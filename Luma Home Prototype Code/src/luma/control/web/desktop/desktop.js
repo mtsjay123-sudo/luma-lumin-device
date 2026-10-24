@@ -2808,6 +2808,40 @@
     if (!learned.children.length) learned.append(el("div", "item", "Nothing yet. Use thumbs up or down on anything I do and I'll learn."));
   }
 
+  // The new expressive voice: an open-source model on this Mac that sounds like a person and can laugh.
+  function naturalVoiceRow() {
+    const nv = state.home?.natural_voice || {};
+    const it = el("div", "item nv-item");
+    const g = el("div", "grow");
+    const says = {
+      ready: `On${nv.laughs ? ", and it can laugh" : ""}. ${nv.model ? "Running " + String(nv.model).split("/").pop().replace(/-(?:bf16|fp16|8bit|4bit)$/i, "") + " on this Mac." : ""}`,
+      loading: "Getting it ready: a one-time download (about 1 GB). The classic voice talks until then.",
+      waiting: "Setting up its tools in the background. The classic voice talks until then.",
+      failed: "It stopped, so the classic voice took over. It tries again in a few minutes." + (nv.note ? " (" + nv.note.slice(0, 90) + ")" : ""),
+      off: nv.supported === false ? "Needs a Mac with Apple Silicon. Luma keeps its classic voice here." : "Off. Luma is using its classic voice.",
+    };
+    g.append(el("div", "title", "New natural voice"), el("div", "sub", (says[nv.state] || says.off) + " It learns the voice you picked, so Luma still sounds like Luma, with real laughs and pauses."));
+    it.append(g);
+    if (nv.supported !== false) {
+      const seg = el("div", "segmented");
+      for (const [k, label, tip] of [["expressive", "Expressive", "Chatterbox-Turbo: fast, and it can laugh and sigh"], ["studio", "Studio", "Qwen3-TTS: a bigger model with very natural rhythm"], ["off", "Classic", "Luma's classic voice"]]) {
+        const on = k === "off" ? nv.mode === "off" : nv.mode !== "off" && (nv.choice || "expressive") === k;
+        const b = btn(label, on ? "on" : "", async () => {
+          try {
+            const r = await api("/api/voice/natural", k === "off" ? { mode: "off" } : { mode: "on", engine: k });
+            state.home.natural_voice = r.natural_voice;
+            renderSettings();
+            toast(k === "off" ? "Back to the classic voice." : "Getting the new voice ready. You'll hear it when it's set.");
+          } catch (e) { toast(e.message); }
+        });
+        b.title = tip;
+        seg.append(b);
+      }
+      it.append(seg);
+    }
+    return it;
+  }
+
   // ---------------------------------------------------------- settings ---
   function toggleRow(title, sub, on, onChange) {
     const it = el("div", "item");
@@ -3085,6 +3119,7 @@
     bg.append(bgg, scenes, bgPick);
     box.append(bg);
     box.append(toggleRow("Talk back out loud", "When you talk to Luma with the mic, it answers out loud and keeps listening, back and forth.", speakAloud, (on) => { speakAloud = on; try { localStorage.setItem("luma-speak", on ? "1" : "0"); } catch (_) { /* private */ } if (on) speak("Hey, this is how I sound."); }));
+    box.append(naturalVoiceRow());
     box.append(toggleRow("Stay in conversation", "Once you start talking, Luma keeps listening between replies, however long it takes, until you say “bye” or “that's all”. With this on it's listening as soon as you bring it up, no tapping.", voice.stay, (on) => setStay(on)));
     box.append(toggleRow("Start with “Hey Luma”", "While Luma is open, just say “Hey Luma” to start talking. It listens for its name on this computer; nothing is kept or sent anywhere.", voice.wake, (on) => setWake(on)));
     if (!document.documentElement.classList.contains("in-app")) box.append(toggleRow("Listen for “Hey Luma”", "On the Luma device: talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));

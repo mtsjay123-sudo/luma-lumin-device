@@ -307,6 +307,31 @@ async function ensureVoice(home, onLine = () => {}, report = () => {}) {
   return voiceDir(home);
 }
 
+// Luma's new expressive voice (Apple Silicon only): its own small Python with mlx-audio, the open-source speech
+// library, kept apart from Luma's so neither can break the other. The voice models themselves (about 1 GB) download
+// the first time Luma loads them, in the background; the classic voice talks until then.
+const NATURAL_VOICE = ["mlx-audio==0.6.1"];
+function naturalVoiceEnv(home) { return path.join(home, "voice-env"); }
+function naturalVoiceDir(home) { return path.join(home, "models", "natural"); }
+function naturalVoiceReady(home) {
+  return readState(home).naturalVoice === NATURAL_VOICE.join(" ") && fs.existsSync(path.join(naturalVoiceEnv(home), "bin", "python"));
+}
+async function ensureNaturalVoice(home, onLine = () => {}) {
+  if (process.platform !== "darwin" || process.arch !== "arm64") return null;
+  if (naturalVoiceReady(home)) return naturalVoiceEnv(home);
+  const env = { PIP_DISABLE_PIP_VERSION_CHECK: "1", PYTHONNOUSERSITE: "1" };
+  const venv = naturalVoiceEnv(home);
+  if (!fs.existsSync(path.join(venv, "bin", "python"))) await run(pythonPath(home), ["-m", "venv", venv], { env, onLine });
+  const py = path.join(venv, "bin", "python");
+  await run(py, ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary", "--upgrade", "pip"], { env, onLine });
+  await run(py, ["-m", "pip", "install", "--no-warn-script-location", "--prefer-binary", ...NATURAL_VOICE], { env, onLine });
+  // A quick check that it really imports before Luma counts on it.
+  await run(py, ["-I", "-c", "import mlx.core, mlx_audio.tts.utils"], { env, onLine });
+  fs.mkdirSync(naturalVoiceDir(home), { recursive: true });
+  writeState(home, { ...readState(home), naturalVoice: NATURAL_VOICE.join(" ") });
+  return venv;
+}
+
 // Returns the Python to run Luma with and the environment it needs.
 async function ensure(home, report = () => {}, { skipModel = false } = {}) {
   fs.mkdirSync(home, { recursive: true });
@@ -328,6 +353,7 @@ function needsSetup(home) {
 }
 
 // Repair: the next start reinstalls Luma's tools and checks its brain file again.
-function forgetInstall(home) { writeState(home, { packages: null, browser: null }); }
+function forgetInstall(home) { writeState(home, { packages: null, browser: null, naturalVoice: null }); }
 
-module.exports = { forgetInstall, ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady };
+module.exports = { forgetInstall, ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady,
+  ensureNaturalVoice, naturalVoiceEnv, naturalVoiceDir, naturalVoiceReady, NATURAL_VOICE };

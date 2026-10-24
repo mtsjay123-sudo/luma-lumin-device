@@ -194,7 +194,18 @@ def home_payload(agent, owner=True):
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
         'glance': _glance(agent) if owner and agent.mode != 'kids' else None,
         'signup': agent.signup_status() if owner and agent.mode != 'kids' else {'done': True},
+        'natural_voice': _natural_voice(agent) if owner else None,
     }
+
+
+def _natural_voice(agent):
+    """Where the new expressive voice is: off, getting ready, ready (and whether it can laugh), or resting after a problem."""
+    try:
+        from luma.audio import natural
+        return {**natural.voice().status(), 'mode': agent.store.setting('natural_voice') or 'auto',
+                'choice': agent.store.setting('natural_voice_engine') or 'expressive'}
+    except Exception as error:
+        return {'supported': False, 'state': 'off', 'note': str(error)[:120]}
 
 
 def _glance(agent):
@@ -388,10 +399,14 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 try:
                     import tempfile
                     from luma.audio.tts import synthesize
+                    from luma.audio.tts import silence
                     with tempfile.TemporaryDirectory() as folder:
                         out=os.path.join(folder,'say.wav')
                         prefs=agent.voice_preferences if isinstance(agent.voice_preferences,dict) else {}
-                        synthesize(text,out,voice=prefs.get('voice') or 'luma')
+                        try: synthesize(text,out,voice=prefs.get('voice') or 'luma',speed=prefs.get('speed'))
+                        except ValueError as empty:
+                            if 'empty' not in str(empty): raise
+                            silence(out)  # only an emoji or a mark: a beat of quiet, not an error
                         with open(out,'rb') as f: return self.send(f.read(),kind='audio/wav')
                 except Exception as error:
                     return self.send({'error':"Luma's natural voice isn't ready yet: "+str(error)[:120]},503)
@@ -614,7 +629,28 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                             result={'photo':stamp}
                     elif path=='/api/voice/preferences':
                         if companion: return self.send({'error':'Set the household voice on the Mac.'},403)
+                        before=(agent.voice_preferences or {}).get('voice')
                         result={'voice_preferences':agent.set_voice_preferences(data)}
+                        from luma.audio import natural
+                        if before!=result['voice_preferences'].get('voice') and natural.voice().state=='ready':
+                            # The new voice learns whichever classic voice they picked.
+                            natural.voice().state='off'
+                            natural.voice().prepare_in_background(agent.store.setting('natural_voice_engine') or 'expressive', result['voice_preferences'].get('voice') or 'luma', delay=0)
+                    elif path=='/api/voice/natural':
+                        # The new expressive voice: auto (on when this Mac can run it), on or off; and which open model.
+                        if companion: return self.send({'error':'Set the voice on the Mac.'},403)
+                        from luma.audio import natural
+                        mode=data.get('mode') or agent.store.setting('natural_voice') or 'auto'
+                        engine=data.get('engine') or agent.store.setting('natural_voice_engine') or 'expressive'
+                        if mode not in ('auto','on','off') or engine not in ('expressive','studio'): raise ValueError('Choose auto, on or off, and expressive or studio.')
+                        changed=engine!=(agent.store.setting('natural_voice_engine') or 'expressive')
+                        agent.store.set_setting('natural_voice',mode); agent.store.set_setting('natural_voice_engine',engine)
+                        v=natural.voice()
+                        if mode=='off': v.stop()
+                        elif changed or v.state in ('off','failed','waiting'):
+                            if changed: v.stop()
+                            v.prepare_in_background(engine,(agent.voice_preferences or {}).get('voice') or 'luma',delay=0)
+                        result={'natural_voice':{**v.status(),'mode':mode,'choice':engine}}
                     elif path=='/api/personality/preset':
                         if companion: return self.send({'error':'Select personality on the Mac.'},403)
                         result={'profile':agent.set_preset(data.get('preset'),data.get('adult_confirmed',False))}
@@ -953,6 +989,13 @@ def serve(agent,port,phone_host=None,phone_port=8096):
             warm_up(prefs.get('voice') or 'luma')
         except Exception:
             pass
+        # The new expressive voice (Apple Silicon): downloads once in the background; the classic voice talks until it's ready.
+        try:
+            from luma.audio import natural
+            if natural.supported() and (agent.store.setting('natural_voice') or 'auto') != 'off':
+                natural.voice().prepare_in_background(agent.store.setting('natural_voice_engine') or 'expressive', prefs.get('voice') or 'luma')
+        except Exception as error:
+            print(f'LUMA new voice not started: {error}',flush=True)
     threading.Thread(target=voice,daemon=True,name='luma-voice').start()
     # Luma Link: on the device (LUMA_LINK_HOST=1) or a computer the owner made the hub, let paired laptops in;
     # on a laptop paired with a device, keep memories in sync and be the device's hands.

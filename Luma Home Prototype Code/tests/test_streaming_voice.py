@@ -133,4 +133,7 @@ class TtsStreamTests(unittest.TestCase):
         with patch.object(tts, "_samples", side_effect=fake_samples) as synth, patch.object(io, "play_chunks", side_effect=fake_play):
             self.assertTrue(tts.speak_stream(phrases()))
         self.assertEqual([c.args[0] for c in synth.call_args_list], ["Rough one?", "Tell me about it."])
-        self.assertEqual(played, [10, 10])
+        # Each phrase plays as it arrives, followed by a natural pause: a little longer after a question.
+        self.assertEqual(len(played), 2)
+        self.assertTrue(all(n > 10 for n in played))
+        self.assertGreater(played[0], played[1])
