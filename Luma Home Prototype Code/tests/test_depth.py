@@ -81,11 +81,15 @@ class DisclaimerTests(unittest.TestCase):
                                         "what do you feel about trump")
         self.assertEqual(said, "His supporters love the economy talk. What do you think?")
         self.assertEqual(mind.without_disclaimers("I'm neutral on that, but honestly the second plan is cleaner.", "which plan"), "Honestly the second plan is cleaner.")
+        said = mind.without_disclaimers("I don’t have personal feelings, but I know he’s a polarizing figure. Supporters love his energy, critics say he's divisive.", "Quick answer")
+        self.assertEqual(said, "I know he’s a polarizing figure. Supporters love his energy, critics say he's divisive.")
 
     def test_honest_about_what_luma_is_when_asked(self):
         from luma.agent import mind
         line = "I'm an AI, so no heartbeat, but I've got moods and opinions of my own."
         self.assertEqual(mind.without_disclaimers(line, "wait are you an ai"), line)
+        sad = "I don’t feel sadness like humans do, and I don't have feelings the way you do, but I get it."
+        self.assertEqual(mind.without_disclaimers(sad, "do you ever get sad"), sad)
 
 
 class ConversationTests(unittest.TestCase):

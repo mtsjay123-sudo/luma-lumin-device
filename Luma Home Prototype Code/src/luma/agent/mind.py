@@ -265,7 +265,7 @@ def without_labels(answer):
     return " ".join(kept).strip()
 
 
-DISCLAIMER = re.compile(r"\b(?:i (?:don'?t|do not) (?:really )?have (?:any )?(?:personal |real )?(?:opinions?|beliefs?|views?|a side|a stance|a take)|"
+DISCLAIMER = re.compile(r"\b(?:i (?:don'?t|do not) (?:really )?have (?:any )?(?:personal |real )?(?:opinions?|feelings?|beliefs?|views?|a side|a stance|a take)|"
                         r"as an ai\b|i'?m (?:just )?an ai\b|i'?m (?:totally |pretty |staying )?neutral|i (?:can'?t|cannot) (?:really )?(?:say|share|tell you) (?:what|how) i (?:'?feel|think))", re.I)
 # Questions about Luma herself (what she is, how she feels): the honest answer is the point, so nothing is taken out.
 ABOUT_ME = re.compile(r"\b(?:(?:are|r) (?:you|u) (?:an? )?(?:ai|bot|robot|real|human|alive|conscious|sentient|a person|sad|happy|lonely|mad|okay|ok|alright|tired|bored|scared)|"
