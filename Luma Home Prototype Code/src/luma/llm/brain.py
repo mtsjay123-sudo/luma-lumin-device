@@ -187,29 +187,66 @@ def status():
 
 
 # -- the calls the runtime makes ------------------------------------------------
-def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
+# Every call has a tier. "light" (quick reads, short rewrites, classifying) stays on the free local brain
+# even when a cloud brain is on, unless the owner turned routing off; "heavy" (planning, coding, research
+# write-ups) goes to the strongest brain available; None is an ordinary chat turn.
+TIERS = ("light", "standard", "heavy")
+
+
+def use_cloud(tier=None):
+    if not cloud_on():
+        return False
+    return not (tier == "light" and _store.setting("route_by_task", True) and health()["ok"])
+
+
+def local_label():
+    return "Qwen3 30B (local)" if inference_model_is_big() else "Qwen3 4B (local)"
+
+
+def inference_model_is_big():
     from luma.llm import inference
-    if cloud_on():
+    return bool(getattr(inference, "_override", None))
+
+
+def _metered(label, tier, call, args, kwargs, sent):
+    from luma.llm import usage
+    timer = usage.Timer()
+    try:
+        result = call(*args, **kwargs)
+    except Exception:
+        usage.record(_store, label, usage.tokens(sent), 0, timer.seconds, ok=False, tier=tier)
+        raise
+    usage.record(_store, label, usage.tokens(sent), usage.tokens(result), timer.seconds, ok=True, tier=tier)
+    return result
+
+
+def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None):
+    from luma.llm import inference
+    sent = [messages, memories, tools]
+    if use_cloud(tier):
         try:
-            result = _provider_module(provider()).plan(cloud_key(), messages, memories, tools, mode, profile=profile, cancel_event=cancel_event,
-                                                       on_text=on_text, model=cloud_model())
+            result = _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).plan,
+                              (cloud_key(), messages, memories, tools, mode),
+                              {"profile": profile, "cancel_event": cancel_event, "on_text": on_text, "model": cloud_model()}, sent)
             if _store.setting("brain_cloud_error"): _store.set_setting("brain_cloud_error", None)
             return result
         except inference.GenerationCancelled:
             raise
         except Exception as error:  # offline, out of credit, a refusal: the local brain answers this turn
             _store.set_setting("brain_cloud_error", _plain_error(error))
-    return _local(inference.plan, messages, memories, tools, mode, profile=profile, cancel_event=cancel_event, on_text=on_text)
+    return _metered(local_label(), tier, _local, (inference.plan, messages, memories, tools, mode),
+                    {"profile": profile, "cancel_event": cancel_event, "on_text": on_text}, sent)
 
 
-def rewrite(prompt, max_tokens=90, cancel_event=None):
+def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light"):
     from luma.llm import inference
-    if cloud_on():
+    if use_cloud(tier):
         try:
-            return _provider_module(provider()).rewrite(cloud_key(), prompt, max_tokens=max_tokens, model=cloud_model())
+            return _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).rewrite,
+                            (cloud_key(), prompt), {"max_tokens": max_tokens, "model": cloud_model()}, prompt)
         except Exception as error:
             _store.set_setting("brain_cloud_error", _plain_error(error))
-    return _local(inference.rewrite, prompt, max_tokens=max_tokens, cancel_event=cancel_event)
+    return _metered(local_label(), tier, _local, (inference.rewrite, prompt), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt)
 
 
 def _plain_error(error):

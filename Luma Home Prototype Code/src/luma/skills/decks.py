@@ -14,7 +14,8 @@ THEMES = {
     "ember": {"bg": "1A1210", "panel": "2A1D19", "text": "FFF4EE", "muted": "C7A99C", "accent": "FF7A45", "accent2": "FFC15E"},
     "forest": {"bg": "0E1A16", "panel": "16281F", "text": "EEF7F1", "muted": "9DB8A8", "accent": "4CC38A", "accent2": "D7E36B"},
 }
-LAYOUTS = ("title", "section", "bullets", "big_number", "two_column", "quote", "closing")
+LAYOUTS = ("title", "section", "bullets", "big_number", "two_column", "quote", "closing", "chart", "diagram", "table")
+CHARTS = ("bar", "column", "line", "pie")
 HEAD_FONT = "Helvetica Neue"
 BODY_FONT = "Helvetica Neue"
 
@@ -42,6 +43,45 @@ def _bullets(value, label, required=False):
     if len(items) > 6:
         raise ValueError(f"{label} has more than six bullets; split it into two slides.")
     return items
+
+
+def _number(value, label):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or abs(value) > 1e15:
+        raise ValueError(f"{label} must be a number.")
+    return float(value)
+
+
+def _chart(slide, where):
+    kind = slide.get("chart_type") or "column"
+    if kind not in CHARTS:
+        raise ValueError(f"{where}: chart_type is one of {', '.join(CHARTS)}.")
+    categories = [_clean(c, f"{where} category", 40) for c in (slide.get("categories") or [])]
+    if not 1 <= len(categories) <= 12:
+        raise ValueError(f"{where}: a chart needs 1 to 12 categories.")
+    series = []
+    for raw in (slide.get("series") or [])[:4]:
+        if not isinstance(raw, dict):
+            continue
+        values = [_number(v, f"{where} value") for v in (raw.get("values") or [])]
+        if len(values) != len(categories):
+            raise ValueError(f"{where}: each series needs one value per category ({len(categories)}).")
+        series.append({"name": _clean(raw.get("name") or "Series", f"{where} series name", 40), "values": values})
+    if not series:
+        raise ValueError(f"{where}: a chart needs at least one series of numbers.")
+    if kind == "pie":
+        series = series[:1]
+        if any(v < 0 for v in series[0]["values"]) or not sum(series[0]["values"]):
+            raise ValueError(f"{where}: a pie chart needs positive numbers.")
+    return {"chart_type": kind, "categories": categories, "series": series}
+
+
+def _table(slide, where):
+    rows = [[_clean(str(c), f"{where} cell", 60, required=False) for c in row][:6] for row in (slide.get("rows") or []) if isinstance(row, list)]
+    rows = [r for r in rows if any(r)][:9]
+    if len(rows) < 2:
+        raise ValueError(f"{where}: a table needs a header row and at least one row of data.")
+    width = max(len(r) for r in rows)
+    return [r + [""] * (width - len(r)) for r in rows]
 
 
 def validate_outline(spec):
@@ -84,8 +124,24 @@ def validate_outline(spec):
             row["attribution"] = _clean(slide.get("attribution"), f"{where} attribution", 100, required=False)
         elif layout in {"closing", "section", "title"}:
             row["bullets"] = _bullets(slide.get("bullets"), f"{where} bullets")[:4]
+        elif layout == "chart":
+            row.update(_chart(slide, where))
+            row["caption"] = _clean(slide.get("caption"), f"{where} caption", 200, required=False)
+        elif layout == "diagram":
+            steps = [_clean(st, f"{where} step", 70) for st in (slide.get("steps") or []) if isinstance(st, str) and st.strip()]
+            if not 2 <= len(steps) <= 6:
+                raise ValueError(f"{where}: a diagram needs 2 to 6 steps.")
+            row["steps"] = steps
+        elif layout == "table":
+            row["rows"] = _table(slide, where)
         clean.append(row)
     return {"title": title, "subtitle": subtitle, "theme": theme, "slides": clean}
+
+
+def _mix(a, b, amount):
+    """Blend two hex colors (0 = all a, 1 = all b)."""
+    pa, pb = [int(a[i:i + 2], 16) for i in (0, 2, 4)], [int(b[i:i + 2], 16) for i in (0, 2, 4)]
+    return "".join(f"{round(x + (y - x) * amount):02X}" for x, y in zip(pa, pb))
 
 
 def safe_filename(title):
@@ -193,6 +249,51 @@ def build_deck(spec, path):
         box(slide, 0.7 * inch, top, W - 1.4 * inch, lines * 0.62 * inch, title, 34 if lines < 3 else 28, bold=True, font=HEAD_FONT, spacing=1.0)
         return top + lines * 0.62 * inch + 0.45 * inch
 
+    def chart_box(slide, s, x, y, w, h):
+        """A real PowerPoint chart (editable in PowerPoint and Keynote), colored to the theme."""
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION, XL_LABEL_POSITION
+        data = CategoryChartData()
+        data.categories = s["categories"]
+        for series in s["series"]:
+            data.add_series(series["name"], series["values"])
+        kind = {"bar": XL_CHART_TYPE.BAR_CLUSTERED, "column": XL_CHART_TYPE.COLUMN_CLUSTERED, "line": XL_CHART_TYPE.LINE_MARKERS, "pie": XL_CHART_TYPE.PIE}[s["chart_type"]]
+        chart = slide.shapes.add_chart(kind, int(x), int(y), int(w), int(h), data).chart
+        chart.font.size = Pt(13)
+        chart.font.name = BODY_FONT
+        chart.font.color.rgb = rgb("text")
+        palette = ["accent", "accent2", "muted", "text"]
+        if s["chart_type"] == "pie":
+            plot = chart.plots[0]
+            for i, point in enumerate(plot.series[0].points):
+                point.format.fill.solid()
+                point.format.fill.fore_color.rgb = rgb(palette[i % 2]) if i < 2 else RGBColor.from_string(_mix(colors[palette[i % 2]], colors["bg"], 0.25 * (i // 2)))
+            plot.has_data_labels = True
+            plot.data_labels.number_format = '0%'
+            plot.data_labels.show_percentage = True
+            plot.data_labels.show_value = False
+            plot.data_labels.position = XL_LABEL_POSITION.OUTSIDE_END
+        else:
+            for i, series in enumerate(chart.series):
+                fmt = series.format
+                if s["chart_type"] == "line":
+                    fmt.line.color.rgb = rgb(palette[i % len(palette)])
+                    fmt.line.width = Pt(3)
+                else:
+                    fmt.fill.solid()
+                    fmt.fill.fore_color.rgb = rgb(palette[i % len(palette)])
+            for axis in (chart.category_axis, chart.value_axis):
+                axis.format.line.color.rgb = rgb("muted")
+                axis.tick_labels.font.color.rgb = rgb("muted")
+            chart.value_axis.has_major_gridlines = True
+            chart.value_axis.major_gridlines.format.line.color.rgb = rgb("panel")
+        chart.has_legend = len(s["series"]) > 1 or s["chart_type"] == "pie"
+        if chart.has_legend:
+            chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+            chart.legend.include_in_layout = False
+            chart.legend.font.color.rgb = rgb("text")
+        return chart
+
     def footer(slide, number):
         box(slide, 0.7 * inch, H - 0.55 * inch, 6 * inch, 0.3 * inch, spec["title"], 10, color="muted")
         box(slide, W - 1.7 * inch, H - 0.55 * inch, 1.0 * inch, 0.3 * inch, str(number), 10, color="muted", align=PP_ALIGN.RIGHT)
@@ -259,6 +360,46 @@ def build_deck(spec, path):
                 box(slide, 1.0 * inch, 3.6 * inch, W - 2.0 * inch, 0.9 * inch, s["subtitle"], 22, color="muted")
             if s.get("bullets"):
                 box(slide, 1.0 * inch, 4.6 * inch, W - 2.0 * inch, 0.9 * inch, "   ·   ".join(s["bullets"]), 16, color="accent2")
+        elif layout == "chart":
+            top = heading(slide, s["title"], s["subtitle"])
+            chart_box(slide, s, 0.7 * inch, top, W - 1.4 * inch, H - top - (1.35 if s["caption"] else 0.9) * inch)
+            if s["caption"]:
+                box(slide, 0.75 * inch, H - 1.25 * inch, W - 1.5 * inch, 0.5 * inch, s["caption"], 15, color="muted")
+            footer(slide, number)
+        elif layout == "diagram":
+            top = heading(slide, s["title"], s["subtitle"])
+            steps = s["steps"]
+            gap = 0.35 * inch
+            width = (W - 1.4 * inch - gap * (len(steps) - 1)) / len(steps)
+            height = min(2.6 * inch, H - top - 1.2 * inch)
+            for i, step in enumerate(steps):
+                x = 0.7 * inch + i * (width + gap)
+                rect(slide, x, top + 0.2 * inch, width, height, "panel", rounded=True)
+                box(slide, x + 0.25 * inch, top + 0.45 * inch, width - 0.5 * inch, 0.6 * inch, f"{i + 1:02d}", 28, color="accent" if i % 2 == 0 else "accent2", bold=True, font=HEAD_FONT)
+                box(slide, x + 0.25 * inch, top + 1.15 * inch, width - 0.5 * inch, height - 1.1 * inch, step, 16 if len(steps) > 4 else 18)
+                if i < len(steps) - 1:
+                    arrow = slide.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, int(x + width + gap * 0.15), int(top + 0.2 * inch + height / 2 - 0.14 * inch), int(gap * 0.7), int(0.28 * inch))
+                    arrow.fill.solid()
+                    arrow.fill.fore_color.rgb = rgb("accent")
+                    arrow.line.fill.background()
+            footer(slide, number)
+        elif layout == "table":
+            top = heading(slide, s["title"], s["subtitle"])
+            rows, cols = len(s["rows"]), len(s["rows"][0])
+            table = slide.shapes.add_table(rows, cols, int(0.7 * inch), int(top), int(W - 1.4 * inch), int(min(0.5 * inch * rows, H - top - 0.9 * inch))).table
+            for r, values in enumerate(s["rows"]):
+                for c, value in enumerate(values):
+                    cell = table.cell(r, c)
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = rgb("accent" if r == 0 else "panel" if r % 2 else "bg")
+                    cell.text = value
+                    for para in cell.text_frame.paragraphs:
+                        for run in para.runs:
+                            run.font.size = Pt(15 if rows <= 6 else 13)
+                            run.font.bold = r == 0
+                            run.font.name = BODY_FONT
+                            run.font.color.rgb = rgb("bg" if r == 0 else "text")
+            footer(slide, number)
         if s["notes"]:
             slide.notes_slide.notes_text_frame.text = s["notes"]
     target = Path(path)

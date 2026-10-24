@@ -193,13 +193,21 @@ _TEXT = {"type": "string"}
 FIELD_SCHEMAS = {
     "text": _TEXT,
     # A pitch deck outline. The grammar keeps a small model inside this exact shape.
-    "slides": {"type": "array", "minItems": 1, "maxItems": 14, "items": {
+    "slides": {"type": "array", "minItems": 1, "maxItems": 24, "items": {
         "type": "object",
         "properties": {
-            "layout": {"enum": ["title", "section", "bullets", "big_number", "quote", "closing"]},
+            "layout": {"enum": ["title", "section", "bullets", "big_number", "quote", "closing", "chart", "diagram", "table"]},
             "title": _TEXT, "subtitle": _TEXT,
             "bullets": {"type": "array", "maxItems": 5, "items": _TEXT},
             "number": _TEXT, "caption": _TEXT, "quote": _TEXT, "attribution": _TEXT, "notes": _TEXT,
+            # chart: a real, editable PowerPoint chart
+            "chart_type": {"enum": ["bar", "column", "line", "pie"]},
+            "categories": {"type": "array", "maxItems": 12, "items": _TEXT},
+            "series": {"type": "array", "maxItems": 4, "items": {"type": "object", "properties": {"name": _TEXT, "values": {"type": "array", "maxItems": 12, "items": {"type": "number"}}},
+                                                                  "required": ["name", "values"], "additionalProperties": False}},
+            # diagram: steps of a process, left to right; table: a header row then data rows
+            "steps": {"type": "array", "maxItems": 6, "items": _TEXT},
+            "rows": {"type": "array", "maxItems": 9, "items": {"type": "array", "maxItems": 6, "items": _TEXT}},
         },
         "required": ["layout", "title"], "additionalProperties": False}},
     # A document: sections with a heading, paragraphs and bullets.
@@ -207,6 +215,45 @@ FIELD_SCHEMAS = {
         "type": "object",
         "properties": {"heading": _TEXT, "paragraphs": {"type": "array", "maxItems": 8, "items": _TEXT}, "bullets": {"type": "array", "maxItems": 10, "items": _TEXT}},
         "required": ["heading", "paragraphs", "bullets"], "additionalProperties": False}},
+    # A project plan: which specialist does what, with which studio, after which earlier steps.
+    "plan": {"type": "array", "minItems": 1, "maxItems": 12, "items": {
+        "type": "object",
+        "properties": {"title": _TEXT, "agent": {"enum": ["research", "data", "document", "design", "coding", "qa"]},
+                       "tool": {"enum": ["research", "analyze_data", "financial_model", "document", "deck", "website", "code", "game", "model3d", "graphics", "package"]},
+                       "task": _TEXT, "needs": {"type": "array", "maxItems": 6, "items": {"type": "integer"}}},
+        "required": ["title", "agent", "tool", "task", "needs"], "additionalProperties": False}},
+    # Research: each finding names the numbered sources that back it.
+    "findings": {"type": "array", "minItems": 1, "maxItems": 14, "items": {
+        "type": "object",
+        "properties": {"claim": _TEXT, "sources": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"type": "integer"}}, "confidence": {"enum": ["high", "medium", "low"]}},
+        "required": ["claim", "sources", "confidence"], "additionalProperties": False}},
+    "conflicts": {"type": "array", "maxItems": 6, "items": {
+        "type": "object", "properties": {"topic": _TEXT, "detail": _TEXT, "sources": {"type": "array", "maxItems": 5, "items": {"type": "integer"}}},
+        "required": ["topic", "detail", "sources"], "additionalProperties": False}},
+    # A website: pages made of sections from tested building blocks.
+    "pages": {"type": "array", "minItems": 1, "maxItems": 6, "items": {
+        "type": "object",
+        "properties": {"slug": _TEXT, "title": _TEXT, "sections": {"type": "array", "minItems": 1, "maxItems": 8, "items": {
+            "type": "object",
+            "properties": {"kind": {"enum": ["hero", "features", "stats", "pricing", "testimonials", "faq", "team", "cta", "text", "contact", "gallery"]},
+                           "heading": _TEXT, "body": _TEXT,
+                           "items": {"type": "array", "maxItems": 8, "items": {"type": "object", "properties": {"title": _TEXT, "text": _TEXT, "extra": _TEXT},
+                                                                                "required": ["title", "text", "extra"], "additionalProperties": False}}},
+            "required": ["kind", "heading", "body", "items"], "additionalProperties": False}}},
+        "required": ["slug", "title", "sections"], "additionalProperties": False}},
+    # Code: whole files, each with its path inside the project.
+    "files": {"type": "array", "minItems": 1, "maxItems": 16, "items": {
+        "type": "object", "properties": {"path": _TEXT, "content": _TEXT}, "required": ["path", "content"], "additionalProperties": False}},
+    # A game level drawn in characters, one string per row.
+    "level": {"type": "array", "minItems": 3, "maxItems": 24, "items": _TEXT},
+    # A 3D model as parts: boxes, cylinders, spheres and cones, sized and placed in millimetres.
+    "parts": {"type": "array", "minItems": 1, "maxItems": 24, "items": {
+        "type": "object",
+        "properties": {"name": _TEXT, "shape": {"enum": ["box", "cylinder", "sphere", "cone"]},
+                       "size": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+                       "at": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+                       "color": _TEXT, "cut": {"type": "boolean"}},
+        "required": ["name", "shape", "size", "at", "color", "cut"], "additionalProperties": False}},
     # Flashcards: a question on the front, the answer on the back.
     "cards": {"type": "array", "maxItems": 40, "items": {
         "type": "object", "properties": {"front": _TEXT, "back": _TEXT}, "required": ["front", "back"], "additionalProperties": False}},

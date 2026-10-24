@@ -419,11 +419,11 @@ class Agent:
                 scored.append((score, name))
         return {name for _, name in sorted(scored, reverse=True)[:limit]}
 
-    def call_planner(self, messages, context, allowed, cancel_event, profile=None):
+    def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
         return brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
-                          on_text=getattr(self, "_on_text", None))
+                          on_text=getattr(self, "_on_text", None), tier=tier)
 
     def enable(self, service, value):
         if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser", "mail", "calendar", "connectors"}: raise ValueError("Unknown integration.")
