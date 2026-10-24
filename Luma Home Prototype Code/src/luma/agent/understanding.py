@@ -323,8 +323,8 @@ WALKS = {
         {"say": "That's it. You've got one Luma now: same memory on both, and it keeps going when your laptop's closed."}]},
     "brain": {"title": "A smarter brain", "steps": [
         {"say": "Open Settings and find “Luma's brain”. I'll take you there.", "open": "settings"},
-        {"say": "For the strongest brain, paste an Anthropic API key (it starts with sk-ant-) and turn on the cloud brain. You can make one at console.anthropic.com.",
-         "stuck": "At console.anthropic.com, go to API keys and press Create key. Copy it and paste it into Luma."},
+        {"say": "For the strongest brain, pick Claude or Kimi K3.1 Pro under Cloud brain, paste that company's API key, and turn it on. Claude keys come from console.anthropic.com, Kimi keys from platform.kimi.ai.",
+         "stuck": "On either site, go to API keys and press Create key. Copy it and paste it into Luma."},
         {"say": "Or, if this computer has 24 GB of memory or more, tap Get the bigger brain. It's free and private, and runs right here."}]},
     "plus": {"title": "Luma Plus", "steps": [
         {"say": "Luma Plus remembers everything with no limit, backed up and private, and it unlocks your phone and texting."},

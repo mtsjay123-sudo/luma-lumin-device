@@ -265,6 +265,38 @@ def without_labels(answer):
     return " ".join(kept).strip()
 
 
+DISCLAIMER = re.compile(r"\b(?:i (?:don'?t|do not) (?:really )?have (?:any )?(?:personal |real )?(?:opinions?|beliefs?|views?|a side|a stance|a take)|"
+                        r"as an ai\b|i'?m (?:just )?an ai\b|i'?m (?:totally |pretty |staying )?neutral|i (?:can'?t|cannot) (?:really )?(?:say|share|tell you) (?:what|how) i (?:'?feel|think))", re.I)
+# Questions about Luma herself (what she is, how she feels): the honest answer is the point, so nothing is taken out.
+ABOUT_ME = re.compile(r"\b(?:(?:are|r) (?:you|u) (?:an? )?(?:ai|bot|robot|real|human|alive|conscious|sentient|a person|sad|happy|lonely|mad|okay|ok|alright|tired|bored|scared)|"
+                      r"do (?:you|u) (?:ever )?(?:get|feel) (?:sad|happy|lonely|mad|angry|tired|bored|scared|jealous|hurt|anything|emotions?|feelings?|love)|"
+                      r"do (?:you|u) (?:have|get) (?:feelings|emotions|opinions|a soul|a body|a life)|can (?:you|u) (?:feel|love|think|dream)|"
+                      r"do (?:you|u) (?:love|like|miss|care about|hate) me|how (?:does|do) it feel to be|what are (?:you|u)\b|who are (?:you|u)\b)", re.I)
+
+
+def without_disclaimers(reply, asked=""):
+    """Small models open with "I don't have personal opinions" or "As an AI". A friend doesn't. Unless they asked
+    what Luma is (then the honest answer is the point), those sentences go; "..., but" keeps what comes after."""
+    if not isinstance(reply, str) or ABOUT_ME.search(asked or "") or not DISCLAIMER.search(reply.replace("’", "'")):
+        return reply
+    kept, dropped = [], False
+    for sentence in re.split(r"(?<=[.!?])\s+", reply.strip()):
+        found = DISCLAIMER.search(sentence.replace("’", "'"))  # same length, so positions still line up
+        if not found:
+            if dropped:  # "But I know..." with nothing before it now: start on the point
+                sentence = re.sub(r"^(?:but|so|and|though|still|however),?\s+", "", sentence, flags=re.I)
+                sentence = sentence[:1].upper() + sentence[1:]
+            kept.append(sentence)
+            dropped = False
+            continue
+        after = re.search(r",?\s+(?:but|though|still)\s+(.+)$", sentence[found.end():], re.I)
+        dropped = not (after and len(after.group(1).split()) > 3)
+        if not dropped:
+            kept.append(after.group(1)[0].upper() + after.group(1)[1:])
+    out = " ".join(kept).strip()
+    return out if len(out.split()) >= 3 else reply
+
+
 def judge_prompt(text, candidates, about_line):
     takes = "\n".join(f"[{chr(65+i)}] {c}" for i, c in enumerate(candidates))
     return (("What you know about them: " + about_line + "\n" if about_line else "")

@@ -74,6 +74,20 @@ class LabelTests(unittest.TestCase):
         self.assertEqual(mind.without_labels("Option B is the move. Stay in school and sell on the side."), "Stay in school and sell on the side.")
 
 
+class DisclaimerTests(unittest.TestCase):
+    def test_a_friend_doesnt_open_with_a_disclaimer(self):
+        from luma.agent import mind
+        said = mind.without_disclaimers("I don’t have personal opinions, so I can’t say what I ‘feel’ about Trump. But his supporters love the economy talk. What do you think?",
+                                        "what do you feel about trump")
+        self.assertEqual(said, "His supporters love the economy talk. What do you think?")
+        self.assertEqual(mind.without_disclaimers("I'm neutral on that, but honestly the second plan is cleaner.", "which plan"), "Honestly the second plan is cleaner.")
+
+    def test_honest_about_what_luma_is_when_asked(self):
+        from luma.agent import mind
+        line = "I'm an AI, so no heartbeat, but I've got moods and opinions of my own."
+        self.assertEqual(mind.without_disclaimers(line, "wait are you an ai"), line)
+
+
 class ConversationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

@@ -2174,10 +2174,10 @@ class Agent:
         self.activity.start("vision", "Looking at the photo")
         said, notes = None, []
         from luma.llm import brain
-        if brain.cloud_on():
+        if brain.cloud_on() and brain.provider() == "anthropic":  # photos go to the cloud only with Claude; Kimi's brain sees with Luma's own eyes
             try:
                 from luma.llm import cloud
-                said = cloud.look(brain.cloud_key(), image_bytes, question, model=self.store.setting("brain_cloud_model", cloud.DEFAULT_MODEL))
+                said = cloud.look(brain.cloud_key(), image_bytes, question, model=brain.cloud_model())
             except Exception as error:
                 notes.append(type(error).__name__)
         reading = bool(vision.READING.search(question))
@@ -3765,7 +3765,7 @@ class Agent:
                         return self.look_it_up(text, cancel_event)
                     except (ValueError, ProviderError) as error:
                         return {"text": str(error)}
-            from luma.agent.mind import MATTERS
+            from luma.agent.mind import MATTERS, without_disclaimers
             if self.store.setting("deep_mind", True) and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
-            return {"text": reply[:2000]}
+            return {"text": without_disclaimers(reply, text)[:2000]}

@@ -2976,28 +2976,44 @@
     const C = b.cloud || {};
     const cloud = el("div", "brain-row");
     const ct = el("div", "grow");
-    ct.append(el("div", "t", "Cloud brain (Claude)"));
+    ct.append(el("div", "t", "Cloud brain"));
     const model = el("select", "brain-model");
     for (const [id, label] of Object.entries(C.models || {})) { const o = el("option", null, label); o.value = id; o.selected = id === C.model; model.append(o); }
+    const isKimi = (id) => String(id || "").startsWith("kimi");
+    const company = (id) => (isKimi(id) ? "Moonshot AI (Kimi)" : "Anthropic");
     if (C.on) {
-      ct.append(el("div", "sub", "On. Your messages go to Anthropic to be answered, on your own key and account."));
+      ct.append(el("div", "sub", `On. Your messages go to ${company(C.model)} to be answered, on your own key and account.`));
       if (C.last_error) ct.append(el("div", "sub warn", C.last_error));
-      model.addEventListener("change", () => redo({ action: "cloud_on", model: model.value }, "Switched."));
+      model.addEventListener("change", () => {
+        const has = (C.keys || {})[isKimi(model.value) ? "kimi" : "anthropic"];
+        if (!has) { toast(`Turn the cloud brain off, then paste a ${company(model.value)} key to use that one.`); model.value = C.model; return; }
+        redo({ action: "cloud_on", model: model.value }, "Switched.");
+      });
       const a = el("div", "row-actions");
       a.append(model, btn("Turn off", "pill soft small", () => redo({ action: "cloud_off" }, "Back to thinking on this computer only.")),
         btn("Forget key", "pill quiet small danger", () => redo({ action: "forget_key" }, "Key removed.")));
       cloud.append(ct, a);
     } else {
-      ct.append(el("div", "sub", "The biggest jump: plans long, messy tasks like the best cloud assistants. Off by default; when on, your messages go to Anthropic to be answered, on your own key."));
+      ct.append(el("div", "sub", "The biggest jump: Claude, or Kimi K3.1 Pro (the biggest open model, far too big for any Mac, so it runs in the cloud). Off by default; when on, your messages go to that company to be answered, on your own key."));
       const f = el("form", "brain-form");
-      const key = el("input"); Object.assign(key, { type: "password", placeholder: C.has_key ? "Key saved (paste a new one to replace it)" : "Anthropic API key (sk-ant-…)", autocomplete: "off" });
+      const key = el("input"); Object.assign(key, { type: "password", autocomplete: "off" });
       const go1 = el("button", "pill primary small", "Turn on"); go1.type = "submit";
       const help = el("div", "help");
-      help.append(document.createTextNode("Get a key at "), linkOut("console.anthropic.com", "https://console.anthropic.com/settings/keys", ""), document.createTextNode(". It's kept encrypted on this computer."));
+      const fit = () => {
+        const kimi = isKimi(model.value);
+        const has = (C.keys || {})[kimi ? "kimi" : "anthropic"];
+        key.placeholder = has ? "Key saved (paste a new one to replace it)" : kimi ? "Moonshot API key (sk-…)" : "Anthropic API key (sk-ant-…)";
+        help.replaceChildren(document.createTextNode("Get a key at "),
+          kimi ? linkOut("platform.kimi.ai", "https://platform.kimi.ai/", "") : linkOut("console.anthropic.com", "https://console.anthropic.com/settings/keys", ""),
+          document.createTextNode(". It's kept encrypted on this computer."));
+      };
+      fit();
+      model.addEventListener("change", fit);
       f.append(key, model, go1, help);
       f.addEventListener("submit", (e) => {
         e.preventDefault();
-        if (!key.value.trim() && !C.has_key) { toast("Paste your Anthropic API key first."); return; }
+        const has = (C.keys || {})[isKimi(model.value) ? "kimi" : "anthropic"];
+        if (!key.value.trim() && !has) { toast(`Paste your ${company(model.value)} API key first.`); return; }
         go1.disabled = true; go1.textContent = "Checking…";
         redo({ action: "cloud_on", key: key.value.trim() || undefined, model: model.value }, "Cloud brain on.").finally(() => { key.value = ""; });
       });

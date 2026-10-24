@@ -5,7 +5,8 @@ Three choices, all behind the same plan/rewrite calls the runtime already uses:
   • a bigger local model (Qwen3 30B-A3B, a mixture-of-experts that thinks like a big
     model but runs at the speed of a 3B one) for computers with the memory for it,
     downloaded once, checked against its published SHA-256;
-  • the cloud brain (Claude) with the owner's own key, if they turn it on.
+  • the cloud brain, if they turn it on: Claude (Anthropic) or Kimi K3.1 Pro (Moonshot's open model,
+    far too big for a Mac), each with the owner's own key.
 If the cloud brain can't answer (offline, out of credit), Luma falls back to the
 local one for that turn instead of failing.
 """
@@ -117,8 +118,32 @@ def use_small(small=True):
 
 
 # -- cloud ---------------------------------------------------------------------
-def cloud_key():
-    return (_store.setting("brain_cloud_key") or "") if _store is not None else ""
+KEY_SETTING = {"anthropic": "brain_cloud_key", "kimi": "brain_kimi_key"}  # each company's key is kept on its own
+
+
+def cloud_models():
+    from luma.llm import cloud, kimi
+    return {**cloud.MODELS, **kimi.MODELS}
+
+
+def cloud_model():
+    from luma.llm import cloud
+    model = _store.setting("brain_cloud_model", cloud.DEFAULT_MODEL) if _store is not None else cloud.DEFAULT_MODEL
+    return model if model in cloud_models() else cloud.DEFAULT_MODEL
+
+
+def provider(model=None):
+    from luma.llm import kimi
+    return "kimi" if (model or cloud_model()) in kimi.MODELS else "anthropic"
+
+
+def _provider_module(name):
+    from luma.llm import cloud, kimi
+    return kimi if name == "kimi" else cloud
+
+
+def cloud_key(which=None):
+    return (_store.setting(KEY_SETTING[which or provider()]) or "") if _store is not None else ""
 
 
 def cloud_on():
@@ -126,14 +151,14 @@ def cloud_on():
 
 
 def set_cloud(on, key=None, model=None):
-    from luma.llm import cloud
     if on:
-        key = (key or cloud_key()).strip()
-        model = model or _store.setting("brain_cloud_model", cloud.DEFAULT_MODEL)
-        if model not in cloud.MODELS:
-            raise ValueError("Choose Claude Opus 5.5 or Claude Sonnet 5.5.")
-        cloud.check_key(key, model)
-        _store.set_setting("brain_cloud_key", key)
+        model = model or cloud_model()
+        if model not in cloud_models():
+            raise ValueError("Choose Claude Opus 5.5, Claude Sonnet 5.5 or Kimi K3.1 Pro.")
+        which = provider(model)
+        key = (key or cloud_key(which)).strip()
+        _provider_module(which).check_key(key, model)
+        _store.set_setting(KEY_SETTING[which], key)
         _store.set_setting("brain_cloud_model", model)
     _store.set_setting("brain_cloud", bool(on))
     return status()
@@ -141,7 +166,7 @@ def set_cloud(on, key=None, model=None):
 
 def forget_key():
     _store.set_setting("brain_cloud", False)
-    _store.set_setting("brain_cloud_key", None)
+    _store.set_setting(KEY_SETTING[provider()], None)
     return status()
 
 
@@ -151,12 +176,13 @@ def status():
     gb = ram_gb()
     local_name = "Qwen3 30B (bigger)" if big and (_store is None or _store.setting("brain_local", "auto") != "small") else "Qwen3 4B"
     return {
-        "cloud": {"on": cloud_on(), "has_key": bool(cloud_key()), "model": (_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL) if _store else cloud.DEFAULT_MODEL),
-                  "models": cloud.MODELS, "last_error": (_store.setting("brain_cloud_error") if _store else None)},
+        "cloud": {"on": cloud_on(), "has_key": bool(cloud_key()), "keys": {which: bool(cloud_key(which)) for which in KEY_SETTING},
+                  "model": cloud_model(), "provider": provider(), "models": cloud_models(),
+                  "last_error": (_store.setting("brain_cloud_error") if _store else None)},
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb),
                   "fetching": progress(), "fetch_error": fetching["error"]},
         "health": health(),
-        "thinking_with": cloud.MODELS.get(_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL), "Claude") if cloud_on() else local_name,
+        "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
     }
 
 
@@ -164,10 +190,9 @@ def status():
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
     from luma.llm import inference
     if cloud_on():
-        from luma.llm import cloud
         try:
-            result = cloud.plan(cloud_key(), messages, memories, tools, mode, profile=profile, cancel_event=cancel_event,
-                                on_text=on_text, model=_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL))
+            result = _provider_module(provider()).plan(cloud_key(), messages, memories, tools, mode, profile=profile, cancel_event=cancel_event,
+                                                       on_text=on_text, model=cloud_model())
             if _store.setting("brain_cloud_error"): _store.set_setting("brain_cloud_error", None)
             return result
         except inference.GenerationCancelled:
@@ -180,9 +205,8 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
 def rewrite(prompt, max_tokens=90, cancel_event=None):
     from luma.llm import inference
     if cloud_on():
-        from luma.llm import cloud
         try:
-            return cloud.rewrite(cloud_key(), prompt, max_tokens=max_tokens, model=_store.setting("brain_cloud_model", cloud.DEFAULT_MODEL))
+            return _provider_module(provider()).rewrite(cloud_key(), prompt, max_tokens=max_tokens, model=cloud_model())
         except Exception as error:
             _store.set_setting("brain_cloud_error", _plain_error(error))
     return _local(inference.rewrite, prompt, max_tokens=max_tokens, cancel_event=cancel_event)
@@ -190,7 +214,7 @@ def rewrite(prompt, max_tokens=90, cancel_event=None):
 
 def _plain_error(error):
     name = type(error).__name__
-    if "Authentication" in name: return "Anthropic stopped accepting the key. Paste a new one in Settings."
+    if "Authentication" in name: return "The cloud brain stopped accepting your key. Paste a new one in Settings."
     if "RateLimit" in name: return "The cloud brain is busy or out of credit, so I used the local one."
     if "Connection" in name or "Timeout" in name: return "Couldn't reach the cloud brain, so I used the local one."
     if "Refused" in name: return "The cloud brain declined one message, so the local one answered."

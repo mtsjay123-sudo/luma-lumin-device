@@ -127,9 +127,10 @@ def ask(kind, text, now, zone, profile=None, style=None, seed=0):
 
 # How to answer once they've picked. Deep goes through Luma's deliberation; these shape the quick answers.
 QUICK = {
-    "politics": ("They picked your quick take on politics or a public figure. Two or three spoken sentences, in their register: what supporters like, "
-                 "what critics push back on, and one fact you're sure of (no recent events you can't confirm). Don't take a side, and don't say "
-                 "you're neutral or have no opinions; just be fair and real. Then ask what they think."),
+    "politics": ("They picked your quick take on politics or a public figure. Jump straight in, two or three spoken sentences in their register, "
+                 "shaped like: \"Okay, real quick: the people who back him love ___ and ___. The people against him point to ___. Where you at on it?\" "
+                 "Fill the blanks with things supporters like and critics push back on that you're sure of (no recent events you can't confirm). "
+                 "Don't take a side, and don't start with a disclaimer about having opinions."),
     "advice": "They picked your quick answer. Say what you'd do and the one reason that matters most, in two or three spoken sentences. One short follow-up question if it helps.",
     "explain": "They picked the short version. The core idea in two or three spoken sentences, in everyday words. Offer to go deeper.",
     "compare": "They picked your quick take. Pick one, give the one reason that decides it, two or three spoken sentences.",

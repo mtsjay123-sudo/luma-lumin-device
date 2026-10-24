@@ -144,6 +144,116 @@ class CloudBrainTests(unittest.TestCase):
 CloudBrainTests_reply = FakeAnthropic.reply
 
 
+class FakeMoonshot(http.server.BaseHTTPRequestHandler):
+    """Moonshot's OpenAI-style API: /v1/models and /v1/chat/completions."""
+    seen = []
+    status = 200
+    content = '```json\n{"type": "reply", "text": "Bet, Tuesday at 3. Want it on your calendar?"}\n```'
+
+    def log_message(self, *a): pass
+
+    def _authed(self):
+        return self.headers.get("Authorization") == "Bearer sk-moon-good"
+
+    def do_GET(self):
+        if self.path == "/v1/models":
+            return self._json({"data": [{"id": "kimi-k3.1-pro"}]} if self._authed() else {"error": {"message": "Invalid Authentication"}}, 200 if self._authed() else 401)
+        self._json({}, 404)
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        FakeMoonshot.seen.append(body)
+        if not self._authed():
+            return self._json({"error": {"message": "Invalid Authentication"}}, 401)
+        if FakeMoonshot.status != 200:
+            return self._json({"error": {"message": "rate limited"}}, FakeMoonshot.status)
+        self._json({"id": "x", "object": "chat.completion", "model": body["model"],
+                    "choices": [{"index": 0, "message": {"role": "assistant", "content": FakeMoonshot.content}, "finish_reason": "stop"}]})
+
+    def _json(self, data, status=200):
+        raw = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+
+class KimiBrainTests(unittest.TestCase):
+    """Kimi K3.1 Pro: the open model too big for a Mac, as a cloud brain on the owner's own Moonshot key."""
+    @classmethod
+    def setUpClass(cls):
+        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeMoonshot)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "s.db", Path(self.temp.name) / "k")
+        self.env = mock.patch.dict(os.environ, {"LUMA_KIMI_BASE": f"http://127.0.0.1:{self.server.server_port}/v1"})
+        self.env.start()
+        FakeMoonshot.seen.clear()
+        FakeMoonshot.status = 200
+        brain.init(self.store)
+
+    def tearDown(self):
+        self.env.stop()
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_turning_it_on_checks_the_moonshot_key(self):
+        with self.assertRaises(ValueError):
+            brain.set_cloud(True, key="sk-ant-good", model="kimi-k3.1-pro")  # an Anthropic key isn't a Moonshot key
+        with self.assertRaises(ValueError):
+            brain.set_cloud(True, key="sk-moon-bad", model="kimi-k3.1-pro")
+        state = brain.set_cloud(True, key="sk-moon-good", model="kimi-k3.1-pro")
+        self.assertTrue(state["cloud"]["on"])
+        self.assertEqual(state["cloud"]["provider"], "kimi")
+        self.assertIn("Kimi K3.1 Pro", state["thinking_with"])
+        self.assertEqual(state["cloud"]["keys"], {"anthropic": False, "kimi": True})
+        self.assertNotIn("sk-moon-good", json.dumps(state))
+
+    def test_answers_in_lumas_shape(self):
+        brain.set_cloud(True, key="sk-moon-good", model="kimi-k3.1-pro")
+        heard = []
+        result = brain.plan([{"role": "assistant", "content": "hi"}, {"role": "user", "content": "remind me tuesday at 3"}], [], TOOLS, "friend", on_text=heard.append)
+        self.assertEqual(result, {"type": "reply", "text": "Bet, Tuesday at 3. Want it on your calendar?"})  # out of its code fence
+        self.assertIn("Tuesday at 3", "".join(heard))
+        body = FakeMoonshot.seen[-1]
+        self.assertEqual(body["model"], "kimi-k3.1-pro")
+        self.assertEqual(body["response_format"], {"type": "json_object"})
+        self.assertEqual(body["messages"][0]["role"], "system")
+        self.assertEqual(body["messages"][1], {"role": "user", "content": "remind me tuesday at 3"})  # history starts on the owner's turn
+
+    def test_falls_back_to_the_local_brain(self):
+        brain.set_cloud(True, key="sk-moon-good", model="kimi-k3.1-pro")
+        FakeMoonshot.status = 429
+        with mock.patch.object(inference, "plan", return_value={"type": "reply", "text": "local"}) as local:
+            result = brain.plan([{"role": "user", "content": "hey"}], [], {}, "friend")
+        self.assertEqual(result["text"], "local")
+        local.assert_called_once()
+        self.assertIn("busy or out of credit", brain.status()["cloud"]["last_error"])
+
+    def test_each_companys_key_is_kept_apart(self):
+        brain.set_cloud(True, key="sk-moon-good", model="kimi-k3.1-pro")
+        self.store.set_setting("brain_cloud_key", "sk-ant-other")
+        self.assertEqual(brain.cloud_key(), "sk-moon-good")
+        brain.forget_key()
+        self.assertFalse(brain.cloud_on())
+        self.assertEqual(self.store.setting("brain_cloud_key"), "sk-ant-other")  # forgetting Kimi's key leaves Claude's
+
+    def test_photos_dont_go_to_kimi(self):
+        from luma.agent.runtime import Agent
+        brain.set_cloud(True, key="sk-moon-good", model="kimi-k3.1-pro")
+        agent = Agent(store=self.store, use_model=False)
+        with mock.patch.object(cloud, "look") as look:
+            agent.see(b"\x89PNG\r\n\x1a\n" + b"0" * 100, "what's this")
+        look.assert_not_called()
+
+
 class BiggerLocalBrainTests(unittest.TestCase):
     FILES = [{"path": "Qwen_Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "size": 18_600_000_000},
              {"path": "Qwen_Qwen3-30B-A3B-Instruct-2507-IQ4_XS.gguf", "size": 16_400_000_000},
