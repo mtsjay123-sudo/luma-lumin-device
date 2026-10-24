@@ -132,6 +132,10 @@ jobs:
     needs: [mac, windows]
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/hopeful-feynman-z2294x'
     runs-on: ubuntu-latest
+    # One release at a time: two pushes close together used to publish and prune releases at once, and one failed.
+    concurrency:
+      group: desktop-release
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
