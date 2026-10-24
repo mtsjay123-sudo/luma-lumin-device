@@ -111,6 +111,14 @@ def main(out):
                     entry.setdefault("errors", []).append(f"{name}: {error}")
             entry["rtf"] = rtfs
             entry["said_by_classic_voice"] = misses
+            # How fast the smaller builds are, for Macs where the full model can't keep up.
+            for repo in natural.FASTER.get(engine, []):
+                try:
+                    v._call("load", 3600, engine=engine, ref=str(ref), ref_text=natural.REF_TEXT, repos=[repo])
+                    v._call("say", 300, text="Okay, I'm here.")
+                    entry.setdefault("faster", {})[repo] = v._call("say", 300, text=natural.SPEED_LINE).get("rtf")
+                except Exception as error:
+                    entry.setdefault("faster", {})[repo] = str(error)[:200]
         summary["voices"][engine] = entry
         v.stop()
         natural._voice = None

@@ -15,12 +15,18 @@ like talking to your funniest friend, in a voice that's hers alone.
 
 ## First results from a real Mac (CI, October 24)
 
-- **Studio (Qwen3-TTS 0.6B)** downloaded, learned Luma's voice and rendered every line. On GitHub's
-  virtual M1 it ran 2.8 to 7.7 times slower than real time. That's too slow to talk live, but this
-  runner is much slower than a real MacBook. The new speed check decides on each Mac.
-- **Expressive (Chatterbox-Turbo)** downloaded and loaded, then rejected the reference line because
-  it needs more than five seconds of voice. The reference is now about ten seconds.
-- **Designed voices** (warm, smooth, late-night) all rendered, about 40 to 60 seconds each.
+Whisper checks every sample against the words it was meant to say (word error rate, 0 is perfect):
+
+| Voice | Words heard wrong | Speed on GitHub's virtual M1 | Notes |
+|---|---|---|---|
+| Classic (Kokoro) | 1.8% | faster than real time | "Nah" heard as "No" |
+| Expressive (Chatterbox-Turbo) | 2.2% | 2 to 4 times slower than real time, on the GPU | Every phrase came out right; "Bet." heard as "That" |
+| Designed voices (Qwen3-TTS VoiceDesign) | 0% | about 40 seconds per line | Candidates for Luma's own voice |
+| Studio (Qwen3-TTS 0.6B) | – | 3 to 8 times slower (first run) | Made empty audio with the longer reference; it now retries and reports what came out |
+
+GitHub's runner is a small virtual Mac, much slower than a real one. Luma times the new voice on
+each Mac before it talks, tries the smaller 8-bit and 4-bit builds if the full model can't keep up,
+and keeps the classic voice if none can.
 
 ## Picking Luma's own voice
 

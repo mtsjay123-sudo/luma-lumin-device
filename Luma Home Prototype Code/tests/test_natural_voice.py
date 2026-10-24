@@ -31,6 +31,8 @@ FAKE_MLX = textwrap.dedent('''
             print("library chatter on stdout")  # must never garble Luma's replies
             if "CRASH" in text:
                 os._exit(3)
+            if "SILENT" in text:
+                return
             seconds = 30.0 if "BABBLE" in text else 0.25 + 0.06 * len(text)
             t = np.arange(int(self.sample_rate * seconds)) / self.sample_rate
             tone = 0.2 * np.sin(2 * np.pi * (440 if "[laugh]" in text else 220) * t)
@@ -136,6 +138,17 @@ class NaturalVoiceTests(unittest.TestCase):
         self.assertEqual(v.status()["state"], "failed")  # three in a row does
         self.assertIn("garbl", v.status()["note"])
 
+    def test_a_phrase_it_cant_make_is_one_strike_not_a_shutdown(self):
+        v = natural.voice()
+        with mock.patch.object(v, "reference", return_value=self.ref):
+            v.prepare("expressive")
+        with self.assertRaises(natural.CouldntSay) as said:
+            v.say("SILENT for a sec")
+        self.assertIn("no samples", str(said.exception))  # tried again, and says what came out
+        self.assertEqual(v.status()["state"], "ready")
+        pcm, rate = v.say("And now it talks again.")
+        self.assertGreater(len(pcm), 2400)
+
     def test_a_mac_that_cant_keep_up_keeps_the_classic_voice(self):
         v = natural.voice()
         with mock.patch.object(natural, "MAX_RTF", -1), mock.patch.object(v, "reference", return_value=self.ref):
@@ -146,6 +159,23 @@ class NaturalVoiceTests(unittest.TestCase):
             with mock.patch.object(again, "_call") as call:  # measured this week: not loaded again
                 self.assertEqual(again.prepare("expressive")["state"], "slow")
             call.assert_not_called()
+
+    def test_a_smaller_build_takes_over_when_the_full_one_is_too_slow(self):
+        v = natural.voice()
+        real = v._call
+
+        def timed(op, timeout, **fields):
+            out = real(op, timeout, **fields)
+            if op == "say" and fields.get("text") == natural.SPEED_LINE:
+                out = {**out, "rtf": 0.5 if "8bit" in str(v._loaded) else 2.0}  # the full model is slow here, the 8-bit one isn't
+            if op == "load":
+                v._loaded = out.get("repo")
+            return out
+        with mock.patch.object(v, "_call", side_effect=timed), mock.patch.object(v, "reference", return_value=self.ref):
+            status = v.prepare("expressive")
+        self.assertEqual(status["state"], "ready", status)
+        self.assertEqual(status["model"], "mlx-community/chatterbox-turbo-8bit")
+        self.assertEqual([t["speed"] for t in status["tried"]], [2.0, 0.5])
 
     def test_tries_the_other_voice_when_the_first_wont_load(self):
         v = natural.voice()

@@ -38,6 +38,9 @@ SPEED_LINE = "Alright, so tell me everything that happened today, I'm listening.
 MAX_RTF = 0.9              # it has to make speech faster than it talks, or the conversation stalls between phrases
 SLOW_FOR = 7 * 86400       # an engine that was too slow on this Mac isn't tried again for a week
 ENGINES = ("expressive", "studio")
+# Smaller (quantized) builds of each model: a little less detail, a lot faster. Tried when the full one can't keep up.
+FASTER = {"expressive": ["mlx-community/chatterbox-turbo-8bit", "mlx-community/chatterbox-turbo-4bit"],
+          "studio": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"]}
 TAGS = re.compile(r"\[(?:laugh|chuckle|sigh|cough)\]")
 
 
@@ -82,6 +85,10 @@ def supported():
     return sys.platform == "darwin" and platform.machine() == "arm64"
 
 
+class CouldntSay(RuntimeError):
+    """The voice is running fine but couldn't make this one phrase."""
+
+
 class NaturalVoice:
     def __init__(self):
         self.proc = None
@@ -102,6 +109,7 @@ class NaturalVoice:
         self.retries = 0
         self.strikes = 0          # phrases in a row that didn't come out right
         self.slow_streak = 0      # phrases in a row that took too long to make
+        self.tried = []           # each model tried on this Mac, and how fast it was
 
     # -- the process -------------------------------------------------------------
     def _start(self):
@@ -153,7 +161,7 @@ class NaturalVoice:
                 if message.get("id") != ident:
                     continue
                 if not message.get("ok"):
-                    raise RuntimeError(message.get("error") or "The new voice couldn't do that.")
+                    raise CouldntSay(message.get("error") or "The new voice couldn't do that.")
                 return message
 
     def _kill(self):
@@ -223,35 +231,41 @@ class NaturalVoice:
         except Exception as error:
             self._fail(error)
             return self.status()
-        slow, last = [], None
+        slow, last, self.tried = [], None, []
         for candidate in [engine] + [e for e in ENGINES if e != engine]:
             if candidate == "studio" and not ref:
                 continue  # Qwen3 needs a voice to learn from; Chatterbox has its own until then
             if self.too_slow_here(candidate):
                 slow.append(candidate)
                 continue
-            try:
-                result = self._call("load", timeout, engine=candidate, ref=str(ref) if ref else None, ref_text=REF_TEXT if ref else None)
-                self._call("say", 300, text="Okay, I'm here.")  # the first sentence warms it up
-                timed = self._call("say", 300, text=SPEED_LINE)
-            except Exception as error:
-                last = error
-                with self.lock:
-                    self._kill()  # the next engine starts in a fresh process
-                continue
-            rtf = timed.get("rtf")
-            self._remember_speed(candidate, rtf)
-            if rtf is not None and rtf > MAX_RTF:
-                slow.append(candidate)
+            best = None
+            for repos in [None] + ([FASTER[candidate]] if FASTER.get(candidate) else []):  # the full model, then its smaller builds
+                try:
+                    result = self._call("load", timeout, engine=candidate, ref=str(ref) if ref else None, ref_text=REF_TEXT if ref else None,
+                                        **({"repos": repos} if repos else {}))
+                    self._call("say", 300, text="Okay, I'm here.")  # the first sentence warms it up
+                    timed = self._call("say", 300, text=SPEED_LINE)
+                except Exception as error:
+                    last = error
+                    with self.lock:
+                        self._kill()  # the next try starts in a fresh process
+                    continue
+                rtf = timed.get("rtf")
+                self.tried.append({"model": result.get("repo"), "speed": rtf})
+                if rtf is None or rtf <= MAX_RTF:
+                    self._remember_speed(candidate, rtf)
+                    self.engine, self.repo, self.tags = result.get("engine"), result.get("repo"), bool(result.get("tags"))
+                    self.rate, self.device, self.rtf = int(result.get("rate") or 24000), result.get("device"), rtf
+                    self.strikes = self.slow_streak = 0
+                    self.state, self.note = "ready", ""
+                    return self.status()
+                best = rtf if best is None else min(best, rtf)
                 with self.lock:
                     self._kill()
-                continue
-            self.engine, self.repo, self.tags = result.get("engine"), result.get("repo"), bool(result.get("tags"))
-            self.rate, self.device, self.rtf = int(result.get("rate") or 24000), result.get("device"), rtf
-            self.strikes = self.slow_streak = 0
-            self.state, self.note = "ready", ""
-            return self.status()
-        if slow and last is None:
+            if best is not None:
+                self._remember_speed(candidate, best)
+                slow.append(candidate)
+        if slow:
             self.state = "slow"
             self.note = "This Mac can't make the new voice fast enough for a conversation yet, so Luma is using her classic voice."
             return self.status()
@@ -295,16 +309,16 @@ class NaturalVoice:
             raise RuntimeError("The new voice isn't ready.")
         try:
             message = self._call("say", timeout, text=text)
-        except Exception as error:
+        except CouldntSay:
+            self._strike()  # one phrase it couldn't make: the classic voice says it
+            raise
+        except Exception as error:  # it crashed or hung: the classic voice takes over for a while
             self._fail(error)
             raise
         pcm = np.frombuffer(base64.b64decode(message["pcm"]), dtype="<i2").astype(np.int16)
         rate = int(message.get("rate") or self.rate)
         if not pcm.size or not sounds_right(text, pcm.size / rate):
-            # This phrase goes to the classic voice. Three in a row and the classic voice takes over for a while.
-            self.strikes += 1
-            if self.strikes >= 3:
-                self._fail(RuntimeError("The new voice kept garbling its words."))
+            self._strike()
             raise RuntimeError("That phrase didn't come out right.")
         self.strikes = 0
         self.rtf = message.get("rtf", self.rtf)
@@ -314,9 +328,15 @@ class NaturalVoice:
             self._fail(RuntimeError("The new voice got too slow on this Mac."))
         return pcm, rate
 
+    def _strike(self):
+        """This phrase goes to the classic voice. Three in a row and the classic voice takes over for a while."""
+        self.strikes += 1
+        if self.strikes >= 3:
+            self._fail(RuntimeError("The new voice kept garbling its words."))
+
     def status(self):
         return {"supported": supported(), "installed": bool(python_path()), "state": self.state, "engine": self.engine,
-                "model": self.repo, "laughs": self.tags, "note": self.note, "speed": self.rtf, "device": self.device}
+                "model": self.repo, "laughs": self.tags, "note": self.note, "speed": self.rtf, "device": self.device, "tried": self.tried}
 
 
 _voice = None

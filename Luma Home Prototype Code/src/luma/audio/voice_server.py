@@ -75,6 +75,29 @@ def load(engine, ref=None, ref_text=None, repos=None):
     raise RuntimeError("None of the voice models would load: " + " | ".join(errors)[:900])
 
 
+def _generate(model, kwargs):
+    import numpy as np
+    pieces = []
+    for result in model.generate(**kwargs):
+        audio = np.asarray(result.audio, dtype=np.float32).reshape(-1)
+        if audio.size:
+            pieces.append(audio)
+        rate = getattr(result, "sample_rate", None)
+        if rate:
+            state["rate"] = int(rate)
+    return np.concatenate(pieces) if pieces else np.zeros(0, dtype=np.float32)
+
+
+def _describe(audio):
+    """What came out, for the log: nothing, silence, or numbers that aren't numbers."""
+    import numpy as np
+    if not audio.size:
+        return "no samples"
+    finite = np.isfinite(audio)
+    peak = float(np.max(np.abs(audio[finite]))) if finite.any() else 0.0
+    return f"{audio.size} samples, peak {peak:.2g}, {int((~finite).sum())} not numbers"
+
+
 def say(text):
     import numpy as np
     model = state["model"]
@@ -86,19 +109,14 @@ def say(text):
         if state["engine"] == "studio" and state["ref_text"]:
             kwargs["ref_text"] = state["ref_text"]
     started = time.time()
-    pieces = []
-    for result in model.generate(**kwargs):
-        audio = np.asarray(result.audio, dtype=np.float32).reshape(-1)
-        if audio.size:
-            pieces.append(audio)
-        rate = getattr(result, "sample_rate", None)
-        if rate:
-            state["rate"] = int(rate)
-    if not pieces:
-        raise RuntimeError("The voice made no sound.")
-    audio = np.concatenate(pieces)
-    if not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-5:
-        raise RuntimeError("The voice made empty or broken audio.")
+    tried = []
+    for _ in range(3):  # these models sample, and now and then stop before saying anything: try again
+        audio = _generate(model, kwargs)
+        if audio.size and np.isfinite(audio).all() and float(np.max(np.abs(audio))) >= 1e-5:
+            break
+        tried.append(_describe(audio))
+    else:
+        raise RuntimeError("The voice made empty or broken audio (" + "; ".join(tried) + ").")
     pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2")
     seconds = len(pcm) / state["rate"]
     return {"pcm": base64.b64encode(pcm.tobytes()).decode(), "rate": state["rate"], "seconds": round(seconds, 2),
