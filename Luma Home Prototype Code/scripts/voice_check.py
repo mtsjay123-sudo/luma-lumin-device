@@ -6,7 +6,7 @@ sample from scripts/voice_samples.py with Whisper and compares it to the words i
     python scripts/voice_check.py out/        (needs faster-whisper; CI installs it in its own venv)
 
 Writes out/check.json and prints a table: word error rate per file (0 is perfect) and what was heard.
-Only the standard library and faster-whisper are used, so this runs in any Python.
+Only the standard library, faster-whisper and the numpy it brings are used, so this runs in any Python.
 """
 import json
 import re
@@ -66,6 +66,20 @@ def seconds(path):
         return clip.getnframes() / float(clip.getframerate())
 
 
+def samples(path):
+    """The WAV as 16 kHz mono floats, read here so Whisper doesn't need PyAV (whose newer versions it trips over)."""
+    import numpy as np
+    with wave.open(str(path)) as clip:
+        rate, channels = clip.getframerate(), clip.getnchannels()
+        pcm = np.frombuffer(clip.readframes(clip.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+    if channels > 1:
+        pcm = pcm.reshape(-1, channels).mean(axis=1)
+    if rate != 16000 and len(pcm):
+        n = int(round(len(pcm) * 16000 / rate))
+        pcm = np.interp(np.linspace(0, len(pcm) - 1, n), np.arange(len(pcm)), pcm).astype(np.float32)
+    return pcm
+
+
 def main(out, size="small.en"):
     out = Path(out)
     summary = json.loads((out / "summary.json").read_text())
@@ -76,7 +90,7 @@ def main(out, size="small.en"):
         path = out / name
         if not path.exists():
             continue
-        segments, _ = model.transcribe(str(path), language="en", beam_size=5, vad_filter=False, condition_on_previous_text=False)
+        segments, _ = model.transcribe(samples(path), language="en", beam_size=5, vad_filter=False, condition_on_previous_text=False)
         heard = " ".join(s.text.strip() for s in segments).strip()
         wer = word_error_rate(expected, heard)
         results[name] = {"wer": wer, "ok": wer <= GOOD, "seconds": round(seconds(path), 2), "expected": expected, "heard": heard}

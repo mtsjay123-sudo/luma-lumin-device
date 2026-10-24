@@ -85,6 +85,8 @@ jobs:
       - name: Render the samples
         env:
           LUMA_NATURAL_DIR: ${{ runner.temp }}/natural
+          TQDM_DISABLE: "1"
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
         run: LUMA_VOICE_PYTHON="$(which python)" python scripts/voice_samples.py "$RUNNER_TEMP/voice-samples"
       - name: Voice log
         if: always()
