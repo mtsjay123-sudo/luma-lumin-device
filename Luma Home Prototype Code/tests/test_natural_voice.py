@@ -31,13 +31,13 @@ FAKE_MLX = textwrap.dedent('''
             print("library chatter on stdout")  # must never garble Luma's replies
             if "CRASH" in text:
                 os._exit(3)
-            seconds = 0.25 + 0.01 * len(text)
+            seconds = 30.0 if "BABBLE" in text else 0.25 + 0.06 * len(text)
             t = np.arange(int(self.sample_rate * seconds)) / self.sample_rate
             tone = 0.2 * np.sin(2 * np.pi * (440 if "[laugh]" in text else 220) * t)
             yield Result(tone.astype("float32"), self.sample_rate)
 
     def load_model(repo):
-        if "fp16" in repo:
+        if "fp16" in repo or any(part and part in repo.lower() for part in os.environ.get("FAKE_MISSING", "").split(",")):
             raise FileNotFoundError("Repository not found")
         return Model(repo)
 ''')
@@ -122,10 +122,62 @@ class NaturalVoiceTests(unittest.TestCase):
         kokoro.return_value.create.assert_called_once()
         self.assertNotIn("[", kokoro.return_value.create.call_args[0][0])
 
+    def test_a_garbled_phrase_is_said_by_the_classic_voice(self):
+        v = natural.voice()
+        with mock.patch.object(v, "reference", return_value=self.ref):
+            v.prepare("expressive")
+        with mock.patch.object(tts, "_get_kokoro") as kokoro:
+            kokoro.return_value.create.return_value = (np.ones(4800, dtype=np.float32) * 0.1, 24000)
+            tts._samples("BABBLE okay", "luma", None)  # thirty seconds for two words: that's babble
+            self.assertEqual(kokoro.return_value.create.call_count, 1)
+            self.assertEqual(v.status()["state"], "ready")  # one bad phrase doesn't turn it off
+            tts._samples("BABBLE again", "luma", None)
+            tts._samples("BABBLE more", "luma", None)
+        self.assertEqual(v.status()["state"], "failed")  # three in a row does
+        self.assertIn("garbl", v.status()["note"])
+
+    def test_a_mac_that_cant_keep_up_keeps_the_classic_voice(self):
+        v = natural.voice()
+        with mock.patch.object(natural, "MAX_RTF", -1), mock.patch.object(v, "reference", return_value=self.ref):
+            status = v.prepare("expressive")
+            self.assertEqual(status["state"], "slow")
+            self.assertFalse(natural.speaking())
+            again = natural.NaturalVoice()
+            with mock.patch.object(again, "_call") as call:  # measured this week: not loaded again
+                self.assertEqual(again.prepare("expressive")["state"], "slow")
+            call.assert_not_called()
+
+    def test_tries_the_other_voice_when_the_first_wont_load(self):
+        v = natural.voice()
+        with mock.patch.dict(os.environ, {"FAKE_MISSING": "chatterbox"}), mock.patch.object(v, "reference", return_value=self.ref):
+            status = v.prepare("expressive")
+        self.assertEqual(status["state"], "ready", status)
+        self.assertEqual(status["engine"], "studio")
+        self.assertFalse(status["laughs"])
+
+    def test_comes_back_after_a_rest(self):
+        v = natural.voice()
+        with mock.patch.object(v, "reference", return_value=self.ref):
+            v.prepare("expressive")
+            v._fail(RuntimeError("stopped"))
+            self.assertFalse(v.ready())
+            v.failed_at -= natural.REST_AFTER_FAILURE + 1
+            self.assertFalse(v.ready())  # starts coming back in the background
+            v.loader.join(60)
+        self.assertTrue(v.ready())
+
     def test_not_installed_yet_waits_quietly(self):
         with mock.patch.dict(os.environ, {"LUMA_VOICE_PYTHON": str(self.root / "nope" / "python")}):
             status = natural.NaturalVoice().prepare()
         self.assertEqual(status["state"], "waiting")
+
+
+class SoundsRightTests(unittest.TestCase):
+    def test_real_speech_lengths(self):
+        self.assertTrue(natural.sounds_right("Okay, I'm here.", 1.1))
+        self.assertTrue(natural.sounds_right("Not gonna lie, that's crazy [laugh]", 3.4))
+        self.assertFalse(natural.sounds_right("Bet.", 25.0))  # babble
+        self.assertFalse(natural.sounds_right("So basically the short version is yes, and the long version is a whole story.", 0.3))  # cut off
 
 
 class NaturalVoiceHomeTests(unittest.TestCase):

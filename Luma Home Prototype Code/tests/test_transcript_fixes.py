@@ -86,6 +86,7 @@ class LiveNewsTests(unittest.TestCase):
         self.now += 20 * 60
         with mock.patch("luma.skills.news.refresh", wraps=__import__("luma.skills.news", fromlist=["refresh"]).refresh) as reread:
             self.agent.chat("what's the news")
+            self.agent.chat("quick")
         self.assertEqual(reread.call_count, 1)  # 20 minutes old: read again before answering
 
     def test_do_you_have_a_connector_for_news(self):
@@ -98,7 +99,8 @@ class LiveNewsTests(unittest.TestCase):
     def test_the_model_saying_no_to_news_gets_overruled(self):
         self.agent.use_model = True
         self.agent.planner = lambda *a: {"type": "reply", "text": "I don't have real-time news access, so I can't tell you what's happening right now."}
-        reply = self.agent.chat("so whats going on out there rn")
+        self.assertEqual(self.agent.chat("so whats going on out there rn")["depth_ask"], "news")
+        reply = self.agent.chat("the whole rundown")
         self.assertEqual(reply["section"], "news")
         self.assertTrue(reply["results"])
         self.agent.planner = lambda *a: {"type": "reply", "text": "I don't have feelings the way you do, but I'm glad you asked."}

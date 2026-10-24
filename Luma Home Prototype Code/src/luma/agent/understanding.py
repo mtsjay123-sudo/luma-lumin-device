@@ -39,6 +39,12 @@ SLANG = {
     "emails": "emails", "idk": "i don't know", "nvm": "never mind", "lmk": "let me know", "rn": "right now", "prob": "probably", "probs": "probably",
     "convo": "conversation", "info": "information", "rmd": "remind", "remindr": "reminder", "remnd": "remind", "reminde": "remind", "pod": "podcast",
     "wyd": "what are you doing", "hbu": "how about you", "wbu": "what about you", "omw": "on my way", "nm": "nothing much", "tho": "though", "thru": "through",
+    # How people really talk (group-chat words), so what's around them is still understood.
+    "ngl": "not going to lie", "fr": "for real", "frfr": "for real", "ong": "on god", "ion": "i don't", "ian": "i ain't", "icl": "i can't lie",
+    "istg": "i swear", "tbh": "to be honest", "imo": "in my opinion", "lowk": "lowkey", "highk": "highkey", "boutta": "about to", "bouta": "about to",
+    "aight": "alright", "ight": "alright", "wya": "where are you", "hmu": "hit me up", "yk": "you know", "ykwim": "you know what i mean", "rq": "real quick",
+    "fs": "for sure", "ofc": "of course", "obv": "obviously", "srs": "serious", "gng": "gang", "pmo": "pisses me off", "deadass": "seriously",
+    "nun": "nothing", "lil": "little", "yall": "you all", "y'all": "you all", "finsta": "instagram", "bruh": "bro", "brodie": "bro", "tf": "the heck",
 }
 SPOKEN = [(re.compile(r"\be[ -]mail\b"), "email"), (re.compile(r"\bloom a\b"), "luma"), (re.compile(r"\btime her\b"), "timer"), (re.compile(r"\bpod cast\b"), "podcast")]
 WORD = re.compile(r"[a-z0-9']+|w/")

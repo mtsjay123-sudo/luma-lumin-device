@@ -3,12 +3,13 @@
 On a Mac with Apple Silicon, Luma can talk with a newer open model running on the Mac itself:
 Chatterbox-Turbo (Resemble AI, MIT) or Qwen3-TTS (Alibaba Qwen, Apache-2.0), through mlx-audio.
 Both clone a voice from a few seconds of audio, so Luma keeps the voice people already know: the
-classic voice reads one short line once, and the new model learns that voice from it. No real
+classic voice reads one short paragraph once, and the new model learns that voice from it. No real
 person's voice is copied.
 
 It runs in its own process with its own Python (luma/audio/voice_server.py), downloads in the
 background, and the classic voice keeps talking until it's ready, and takes over again if the new
-one ever stops. Setting "natural_voice": "auto" (on when this computer can run it), "on" or "off".
+one ever stops, garbles a phrase or can't keep up on this Mac.
+Setting "natural_voice": "auto" (on when this computer can run it), "on" or "off".
 """
 from __future__ import annotations
 
@@ -17,17 +18,44 @@ import json
 import os
 import platform
 import queue
+import re
 import subprocess
 import sys
 import threading
 import time
+import wave
 from pathlib import Path
 
 import numpy as np
 
-REF_TEXT = "Hey, it's me. I'm really glad you're here, so tell me everything. I'm listening."
+REF_TEXT = ("Hey, it's me. I'm really glad you're here. So tell me everything, how was your day? "
+            "Take your time, I'm listening, and I've got all the time in the world for you.")
+REF_SECONDS = 6.0          # Chatterbox needs more than five seconds of a voice to learn it
 SERVER = Path(__file__).with_name("voice_server.py")
-REST_AFTER_FAILURE = 600  # after the new voice stops, the classic one talks for ten minutes before trying again
+REST_AFTER_FAILURE = 600   # after the new voice stops, the classic one talks for ten minutes before trying again
+RETRIES = 3                # times it comes back on its own in one run, so a broken install can't loop forever
+SPEED_LINE = "Alright, so tell me everything that happened today, I'm listening."
+MAX_RTF = 0.9              # it has to make speech faster than it talks, or the conversation stalls between phrases
+SLOW_FOR = 7 * 86400       # an engine that was too slow on this Mac isn't tried again for a week
+ENGINES = ("expressive", "studio")
+TAGS = re.compile(r"\[(?:laugh|chuckle|sigh|cough)\]")
+
+
+def _seconds(path):
+    try:
+        with wave.open(str(path)) as clip:
+            return clip.getnframes() / float(clip.getframerate() or 1)
+    except (OSError, EOFError, wave.Error):
+        return 0.0
+
+
+def sounds_right(text, seconds):
+    """Speech models sometimes babble on, or stop partway. Real speech of this text can't be this long or this short."""
+    tags = len(TAGS.findall(text or ""))
+    n = len(TAGS.sub("", text or "").strip())
+    if not n:
+        return True
+    return n / 60 <= seconds <= 2.0 + n / 5 + 1.5 * tags
 
 
 def _home():
@@ -69,6 +97,11 @@ class NaturalVoice:
         self.failed_at = 0.0
         self.rtf = None
         self.loader = None
+        self.device = None
+        self.want = ("expressive", "luma")
+        self.retries = 0
+        self.strikes = 0          # phrases in a row that didn't come out right
+        self.slow_streak = 0      # phrases in a row that took too long to make
 
     # -- the process -------------------------------------------------------------
     def _start(self):
@@ -139,11 +172,11 @@ class NaturalVoice:
 
     # -- getting ready -------------------------------------------------------------
     def reference(self, voice="luma"):
-        """A few seconds of Luma's classic voice, for the new model to learn Luma's voice from."""
+        """About ten seconds of Luma's classic voice, for the new model to learn Luma's voice from."""
         home = _home()
         home.mkdir(parents=True, exist_ok=True)
-        path = home / f"luma-ref-{voice}.wav"
-        if path.exists() and path.stat().st_size > 20000:
+        path = home / f"luma-ref-2-{voice}.wav"
+        if path.exists() and _seconds(path) >= REF_SECONDS:
             return path
         from luma.audio import tts
         if not tts.ready():
@@ -151,8 +184,33 @@ class NaturalVoice:
         tts.synthesize(REF_TEXT, str(path), voice=voice)
         return path
 
+    # -- how fast it runs on this Mac -------------------------------------------------
+    def _speeds(self):
+        try:
+            return json.loads((_home() / "speed.json").read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def _remember_speed(self, engine, rtf):
+        if rtf is None:
+            return
+        speeds = self._speeds()
+        speeds[engine] = {"rtf": rtf, "at": time.time()}
+        try:
+            (_home() / "speed.json").write_text(json.dumps(speeds))
+        except OSError:
+            pass
+
+    def too_slow_here(self, engine):
+        seen = self._speeds().get(engine) or {}
+        return bool(seen) and seen.get("rtf", 0) > MAX_RTF and time.time() - seen.get("at", 0) < SLOW_FOR
+
     def prepare(self, engine="expressive", voice="luma", timeout=3600):
-        """Download (the first time) and load the new voice. Runs in the background; the classic voice talks meanwhile."""
+        """Download (the first time) and load the new voice. Runs in the background; the classic voice talks meanwhile.
+
+        Tries the engine they picked first, then the other one, and keeps the first that loads and can keep up
+        with a conversation on this Mac. If neither can, the classic voice keeps talking."""
+        self.want = (engine, voice)
         if not supported():
             self.state, self.note = "off", "The new voice needs a Mac with Apple Silicon."
             return self.status()
@@ -162,16 +220,42 @@ class NaturalVoice:
         self.state, self.note = "loading", "Getting Luma's new voice ready (a one-time download)."
         try:
             ref = self.reference(voice)
-            if engine == "studio" and not ref:
-                engine = "expressive"  # Qwen3 needs a voice to learn from; Chatterbox has its own until then
-            result = self._call("load", timeout, engine=engine, ref=str(ref) if ref else None, ref_text=REF_TEXT if ref else None)
-            self.engine, self.repo, self.tags, self.rate = result.get("engine"), result.get("repo"), bool(result.get("tags")), int(result.get("rate") or 24000)
-            # A first sentence warms it up and tells us how fast it is on this Mac.
-            warm = self._call("say", 300, text="Okay, I'm here.")
-            self.rtf = warm.get("rtf")
-            self.state, self.note = "ready", ""
         except Exception as error:
             self._fail(error)
+            return self.status()
+        slow, last = [], None
+        for candidate in [engine] + [e for e in ENGINES if e != engine]:
+            if candidate == "studio" and not ref:
+                continue  # Qwen3 needs a voice to learn from; Chatterbox has its own until then
+            if self.too_slow_here(candidate):
+                slow.append(candidate)
+                continue
+            try:
+                result = self._call("load", timeout, engine=candidate, ref=str(ref) if ref else None, ref_text=REF_TEXT if ref else None)
+                self._call("say", 300, text="Okay, I'm here.")  # the first sentence warms it up
+                timed = self._call("say", 300, text=SPEED_LINE)
+            except Exception as error:
+                last = error
+                with self.lock:
+                    self._kill()  # the next engine starts in a fresh process
+                continue
+            rtf = timed.get("rtf")
+            self._remember_speed(candidate, rtf)
+            if rtf is not None and rtf > MAX_RTF:
+                slow.append(candidate)
+                with self.lock:
+                    self._kill()
+                continue
+            self.engine, self.repo, self.tags = result.get("engine"), result.get("repo"), bool(result.get("tags"))
+            self.rate, self.device, self.rtf = int(result.get("rate") or 24000), result.get("device"), rtf
+            self.strikes = self.slow_streak = 0
+            self.state, self.note = "ready", ""
+            return self.status()
+        if slow and last is None:
+            self.state = "slow"
+            self.note = "This Mac can't make the new voice fast enough for a conversation yet, so Luma is using her classic voice."
+            return self.status()
+        self._fail(last or RuntimeError("The new voice couldn't keep up on this Mac."))
         return self.status()
 
     def prepare_in_background(self, engine="expressive", voice="luma", delay=20):
@@ -199,7 +283,10 @@ class NaturalVoice:
     # -- talking -------------------------------------------------------------
     def ready(self):
         if self.state == "failed" and time.time() - self.failed_at > REST_AFTER_FAILURE:
-            self.state = "off"  # it will be tried again on the next prepare
+            self.state = "off"
+            if self.retries < RETRIES:  # rested: try the new voice again in the background
+                self.retries += 1
+                self.prepare_in_background(*self.want, delay=0)
         return self.state == "ready"
 
     def say(self, text, timeout=60):
@@ -212,14 +299,24 @@ class NaturalVoice:
             self._fail(error)
             raise
         pcm = np.frombuffer(base64.b64decode(message["pcm"]), dtype="<i2").astype(np.int16)
-        if not pcm.size:
-            raise RuntimeError("The new voice made no sound.")
+        rate = int(message.get("rate") or self.rate)
+        if not pcm.size or not sounds_right(text, pcm.size / rate):
+            # This phrase goes to the classic voice. Three in a row and the classic voice takes over for a while.
+            self.strikes += 1
+            if self.strikes >= 3:
+                self._fail(RuntimeError("The new voice kept garbling its words."))
+            raise RuntimeError("That phrase didn't come out right.")
+        self.strikes = 0
         self.rtf = message.get("rtf", self.rtf)
-        return pcm, int(message.get("rate") or self.rate)
+        self.slow_streak = self.slow_streak + 1 if (self.rtf or 0) > MAX_RTF * 1.6 else 0
+        if self.slow_streak >= 3:  # this one is fine, but it's making people wait: the classic voice takes over
+            self._remember_speed(self.engine, self.rtf)
+            self._fail(RuntimeError("The new voice got too slow on this Mac."))
+        return pcm, rate
 
     def status(self):
         return {"supported": supported(), "installed": bool(python_path()), "state": self.state, "engine": self.engine,
-                "model": self.repo, "laughs": self.tags, "note": self.note, "speed": self.rtf}
+                "model": self.repo, "laughs": self.tags, "note": self.note, "speed": self.rtf, "device": self.device}
 
 
 _voice = None

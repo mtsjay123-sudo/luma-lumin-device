@@ -89,6 +89,12 @@ jobs:
       - name: Voice log
         if: always()
         run: tail -n 80 "$RUNNER_TEMP/natural/voice.log" || true
+      - name: Check by ear (Whisper hears each sample)
+        if: always()
+        run: |
+          python -m venv "$RUNNER_TEMP/stt"
+          "$RUNNER_TEMP/stt/bin/python" -m pip install -q "faster-whisper==1.2.1"
+          "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

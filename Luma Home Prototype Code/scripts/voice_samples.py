@@ -8,10 +8,11 @@ Writes one WAV per line per voice:
   expressive-*.wav  Chatterbox-Turbo, learning Luma's classic voice from one short line, with real laughs
   studio-*.wav      Qwen3-TTS 0.6B, learning the same voice
   design-*.wav      Qwen3-TTS VoiceDesign: candidate voices for Luma's own identity, from a description
-and summary.json with which model loaded and how fast it ran (real-time factor: under 1 is faster than real time).
+and summary.json with which model loaded, how fast it ran (real-time factor: under 1 is faster than real time),
+and the words each file should say, for scripts/voice_check.py to check by ear.
 """
 import json
-import os
+import shutil
 import sys
 import time
 import wave
@@ -26,7 +27,7 @@ from luma.audio import natural, tts  # noqa: E402
 LINES = [
     ("late", "Okay so, you're telling me he really showed up late again? 😭 Nah, that's crazy. What did you say to him?"),
     ("deep", "ngl gng, how hard you want me to think about this? Because I can deep dive... but if you just want my answer right now, I gotchu."),
-    ("news", "Hmm, okay. It's Friday, October twenty-fourth, and honestly the big story today is the Fed holding rates steady. Want the quick version, or the full rundown?"),
+    ("news", "Hmm, okay. It's Saturday, October twenty-fourth, and honestly the big story today is the Fed holding rates steady. Want the quick version, or the full rundown?"),
     ("bday", "Wait, your mom's birthday is Saturday? Bet. I'll remind you Friday morning so you're not scrambling lol."),
     ("care", "I hear you. That sounds really heavy... Take your time, I'm right here."),
 ]
@@ -46,6 +47,11 @@ def write(path, pcm, rate):
         wf.writeframes(np.asarray(pcm, dtype=np.int16).tobytes())
 
 
+def words(plan):
+    """What a listener should hear: the spoken chunks, without the laugh and sigh cues."""
+    return " ".join(chunk for chunk, _ in plan if not chunk.startswith("["))
+
+
 def render(text, expressive):
     plan = tts.speech_plan(text, expressive=expressive)
     pieces, rate = [], None
@@ -59,7 +65,7 @@ def render(text, expressive):
 def main(out):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    summary = {"lines": dict(LINES), "voices": {}}
+    summary = {"lines": dict(LINES), "voices": {}, "files": {}}
 
     # 1. The classic voice, with the new conversation layer.
     natural._voice = None
@@ -67,25 +73,44 @@ def main(out):
     for name, text in LINES:
         pcm, rate, plan = render(text, expressive=False)
         write(out / f"classic-{name}.wav", pcm, rate)
+        summary["files"][f"classic-{name}.wav"] = words(plan)
     summary["voices"]["classic"] = {"model": "Kokoro-82M", "seconds": round(time.time() - started, 1)}
 
-    # 2 and 3. The new open voices, each learning Luma's classic voice from one line.
+    # 2 and 3. The new open voices, each learning Luma's classic voice from one paragraph. Each one on its own, and
+    # rendered even when this runner is too slow for a live conversation, so they can be heard (the speed is reported).
+    natural.MAX_RTF = float("inf")
     for engine in ("expressive", "studio"):
+        natural.ENGINES = (engine,)
         v = natural.NaturalVoice()
         natural._voice = v
+        misses, real_say = [], v.say
+
+        def say(text, timeout=60, real_say=real_say, misses=misses):
+            try:
+                return real_say(text, timeout)
+            except Exception as error:  # the classic voice says this phrase instead: note it, so it's not mistaken for the new voice
+                misses.append(f"{text[:50]}: {error}")
+                raise
+        v.say = say
         started = time.time()
         status = v.prepare(engine, "luma", timeout=3600)
         entry = {"status": status, "load_seconds": round(time.time() - started, 1)}
-        if status["state"] == "ready":
+        ref = natural._home() / "luma-ref-2-luma.wav"
+        if ref.exists() and not (out / "reference.wav").exists():
+            shutil.copy(ref, out / "reference.wav")  # what the new voices learn Luma's voice from
+            summary["files"]["reference.wav"] = natural.REF_TEXT
+        if status["state"] == "ready" and status["engine"] == engine:
             rtfs = []
             for name, text in LINES:
                 try:
                     pcm, rate, plan = render(text, expressive=natural.active())
                     write(out / f"{engine}-{name}.wav", pcm, rate)
+                    summary["files"][f"{engine}-{name}.wav"] = words(plan)
                     rtfs.append(v.rtf)
                 except Exception as error:
                     entry.setdefault("errors", []).append(f"{name}: {error}")
             entry["rtf"] = rtfs
+            entry["said_by_classic_voice"] = misses
         summary["voices"][engine] = entry
         v.stop()
         natural._voice = None
@@ -104,6 +129,7 @@ def main(out):
                 audio.append(np.asarray(result.audio, dtype=np.float32).reshape(-1))
             pcm = (np.clip(np.concatenate(audio), -1, 1) * 32767).astype(np.int16)
             write(out / f"design-{key}.wav", pcm, 24000)
+            summary["files"][f"design-{key}.wav"] = line
             designs[key] = {"description": description, "seconds": round(time.time() - started, 1)}
         summary["voices"]["design"] = designs
     except Exception as error:

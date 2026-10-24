@@ -2818,6 +2818,7 @@
       loading: "Getting it ready: a one-time download (about 1 GB). The classic voice talks until then.",
       waiting: "Setting up its tools in the background. The classic voice talks until then.",
       failed: "It stopped, so the classic voice took over. It tries again in a few minutes." + (nv.note ? " (" + nv.note.slice(0, 90) + ")" : ""),
+      slow: "This Mac can't make it fast enough for a real conversation yet, so the classic voice is talking. It checks again next week.",
       off: nv.supported === false ? "Needs a Mac with Apple Silicon. Luma keeps its classic voice here." : "Off. Luma is using its classic voice.",
     };
     g.append(el("div", "title", "New natural voice"), el("div", "sub", (says[nv.state] || says.off) + " It learns the voice you picked, so Luma still sounds like Luma, with real laughs and pauses."));

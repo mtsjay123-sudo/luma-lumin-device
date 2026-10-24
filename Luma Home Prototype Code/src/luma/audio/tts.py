@@ -171,7 +171,10 @@ def _samples(text, voice, should_stop, speed=None):
         raise
     except Exception:
         pass
-    text = re.sub(r"\[(?:laugh|chuckle|sigh|cough)\]", "", text).strip() or "."
+    text = re.sub(r"\[(?:laugh|chuckle|sigh|cough)\]", "", text).strip()
+    if not text:  # a laugh the classic voice can't do: a beat instead
+        from luma.audio.speakable import PAUSES
+        return np.zeros(int(24000 * PAUSES["laugh"] / 1000), dtype=np.int16), 24000
     speed = VOICE_SPEED if speed is None else speed
     if type(speed) not in (int,float) or not math.isfinite(speed) or not 0.5 <= speed <= 1.5:
         raise ValueError("LUMA_VOICE_SPEED must be 0.5–1.5.")

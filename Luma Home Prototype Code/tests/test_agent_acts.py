@@ -200,7 +200,9 @@ class NewsTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["snippet"] if result["items"][0]["source"] == "Test Wire" else "", "The Federal Reserve left rates unchanged on Tuesday.")
 
     def test_news_questions_are_answered_from_todays_headlines_with_sources(self):
-        reply = self.agent.chat("what's the news today")
+        asked = self.agent.chat("what's the news today")  # first: today's date, and quick headlines or the full rundown?
+        self.assertEqual(asked["depth_ask"], "news")
+        reply = self.agent.chat("quick headlines")
         self.assertIn("Fed holds interest rates steady", reply["text"])
         self.assertEqual(reply["section"], "news")
         self.assertTrue(all(r["url"].startswith("https://") for r in reply["results"]))
@@ -416,6 +418,7 @@ class EvolvingMindTests(unittest.TestCase):
             return {"type": "reply", "text": "You should definitely quit today, guaranteed it'll work out."}
         agent = self._agent(planner)
         agent.store.set_setting("deliberate", False)  # test the fast corrector path, not the deliberation path
+        agent.store.set_setting("depth_prefs", {"_always": "quick"})  # they always want the quick take
         out = agent.chat("should I quit my job?")
         self.assertEqual(out["text"], "Honestly, I'm not sure — here's how I'd think about it.")
         self.assertTrue(any("Check your own draft" in c for c in seen))
@@ -483,6 +486,7 @@ class DeliberationTests(unittest.TestCase):
                 return {"type": "reply", "text": f"take {seen['candidates']}"}
             return {"type": "reply", "text": "plain"}
         agent = self._agent(planner)
+        agent.store.set_setting("depth_prefs", {"_always": "deep"})  # they always want the deep dive
         out = agent.chat("should I quit my job to go all in on my startup?")
         self.assertEqual(out["text"], "Here's what I'd actually do, and why.")
         self.assertTrue(seen["judged"])

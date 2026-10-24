@@ -41,6 +41,15 @@ def reply(message):
     _replies.flush()
 
 
+def _device():
+    """Where mlx is running it: the Mac's GPU, or its CPU."""
+    try:
+        import mlx.core as mx
+        return str(mx.default_device())
+    except Exception:
+        return None
+
+
 def load(engine, ref=None, ref_text=None, repos=None):
     from mlx_audio.tts.utils import load_model
     spec = ENGINES.get(engine)
@@ -62,7 +71,7 @@ def load(engine, ref=None, ref_text=None, repos=None):
                 state["conds"] = True
             except Exception:
                 state["conds"] = False
-        return {"engine": engine, "repo": repo, "tags": spec["tags"], "rate": state["rate"]}
+        return {"engine": engine, "repo": repo, "tags": spec["tags"], "rate": state["rate"], "device": _device()}
     raise RuntimeError("None of the voice models would load: " + " | ".join(errors)[:900])
 
 

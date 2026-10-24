@@ -246,6 +246,25 @@ def candidate_prompt(scenario_instruction, text, about_line):
               "Give that take in two or three sentences. Be specific and honest; if a fact is needed that you don't have, say what it is. No preamble.")
 
 
+_LABEL = re.compile(r"\s*(?:\b(?:option|take|answer|choice|scenario)\s+)?\[[A-F]\](?:\s+(?:option|take|answer))?|\b(?:option|take|scenario)\s+[A-F]\b", re.I)
+
+
+def without_labels(answer):
+    """The judge compares lettered takes ([A], [B]...). The person never sees those letters: a sentence that was only
+    about a letter ("Go with [C].") goes, and a letter inside a real sentence is dropped."""
+    if not isinstance(answer, str):
+        return answer
+    kept = []
+    for sentence in re.split(r"(?<=[.!?])\s+", answer.strip()):
+        if not _LABEL.search(sentence):
+            kept.append(sentence)
+            continue
+        rest = re.sub(r"\s+([,.!?])", r"\1", _LABEL.sub("", sentence)).strip(" ,;:-")
+        if len(re.findall(r"[A-Za-z']+", rest)) > 4:
+            kept.append(rest[0].upper() + rest[1:] if rest else rest)
+    return " ".join(kept).strip()
+
+
 def judge_prompt(text, candidates, about_line):
     takes = "\n".join(f"[{chr(65+i)}] {c}" for i, c in enumerate(candidates))
     return (("What you know about them: " + about_line + "\n" if about_line else "")
