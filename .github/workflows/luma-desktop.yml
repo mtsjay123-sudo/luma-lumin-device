@@ -164,6 +164,10 @@ jobs:
 
           On first launch Luma sets itself up in its own folder: a private Python, its tools, and its brain (Qwen3 4B, about 2.5 GB, checked against its published SHA-256). Nothing is sent or bought without your OK.
           NOTES
+          # A newer push to this branch publishes its own build; an older run never becomes "latest".
+          # (Publishing a build of a commit that is no longer the branch head is also what GitHub refused with a 403.)
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME" -q .sha 2>/dev/null || echo "$GITHUB_SHA")"
+          if [ "$head" != "$GITHUB_SHA" ]; then echo "A newer push is on $GITHUB_REF_NAME and will publish; skipping this build."; exit 0; fi
           gh release create "desktop-v$version" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Luma Desktop $version" --notes-file notes.md --latest
           # Keep the three newest desktop releases.
