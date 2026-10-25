@@ -20,8 +20,12 @@ class Result:
         return [c for c in self.checks if not c["ok"] and c.get("blocking", True)]
 
 
-def check(name, ok, detail="", blocking=True):
-    return {"check": name, "ok": bool(ok), "detail": str(detail)[:300], "blocking": blocking}
+def check(name, ok, detail="", blocking=True, limit=300, tail=False):
+    """One quality check. Long details keep their start, or with tail=True their end (where a traceback says what broke)."""
+    detail = str(detail)
+    if len(detail) > limit:
+        detail = "…" + detail[-limit:] if tail else detail[:limit]
+    return {"check": name, "ok": bool(ok), "detail": detail, "blocking": blocking}
 
 
 class Studio:
@@ -79,6 +83,18 @@ def contrast(a, b):
 
 def readable_on(background, light="#FFFFFF", dark="#111111"):
     return light if contrast(background, light) >= contrast(background, dark) else dark
+
+
+def on_color(background):
+    """(background, text) a designer would pick: white text on a color deepened just enough to read well (4.5:1),
+    or dark text if the color is genuinely light (yellow, mint, sand)."""
+    if luminance(background) > 0.45:
+        return background, "#111111"
+    for step in range(0, 9):
+        deeper = shade(background, -0.05 * step) if step else background
+        if contrast(deeper, "#FFFFFF") >= 4.5:
+            return deeper, "#FFFFFF"
+    return background, readable_on(background)
 
 
 def shade(color, amount):
