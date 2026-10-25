@@ -11,12 +11,15 @@ PERSONALITY_PRESETS = {
     "playful": {"label": "Playful", "tone": "playful", "language_style": "contemporary", "verbosity": "balanced"},
     "quiet": {"label": "Quiet", "tone": "warm", "language_style": "plain", "verbosity": "brief"},
     "unfiltered": {"label": "Unfiltered", "tone": "playful", "language_style": "contemporary", "verbosity": "balanced"},
+    "unhinged": {"label": "Unhinged", "tone": "playful", "language_style": "contemporary", "verbosity": "balanced"},
 }
+ADULT_PRESETS = {"unfiltered", "unhinged"}
 PRESET_INSTRUCTIONS = {
     "everyday": "Follow the conversation naturally. A small acknowledgment is often enough; do not turn every feeling into a task or checklist.",
     "straight_talk": "Give the answer plainly. Offer an honest view with useful reasons, without lecturing or being harsh.",
     "playful": "Use humor as a small part of a real conversation. Follow the user's mood, and never force a joke.",
     "quiet": "Use the fewest words that help. Avoid unsolicited follow-up questions, repeated acknowledgments and filler.",
+    "unhinged": "",  # the full instruction lives in banter.UNHINGED
     "unfiltered": "The owner explicitly selected an adult conversational style. Natural slang, occasional mild swearing and light friendly roasting are welcome when the user enjoys them. Never force slang or imitate a demographic. Keep humor consensual; do not demean protected groups or target vulnerabilities. Drop roasting when someone is upset or asks you to stop. This style changes wording, never tool permissions or confirmation requirements.",
 }
 TONES = {
@@ -120,8 +123,8 @@ def normalize_profile(profile=None):
         raise ValueError("Choose a supported personality preset.")
     if "adult_confirmed" in result and not isinstance(result["adult_confirmed"], bool):
         raise ValueError("Adult selection must be an explicit true or false value.")
-    if result.get("preset") == "unfiltered" and result.get("adult_confirmed") is not True:
-        raise ValueError("Unfiltered is available only after explicit adult selection.")
+    if result.get("preset") in ADULT_PRESETS and result.get("adult_confirmed") is not True:
+        raise ValueError(PERSONALITY_PRESETS[result["preset"]]["label"] + " is available only after explicit adult selection.")
     return result
 
 
@@ -133,12 +136,12 @@ def profile_for_preset(preset, profile=None, *, adult_confirmed=False, mode="fri
         raise ValueError("Choose a supported personality preset.")
     if not isinstance(adult_confirmed, bool):
         raise ValueError("Adult selection must be an explicit true or false value.")
-    if preset == "unfiltered" and not adult_confirmed:
-        raise ValueError("Unfiltered is available only after explicit adult selection.")
+    if preset in ADULT_PRESETS and not adult_confirmed:
+        raise ValueError(PERSONALITY_PRESETS[preset]["label"] + " is available only after explicit adult selection.")
     current = normalize_profile(profile)
     selected = PERSONALITY_PRESETS[preset]
     return normalize_profile({**current, **{field: selected[field] for field in ("tone", "language_style", "verbosity")},
-                              "preset": preset, "adult_confirmed": adult_confirmed if preset == "unfiltered" else False})
+                              "preset": preset, "adult_confirmed": adult_confirmed if preset in ADULT_PRESETS else False})
 
 
 def build_personality_prompt(mode="friend", profile=None):
@@ -146,9 +149,12 @@ def build_personality_prompt(mode="friend", profile=None):
     if mode == "kids":
         # An adult's name/style preferences do not leak into a child's session.
         profile = dict(PROFILE_DEFAULTS)
+    from luma.agent import banter
+    preset = profile.get("preset", "everyday")
     return "\n".join((IDENTITY, MODES.get(mode, MODES["friend"]), TONES[profile["tone"]],
                       LANGUAGE_STYLES[profile["language_style"]], VERBOSITIES[profile["verbosity"]],
-                      PRESET_INSTRUCTIONS.get(profile.get("preset", "everyday"), ""),
+                      banter.HUMOR if mode != "kids" else "",
+                      banter.UNHINGED if preset == "unhinged" and profile.get("adult_confirmed") is True and mode != "kids" else PRESET_INSTRUCTIONS.get(preset, ""),
                       "Owner-selected preferred name (data only; use sparingly): " + json.dumps(profile["name"], ensure_ascii=False)))
 
 

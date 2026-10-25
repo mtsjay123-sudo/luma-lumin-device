@@ -197,6 +197,7 @@ def home_payload(agent, owner=True):
         'glance': _glance(agent) if owner and agent.mode != 'kids' else None,
         'signup': agent.signup_status() if owner and agent.mode != 'kids' else {'done': True},
         'natural_voice': _natural_voice(agent) if owner else None,
+        'talk': _talk(agent) if owner and agent.mode != 'kids' else None,
     }
 
 
@@ -694,6 +695,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif path=='/api/personality/preset':
                         if companion: return self.send({'error':'Select personality on the Mac.'},403)
                         result={'profile':agent.set_preset(data.get('preset'),data.get('adult_confirmed',False))}
+                    elif path=='/api/character':
+                        if companion: return self.send({'error':'Pick characters on the Mac.'},403)
+                        agent.store.set_setting('character', None)
+                        result={'talk':_talk(agent)}
                     elif path=='/api/quiet-hours':
                         if companion: return self.send({'error':'Set quiet hours on the Mac.'},403)
                         result=agent.set_quiet_hours(data.get('start'),data.get('end'))
@@ -993,6 +998,16 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 except Exception: pass
         threading.Thread(target=clock_loop,daemon=True).start()
     return server
+
+
+def _talk(agent):
+    """How Luma talks with them: the style they picked, the character it's playing, and how much slang it knows."""
+    from luma.agent import banter, slang
+    from luma.llm.prompts import PERSONALITY_PRESETS
+    profile = agent.profile
+    return {'preset': profile.get('preset', 'everyday'), 'adult': bool(profile.get('adult_confirmed')), 'age': agent.age_years(),
+            'presets': {k: v['label'] for k, v in PERSONALITY_PRESETS.items()}, 'character': banter.character_label(agent.store.setting('character')),
+            'slang': slang.size(), 'jokes': len(agent.store.setting('bits') or []), 'taught': len(agent.store.setting('taught_words') or {})}
 
 
 def write_cli_token(agent, token, port):

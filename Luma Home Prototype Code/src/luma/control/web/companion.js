@@ -1,6 +1,6 @@
 /* Local companion controls. Saved values are rendered as text, never HTML. */
 let rhythmLoaded = false, voiceLoaded = false;
-const presets = {everyday:'Everyday', straight_talk:'Straight Talk', playful:'Playful', quiet:'Quiet', unfiltered:'Unfiltered'};
+const presets = {everyday:'Everyday', straight_talk:'Straight Talk', playful:'Playful', quiet:'Quiet', unfiltered:'Unfiltered', unhinged:'Unhinged'};
 function safeForm(form, handler) {
   form.onsubmit = async (event) => {
     event.preventDefault();

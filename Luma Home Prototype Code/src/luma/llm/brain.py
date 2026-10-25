@@ -5,6 +5,8 @@ Three choices, all behind the same plan/rewrite calls the runtime already uses:
   • a bigger local model (Qwen3 30B-A3B, a mixture-of-experts that thinks like a big
     model but runs at the speed of a 3B one) for computers with the memory for it,
     downloaded once, checked against its published SHA-256;
+  • on a computer with a lot of memory (a Mac Studio), a much bigger mixture-of-experts
+    (Qwen3.5 397B-A17B, or Qwen3 235B-A22B), the same way, in as many pieces as it ships in;
   • the cloud brain, if they turn it on: Claude (Anthropic) or Kimi K3.1 Pro (Moonshot's open model,
     far too big for a Mac), each with the owner's own key.
 If the cloud brain can't answer (offline, out of credit), Luma falls back to the
@@ -25,6 +27,11 @@ BIG_REPOS = ["bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF", "unsloth/Qwen3-3
              "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-GGUF"]
 QUANTS = ["Q4_K_M", "IQ4_XS", "Q3_K_L", "Q3_K_M", "IQ3_M", "IQ3_XS"]  # best first
 MIN_RAM_GB = 24
+# A Mac Studio's worth of memory: the biggest open brains that still run here, best first. A repo that isn't
+# there is skipped; the quant is the best whose pieces fit in about 70% of memory (the rest is the OS and context).
+STUDIO_REPOS = [(192, "unsloth/Qwen3.5-397B-A17B-GGUF", "Qwen3.5 397B"), (128, "unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF", "Qwen3 235B")]
+STUDIO_QUANTS = ["UD-Q4_K_XL", "Q4_K_M", "Q4_K_S", "UD-Q3_K_XL", "Q3_K_M", "UD-Q2_K_XL", "Q2_K"]
+STUDIO_RAM_GB = 128
 UA = {"User-Agent": "LumaDesktop/1.0 (+https://github.com/mtsjay123-sudo/luma-lumin-device)"}
 
 fetching = {"running": False, "done": 0, "total": 0, "error": None, "file": None}
@@ -43,13 +50,34 @@ def models_dir():
 
 
 def big_model_path():
-    """The bigger model, only once it's complete and verified."""
+    """The biggest verified local model here: a studio brain if there is one, else the 30B."""
     folder = models_dir()
     if not folder.is_dir():
         return None
-    for path in sorted(folder.glob("*30B-A3B*.gguf")):
-        if (path.parent / (path.name + ".ok")).exists():
-            return path
+    for pattern in ("*397B*.gguf", "*235B*.gguf", "*30B-A3B*.gguf"):
+        for path in sorted(folder.glob(pattern)):
+            if (path.parent / (path.name + ".ok")).exists():
+                return path
+    return None
+
+
+def big_label(path=None):
+    path = path or big_model_path()
+    name = path.name if path else ""
+    return "Qwen3.5 397B" if "397B" in name else "Qwen3 235B" if "235B" in name else "Qwen3 30B"
+
+
+def pick_parts(files, gb, quants=STUDIO_QUANTS, share=0.7):
+    """The best quant of a big model that fits, with every piece it's split into: [file, ...] or None."""
+    room = gb * share * 2 ** 30
+    ggufs = [f for f in files if f.get("path", "").endswith(".gguf") and "mmproj" not in f["path"].lower()]
+    for quant in quants:
+        parts = [f for f in ggufs if f"{quant}".lower() in f["path"].lower().replace("/", "-") and
+                 (f"/{quant}".lower() in "/" + f["path"].lower() or f"-{quant}.".lower() in f["path"].lower() or f"-{quant}-".lower() in f["path"].lower())]
+        if quant.startswith("Q") and not quant.startswith("UD"):
+            parts = [f for f in parts if "ud-" not in f["path"].lower()]
+        if parts and sum(int(f.get("size", 0)) for f in parts) <= room:
+            return sorted(parts, key=lambda f: f["path"])
     return None
 
 
@@ -174,12 +202,15 @@ def status():
     from luma.llm import cloud
     big = big_model_path()
     gb = ram_gb()
-    local_name = "Qwen3 30B (bigger)" if big and (_store is None or _store.setting("brain_local", "auto") != "small") else "Qwen3 4B"
+    using_big = bool(big) and (_store is None or _store.setting("brain_local", "auto") != "small")
+    local_name = f"{big_label(big)} (bigger)" if using_big else "Qwen3 4B"
     return {
         "cloud": {"on": cloud_on(), "has_key": bool(cloud_key()), "keys": {which: bool(cloud_key(which)) for which in KEY_SETTING},
                   "model": cloud_model(), "provider": provider(), "models": cloud_models(),
                   "last_error": (_store.setting("brain_cloud_error") if _store else None)},
-        "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb),
+        "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb), "using_big": using_big,
+                  "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else "Qwen3 30B"),
+                  "studio": gb >= STUDIO_RAM_GB and not (big and ("397B" in big.name or "235B" in big.name)),
                   "fetching": progress(), "fetch_error": fetching["error"]},
         "health": health(),
         "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
@@ -200,7 +231,7 @@ def use_cloud(tier=None):
 
 
 def local_label():
-    return "Qwen3 30B (local)" if inference_model_is_big() else "Qwen3 4B (local)"
+    return f"{big_label()} (local)" if inference_model_is_big() else "Qwen3 4B (local)"
 
 
 def inference_model_is_big():
@@ -276,7 +307,9 @@ def pick(files, gb):
 
 
 def fetch_bigger():
-    if big_model_path() or fetching["running"]:
+    have = big_model_path()
+    studio_ready = have and ("397B" in have.name or "235B" in have.name)
+    if fetching["running"] or studio_ready or (have and ram_gb() < STUDIO_RAM_GB):
         return status()
     if ram_gb() < MIN_RAM_GB:
         raise ValueError(f"The bigger brain needs a computer with at least {MIN_RAM_GB} GB of memory; this one has {round(ram_gb())} GB. "
@@ -286,8 +319,57 @@ def fetch_bigger():
     return status()
 
 
+def _download(repo, choice, folder):
+    """One file from Hugging Face, resumed if it was cut off, checked against its SHA-256."""
+    sha = (choice.get("lfs") or {}).get("oid") or (choice.get("lfs") or {}).get("sha256")
+    final = folder / os.path.basename(choice["path"])
+    part = final.with_name(final.name + ".part")
+    have = part.stat().st_size if part.exists() else 0
+    digest = hashlib.sha256()
+    if have:
+        with open(part, "rb") as f:
+            for block in iter(lambda: f.read(1 << 22), b""): digest.update(block)
+    fetching["done"] += have
+    req = urllib.request.Request(f"https://huggingface.co/{repo}/resolve/main/{choice['path']}", headers={**UA, **({"Range": f"bytes={have}-"} if have else {})})
+    with urllib.request.urlopen(req, timeout=60) as r, open(part, "ab" if have else "wb") as out:
+        if have and r.status != 206:
+            out.seek(0); out.truncate(); digest = hashlib.sha256(); fetching["done"] -= have
+        for chunk in iter(lambda: r.read(1 << 20), b""):
+            out.write(chunk); digest.update(chunk); fetching["done"] += len(chunk)
+    if part.stat().st_size != int(choice["size"]) or (sha and digest.hexdigest() != sha):
+        part.unlink(missing_ok=True)
+        raise RuntimeError("The download didn't check out, so I threw it away. Try again.")
+    os.replace(part, final)
+    return final, digest.hexdigest()
+
+
+def _fetch_studio():
+    """The Mac Studio brain: the first that fits, every piece downloaded and checked before it's used."""
+    gb = ram_gb()
+    for need, repo, label in STUDIO_REPOS:
+        if gb < need:
+            continue
+        try:
+            with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true", headers=UA), timeout=30) as r:
+                parts = pick_parts(json.load(r), gb)
+        except Exception:
+            continue
+        if not parts:
+            continue
+        folder = models_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        fetching.update(total=sum(int(f["size"]) for f in parts), done=0, file=f"{label} ({len(parts)} piece{'s' if len(parts) > 1 else ''})")
+        done = [_download(repo, f, folder) for f in parts]
+        (folder / (done[0][0].name + ".ok")).write_text(" ".join(h for _, h in done))
+        return True
+    return False
+
+
 def _fetch():
     try:
+        if ram_gb() >= STUDIO_RAM_GB and _fetch_studio():
+            _apply_local()
+            return
         choice, repo = None, None
         for repo in BIG_REPOS:
             try:

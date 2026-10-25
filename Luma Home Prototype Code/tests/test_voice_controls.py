@@ -11,7 +11,7 @@ import numpy as np
 from luma.agent.conversation import interruption_intent, style_update
 from luma.audio import tts
 from luma.llm import inference
-from luma.llm.prompts import (PERSONALITY_PRESETS, build_personality_prompt,
+from luma.llm.prompts import (ADULT_PRESETS, PERSONALITY_PRESETS, build_personality_prompt,
                               normalize_profile, profile_for_preset)
 
 
@@ -19,7 +19,7 @@ class PersonalityDialTests(unittest.TestCase):
     def test_all_choices_apply_without_mutating_previous_profile(self):
         previous = {"name": "Amiri", "tone": "warm", "language_style": "classic", "verbosity": "detailed"}
         for preset in PERSONALITY_PRESETS:
-            result = profile_for_preset(preset, previous, adult_confirmed=preset == "unfiltered")
+            result = profile_for_preset(preset, previous, adult_confirmed=preset in ADULT_PRESETS)
             self.assertEqual(result["name"], "Amiri")
             self.assertEqual(result["preset"], preset)
             self.assertEqual(result["tone"], PERSONALITY_PRESETS[preset]["tone"])

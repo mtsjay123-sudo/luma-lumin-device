@@ -266,6 +266,18 @@ class BiggerLocalBrainTests(unittest.TestCase):
         self.assertIn("IQ3_XS", brain.pick(self.FILES, 24)["path"])
         self.assertIsNone(brain.pick(self.FILES, 16))
 
+    def test_a_mac_studio_gets_the_biggest_brain_that_fits_in_all_its_pieces(self):
+        G = 2 ** 30
+        files = [{"path": f"UD-Q4_K_XL/Qwen3.5-397B-A17B-UD-Q4_K_XL-0000{i}-of-00005.gguf", "size": (20 if i == 5 else 50) * G} for i in range(1, 6)]
+        files += [{"path": f"Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-0000{i}-of-00004.gguf", "size": (40 if i == 4 else 45) * G} for i in range(1, 5)]
+        files.append({"path": "mmproj-F16.gguf", "size": G})
+        best = brain.pick_parts(files, 512)
+        self.assertEqual(len(best), 5)
+        self.assertTrue(all("UD-Q4_K_XL" in f["path"] for f in best))
+        self.assertTrue(all("Q3_K_M" in f["path"] for f in brain.pick_parts(files, 256)))
+        self.assertIsNone(brain.pick_parts(files, 128))
+        self.assertEqual(brain.big_label(Path("/m/Qwen3.5-397B-A17B-UD-Q4_K_XL-00001-of-00005.gguf")), "Qwen3.5 397B")
+
     def test_small_computers_are_pointed_at_the_cloud_brain(self):
         with mock.patch.object(brain, "ram_gb", return_value=16):
             with self.assertRaisesRegex(ValueError, "cloud brain"):

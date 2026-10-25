@@ -247,6 +247,8 @@ class Agent:
             threading.Thread(target=self.connectors.start_all, name="luma-connectors", daemon=True).start()
         from luma.llm import brain
         brain.init(self.store)  # a bigger local brain if it's here; the cloud brain if they turned it on
+        from luma.audio import speakable
+        speakable.EXPLICIT["on"] = (self.store.setting("personality") or {}).get("preset") == "unhinged"
         self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
         from luma.control.link import LinkClient
         self.link = LinkClient(self)  # paired with a Luma device over Wi-Fi
@@ -282,6 +284,8 @@ class Agent:
         if self.mode == "kids": raise ValueError("Set household preferences in adult mode.")
         profile = normalize_profile(profile)
         self.store.set_setting("personality",profile)
+        from luma.audio import speakable
+        speakable.EXPLICIT["on"] = profile.get("preset") == "unhinged"
         return self.profile
 
     def set_mode(self, mode):
@@ -353,8 +357,21 @@ class Agent:
         return value
 
     def set_preset(self, preset, adult_confirmed=False):
-        from luma.llm.prompts import profile_for_preset
+        from luma.llm.prompts import ADULT_PRESETS, profile_for_preset
+        age = self.age_years()
+        if preset in ADULT_PRESETS and age is not None and age < 18:
+            raise ValueError("That style is for adults only.")
         return self.set_profile(profile_for_preset(preset, self.profile, adult_confirmed=adult_confirmed, mode=self.mode))
+
+    def age_years(self):
+        """The owner's age from the birthday they gave at sign-up, or None if they didn't."""
+        dob = str((self.store.setting("account_profile") or {}).get("dob") or "")
+        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", dob)
+        if not m:
+            return None
+        today = datetime.fromtimestamp(self.clock(), self.zone).date()
+        y, mo, d = (int(g) for g in m.groups())
+        return today.year - y - ((today.month, today.day) < (mo, d))
 
     def set_quiet_hours(self, start, end):
         if any(type(v) is not int or not 0 <= v <= 23 for v in (start, end)):
@@ -2114,6 +2131,8 @@ class Agent:
         for w in self.SLANG:
             if f" {w} " in low: slang[w] = slang.get(w, 0) + 1
         stats["slang"] = dict(sorted(slang.items(), key=lambda kv: -kv[1])[:12])
+        from luma.agent import slang as lexicon
+        stats = lexicon.learn(stats, text)
         self.store.set_setting("style_stats", stats)
         if stats["n"] >= 3 and stats["n"] % 3 == 0:
             n = stats["n"]
@@ -2125,7 +2144,10 @@ class Agent:
             if stats["emoji"] / n > 0.3: bits.append("uses emoji")
             used = [w for w, c in stats["slang"].items() if c >= 2][:6]
             casual = bool(used) or stats["lower"] / n > 0.6
-            line = ("How they talk: " + ", ".join(bits) + (". Slang they use: " + ", ".join(f"“{w}”" for w in used) if used else "") + ". "
+            register = lexicon.register_note(stats, self.profile.get("preset", "everyday"))
+            casual = casual or "register" in register or "casual" in register
+            line = ("How they talk: " + ", ".join(bits) + ". " + (register + " " if register else
+                    ("Slang they use: " + ", ".join(f"“{w}”" for w in used) + ". " if used else ""))
                     + ("Match their energy: keep it short and casual, talk like they do, use their words naturally (never forced), no corporate tone."
                        if casual else "Match their style: clear and natural, about as long as they write."))
             self.store.set_setting("their_style", line)
@@ -2142,7 +2164,15 @@ class Agent:
         soul = self.store.setting("soul")
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
         style = self.store.setting("their_style")
-        if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:400]})
+        if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:700]})
+        if self.mode != "kids":
+            from luma.agent import banter, slang as lexicon
+            for note in (banter.character_note(self.store.setting("character")), lexicon.turn_note(text),
+                         banter.bits_note(self.store.setting("bits"), self.clock())):
+                if note: out.append({"mind": True, "text": note})
+            taught = self.store.setting("taught_words") or {}
+            if taught:
+                out.append({"mind": True, "text": "Words they taught you (use them right): " + "; ".join(f"“{w}” means {m}" for w, m in list(taught.items())[-12:])})
         if self.mode != "kids":
             read = [(i, p) for i, p in understanding.guess(text, 3) if i != "chat" and p >= 0.15]
             if read:
@@ -2885,8 +2915,16 @@ class Agent:
             self._on_text = on_text
             self.history.append({"role":"user", "content":text.strip()})
             self.history = self.history[-20:]
+            if self.mode != "kids" and self.last_reply and not agent_mode:
+                from luma.agent import banter
+                if banter.laughed(text):
+                    asked = next((h["content"] for h in reversed(self.history[:-1]) if h.get("role") == "user"), "")
+                    self.store.set_setting("bits", banter.remember_bit(self.store.setting("bits"), self.last_reply, asked, self.clock()))
             try:
                 result = self.workflows.run(text, event, resume_id=resume_id) if agent_mode else self._chat(text, event)
+                if isinstance(result.get("text"), str):
+                    from luma.agent import slang as lexicon
+                    result["text"] = lexicon.clean(result["text"])
                 if event.is_set() and not result.get("action") and not result.get("workflow"):
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
                 if result.get("task"): self.last_task = result["task"]["id"]
@@ -3272,6 +3310,65 @@ class Agent:
                              r"go ahead and\s+|help me\s+|let'?s\s+)?(?:research|analy[sz]e|prepare|create|make|build|design|write|generate|draft|develop|code|put together|package|plan out)\b", re.I)
     PROJECT_STATUS = re.compile(r"\b(?:how'?s|how is|status of|progress on|where are (?:we|you) (?:at )?(?:with|on)|update on) (?:my |the |our )?(?:latest )?project\b", re.I)
     WORK_ONLY = {"website", "game", "model3d", "financial_model", "analyze_data", "code", "research"}
+
+    SLANG_ASK = re.compile(r"^\W*(?:what(?:'s| is| does)|wtf (?:is|does)|whats|wdym|what do you mean)(?: the word| it mean when (?:someone|people|they|you) says?)? [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']?(?: mean| means| stand for)?\W*$", re.I)
+    TEACH = re.compile(r"^\W*[\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? (?:means|is when|is like|=) (?P<m>.{3,120}?)\W*$", re.I)
+
+    def _banter_request(self, text, lowered):
+        """Characters, unhinged mode, and what a slang word means (or what they just taught Luma it means)."""
+        if self.mode == "kids":
+            return None
+        from luma.agent import banter, slang as lexicon
+        from luma.llm.prompts import PERSONALITY_PRESETS
+        preset = self.profile.get("preset", "everyday")
+        if banter.UNHINGED_OFF.search(lowered) and preset == "unhinged":
+            self.set_preset("playful")
+            return {"text": "Okay, okay. Toned down. Still me, just with a filter on.", "section": "settings"}
+        if banter.UNHINGED_ON.search(lowered):
+            if preset == "unhinged":
+                return {"text": "Already unhinged. What do you want, a second helping?"}
+            age = self.age_years()
+            if age is not None and age < 18:
+                return {"text": "Unhinged mode is for adults, so that one's a no. I can still be funny though."}
+            if age is None:
+                return {"text": "Unhinged mode is adults only. Turn it on in Settings under Personality and confirm you're 18 or older, then I'm all yours.", "section": "settings"}
+            self.set_preset("unhinged", adult_confirmed=True)
+            return {"text": "Oh, you want the real me? Bet. Unhinged mode's on: I cuss, I roast, I say what I think. Say \"tone it down\" whenever you've had enough.",
+                    "section": "settings"}
+        ask = banter.character_request(text)
+        if ask and ask[0] == "clear":
+            if not self.store.setting("character"):
+                return None
+            self.store.set_setting("character", None)
+            return {"text": "Back to me. That was fun though."}
+        if ask and ask[0] == "set":
+            char = {"id": ask[1], "who": ask[2]}
+            self.store.set_setting("character", char)
+            label = banter.character_label(char)
+            return {"text": f"Say less. {label} mode, starting now. Tell me to be myself whenever you want me back.", "character": label}
+        m = self.TEACH.match(text.strip())
+        if m and len(m.group("w").split()) <= 3 and not re.match(r"^(?:it|that|this|he|she|they|which|what|who|there|here|life|love)\b", m.group("w"), re.I):
+            word, meaning = m.group("w").strip().lower(), m.group("m").strip()
+            known = lexicon.explain(word)
+            if not known or known.meaning.lower() not in meaning.lower():
+                taught = dict(self.store.setting("taught_words") or {})
+                taught[word] = meaning[:120]
+                self.store.set_setting("taught_words", dict(list(taught.items())[-60:]))
+                return {"text": f"Got it, “{word}” means {meaning}. I'll use it right."}
+        m = self.SLANG_ASK.match(text.strip())
+        if m:
+            word = m.group("w").strip()
+            taught = (self.store.setting("taught_words") or {}).get(word.lower())
+            if taught:
+                return {"text": f"You taught me that one: “{word}” means {taught}."}
+            entry = lexicon.explain(word)
+            if entry and entry.register != "x" and len(word) >= 2:
+                where = entry.label
+                text_out = f"“{entry.term}” means {entry.meaning}." + (f" It comes from {where}." if where and "everyday" not in where else "")
+                if entry.register == "s":
+                    text_out += " It's aimed at people, so I don't use it myself."
+                return {"text": text_out, "slang": entry.term}
+        return None
 
     def _project_request(self, text, lowered):
         """Big, multi-part asks become a project; quick single things (one deck, one doc) stay quick."""
@@ -3678,6 +3775,8 @@ class Agent:
             if later is not None: return later
             taught = self._taught_request(text, cancel_event)
             if taught is not None: return taught
+            banter_reply = self._banter_request(text, lowered)  # "talk like a pirate", "unhinged mode", "what does bussin mean"
+            if banter_reply is not None: return banter_reply
             project = self._project_request(text, lowered)  # "research my idea, build the model and a website": a project, run in the background
             if project is not None: return project
             checked = self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way

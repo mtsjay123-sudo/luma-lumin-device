@@ -49,8 +49,14 @@ OPENERS = re.compile(r"^(?:okay so|ok so|so basically|not gonna lie|real talk|ho
                      r"(?:,? (?:gang|bro|girl|man|fam))?,\s+", re.I)
 
 
+EXPLICIT = {"on": False}  # unhinged mode: "wtf" is said the way it was meant
+
+
 def say_it(text):
     """Shorthand spoken in full, laughs and sighs marked, other emoji dropped."""
+    if EXPLICIT["on"]:
+        from luma.agent import slang
+        text = slang.say_explicit(text)
     def word(match):
         raw = match.group(1)
         key = raw.lower()

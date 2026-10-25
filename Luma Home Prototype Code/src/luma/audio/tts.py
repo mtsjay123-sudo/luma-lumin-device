@@ -119,7 +119,8 @@ def speech_plan(text, expressive=False):
             spoken = spoken_text(para)
         except ValueError:
             continue
-        beats = speakable.beats(speakable.say_it(spoken))
+        from luma.agent import slang
+        beats = speakable.beats(speakable.say_it(slang.clean(spoken)))
         for b, (words, after) in enumerate(beats):
             last_beat = b == len(beats) - 1
             kind = ("break" if index < len(paragraphs) - 1 else None) if last_beat else after

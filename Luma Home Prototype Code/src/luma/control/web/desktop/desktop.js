@@ -1323,7 +1323,7 @@
     const outline = (f.outline || []).filter((s) => s.title);
     if (outline.length) {
       const ol = el("ol", "doc-outline");
-      for (const s of outline.slice(0, 8)) { const li = el("li"); li.append(el("b", null, s.title)); if (s.points?.[0]) li.append(el("span", null, " — " + String(s.points[0]).slice(0, 110))); ol.append(li); }
+      for (const s of outline.slice(0, 8)) { const li = el("li"); li.append(el("b", null, s.title)); if (s.points?.[0]) li.append(el("span", null, ": " + String(s.points[0]).slice(0, 110))); ol.append(li); }
       c.append(ol);
     }
     return c;
@@ -2528,7 +2528,7 @@
       body.append(head);
       if (s.state === "running" && s.log?.length) body.append(el("div", "lg", s.log[s.log.length - 1]));
       if (s.summary) body.append(el("div", "sm", s.summary));
-      for (const c of (s.checks || []).filter((c) => !c.ok)) body.append(el("div", c.blocking === false ? "ck note" : "ck", `${c.blocking === false ? "Note" : "Needs a look"}: ${c.check}${c.detail ? " — " + c.detail.slice(0, 200) : ""}`));
+      for (const c of (s.checks || []).filter((c) => !c.ok)) body.append(el("div", c.blocking === false ? "ck note" : "ck", `${c.blocking === false ? "Note" : "Needs a look"}: ${c.check}${c.detail ? ". " + c.detail.slice(0, 200) : ""}`));
       const passed = (s.checks || []).filter((c) => c.ok).length;
       if (passed) body.append(el("div", "ok", `${passed} check${passed === 1 ? "" : "s"} passed`));
       if (s.files?.length) {
@@ -3143,6 +3143,49 @@
   }
 
   // Luma's brain: the local one, a bigger local one, or Claude with your own key.
+  // How Luma talks: the style, adults-only Unhinged, the character it's playing, the slang it knows.
+  const TALK_NOTES = {
+    everyday: "Warm and natural. Talks the way you talk.",
+    straight_talk: "Straight answers, honest takes, no fluff.",
+    playful: "Jokes, banter and a little roasting when the vibe is right.",
+    quiet: "As few words as it takes.",
+    unfiltered: "Some swearing and friendly roasting. 18 and up.",
+    unhinged: "Full cussing, real roasts, hot takes, no filter. Never slurs, never mean about who you are. 18 and up.",
+  };
+  function talkCard() {
+    const t = state.home?.talk;
+    const item = el("div", "item talk-item");
+    if (!t) return item;
+    const g = el("div", "grow");
+    const sz = t.slang || {};
+    g.append(el("div", "title", "How Luma talks"),
+      el("div", "sub", `${TALK_NOTES[t.preset] || ""} Luma knows ${sz.entries || 0} slang words from ${sz.communities || 0} communities and picks up yours as you talk${t.taught ? `, plus ${t.taught} you taught it` : ""}.`));
+    const chips = el("div", "talk-chips");
+    const adult = el("label", "talk-adult");
+    const box18 = el("input");
+    box18.type = "checkbox";
+    box18.checked = Boolean(t.adult);
+    adult.append(box18, document.createTextNode(" I'm 18 or older"));
+    for (const [id, label] of Object.entries(t.presets || {})) {
+      const c = btn(label, "chip" + (t.preset === id ? " on" : ""), async () => {
+        const grown = id === "unfiltered" || id === "unhinged";
+        if (grown && !box18.checked) { toast("Tick “I'm 18 or older” first."); box18.focus(); return; }
+        try { await api("/api/personality/preset", { preset: id, adult_confirmed: grown }); await refreshHome(); renderSettings(); toast(id === "unhinged" ? "Unhinged. Don't say I didn't warn you." : `${label} it is.`); }
+        catch (e) { toast(e.message); }
+      });
+      c.setAttribute("aria-pressed", String(t.preset === id));
+      chips.append(c);
+    }
+    g.append(chips);
+    if (t.age == null) g.append(adult);
+    const extra = el("div", "sub");
+    extra.textContent = (t.character ? `Playing: ${t.character}. ` : "Ask it to “talk like a pirate” or “be my hype man” anytime. ") + (t.jokes ? `${t.jokes} running joke${t.jokes === 1 ? "" : "s"} saved.` : "");
+    g.append(extra);
+    item.append(g);
+    if (t.character) item.append(btn("Be yourself", "pill soft small", async () => { await api("/api/character", {}).catch(() => {}); await refreshHome(); renderSettings(); }));
+    return item;
+  }
+
   function brainCard() {
     const b = state.home?.brain;
     const item = el("div", "item brain-item");
@@ -3171,8 +3214,10 @@
       brainCard.timer = setTimeout(() => state.view === "settings" && refreshHome().then(renderSettings), 3000);
       local.append(lt);
     } else if (L.big_ready) {
-      lt.append(el("div", "sub", L.name.startsWith("Qwen3 30B") ? "The bigger brain (Qwen3 30B), free and private." : "The small, fast brain. The bigger one is downloaded and ready."));
-      local.append(lt, btn(L.name.startsWith("Qwen3 30B") ? "Use the small one" : "Use the bigger one", "pill soft small", () => redo({ action: L.name.startsWith("Qwen3 30B") ? "use_small" : "use_big" })));
+      lt.append(el("div", "sub", L.using_big ? `The bigger brain (${L.big_name}), free and private.` : "The small, fast brain. The bigger one is downloaded and ready."));
+      if (L.studio) lt.append(el("div", "sub", `This computer has ${L.ram_gb} GB of memory, enough for a Mac Studio-size brain.`));
+      local.append(lt, btn(L.using_big ? "Use the small one" : "Use the bigger one", "pill soft small", () => redo({ action: L.using_big ? "use_small" : "use_big" })));
+      if (L.studio) local.append(btn("Get the studio brain", "pill primary small", () => redo({ action: "get_bigger" }, "Downloading it in the background. It's big, so it takes a while. Luma keeps working meanwhile.")));
     } else if (L.big_fits) {
       lt.append(el("div", "sub", `${L.name} now. This computer has ${L.ram_gb} GB of memory, enough for a much bigger brain that still runs here, free and private.`));
       if (L.fetch_error) lt.append(el("div", "sub warn", L.fetch_error));
@@ -3269,7 +3314,7 @@
     const au = el("div", "item");
     const aug = el("div", "grow");
     const done = state.home?.about_done;
-    aug.append(el("div", "title", "About you"), el("div", "sub", done ? "Your birthday, your people, what you're into — Luma uses this everywhere." : "Tell Luma about you once, so it actually knows you."));
+    aug.append(el("div", "title", "About you"), el("div", "sub", done ? "Your birthday, your people, what you're into. Luma uses it everywhere." : "Tell Luma about you once, so it actually knows you."));
     au.append(aug, btn(done ? "Edit" : "Set it up", "pill " + (done ? "soft" : "primary") + " small", () => aboutSheet(), "people"));
     box.append(au);
     // Your Luma account, and locking Luma with Touch ID.
@@ -3289,10 +3334,11 @@
       acctRow.after(row);
     }).catch(() => {});
     box.append(linkCard());
+    box.append(talkCard());
     box.append(brainCard());
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));
     box.append(toggleRow("Deeper mind", "Luma takes a second look at its own answer and fixes anything it's unsure of or made up. A little slower, a lot sharper.", s.deep_mind !== false, (on) => api("/api/setting", { key: "deep_mind", value: on })));
-    box.append(toggleRow("Weigh it out", "On a real question, Luma looks at it a few ways, picks what holds up, and checks facts before answering — how a small brain beats a big one. Needs Deeper mind on.", s.deliberate !== false, (on) => api("/api/setting", { key: "deliberate", value: on })));
+    box.append(toggleRow("Weigh it out", "On a real question, Luma looks at it a few ways, picks what holds up, and checks facts before answering. It's how a small brain beats a big one. Needs Deeper mind on.", s.deliberate !== false, (on) => api("/api/setting", { key: "deliberate", value: on })));
     box.append(toggleRow("Show me its thinking", "When Luma thinks something through, show the steps it took, so you can see how it got there.", s.show_thoughts === true, (on) => api("/api/setting", { key: "show_thoughts", value: on })));
 
     const look = el("div", "item");
@@ -3388,7 +3434,7 @@
     field("Work or school", "work", "Studying design at NC State");
     field("What you're into", "interests", "rock climbing, lo-fi, startups, good coffee");
     field("What you're working toward", "goals", "launch Luma, get fit, save for a trip");
-    field("Food — loves, hates, allergies", "food", "vegetarian, allergic to peanuts, loves ramen");
+    field("Food: loves, hates, allergies", "food", "vegetarian, allergic to peanuts, loves ramen");
     field("Anything else I should know", "notes", "I'm an early bird; keep replies short");
     const peopleWrap = el("div", "people");
     peopleWrap.append(el("div", "side-label", "Your people"));
@@ -3471,7 +3517,7 @@
     lock.replaceChildren(icon(secure ? "lock" : "unlock"));
     lock.classList.toggle("secure", Boolean(secure));
     lock.classList.toggle("insecure", host && !secure);
-    lock.title = !host ? "" : secure ? `Secure connection to ${host}` : `Not a secure connection — don't type anything private on ${host}`;
+    lock.title = !host ? "" : secure ? `Secure connection to ${host}` : `Not a secure connection. Don't type anything private on ${host}`;
   }
   // Inputs go one after another, so a click lands before the typing that follows it.
   function drive(kind, data = {}) {
@@ -3547,7 +3593,7 @@
   $("b-reload").addEventListener("click", () => { if (mine()) native.view.reload(); else drive("reload"); });
   $("b-out").addEventListener("click", () => { const u = mine() ? native.url : browserView.url; if (safeUrl(u)) window.open(u, "_blank", "noopener"); });
   async function signInWindow() {
-    try { await api("/api/browser/show", { url: browserView.url || "https://accounts.google.com/" }); toast("Opened a real browser window. Sign in there (to Google or anywhere) — Luma never sees your password — then come back."); }
+    try { await api("/api/browser/show", { url: browserView.url || "https://accounts.google.com/" }); toast("Opened a real browser window. Sign in there (to Google or anywhere). Luma never sees your password — then come back."); }
     catch (e) { toast(e.message); }
   }
   $("b-popout").addEventListener("click", signInWindow);

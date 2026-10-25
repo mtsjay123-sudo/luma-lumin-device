@@ -28,11 +28,10 @@ def brand_colors(primary, accent):
 
 
 def mark(x, y, size, primary, accent, letters):
-    """The brand mark: a rounded square in the brand gradient with the initials."""
+    """The brand mark: a rounded square in the brand color with the initials (flat: no gradient, no glow)."""
     r = size * 0.24
     primary, fg = on_color(primary)
-    return (f'<defs><linearGradient id="g{int(x)}{int(y)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{primary}"/><stop offset="1" stop-color="{shade(primary, -0.25)}"/></linearGradient></defs>'
-            f'<rect x="{x}" y="{y}" width="{size}" height="{size}" rx="{r}" fill="url(#g{int(x)}{int(y)})"/>'
+    return (f'<rect x="{x}" y="{y}" width="{size}" height="{size}" rx="{r}" fill="{primary}"/>'
             f'<circle cx="{x + size * 0.78}" cy="{y + size * 0.22}" r="{size * 0.1}" fill="{accent}"/>'
             f'<text x="{x + size / 2}" y="{y + size * 0.64}" text-anchor="middle" font-size="{size * (0.42 if len(letters) > 1 else 0.5)}" font-weight="800" fill="{fg}" {FONT}>{esc(letters)}</text>')
 
@@ -48,7 +47,7 @@ def wrap(words, limit):
     return lines + ([line] if line else [])
 
 
-def svg(kind, brand, tagline, primary, accent):
+def svg(kind, brand, tagline, primary, accent, points=(), action=""):
     w, h = SIZES[kind]
     letters, dark = initials(brand), "#14121F"
     head = f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
@@ -63,27 +62,35 @@ def svg(kind, brand, tagline, primary, accent):
         size = {"social": 92, "story": 104, "banner": 72}[kind]
         lines = wrap(tagline or brand, {"social": 18, "story": 16, "banner": 30}[kind])[:4]
         top = {"social": 420, "story": 820, "banner": 210}[kind] - (len(lines) - 1) * size * 0.55
-        body = (f'<rect width="{w}" height="{h}" fill="{primary}"/><circle cx="{w * 0.9}" cy="{h * 0.08}" r="{min(w, h) * 0.38}" fill="{accent}" opacity="0.55"/>'
-                f'<circle cx="{w * 0.05}" cy="{h * 0.98}" r="{min(w, h) * 0.28}" fill="{shade(primary, -0.3)}" opacity="0.7"/>')
+        big = min(w, h) * 0.62  # the initials, cropped off the edge: the brand's own shape instead of decoration
+        body = (f'<rect width="{w}" height="{h}" fill="{primary}"/>'
+                f'<text x="{w * 1.02}" y="{h * 0.36}" text-anchor="end" font-size="{big}" font-weight="800" fill="{fg}" opacity="0.1" {FONT}>{esc(letters)}</text>'
+                f'<rect x="0" y="{h * 0.86}" width="{w}" height="{h * 0.14}" fill="{accent}"/>')
         body += "".join(f'<text x="{w * 0.08}" y="{top + i * size * 1.12}" font-size="{size}" font-weight="800" fill="{fg}" {FONT}>{esc(line)}</text>' for i, line in enumerate(lines))
-        body += mark(w * 0.08, h - min(w, h) * 0.2, min(w, h) * 0.11, shade(primary, -0.35), accent, letters)
-        body += f'<text x="{w * 0.08 + min(w, h) * 0.14}" y="{h - min(w, h) * 0.125}" font-size="{min(w, h) * 0.045}" font-weight="700" fill="{fg}" {FONT}>{esc(brand[:24])}</text>'
+        body += f'<text x="{w * 0.08}" y="{h * 0.93 + min(w, h) * 0.015}" font-size="{min(w, h) * 0.045}" font-weight="800" fill="{readable_on(accent)}" {FONT}>{esc(brand[:28])}</text>'
     elif kind == "mockup":
         primary, fg = on_color(primary)
-        body = (f'<rect width="{w}" height="{h}" fill="#F4F2FA"/><rect x="330" y="80" width="540" height="1140" rx="80" fill="#14121F"/>'
+        body = (f'<rect width="{w}" height="{h}" fill="#F3F3F1"/><rect x="330" y="80" width="540" height="1140" rx="80" fill="#14121F"/>'
                 f'<rect x="352" y="102" width="496" height="1096" rx="62" fill="#FFFFFF"/><rect x="352" y="102" width="496" height="300" rx="62" fill="{primary}"/>'
                 f'<rect x="352" y="340" width="496" height="62" fill="{primary}"/><rect x="530" y="120" width="140" height="26" rx="13" fill="#14121F"/>'
                 + mark(392, 190, 84, shade(primary, -0.3), accent, letters) +
                 f'<text x="494" y="246" font-size="38" font-weight="800" fill="{fg}" {FONT}>{esc(brand[:14])}</text>'
-                f'<text x="392" y="330" font-size="24" fill="{fg}" {FONT}>{esc((tagline or "Welcome")[:30])}</text>')
-        for i in range(3):
+                f'<text x="392" y="330" font-size="24" fill="{fg}" {FONT}>{esc((wrap(tagline, 30) or [brand])[0])}</text>')
+        rows = [str(t).strip() for t in points if str(t).strip()][:3]
+        if not rows:  # nothing real to list yet: the tagline, set big, rather than grey placeholder bars
+            for j, line in enumerate(wrap(tagline or brand, 13)[:5]):
+                body += f'<text x="392" y="{520 + j * 74}" font-size="62" font-weight="800" fill="{dark}" {FONT}>{esc(line)}</text>'
+            body += f'<rect x="392" y="{560 + min(4, len(wrap(tagline or brand, 13)[:5])) * 74}" width="120" height="14" rx="7" fill="{accent}"/>'
+        for i, row in enumerate(rows):
             y = 440 + i * 210
-            body += (f'<rect x="384" y="{y}" width="432" height="180" rx="28" fill="#F4F2FA"/><circle cx="440" cy="{y + 60}" r="28" fill="{accent if i % 2 else primary}"/>'
-                     f'<rect x="490" y="{y + 42}" width="220" height="20" rx="10" fill="#D8D4E8"/><rect x="490" y="{y + 78}" width="160" height="16" rx="8" fill="#E6E3F1"/>'
-                     f'<rect x="416" y="{y + 120}" width="368" height="18" rx="9" fill="#E6E3F1"/>')
-        body += f'<rect x="384" y="1110" width="432" height="64" rx="32" fill="{accent}"/><text x="600" y="1152" text-anchor="middle" font-size="26" font-weight="700" fill="{readable_on(accent)}" {FONT}>Get started</text>'
+            first, *rest = wrap(row, 22)[:3]
+            body += (f'<rect x="384" y="{y}" width="432" height="180" rx="28" fill="#F3F3F1"/><circle cx="440" cy="{y + 62}" r="26" fill="{accent if i % 2 else primary}"/>'
+                     f'<text x="490" y="{y + 72}" font-size="30" font-weight="800" fill="{dark}" {FONT}>{esc(first)}</text>'
+                     + "".join(f'<text x="416" y="{y + 124 + j * 34}" font-size="24" fill="#4F4D57" {FONT}>{esc(line)}</text>' for j, line in enumerate(rest)))
+        label = (action or f"Open {brand}")[:22]
+        body += f'<rect x="384" y="1110" width="432" height="64" rx="32" fill="{accent}"/><text x="600" y="1152" text-anchor="middle" font-size="26" font-weight="700" fill="{readable_on(accent)}" {FONT}>{esc(label)}</text>'
     else:  # palette
-        swatches = [("Primary", primary), ("Primary dark", shade(primary, -0.3)), ("Accent", accent), ("Ink", dark), ("Surface", "#F4F2FA")]
+        swatches = [("Primary", primary), ("Primary dark", shade(primary, -0.3)), ("Accent", accent), ("Ink", dark), ("Surface", "#F3F3F1")]
         body = f'<rect width="{w}" height="{h}" fill="#FFFFFF"/><text x="60" y="90" font-size="44" font-weight="800" fill="{dark}" {FONT}>{esc(brand[:30])} colors</text>'
         for i, (label, color) in enumerate(swatches):
             x = 60 + i * 220
@@ -117,8 +124,10 @@ def render_pngs(jobs):
 class Graphics(Studio):
     name, agent, title, tier = "graphics", "design", "Graphics", "standard"
     description = ("Design brand graphics. brand: the name. tagline: one short line. primary_color and accent_color: hex like #6E56CF or a color name. "
-                   "style: modern, playful, elegant or bold. assets: which to make, comma-separated, from logo, icon, social, banner, story, mockup, palette.")
-    fields = {"brand": "string", "tagline": "text", "primary_color": "text", "accent_color": "text", "style": "text", "assets": "text"}
+                   "style: modern, playful, elegant or bold. assets: which to make, comma-separated, from logo, icon, social, banner, story, mockup, palette. "
+                   "points: three short real lines for the app mockup, separated by ; (menu items, features, prices from the research). action: the mockup's "
+                   "button label, naming the action (\"Order lunch\"), never \"Get started\". No gradients or glows.")
+    fields = {"brand": "string", "tagline": "text", "primary_color": "text", "accent_color": "text", "style": "text", "assets": "text", "points": "text", "action": "text"}
 
     def fallback(self, ctx, task):
         name = ctx.project.get("name") or "Luma"
@@ -132,7 +141,7 @@ class Graphics(Studio):
         files, jobs, png_files = [], [], []
         for kind in dict.fromkeys(wanted):
             rel = f"graphics/{slug(brand, 'brand')}-{kind}.svg"
-            ctx.write(rel, svg(kind, brand, tagline, primary, accent))
+            ctx.write(rel, svg(kind, brand, tagline, primary, accent, [t for t in str(args.get("points") or "").split(";")], text(args.get("action"), 22)))
             files.append(rel)
             png_files.append(rel[:-4] + ".png")
             jobs.append((ctx.path(rel), ctx.path(png_files[-1]), SIZES[kind]))
