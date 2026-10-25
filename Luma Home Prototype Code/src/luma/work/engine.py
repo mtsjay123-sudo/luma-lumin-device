@@ -40,7 +40,7 @@ DETECT = [
     ("analyze_data", r"\b(?:analy[sz]e|summari[sz]e|crunch|dig into)\b.{0,40}\b(?:spreadsheet|csv|excel|xlsx|data|table|sales|numbers)\b|\.(?:csv|xlsx)\b", "Analyze the data"),
     ("financial_model", r"\bfinancials?\b|\bprojections?\b|\bforecast|\bp&l\b|profit and loss|revenue model|unit economics|break.?even|budget model", "Build the financial model"),
     ("graphics", r"\bgraphics?\b|\blogo\b|\bbrand(?:ing)?\b|social (?:media )?posts?|\bbanners?\b|\bmockups?\b|\bicons?\b|visual assets", "Design the brand graphics"),
-    ("document", r"\breport\b|business plan|\bdocument\b|\bdocx\b|word doc|\bpdf\b|\bmemo\b|\bproposal\b|one.?pager|white ?paper|write.?up", "Write the document"),
+    ("document", r"\breport\b|business plan|\bdocument\b|\bdocx\b|\bword (?:doc|file|summary|version)|\bpdf\b|\bmemo\b|\bproposal\b|one.?pager|one.?page (?:summary|brief|report)|executive summary|white ?paper|write.?up", "Write the document"),
     ("deck", r"\b\d{1,2}[- ]slides?\b|\bdeck\b|power ?point|\bpptx\b|\bpresentation\b|\bslides\b|\bpitch\b", "Create the PowerPoint deck"),
     ("website", r"\bwebsite\b|\bweb ?site\b|landing page|web page|homepage|\bsite\b", "Build the website"),
     ("code", r"\bscript\b|\bprogram\b|\bpython\b|\bjavascript\b|\bapi\b|\bcli\b|\bbot\b|\bautomation\b|\bbackend\b|\b(?:write|build|code) (?:me )?(?:an? )?(?:app|tool|calculator|converter)\b", "Write and test the code"),

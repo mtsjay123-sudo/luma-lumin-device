@@ -28,7 +28,7 @@ def free_udp_port():
     return port
 
 
-class LinkTests(unittest.TestCase):
+class LinkBase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
@@ -58,6 +58,8 @@ class LinkTests(unittest.TestCase):
         with mock.patch.object(self.laptop.link, "start"):
             return self.laptop.link.pair(d["host"], d["port"], d["fingerprint"], self.device.link_host.code())
 
+
+class LinkTests(LinkBase):
     def test_find_and_pair_with_the_code_it_shows(self):
         found = self.laptop.link.discover(timeout=1.0, targets=["127.0.0.1"], port=self.udp)
         d = found[0]
@@ -141,3 +143,38 @@ class LinkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LinkWorkTests(LinkBase):
+    """A paired laptop's terminal runs projects on the device and takes the package home."""
+
+    def test_the_laptop_terminal_runs_a_project_on_the_device(self):
+        import os as _os
+        import zipfile
+        import work_fakes
+        from test_work_terminal import scripted_planner
+        from luma.work import terminal
+        self.device.planner = scripted_planner
+        _os.environ["LUMA_WORK_NO_BROWSER"] = "1"
+        self.pair()
+        here = _os.getcwd()
+        _os.chdir(self.temp.name)
+        try:
+            with mock.patch("luma.config.STATE_DB_PATH", self.laptop_store.db_path), \
+                 mock.patch("luma.config.STATE_KEY_PATH", Path(self.temp.name) / "laptop" / "k"), \
+                 mock.patch.object(terminal, "say"):
+                remote = terminal.device()
+                self.assertIn(self.device.link_host.name(), remote.label)
+                run = remote.work("make a platformer game and a 3D printable phone stand")
+        finally:
+            _os.chdir(here)
+            _os.environ.pop("LUMA_WORK_NO_BROWSER", None)
+        self.assertEqual(run["state"], "done", run)
+        downloaded = list(Path(self.temp.name).glob("*.zip"))
+        self.assertEqual(len(downloaded), 1)
+        self.assertIn("game/taco-dash/index.html", zipfile.ZipFile(downloaded[0]).namelist())
+
+    def test_an_unpaired_computer_gets_nothing(self):
+        import json as _json
+        with self.assertRaises(luma_link.LinkError):
+            luma_link.pinned_request("127.0.0.1", self.port, self.device.link_host.fingerprint or "x", "GET", "/link/work/projects", token="not-a-token")

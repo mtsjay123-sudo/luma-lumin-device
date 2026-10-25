@@ -58,6 +58,23 @@ jobs:
             desktop/dist/*.zip
           if-no-files-found: error
 
+  # Project code runs inside Apple's sandbox on a Mac. This proves the fence on a real Mac: code can write
+  # its own project folder and nothing else, can't read the owner's files, and has no network.
+  work-sandbox:
+    runs-on: macos-14
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q "cryptography>=42" pytest
+      - name: The sandbox fences project code in
+        run: PYTHONPATH=src:tests python -m pytest -v -p no:cacheprovider tests/test_work_foundation.py -k "Sandbox or Project"
+
   # Luma's voices, rendered on a real Apple Silicon Mac: the classic voice with the new conversation
   # layer, the new open-source voices (Chatterbox-Turbo, Qwen3-TTS) learning Luma's voice, and candidate
   # designs for Luma's own voice. Download "Luma-voice-samples" from the run to listen. Never blocks a release.

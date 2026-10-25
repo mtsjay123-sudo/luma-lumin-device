@@ -176,6 +176,38 @@ function onRuntimeExit(child, code, signal) {
   }, Math.min(10000, 800 * stops.length));
 }
 
+// `luma` in Terminal: the same Luma from the command line (luma work "...", luma projects, luma work --device "...").
+// Written once to ~/.local/bin/luma (or %APPDATA%\Luma\bin\luma.cmd), kept current, and never over someone else's `luma`.
+function installTerminalCommand(dir, python, extraEnv = {}) {
+  const vars = { PYTHONPATH: path.join(dir, "src"), LUMA_NODE: process.execPath };
+  for (const [k, v] of Object.entries(extraEnv)) if (k.startsWith("LUMA_") && v) vars[k] = String(v);
+  if (process.platform === "win32") {
+    const bin = path.join(app.getPath("userData"), "bin");
+    fs.mkdirSync(bin, { recursive: true });
+    const lines = ["@echo off", "rem Installed by Luma Desktop: Luma in your terminal.", ...Object.entries(vars).map(([k, v]) => `set "${k}=${v}"`), `"${python}" -m luma.cli %*`];
+    fs.writeFileSync(path.join(bin, "luma.cmd"), lines.join("\r\n") + "\r\n");
+    return path.join(bin, "luma.cmd");
+  }
+  const bin = path.join(os.homedir(), ".local", "bin");
+  const target = path.join(bin, "luma");
+  if (fs.existsSync(target) && !fs.readFileSync(target, "utf8").includes("Installed by Luma Desktop")) return null;
+  fs.mkdirSync(bin, { recursive: true });
+  const q = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
+  const script = ["#!/bin/sh", "# Installed by Luma Desktop: Luma in your terminal. Try: luma work \"research my idea and make a 10-slide deck\"",
+    "# It uses the Luma app's own Python and settings. Delete this file to remove it.", ...Object.entries(vars).map(([k, v]) => `export ${k}=${q(v)}`),
+    `exec ${q(python)} -m luma.cli "$@"`].join("\n") + "\n";
+  fs.writeFileSync(target, script, { mode: 0o755 });
+  fs.chmodSync(target, 0o755);
+  // Put ~/.local/bin on the PATH once (zsh is the Mac's shell; bash only if it's already set up).
+  for (const rc of [".zshrc", ".bash_profile"]) {
+    const file = path.join(os.homedir(), rc);
+    if (rc === ".bash_profile" && !fs.existsSync(file)) continue;
+    const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    if (!current.includes(".local/bin")) fs.appendFileSync(file, `\n# Added by Luma Desktop: the luma command\nexport PATH="$HOME/.local/bin:$PATH"\n`);
+  }
+  return target;
+}
+
 async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
   lastStart = { dir, python, extraEnv };
   if (await ping()) return { ok: true };
@@ -184,11 +216,13 @@ async function startRuntime(dir, python = pythonFor(dir), extraEnv = {}) {
     // PYTHONPATH lets it run straight from the folder even without an installed .venv.
     // LUMA_WHISPER_DOWNLOAD: fetch the speech model once, so you can talk to Luma.
     // LUMA_CONTEXT_SIZE: how much of the conversation Luma can keep in mind at once, sized to this computer's memory.
-    cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), LUMA_TTS_MODEL_PATH: path.join(setup.voiceDir(setupHome()), "kokoro-v1.0.int8.onnx"), LUMA_TTS_VOICES_PATH: path.join(setup.voiceDir(setupHome()), "voices-v1.0.bin"), LUMA_VOICE_ENV: setup.naturalVoiceEnv(setupHome()), LUMA_NATURAL_DIR: setup.naturalVoiceDir(setupHome()), ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
+    cwd: dir, env: { LUMA_APP_BUILD: buildStamp(dir), LUMA_CONTEXT_SIZE: String(contextSize()), LUMA_VISION_DIR: setup.visionDir(setupHome()), LUMA_TTS_MODEL_PATH: path.join(setup.voiceDir(setupHome()), "kokoro-v1.0.int8.onnx"), LUMA_TTS_VOICES_PATH: path.join(setup.voiceDir(setupHome()), "voices-v1.0.bin"), LUMA_VOICE_ENV: setup.naturalVoiceEnv(setupHome()), LUMA_NATURAL_DIR: setup.naturalVoiceDir(setupHome()), LUMA_NODE: process.execPath, ...process.env, ...extraEnv, PYTHONUNBUFFERED: "1", LUMA_WHISPER_DOWNLOAD: "1", PYTHONPATH: [path.join(dir, "src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) },
     stdio: ["ignore", log, log], windowsHide: true,
   });
   const child = runtime;
   child.on("exit", (code, signal) => onRuntimeExit(child, code, signal));
+  try { installTerminalCommand(dir, python, { ...extraEnv, LUMA_TTS_MODEL_PATH: path.join(setup.voiceDir(setupHome()), "kokoro-v1.0.int8.onnx"), LUMA_TTS_VOICES_PATH: path.join(setup.voiceDir(setupHome()), "voices-v1.0.bin"), LUMA_VISION_DIR: setup.visionDir(setupHome()), LUMA_CONTEXT_SIZE: String(contextSize()) }); }
+  catch (error) { console.error("Couldn't set up the luma terminal command:", error.message); }
   // The first start loads the model; give it time.
   for (let i = 0; i < 240; i++) {
     if (await ping()) return { ok: true };

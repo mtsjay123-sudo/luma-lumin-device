@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, quote_plus, urlsplit
 from luma.llm.brain import BrainUnavailable
 from luma.control.pairing import PairingManager, ensure_local_certificate, private_ipv4
 from luma.integrations.phone_app import PhoneApp
+from luma.control import work_api
 
 ROOT = Path(__file__).parent / 'web'
 
@@ -50,6 +51,7 @@ class ControlContext:
         self.phone_server = None
         self.phone_origin = None
         self.owner_session = secrets.token_urlsafe(32)
+        self.cli_token = secrets.token_urlsafe(32)  # this computer's `luma` terminal command, read from a file only the owner can open
         self.lock = threading.RLock()
         self.limits = {}
         self.phone_app = PhoneApp(agent)
@@ -259,6 +261,29 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             auth = self.headers.get('Authorization','')
             return auth[7:].strip() if auth.startswith('Bearer ') else None
 
+        def cli_ok(self):
+            """The `luma` command in this computer's terminal: loopback only, with the token from the owner-only file."""
+            token = self.bearer()
+            return (not companion and not linked and self.client_address[0] in {'127.0.0.1', '::1'} and bool(token)
+                    and secrets.compare_digest(token, ctx.cli_token))
+
+        def send_file(self, data, kind, name, inline=False, csp=None):
+            self.send_response(200)
+            safe = ''.join(c for c in name if c.isalnum() or c in '-_.') or 'luma-file'
+            headers = {'Content-Type': kind, 'Content-Length': str(len(data)), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+                       'Referrer-Policy': 'no-referrer', 'Content-Disposition': 'inline' if inline else f'attachment; filename="{safe}"'}
+            if csp: headers['Content-Security-Policy'] = csp
+            for k, v in headers.items(): self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(data)
+
+        def read_json(self, limit):
+            size = int(self.headers.get('Content-Length') or 0)
+            if not 0 < size <= limit: raise ValueError('Request too large')
+            data = json.loads(self.rfile.read(size) or b'{}')
+            if not isinstance(data, dict): raise ValueError('Expected an object')
+            return data
+
         def authenticated(self):
             if linked:
                 cookies = SimpleCookie()
@@ -343,6 +368,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/session': return self.send({'viewer':'phone' if companion else 'owner', 'paired':self.authenticated(),
                                                       # which build of Luma is answering, so a newly installed app can replace an old one still running
                                                       'build':os.environ.get('LUMA_APP_BUILD',''), 'pid':os.getpid() if not companion else None})
+            if path.startswith('/api/work/view/'): return work_api.serve_view(agent, path, self.send, self.send_file)
+            if path.startswith('/api/work/') and (self.cli_ok() or self.authenticated()):
+                return work_api.get(agent, path, urlsplit(self.path).query, self.send, self.send_file, viewer='phone' if companion else 'owner')
             if not self.authenticated(): return self.send({'error':'Pair this phone from the Mac, or reopen the local owner controls.'},401)
             if path.startswith('/files/'):
                 row = agent.store.get('file', path[len('/files/'):])
@@ -444,6 +472,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 return
             peer = link.peer(self.bearer())
             if not peer: return self.send({'error': 'Pair this computer with your Luma first.'}, 403)
+            if path.startswith('/link/work/'):  # a paired laptop's terminal, running projects on the device
+                return work_api.get(agent, '/api/work/' + path[len('/link/work/'):], urlsplit(self.path).query, self.send, self.send_file, viewer='laptop')
             if path == '/link/hands/next':
                 return self.send({'job': link.next(25)})
             return self.send({'error': 'Not found'}, 404)
@@ -458,6 +488,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             peer = link.peer(self.bearer())
             if not peer: return self.send({'error': 'Pair this computer with your Luma first.'}, 403)
             if path == '/link/ticket': return self.send({'ticket': link.ticket(peer['id'])})
+            if path.startswith('/link/work/'): return work_api.post(agent, '/api/work/' + path[len('/link/work/'):], data, self.send, viewer='laptop')
             if path == '/link/memory/sync': return self.send({'memories': link.sync(data.get('memories'))})
             if path == '/link/hands/done':
                 link.done(data.get('id'), data.get('result'))
@@ -470,6 +501,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 return self.link_post(path)
             if path in {'/api/ext/pair','/api/ext/done'} and not companion and self.valid_host():
                 return self.chrome_extension(path)
+            if path.startswith('/api/work/') and self.valid_host() and self.cli_ok():
+                try: data = self.read_json(36_000_000)
+                except Exception: return self.send({'error':'Bad request'},400)
+                return work_api.post(agent, path, data, self.send)
             if not self.valid_host() or not self.valid_origin(): return self.send({'error':'Device origin required'},403)
             pairing = companion and path=='/api/phone/pair'
             if not pairing and not self.authenticated(): return self.send({'error':'Unauthorized device request'},403)
@@ -477,6 +512,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             driving = path=='/api/browser/drive'
             bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('request',90)
             if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            if path.startswith('/api/work/'):
+                # Projects: the window and a paired phone. Uploads are bigger than other requests.
+                try: data = self.read_json(36_000_000)
+                except Exception: return self.send({'error':'Bad request'},400)
+                return work_api.post(agent, path, data, self.send, viewer='phone' if companion else 'owner')
             if path=='/api/see':
                 # A photo the owner shared, looked at locally. Big, so raw bytes like a recording.
                 if companion: return self.send({'error':'Share photos with Luma on the Mac.'},403)
@@ -936,6 +976,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
     server.agent_stop=ctx.stop
     server.control_context=ctx
     if root_context:
+        write_cli_token(agent, ctx.cli_token, server.server_port)
         ctx.phone_app.start()
         try: agent.helpers.ensure_system()
         except Exception: pass
@@ -952,6 +993,17 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 except Exception: pass
         threading.Thread(target=clock_loop,daemon=True).start()
     return server
+
+
+def write_cli_token(agent, token, port):
+    """Where the `luma` terminal command finds this Luma: a file only the owner's account can read (like an SSH key)."""
+    try:
+        path = agent.store.db_path.parent / 'cli.json'
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as out: json.dump({'port': port, 'token': token, 'pid': os.getpid()}, out)
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 def serve(agent,port,phone_host=None,phone_port=8096):

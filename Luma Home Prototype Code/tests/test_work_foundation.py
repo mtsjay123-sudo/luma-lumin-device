@@ -106,6 +106,59 @@ class SandboxTests(unittest.TestCase):
         self.assertIn('(subpath "/opt/python")', rules)
 
 
+@unittest.skipUnless(sandbox.contained(), "needs macOS sandbox-exec (runs in the Mac CI job)")
+class AppleSandboxTests(unittest.TestCase):
+    """On a real Mac: code in a project can write its own folder, and nothing else. No network, no reading
+    the owner's files. The project lives under the home folder, like the app's own projects do."""
+
+    def setUp(self):
+        import uuid
+        self.root = Path.home() / f".luma-sandbox-test-{uuid.uuid4().hex[:8]}"
+        self.cwd = self.root / "proj"
+        self.cwd.mkdir(parents=True)
+        self.secret = self.root / "owner-notes.txt"
+        self.secret.write_text("private")
+        self.outside = self.root / "written-from-inside.txt"
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def attempt(self, code):
+        (self.cwd / "probe.py").write_text(code)
+        result = sandbox.run("python probe.py", self.cwd, timeout=30)
+        self.assertEqual(result["contained"], "sandbox")
+        return result
+
+    def test_writes_inside_the_project_work(self):
+        result = self.attempt("open('made.txt', 'w').write('ok')\nprint(open('made.txt').read())\n")
+        self.assertTrue(result["ok"], result)
+        self.assertEqual((self.cwd / "made.txt").read_text(), "ok")
+
+    def test_writing_outside_the_project_is_blocked(self):
+        result = self.attempt(f"open({str(self.outside)!r}, 'w').write('escaped')\n")
+        self.assertFalse(result["ok"], result)
+        self.assertFalse(self.outside.exists())
+
+    def test_reading_the_owners_files_is_blocked(self):
+        result = self.attempt(f"print(open({str(self.secret)!r}).read())\n")
+        self.assertFalse(result["ok"], result)
+        self.assertNotIn("private", result["stdout"])
+
+    def test_no_network_even_to_this_computer(self):
+        import socket
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        try:
+            port = server.getsockname()[1]
+            result = self.attempt(f"import socket\nsocket.create_connection(('127.0.0.1', {port}), timeout=5)\nprint('connected')\n")
+        finally:
+            server.close()
+        self.assertFalse(result["ok"], result)
+        self.assertNotIn("connected", result["stdout"])
+
+
 class KnowledgeTests(unittest.TestCase):
     def test_finds_the_passage_and_cites_the_file(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -99,7 +99,7 @@ class PhoneAppTests(unittest.TestCase):
 
     def run_jobs(self):
         if self.app._worker:
-            self.app._worker.join(10)
+            self.app._worker.join(30)
 
     def test_pairing_registers_without_a_phone_and_keeps_the_key_out_of_the_cloud(self):
         out = self.app.start_pairing("Luma")

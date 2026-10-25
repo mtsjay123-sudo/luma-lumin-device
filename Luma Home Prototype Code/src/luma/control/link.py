@@ -81,8 +81,8 @@ def fingerprints(cert_path):
     return digest.hex(), "sha256/" + base64.b64encode(digest).decode()
 
 
-def pinned_request(host, port, fingerprint, method, path, body=None, token=None, timeout=10):
-    """HTTPS to the device, trusting only the certificate it had when it was paired."""
+def pinned_request(host, port, fingerprint, method, path, body=None, token=None, timeout=10, raw=False):
+    """HTTPS to the device, trusting only the certificate it had when it was paired. raw=True returns the bytes (a file)."""
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.check_hostname = False
@@ -98,6 +98,8 @@ def pinned_request(host, port, fingerprint, method, path, body=None, token=None,
         conn.request(method, path, body=json.dumps(body).encode() if body is not None else None, headers=headers)
         response = conn.getresponse()
         data = response.read()
+        if raw and response.status < 400:
+            return data
         try: payload = json.loads(data or b"{}")
         except ValueError: payload = {}
         if response.status >= 400:
@@ -335,6 +337,13 @@ class LinkClient:
         if not d:
             raise LinkError("No Luma device is paired with this computer.")
         return pinned_request(d["host"], d["port"], d["fingerprint"], method, path, body, token=self._token(), timeout=timeout)
+
+    def call_bytes(self, method, path, timeout=60):
+        """A file from the device (a project's package), over the same pinned connection."""
+        d = self.store.setting("link_device")
+        if not d:
+            raise LinkError("No Luma device is paired with this computer.")
+        return pinned_request(d["host"], d["port"], d["fingerprint"], method, path, None, token=self._token(), timeout=timeout, raw=True)
 
     def online(self):
         at, ok = self._online

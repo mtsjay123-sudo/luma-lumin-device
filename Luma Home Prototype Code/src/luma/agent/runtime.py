@@ -3267,6 +3267,45 @@ class Agent:
                     "asked": True, "choices": labels + ["Something else"], "calm": True}
         return {"text": f"{sorry}. Tell me what you need, a piece at a time, and I'll get it right.", "asked": True, "calm": True}
 
+    # -- projects: multi-part work, planned and run by the work engine ------------------------------------
+    PROJECT_ASK = re.compile(r"^(?:(?:hey|yo|ok(?:ay)?|so)[, ]+)?(?:luma[, ]+)?(?:please\s+|can you\s+|could you\s+|would you\s+|i need (?:you to\s+)?|i want (?:you to\s+)?|"
+                             r"go ahead and\s+|help me\s+|let'?s\s+)?(?:research|analy[sz]e|prepare|create|make|build|design|write|generate|draft|develop|code|put together|package|plan out)\b", re.I)
+    PROJECT_STATUS = re.compile(r"\b(?:how'?s|how is|status of|progress on|where are (?:we|you) (?:at )?(?:with|on)|update on) (?:my |the |our )?(?:latest )?project\b", re.I)
+    WORK_ONLY = {"website", "game", "model3d", "financial_model", "analyze_data", "code", "research"}
+
+    def _project_request(self, text, lowered):
+        """Big, multi-part asks become a project; quick single things (one deck, one doc) stay quick."""
+        if self.mode == "kids":
+            return None
+        from luma.control import work_api
+        eng = work_api.engine(self)
+        if self.PROJECT_STATUS.search(lowered):
+            projects = eng.projects.list()
+            if not projects:
+                return {"text": "No projects yet. Ask me for something big, like research plus a deck and a website, and I'll run it as one."}
+            p = work_api.view(eng, projects[0])
+            run = p.get("run") or {}
+            done = sum(1 for st in run.get("steps", []) if st["state"] == "done")
+            current = next((st for st in run.get("steps", []) if st["state"] == "running"), None)
+            state = ("working on " + current["title"].lower()) if current else {"done": "finished", "waiting": "waiting for your OK", "stopped": "paused"}.get(run.get("state"), run.get("state") or "not started")
+            return {"text": f"{p['name']}: {done} of {len(run.get('steps', []))} steps done, {state}." + (f" {run['summary']}" if run.get("summary") and not current else ""),
+                    "section": "projects", "project": p["id"]}
+        from luma.work.engine import detect
+        tools = detect(text)
+        real = [t for t in tools if t != "package"]
+        big = len(real) >= 2 or bool(set(real) & (self.WORK_ONLY - {"research"})) or re.search(r"\b(?:start|make (?:it|this)) a project\b", lowered)
+        if not big or not self.PROJECT_ASK.search(text.strip()) or re.match(r"^\s*(?:how|what|why|when|where|who|is|are|do|does|should)\b", lowered):
+            return None
+        if not self.use_model and self.planner is None:
+            return {"text": "That's a whole project. Turn my brain on in Settings (or a cloud brain) and I'll plan and build it."}
+        project = eng.projects.create(work_api.name_for(text), text)
+        work_api.start(self, eng, project["id"], text)
+        from luma.work.engine import plan_from
+        steps = plan_from(text, tools)
+        listing = "; ".join(f"{st['n']}) {st['title']}" for st in steps)
+        return {"text": f"On it. I started a project, “{project['name']}”: {listing}. Each piece gets checked before it counts, and it all ends up packaged for you. "
+                        "Watch it in Projects, or ask me how it's going.", "section": "projects", "project": project["id"]}
+
     def _depth_check(self, text, lowered, cancel_event):
         """Could this go quick or deep? Ask, unless they said, or they always pick the same, or it was asked a moment ago."""
         if self.mode == "kids" or getattr(self, "_depth_mode", None) or getattr(self, "_rerouting", False):
@@ -3639,6 +3678,8 @@ class Agent:
             if later is not None: return later
             taught = self._taught_request(text, cancel_event)
             if taught is not None: return taught
+            project = self._project_request(text, lowered)  # "research my idea, build the model and a website": a project, run in the background
+            if project is not None: return project
             checked = self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
             from luma.agent import mind

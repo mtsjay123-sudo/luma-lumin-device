@@ -50,6 +50,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(detect("analyze my sales.csv and write a report"), ["analyze_data", "document"])
         self.assertEqual(detect("build a landing page for my bakery"), ["website"])  # a site isn't a coding project
         self.assertEqual(detect("write a python script that renames my photos"), ["code"])
+        self.assertEqual(detect("a coffee cart financial model and a one-page Word summary"), ["financial_model", "document"])
 
     def test_each_step_gets_what_it_needs(self):
         steps = work_engine.plan_from(VISION, detect(VISION))

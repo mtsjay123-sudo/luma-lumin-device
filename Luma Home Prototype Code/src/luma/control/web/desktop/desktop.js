@@ -9,6 +9,8 @@
 
   // ------------------------------------------------------------- icons ---
   const ICONS = {
+    back: '<path d="M14.5 6 8.5 12l6 6"/>',
+    projects: '<path d="M12 3 3.5 7.5 12 12l8.5-4.5L12 3Z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16.5 8.5 4.5 8.5-4.5"/>',
     chat: '<path d="M4 11.5C4 7.4 7.6 4 12 4s8 3.4 8 7.5S16.4 19 12 19c-1 0-1.9-.2-2.8-.4L5 20l1.2-3.4C4.8 15.3 4 13.5 4 11.5Z"/>',
     feed: '<rect x="4" y="4" width="16" height="6.5" rx="2.2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2.2"/>',
     ideas: '<path d="M9.5 18h5M10.5 21h3M12 3a6 6 0 0 0-3.6 10.8c.4.3.6.8.6 1.3V16h6v-.9c0-.5.2-1 .6-1.3A6 6 0 0 0 12 3Z"/>',
@@ -402,7 +404,7 @@
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
   };
   const EVERY = { every_30m: "Every 30 minutes", hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { work: "Luma at work", browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", apps: "Connectors", rules: "Rules", settings: "Settings" };
+  const TITLES = { work: "Luma at work", browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", projects: "Projects", apps: "Connectors", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -824,6 +826,7 @@
     }
     if (r.peek && TITLES[r.peek]) { const a = el("div", "actions"); a.append(btn(`Open ${TITLES[r.peek]}`, "pill soft small", () => go(r.peek), r.peek === "apps" ? "apps" : "right")); return a; }
     if (r.section === "apps" || r.open === "apps") { const a = el("div", "actions"); a.append(btn("Open Connectors", "pill soft small", () => go("apps"), "apps")); return a; }
+    if (r.section === "projects") { const a = el("div", "actions"); a.append(btn("Watch it in Projects", "pill soft small", () => { proj.open = r.project || null; go("projects"); }, "projects")); return a; }
     if (r.url && safeUrl(r.url)) { const a = el("div", "actions"); a.append(webLink(host(r.url) || "Open page", r.url, "pill soft small", "globe")); return a; }
     return null;
   }
@@ -2402,6 +2405,212 @@
   }
 
   // ----------------------------------------------------------- library ---
+  // ---------------------------------------------------------- projects ---
+  // Big asks become projects: a plan, a specialist on each step, every piece checked, all of it packaged.
+  const proj = { open: null, timer: 0, list: [], view: {} };
+  const AGENT_LABEL = { research: "Research", data: "Data", document: "Documents", design: "Design", coding: "Coding", qa: "QA" };
+  const STEP_MARK = { done: "✓", attention: "!", waiting: "…", running: "", stopped: "■", pending: "", skipped: "–" };
+  const projState = (p) => p.working ? "working" : (p.run?.state === "done" && p.run.steps.some((s) => s.state === "attention")) ? "attention" : (p.run?.state || "new");
+  const STATE_LABEL = { working: "Working", done: "Done", attention: "Needs a look", waiting: "Waiting for you", stopped: "Paused", planning: "Planning", running: "Working", new: "New" };
+  const fileUrl = (id, path, view) => `/api/work/file?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}${view ? "&view=1" : ""}`;
+
+  function schedule(fn) {
+    clearTimeout(proj.timer);
+    proj.timer = setTimeout(() => { if (state.view === "projects") fn(); }, 1500);
+  }
+
+  async function renderProjects() {
+    const box = $("projects");
+    if (proj.open) return renderProject(proj.open);
+    let d;
+    try { d = await api("/api/work/projects"); } catch (e) { box.replaceChildren(el("p", "lede", e.message)); return; }
+    proj.list = d.projects || [];
+    box.replaceChildren();
+    box.append(el("p", "lede", "Ask for something big and Luma runs it as a project: it plans the work, its research, data, design, document, coding and QA specialists each build a piece, every piece is checked, and it all ends up packaged for you."));
+    const form = el("form", "proj-new");
+    const ask = el("textarea");
+    Object.assign(ask, { rows: 2, placeholder: "Research my taco truck idea, build the financial model, a 12-slide deck and a website, and package it all" });
+    ask.setAttribute("aria-label", "What should Luma make?");
+    const go1 = el("button", "pill primary", "Start");
+    go1.type = "submit";
+    form.append(ask, go1);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!ask.value.trim()) { ask.focus(); return; }
+      go1.disabled = true;
+      try { const r = await api("/api/work/run", { request: ask.value.trim() }); proj.open = r.project.id; renderProjects(); }
+      catch (err) { toast(err.message); go1.disabled = false; }
+    });
+    box.append(form);
+    if (!proj.list.length) {
+      const empty = el("div", "proj-empty");
+      empty.append(el("div", "t", "No projects yet"), el("div", "s", "Try one of these:"));
+      for (const idea of ["Research the meal-prep market in Atlanta, build a financial model and a 10-slide pitch deck", "Make a platformer game called Moon Hop", "Design a 3D printable phone stand with a cable hole", "Build a website and brand graphics for my barbershop"]) {
+        empty.append(btn(idea, "pill soft small", () => { ask.value = idea; ask.focus(); }));
+      }
+      box.append(empty);
+    }
+    const grid = el("div", "proj-grid");
+    for (const p of proj.list) {
+      const st = projState(p);
+      const steps = p.run?.steps || [];
+      const done = steps.filter((s) => s.state === "done").length;
+      const card = el("button", `proj-card state-${st}`);
+      card.type = "button";
+      const head = el("div", "proj-head");
+      head.append(el("div", "t", p.name), el("span", `proj-badge ${st}`, STATE_LABEL[st] || st));
+      const bar = el("div", "proj-bar");
+      const fill = el("span");
+      fill.style.width = (steps.length ? Math.round(100 * done / steps.length) : 0) + "%";
+      bar.append(fill);
+      const running = steps.find((s) => s.state === "running");
+      card.append(head, el("div", "s", running ? `${AGENT_LABEL[running.agent] || ""} specialist: ${running.title}` : (p.run?.request || p.brief || "").slice(0, 400)), bar,
+        el("div", "m", `${done} of ${steps.length || 0} steps · ${p.file_count} file${p.file_count === 1 ? "" : "s"} · ${ago(p.updated)}`));
+      card.addEventListener("click", () => { proj.open = p.id; renderProjects(); });
+      grid.append(card);
+    }
+    box.append(grid);
+    const models = Object.entries(d.usage?.models || {});
+    if (models.length) {
+      const use = el("div", "proj-usage");
+      use.append(el("span", "k", "Brains used, last 30 days: "));
+      for (const [name, row] of models) use.append(el("span", "chip", `${name} · ${row.calls} calls · ${(row.tokens_in + row.tokens_out).toLocaleString()} tokens` + (row.cost != null ? ` · $${row.cost.toFixed(2)}` : "")));
+      box.append(use);
+    }
+    const badge = $("projects-badge");
+    const live = proj.list.filter((p) => p.working).length;
+    badge.hidden = !live;
+    badge.textContent = live;
+    if (live) schedule(renderProjects);
+  }
+
+  async function renderProject(id) {
+    const box = $("projects");
+    let p;
+    try { p = (await api(`/api/work/project?id=${encodeURIComponent(id)}`)).project; }
+    catch (e) { proj.open = null; toast(e.message); return renderProjects(); }
+    proj.view[id] = p.view;
+    box.replaceChildren();
+    const top = el("div", "proj-top");
+    top.append(btn("All projects", "pill quiet small", () => { proj.open = null; renderProjects(); }, "back"));
+    const st = projState(p);
+    const actions = el("div", "row-actions");
+    if (p.working) actions.append(btn("Stop", "pill soft small", async () => { await api("/api/work/stop", { id }); toast("Stopping after this step."); renderProject(id); }));
+    if (!p.working && ["stopped", "waiting"].includes(p.run?.state)) actions.append(btn("Pick up where it stopped", "pill soft small", async () => { await api("/api/work/resume", { id }); renderProject(id); }));
+    const waitingCode = (p.run?.steps || []).some((s) => s.state === "waiting" && s.approval === "code");
+    if (waitingCode) actions.append(btn("Allow code to run", "pill primary small", async () => { await api("/api/work/approve", { id, confirm: true }); toast("Thanks. Carrying on."); renderProject(id); }));
+    if (p.file_count) { const z = el("a", "pill soft small", "Download everything (.zip)"); z.href = `/api/work/export?id=${encodeURIComponent(id)}`; actions.append(z); }
+    const up = el("input");
+    Object.assign(up, { type: "file", multiple: true, hidden: true });
+    up.addEventListener("change", async () => {
+      for (const f of up.files) {
+        if (f.size > 25 * 1024 * 1024) { toast(`${f.name} is over 25 MB.`); continue; }
+        const data = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.readAsDataURL(f); });
+        try { await api("/api/work/upload", { id, name: f.name, data }); } catch (e) { toast(e.message); }
+      }
+      renderProject(id);
+    });
+    actions.append(btn("Add files", "pill quiet small", () => up.click()), up);
+    top.append(actions);
+    box.append(top);
+    const title = el("div", "proj-title");
+    title.append(el("h2", null, p.name), el("span", `proj-badge ${st}`, STATE_LABEL[st] || st));
+    box.append(title);
+    if (p.run?.request) box.append(el("p", "lede", p.run.request));
+    if (p.run?.summary && !p.working) box.append(el("div", `proj-summary ${st}`, p.run.summary));
+    const steps = el("ol", "proj-steps");
+    for (const s of p.run?.steps || []) {
+      const li = el("li", `proj-step ${s.state}`);
+      const mark = el("span", "mk", STEP_MARK[s.state] ?? "");
+      const body = el("div", "b");
+      const head = el("div", "h");
+      head.append(el("span", "t", s.title), el("span", "ag", AGENT_LABEL[s.agent] || s.agent), el("span", "tm", s.seconds != null ? `${s.seconds}s` : s.state === "running" ? "working…" : ""));
+      body.append(head);
+      if (s.state === "running" && s.log?.length) body.append(el("div", "lg", s.log[s.log.length - 1]));
+      if (s.summary) body.append(el("div", "sm", s.summary));
+      for (const c of (s.checks || []).filter((c) => !c.ok)) body.append(el("div", c.blocking === false ? "ck note" : "ck", `${c.blocking === false ? "Note" : "Needs a look"}: ${c.check}${c.detail ? " — " + c.detail.slice(0, 200) : ""}`));
+      const passed = (s.checks || []).filter((c) => c.ok).length;
+      if (passed) body.append(el("div", "ok", `${passed} check${passed === 1 ? "" : "s"} passed`));
+      if (s.files?.length) {
+        const chips = el("div", "fl");
+        for (const f of s.files.slice(0, 14)) chips.append(btn(f.split("/").pop(), "chip file", () => previewFile(id, f)));
+        body.append(chips);
+      }
+      li.append(mark, body);
+      steps.append(li);
+    }
+    box.append(steps);
+    // Decisions the owner approved: the specialists follow them in every step.
+    const notes = el("section", "proj-notes");
+    notes.append(el("h3", null, "Decisions"), el("p", "s", "Luma's specialists follow these in every step. Add one, like “brand color is teal” or “keep the deck to 10 slides”."));
+    for (const n of p.notes || []) {
+      const row = el("div", "note");
+      row.append(el("span", null, n.text), btn("Remove", "pill quiet small", async () => { await api("/api/work/forget", { id, note: n.id }); renderProject(id); }));
+      notes.append(row);
+    }
+    const nf = el("form", "note-new");
+    const ni = el("input");
+    Object.assign(ni, { placeholder: "Add a decision", maxLength: 300 });
+    nf.append(ni, Object.assign(el("button", "pill soft small", "Add"), { type: "submit" }));
+    nf.addEventListener("submit", async (e) => { e.preventDefault(); if (!ni.value.trim()) return; await api("/api/work/note", { id, text: ni.value.trim() }); renderProject(id); });
+    notes.append(nf);
+    box.append(notes);
+    const files = el("section", "proj-files");
+    files.append(el("h3", null, `Files (${p.files?.length || 0})`));
+    const groups = {};
+    for (const f of p.files || []) (groups[f.path.includes("/") ? f.path.split("/")[0] : "project"] ||= []).push(f);
+    for (const [folder, list] of Object.entries(groups)) {
+      const g = el("div", "group");
+      g.append(el("div", "gh", folder));
+      for (const f of list) {
+        const row = el("button", "frow");
+        row.type = "button";
+        row.append(el("span", "n", f.path.slice(folder === "project" ? 0 : folder.length + 1)), el("span", "k", f.kind), el("span", "z", f.size > 1048576 ? (f.size / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(f.size / 1024)) + " KB"));
+        row.addEventListener("click", () => previewFile(id, f.path));
+        g.append(row);
+      }
+      files.append(g);
+    }
+    box.append(files);
+    const del = btn("Delete this project", "pill quiet small danger", async () => {
+      if (!confirm(`Delete “${p.name}” and all its files? This can't be undone.`)) return;
+      try { await api("/api/work/delete", { id, confirm: true }); proj.open = null; renderProjects(); } catch (e) { toast(e.message); }
+    });
+    const danger = el("div", "proj-danger");
+    danger.append(del);
+    box.append(danger);
+    if (p.working || ["planning", "running"].includes(p.run?.state)) schedule(() => renderProject(id));
+  }
+
+  async function previewFile(id, path) {
+    const body = el("div", "proj-preview");
+    const ext = path.split(".").pop().toLowerCase();
+    const open = el("a", "pill soft small", "Download");
+    open.href = fileUrl(id, path, false);
+    if (["html", "svg"].includes(ext)) {
+      const frame = el("iframe");
+      frame.setAttribute("sandbox", "allow-scripts allow-popups");
+      // a signed link, so the page's own styles, scripts and images load by relative path inside the sandbox
+      frame.src = proj.view[id] ? proj.view[id] + path.split("/").map(encodeURIComponent).join("/") : fileUrl(id, path, true);
+      frame.title = path;
+      body.append(frame);
+    } else if (["png", "jpg", "jpeg"].includes(ext)) {
+      const img = el("img");
+      img.src = fileUrl(id, path, true);
+      img.alt = path;
+      body.append(img);
+    } else if (["md", "txt", "csv", "py", "js", "css", "json", "gd", "scad", "obj"].includes(ext)) {
+      const pre = el("pre", null, "Loading…");
+      body.append(pre);
+      fetch(fileUrl(id, path, true)).then((r) => r.text()).then((t) => { pre.textContent = t.slice(0, 60000); });
+    } else {
+      body.append(el("p", "lede", ext === "pptx" ? "A PowerPoint deck. Download it to open in PowerPoint or Keynote." : ext === "xlsx" ? "An Excel workbook with live formulas. Download it to open in Excel or Numbers." :
+        ext === "docx" ? "A Word document. Download it to open in Word or Pages." : ext === "stl" ? "A 3D mesh for printing. Open the viewer.html next to it to spin it around." : "Download it to open it."));
+    }
+    body.append(open);
+    openSheet(path.split("/").pop(), body, ["html", "svg", "png", "jpg", "jpeg"].includes(ext));
+  }
+
   async function renderLibrary() {
     const box = $("library");
     box.replaceChildren(el("p", "lede", "Loading…"));
@@ -3386,6 +3595,7 @@
     if (view === "ideas") renderIdeas();
     if (view === "goals") renderGoals();
     if (view === "library") renderLibrary();
+    if (view === "projects") renderProjects();
     if (view === "identity") renderIdentity();
     if (view === "apps") renderApps();
     if (view === "rules") renderRules();
@@ -3512,9 +3722,10 @@
   }
 
   // -------------------------------------------------------------- sheet ---
-  function openSheet(title, body) {
+  function openSheet(title, body, wide) {
     $("sheet-title").textContent = title;
     $("sheet-body").replaceChildren(body);
+    $("sheet").classList.toggle("wide", !!wide);
     $("sheet").hidden = false;
   }
   function closeSheet() { $("sheet").hidden = true; }
