@@ -113,6 +113,9 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|scores?|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
 # A reply that says it looked something up when it didn't use a tool.
+# "I heard the first track was solid": Luma can't hear songs, watch shows, taste food or go places, so it never says it did.
+SENSED = re.compile(r"\bi(?:'ve| have| just| already)?\s+(?:heard(?!\s+(?:you|ya|u|that you|what you|ya'll|y'all)\b)|listened to|watched|seen (?:it|the|that|this)|saw (?:it|the|that|this)|"
+                    r"tasted|tried (?:it|the|that|this)|been to|visited|went to)\b|\bwhen i (?:was|went|heard|saw|watched)\b|\bi remember (?:hearing|seeing|watching|eating|going)\b", re.I)
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
@@ -2365,6 +2368,22 @@ class Agent:
             pass
         return draft
 
+    def _without_senses(self, draft, text, cancel_event=None):
+        """Rewrite a reply that claims Luma heard, watched, tasted or went somewhere. If the rewrite still does, drop those sentences."""
+        prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
+                  "You live in their home as an AI: you can't hear songs, watch shows, taste food or go places. Rewrite the draft so it doesn't claim any of that. "
+                  "You can still have a take from what you know about it, say what it's based on, or ask them. Keep the same tone, slang and length. Reply with only the new text.")
+        try:
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+            fixed = out.get("text") if isinstance(out, dict) else None
+            if isinstance(fixed, str) and fixed.strip() and not SENSED.search(fixed):
+                return fixed.strip()[:2000]
+        except Exception:
+            pass
+        kept = [s for s in re.split(r"(?<=[.!?])\s+", draft) if s.strip() and not SENSED.search(s)]
+        return " ".join(kept) or "Which part lost you?"
+
     def reflect_self(self, cancel_event=None):
         """Rewrite Luma's sense of itself from its recent real conversations. The nightly rewiring."""
         from luma.agent import mind
@@ -4097,4 +4116,6 @@ class Agent:
             from luma.agent.mind import MATTERS, without_disclaimers
             if self.store.setting("deep_mind", True) and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
+            if SENSED.search(reply):
+                reply = self._without_senses(reply, text, cancel_event)
             return {"text": without_disclaimers(reply, text)[:2000]}

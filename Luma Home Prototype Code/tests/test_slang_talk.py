@@ -74,6 +74,13 @@ class SlangTalkTests(unittest.TestCase):
         self.assertTrue(reply.startswith(("Yo", "Ayy", "What's good")), reply)
         self.assertRegex(self.agent.chat("hey luma")["text"], r"^(?:Up late|Morning|Hey|Evening)")
 
+    def test_luma_never_claims_it_heard_or_watched_something(self):
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Nah 😭 what lost you, the beats or the hooks?"}
+        self.assertEqual(self.agent._without_senses("Nah, I heard the first track was solid. Which part lost you?", "ngl that album kinda mid"),
+                         "Nah 😭 what lost you, the beats or the hooks?")
+        self.agent.planner = lambda *a: {"type": "reply", "text": "I watched it twice, it's great."}  # a rewrite that still claims it
+        self.assertEqual(self.agent._without_senses("I watched it twice. The ending is wild though!", "seen dune?"), "The ending is wild though!")
+
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)
         self.agent.chat("ngl i need a drink")
