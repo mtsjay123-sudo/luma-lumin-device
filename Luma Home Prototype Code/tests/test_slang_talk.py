@@ -120,6 +120,28 @@ class SlangTalkTests(unittest.TestCase):
         self.assertIn("Like: “", reply)  # with the archive's own example
         self.assertIn("don't use it myself", self.agent.chat("what does fob mean")["text"])  # labels for people: explained, not said
 
+    def test_luma_reads_the_lyrics_before_it_quotes_them(self):
+        self.agent.use_model = True
+        searched, real = [], self.agent.propose
+        def propose(name, args):
+            if name == "web.search":
+                searched.append(args["query"])
+                return {"results": [{"title": "Kendrick Lamar – Like That (verse) lyrics", "url": "https://example.com/like-that", "snippet": "the big three verse"}],
+                        "summary": "Found the lyrics."}
+            return real(name, args)
+        self.agent.propose = propose
+        self.agent.planner = lambda *a: {"type": "reply", "text": "That verse is him calling out the whole big three, and the flow is cold."}
+        reply = self.agent.chat("what you think of kendrick's verse on like that")["text"]
+        self.assertTrue(searched and "lyrics" in searched[0])  # it read the lyrics first
+        self.assertIn("big three", reply)
+        # without a look-up, a quoted line it may have misremembered comes out, and the take stays
+        self.agent.planner = lambda *a: {"type": "reply", "text": "The flow on that verse is crazy, he sounds so calm."}
+        self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth” and it hits.", "kendrick verse"),
+                         "The flow on that verse is crazy, he sounds so calm.")
+        self.agent.planner = lambda *a: {"type": "reply", "text": "He says “I just need the truth” fr."}  # a rewrite that still quotes
+        self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth”. The beat is insane though.", "kendrick verse"),
+                         "The beat is insane though.")
+
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)
         self.agent.chat("ngl i need a drink")

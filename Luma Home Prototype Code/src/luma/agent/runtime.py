@@ -125,6 +125,11 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
                     r"(?:everyone|they|the world)(?:'d| would) be better off without me|no reason to (?:live|keep going))", re.I)
+# "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
+# instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
+LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
+MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape)\b", re.I)
+QUOTED = re.compile(r"[\"“‘'][^\"”’']{12,}[\"”’']")
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
@@ -2433,6 +2438,44 @@ class Agent:
             pass
         return draft
 
+    def _talk_lyrics(self, text, cancel_event=None):
+        """Read the song's lyrics on the web, then talk about them like a friend who knows the song, quoting only what was found."""
+        try:
+            found = self.propose("web.search", {"query": f"{text} lyrics"[:300]})
+        except (ValueError, ProviderError):
+            return None
+        if not (found.get("results") or found.get("summary")):
+            return None
+        prompt = (self._observation_prompt(text, "web.search", found)
+                  + "That's what the web has on the song (lyrics sites, articles). Talk about it with me like a friend who knows the song: your take, the "
+                    "flow, what he's saying, the line that hits. Only quote words that appear in what was found; if the lyrics aren't there, talk about the "
+                    "feel and say you'd have to pull up the exact words. A few sentences, in my register.")
+        try:
+            answer = self.call_planner(self.history[-5:-1] + [{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+        except Exception:
+            return None
+        said = answer.get("text") if isinstance(answer, dict) else None
+        if not isinstance(said, str) or not said.strip():
+            return None
+        from luma.agent.mind import without_disclaimers
+        return {**{k: v for k, v in found.items() if k in ("results", "section")}, "text": without_disclaimers(said.strip(), text)[:1500]}
+
+    def _without_made_up_lyrics(self, draft, text, cancel_event=None):
+        """A reply about a song that quotes lines Luma didn't look up: a small brain misremembers lyrics, so talk about the feel instead."""
+        prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
+                  "You might be misremembering the exact words, so don't quote any lyrics or lines. Keep your take: the flow, the energy, what it's about, "
+                  "why it hits. Same tone, slang and length. Reply with only the new text.")
+        try:
+            with self.lock:
+                out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
+            fixed = out.get("text") if isinstance(out, dict) else None
+            if isinstance(fixed, str) and fixed.strip() and not QUOTED.search(fixed):
+                return fixed.strip()[:2000]
+        except Exception:
+            pass
+        kept = [s for s in re.split(r"(?<=[.!?…])\s+", draft) if s.strip() and not QUOTED.search(s)]
+        return " ".join(kept) or "That verse goes hard though. Which part got you?"
+
     def _without_senses(self, draft, text, cancel_event=None):
         """Rewrite a reply that claims Luma has a body (ate it, went there, was listening while making coffee). If the rewrite still does, drop those sentences."""
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
@@ -4109,6 +4152,10 @@ class Agent:
                     and self.rules.for_tool("web.search")[1] != "block":
                 caught_up = self.news_reply(text, cancel_event)
                 if caught_up is not None: return caught_up
+            if (self.mode != "kids" and LYRICS_TALK.search(lowered) and self.use_model and self.integration_on("web_search")
+                    and self.rules.for_tool("web.search")[1] != "block" and not wants_message(text)):
+                talked = self._talk_lyrics(text, cancel_event)
+                if talked is not None: return talked
             if (self.mode != "kids" and LIVE_INFO.search(lowered) and not wants_message(text)
                     and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
@@ -4227,4 +4274,6 @@ class Agent:
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
             if SENSED.search(reply):
                 reply = self._without_senses(reply, text, cancel_event)
+            if MUSIC_TOPIC.search(lowered) and QUOTED.search(reply):
+                reply = self._without_made_up_lyrics(reply, text, cancel_event)
             return {"text": without_disclaimers(reply, text)[:2000]}
