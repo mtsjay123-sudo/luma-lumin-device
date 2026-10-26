@@ -1,3 +1,4 @@
+import json
 """The Luma app on your phone: pairing, end-to-end encryption, approvals by tap, notices."""
 import base64
 import hashlib
@@ -219,6 +220,31 @@ class PhoneAppTests(unittest.TestCase):
         self.assertEqual((notice["t"], notice["label"]), ("notice", "Text back"))
         self.assertEqual((nudge["t"], nudge["text"]), ("reply", "How did the interview go?"))
         self.assertTrue(all(m.get("notify") for m in self.cloud.to_phone), "these can wake a closed app")
+
+    def test_today_panels_and_mic_off_come_over_the_sealed_relay(self):
+        link = self.pair()
+        self.store.put("memory", {"text": "Your mom's birthday is June 3", "source": "explicit_user_request"})
+        self.agent.set_muted(False)
+        n = self.cloud.phone_says(link, {"t": "today"})
+        self.app.poll_once()
+        self.run_jobs()
+        got = self.cloud.phone_reads(link)[-1]
+        self.assertEqual((got["t"], got["re"]), ("today", n))
+        today = got["today"]
+        self.assertEqual(today["memory"]["recent"][0]["kind"], "Dates")
+        self.assertIn("free", today["device"]["storage"])
+        self.assertEqual(today["device"]["mic"], "on")
+        self.assertLess(len(json.dumps(today)), 12000, "small enough for one relay message")
+        self.cloud.phone_says(link, {"t": "mute"})
+        self.app.poll_once()
+        self.run_jobs()
+        self.assertTrue(self.agent.muted)
+        self.assertEqual(self.cloud.phone_reads(link)[-1]["today"]["device"]["mic"], "off")
+        self.agent.set_mode("kids")
+        self.cloud.phone_says(link, {"t": "today"})
+        self.app.poll_once()
+        self.run_jobs()
+        self.assertEqual(self.cloud.phone_reads(link)[-1]["today"], {"kids": True, "name": "", "chats": [], "memory": None, "device": None, "projects": [], "approvals": 0})
 
     def test_kids_mode_keeps_the_phone_out(self):
         link = self.pair()

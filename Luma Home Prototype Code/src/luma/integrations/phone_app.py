@@ -271,6 +271,12 @@ class PhoneApp:
             if getattr(self.agent, "on_result", None):
                 self.agent.on_result({**result, "you": text, "channel": "app"})
             return self.send(link_id, reply)
+        if kind in {"today", "mute"}:
+            # The phone's Today panels (chats, memory, storage left), sealed for this phone like everything else.
+            from luma.control import today
+            if kind == "mute":
+                self.agent.set_muted(True)  # the phone can turn the mic off, never back on: that happens at home
+            return self.send(link_id, {"t": "today", "re": n, "today": today.compact(self.agent)})
         if kind in {"confirm", "cancel"}:
             action = str(message.get("action", ""))
             if kind == "cancel":

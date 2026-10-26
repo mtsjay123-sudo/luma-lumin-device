@@ -141,3 +141,21 @@ def payload(agent):
     waiting = sum(1 for r in agent.store.all("action", 40) if r.get("state") == "pending")
     return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "chats": chats(agent), "memory": memory(agent),
             "device": device(agent), "projects": projects(agent), "approvals": waiting}
+
+
+def compact(agent):
+    """The same day, small enough for one sealed relay message (Luma Cloud caps them near 17 KB)."""
+    full = payload(agent)
+    if full.get("kids"):
+        return full
+    cut = lambda text, n: (str(text or "")[:n - 1] + "\u2026") if len(str(text or "")) > n else str(text or "")
+    chats_ = [{"title": cut(c.get("title"), 60), "updated": c.get("updated"), "today": c.get("today"),
+               "last": {"role": (c.get("last") or {}).get("role"), "text": cut((c.get("last") or {}).get("text"), 120)}} for c in full["chats"][:8]]
+    mem = full["memory"] or {}
+    memory_ = {k: mem.get(k) for k in ("used", "limit", "plan") if k in mem}
+    memory_["recent"] = [{"text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
+    dev = full["device"] or {}
+    device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"),
+               "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
+    return {"name": full["name"], "now": full["now"], "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
+            "memory": memory_, "device": device_, "approvals": full["approvals"]}
