@@ -3328,7 +3328,7 @@ class Agent:
                 kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row not in (None, "full")]
                 if kept:
                     self.last_noticed = [row["id"] for _, row in kept]
-                    return {"text": "Got it. " + " ".join(f + "." for f, _ in kept), "noticed": [{"id": row["id"], "text": f} for f, row in kept]}
+                    return {"text": "Got it. " + " ".join(self._yours(f) + "." for f, _ in kept), "noticed": [{"id": row["id"], "text": f} for f, row in kept]}
                 done = self.propose("memory.remember", {"text": said[:1].upper() + said[1:]})
                 return {**done, "text": "Got it, I'll remember that."}
         if spec.get("prefix"):
@@ -3618,6 +3618,42 @@ class Agent:
             if aimed or (recent and not rest):
                 return self._recover(level, aimed)
         return None
+
+    # "when's my mom's birthday?", "where are my spare keys": answered straight from what they told Luma
+    MEMORY_Q = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:do you|u) (?:remember|know)\s+)?(?:when'?s|when is|what'?s|what is|where'?s|where is|where are|where'?d i put|who'?s|who is)\s+"
+                          r"(?P<about>(?:my|our)\s+.{2,60}?)\W*$", re.I)
+
+    @staticmethod
+    def _yours(text):
+        """What they told Luma, said back to them: "my mom's birthday" -> "your mom's birthday"."""
+        swaps = {"my": "your", "mine": "yours", "i": "you", "i'm": "you're", "im": "you're", "me": "you", "myself": "yourself", "we": "you", "our": "your", "us": "you"}
+        out = re.sub(r"\b(?:my|mine|i'm|im|i|me|myself)\b", lambda m: swaps[m.group(0).lower()], str(text), flags=re.I)
+        return out[:1].upper() + out[1:]
+
+    def _memory_answer(self, text):
+        m = self.MEMORY_Q.match(text.strip())
+        if not m or self.mode == "kids":
+            return None
+        stop = {"my", "our", "the", "and", "are", "for", "was", "put", "again"}
+        stem = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w  # "keys" and "key", "dads" and "dad"
+        about = understanding.normalize(m["about"])  # "moms bday" reads as "moms birthday"
+        want = {stem(w) for w in re.findall(r"[a-z0-9]+", about.lower()) if len(w) > 2 and w not in stop}
+        if not want:
+            return None
+        best = None
+        for row in self.store.recall(m["about"], limit=8):
+            have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(row.get("text", "")).lower())}
+            if want <= have and (best is None or len(have) < best[0]):  # every word they asked about, in the shortest memory that has them
+                best = (len(have), row)
+        if re.fullmatch(r"(?:my|our) name", m["about"].strip(), re.I) and (self.profile.get("name") or "").strip():
+            return {"text": f"You're {self.profile['name'].split(' ')[0]}. I'd never forget that."}
+        if not best:
+            guess = understanding.guess(text, 1)
+            personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
+            if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
+                return {"text": f"I don't know {self._yours(m['about']).lower()} yet. Tell me and I'll remember it."}
+            return None  # "what's my schedule": something Luma looks up, not something it was told
+        return {"text": self._yours(best[1]["text"]).rstrip(". ") + ".", "memory": best[1]["id"]}
 
     FIND_ON_COMPUTER = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:can|could) (?:you|u)\s+|please\s+|pls\s+)?(?:find|look for|search for|where'?s|where is|pull up)\s+"
                                   r"(?:my|the|that)?\s*(?P<q>[\w .'-]{2,60}?)\s+(?:file\s+)?(?:on|in)\s+(?:my\s+)?(?:computer|laptop|mac|macbook|pc|desktop|documents|files|downloads)\W*$", re.I)
@@ -3946,6 +3982,8 @@ class Agent:
                 return {"text": ("I'm using " if self.use_model else "Conversation is off. The configured model is ") + label + ", running locally on this Mac. Your saved preferences shape how I reply; the model weights have not been fine-tuned."}
             if getattr(self, "_rerouting", False):
                 return None  # the clear version matched nothing either: answer what they actually said
+            remembered = self._memory_answer(text)
+            if remembered is not None: return remembered
             guessed = self._guess_and_act(text, lowered, cancel_event)
             if guessed is not None: return guessed
             if not self.use_model:
@@ -3961,7 +3999,7 @@ class Agent:
                     return {"text": "chillin, just here with you. wbu?" if casual else "Doing good, just here with you. How about you?"}
                 facts = presence.notice_facts(text) if self.store.setting("learn_from_chat", True) else []
                 if facts:
-                    return {"text": "Got it. " + " ".join(f + "." for f in facts[:3])}
+                    return {"text": "Got it. " + " ".join(self._yours(f) + "." for f in facts[:3])}
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \

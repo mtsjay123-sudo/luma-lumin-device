@@ -51,6 +51,12 @@ class SlangTalkTests(unittest.TestCase):
         self.agent.chat("remind me at 6")
         self.assertIn("call mom at 6", self.agent.chat("call mom")["text"])  # an answer is still an answer
 
+    def test_questions_about_what_they_told_luma(self):
+        self.assertEqual(self.agent.chat("my mom's birthday is June 3")["text"], "Got it. Your mom's birthday is June 3.")
+        self.assertEqual(self.agent.chat("when is my moms bday?")["text"], "Your mom's birthday is June 3.")
+        self.assertIn("don't know your dads birthday yet", self.agent.chat("whats my dads birthday")["text"])  # never Mom's by mistake
+        self.assertNotIn("don't know", self.agent.chat("what's my schedule today")["text"])  # a lookup, not a memory
+
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)
         self.agent.chat("ngl i need a drink")

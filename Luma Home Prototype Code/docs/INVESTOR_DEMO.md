@@ -25,7 +25,7 @@ running, and the hardware is in development.
 | 3 | Memory | "when's my mom's birthday?" | It remembers, from what you told it last night |
 | 4 | A reminder | "finna hit the gym remind me at 6" | "Got it. I'll remind you to hit the gym at 6 PM." |
 | 5 | A text | "text my mom im pullin up in 5" | A draft for Mom that waits for your OK. Nothing sends on its own |
-| 6 | Real work | "make me a pitch deck for a taco truck" | A project: research, a deck, checked step by step |
+| 6 | Real work | "research the taco truck market and make me a pitch deck" | A project: research, then a deck, each step checked |
 | 7 | The phone | Open the Luma app | Today: chats, the memory fan, GB left. Tap "Turn the mic off" |
 | 8 | The computer | "find my resume on my laptop" | It finds the file in the folder you shared, and nothing else |
 
