@@ -67,4 +67,23 @@ class CompanionTests(unittest.TestCase):
         with self.request('/api/state') as r:
             state=json.load(r);self.assertEqual(state['contacts'],[]);self.assertEqual(state['events'],[])
 
+    def test_phone_can_turn_the_mic_off_but_not_on(self):
+        self.pair();self.agent.set_muted(False)
+        with self.request('/api/setting',{'key':'muted','value':True}) as r:self.assertEqual(r.status,200)
+        self.assertTrue(self.agent.muted)
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/setting',{'key':'muted','value':False})
+        self.assertEqual(e.exception.code,403);self.assertIn('at home',json.load(e.exception)['error'])
+        self.assertTrue(self.agent.muted)
+    def test_the_phone_app_and_its_today_call(self):
+        with self.request('/phone/') as r:
+            page=r.read().decode();self.assertIn('phone.js',page);self.assertIsNone(r.headers.get('Set-Cookie'))
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/today')
+        self.assertEqual(e.exception.code,401)
+        self.pair();self.store.put('memory',{'text':"Mom's birthday is June 3"})
+        with self.request('/api/today') as r:
+            today=json.load(r)
+        self.assertEqual(today['memory']['recent'][0]['kind'],'Dates')
+        self.assertGreater(today['device']['storage']['total'],0)
+        self.assertIn(today['device']['mic'],{'on','off'})
+
 if __name__=='__main__':unittest.main()

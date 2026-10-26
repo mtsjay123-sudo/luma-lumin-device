@@ -94,6 +94,11 @@ TOOLS = {
     "mail.send_web": Tool("Send a reviewed email through the owner's Gmail in Luma's browser, now or at send_at (ISO 8601, or empty)", {"to": "string", "subject": "text", "body": "string", "send_at": "text"}, "browser", True),
     "mail.schedule": Tool("Schedule a reviewed email to go out at an exact future time (ISO 8601 with time zone)", {"to": "string", "subject": "text", "body": "string", "send_at": "string"}, "mail", True),
     "calendar.agenda": Tool("What's on the owner's calendar. offset 0 is today, 1 tomorrow; days 1-14", {"days": "integer", "offset": "integer"}, "calendar"),
+    "computer.find": Tool("Find files by name in the folders the owner shared from their computer. query is part of the file name", {"query": "string"}),
+    "computer.read": Tool("Read a text file from a folder the owner shared on their computer, by the path computer.find gave", {"path": "string"}),
+    "computer.open_app": Tool("Open an app by name on the owner's computer, like Spotify, Notes or Slack", {"name": "string"}),
+    "computer.look": Tool("Look at what's on the owner's computer screen right now (only works if they allowed it on that computer)", {}),
+    "skills.install": Tool("Add a SKILL.md skill the owner gave (written instructions Luma follows as guidance)", {"content": "skill"}, confirm=True),
     "helpers.create": Tool("Set up something Luma keeps doing on its own. kind: price_watch (detail is the product, target_price in dollars or 0), inbox_digest, feed_digest (detail is the site), agenda, or goal (detail is the goal). every: hourly, every_6h, daily or weekly", {"kind": "string", "detail": "text", "target_price": "integer", "every": "string"}),
 }
 
@@ -101,7 +106,8 @@ TOOLS = {
 TOOLS.update({name: Tool(spec["description"], spec["fields"], kids=name.startswith(("timers.", "cooking.", "briefing."))) for name, spec in TOOL_SPECS.items()})
 
 READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "timers.list", "briefing.today", "booking.availability",
-              "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda"}
+              "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda",
+              "computer.find", "computer.read", "computer.look"}
 
 
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
@@ -165,6 +171,10 @@ def validate(name, args):
             raise ValueError(f"{key} must be text of at most 2000 characters.")
         if typ == "integer" and (type(val) is not int or val < 0): raise ValueError(f"{key} must be a nonnegative integer.")
         if typ == "boolean" and type(val) is not bool: raise ValueError(f"{key} must be true or false.")
+        if typ == "skill":
+            from luma.agent import skill_notes
+            if not isinstance(val, str): raise ValueError("A skill is the text of a SKILL.md.")
+            skill_notes.parse(val)
         if typ == "slides" and (not isinstance(val, list) or not 1 <= len(val) <= 30 or len(json.dumps(val)) > 60000):
             raise ValueError("A deck needs 1 to 30 slides.")
     reject_payment_secrets(args)
@@ -250,6 +260,8 @@ class Agent:
         from luma.audio import speakable
         speakable.EXPLICIT["on"] = (self.store.setting("personality") or {}).get("preset") == "unhinged"
         self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
+        from luma.agent.skill_notes import SkillNotes, folder_for
+        self.skill_notes = SkillNotes(folder_for(self.store))  # SKILL.md guidance, the same format Claude Code and Hermes use
         from luma.control.link import LinkClient
         self.link = LinkClient(self)  # paired with a Luma device over Wi-Fi
         self.link_host = None  # set when other computers can connect to this Luma (the device)
@@ -383,8 +395,9 @@ class Agent:
         lowered = text.lower()
         informational = bool(re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about|how |what |why )", lowered))
         allowed = {k: {"description": v.description, "fields": v.fields} for k, v in TOOLS.items()
-                   if k not in {"booking.create", "sms.send", "mac_messages.send", "luma.send", "browser.act", "shop.add_to_cart", "mail.send", "mail.schedule", "mail.send_web"}
-                   and (agent_mode or not informational or k in {"web.search", "memory.recall", "tasks.list", "timers.list", "household.find", "briefing.today"})
+                   if k not in {"booking.create", "sms.send", "mac_messages.send", "luma.send", "browser.act", "shop.add_to_cart", "mail.send", "mail.schedule", "mail.send_web", "skills.install"}
+                   and (agent_mode or not informational or k in {"web.search", "memory.recall", "tasks.list", "timers.list", "household.find", "briefing.today",
+                                                                     "computer.find", "computer.read", "computer.look"})
                    and (self.mode != "kids" or v.kids)
                    and (not v.service or self.integration_on(v.service))}
         if not agent_mode and re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered): allowed = {}
@@ -410,6 +423,8 @@ class Agent:
             (r"\b(?:e-?mails?|inbox|gmail|outlook|mail)\b", {"mail.inbox", "mail.read", "mail.draft"}),
             (r"\b(?:calendar|schedule|agenda|meetings?|events?|free (?:today|tomorrow|on)|busy (?:today|tomorrow))\b", {"calendar.agenda"}),
             (r"\b(?:every (?:day|morning|night|evening|week|hour)|each (?:day|morning|week)|keep an eye|watch (?:the )?price|let me know (?:if|when)|tell me (?:if|when)|daily|weekly|hourly)\b", {"helpers.create"}),
+            (r"\b(?:(?:my|the) (?:computer|laptop|mac|macbook|pc|screen|desktop|downloads|documents)|files?|folders?|spreadsheet|on my (?:computer|laptop|mac|pc)|open (?:up )?(?:the )?\w+ app|what'?s on my screen)\b",
+             {"computer.find", "computer.read", "computer.open_app", "computer.look"}),
         ]
         for pattern, names in groups:
             if re.search(pattern, lowered): relevant.update(names)
@@ -417,6 +432,7 @@ class Agent:
         # Conversational requests to 'talk to me' aren't preference changes.
         if not re.search(r"\b(?:more|less|style|tone|shorter|longer|slang|brief|detailed|playful|direct|classic|modern)\b",lowered): relevant.discard("personality.set_style")
         relevant.update(self._connector_tools_for(lowered))
+        if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
         if not wants_message(text): allowed.pop("messages.prepare", None)
         if "messages.prepare" in allowed:
@@ -504,7 +520,11 @@ class Agent:
                 return self.propose("browser.act", {"kind": "click" if name == "browser.click" else "type", "ref": args["ref"],
                                                     "text": args.get("text", ""), "submit": bool(args.get("submit", False)),
                                                     "label": item.get("label", "")[:200], "page": self.store.setting("browser_page", "the open page")[:300], "reason": reason})
-        review = self.bookings.preview(args) if name == "booking.create" else None
+        if name == "skills.install":
+            from luma.agent import skill_notes
+            review = skill_notes.preview(args["content"])
+        else:
+            review = self.bookings.preview(args) if name == "booking.create" else None
         token = secrets.token_hex(4)
         # Only an unlocked rule the owner set to "allow" (adding to a cart) skips the review.
         ask = TOOLS[name].confirm and not (self.mode != "kids" and self.rules.may_skip_approval(name))
@@ -668,6 +688,10 @@ class Agent:
             label = "today" if args["offset"] == 0 and args["days"] == 1 else "tomorrow" if args["offset"] == 1 and args["days"] == 1 else f"over the next {args['days']} days"
             return {"events": events, "summary": self.calendar.describe(events, label), "section": "today"}
         if name == "helpers.create": return self._helper_from_tool(args)
+        if name.startswith("computer."): return self._computer(name, args)
+        if name == "skills.install":
+            skill = self.skill_notes.install(args["content"])
+            return {"skill": skill, "summary": f"Added the {skill['name']} skill. I'll use it when something you ask fits."}
         if name.startswith("browser."): return self._browse(name, args)
         if name == "food.checkout": return self.providers.checkout(args)
         raise ValueError("Tool has no handler.")
@@ -981,6 +1005,56 @@ class Agent:
         if self.chrome.connected() or not self.link_host:
             return self.chrome
         return self.link_host if self.link_host.connected() else self.chrome
+
+    # computer mode: the paired computer (or this one, when Luma runs right here) as Luma's hands
+    COMPUTER_KINDS = {"computer.find": "files.find", "computer.read": "files.read", "computer.open_app": "app.open", "computer.look": "screen.look"}
+
+    def computer_ready(self):
+        """On the device: a paired computer is connected. On a computer running Luma itself: always, its own settings decide."""
+        return self.mode != "kids" and (self.link_host.connected() if self.link_host else True)
+
+    def _computer(self, name, args):
+        kind = self.COMPUTER_KINDS[name]
+        if self.link_host:
+            if not self.link_host.connected():
+                return {"error": "no_computer", "summary": "Your computer isn't connected right now. Open Luma Desktop on it and I can use it."}
+            got = self.link_host.send(kind, wait=40, **args) or {"error": "Your computer didn't answer. Is Luma Desktop still open on it?"}
+        else:
+            job = {"kind": kind, **args}
+            got = self.link.computer.do(job)
+            self.link.computer.record(job, got)
+        if got.get("error"):
+            return {"error": got["error"], "summary": got["error"]}
+        if kind == "files.find":
+            files = got.get("files") or []
+            if not files:
+                return {"files": [], "summary": f"Nothing with \"{args['query']}\" in its name in the folders you shared."}
+            names = ", ".join(f"{f['name']} (in {f['folder']})" for f in files[:5])
+            return {"files": files, "results": [{k: f[k] for k in ("name", "path", "folder")} for f in files[:8]], "summary": f"Found {len(files)}: {names}" + (f", and {len(files) - 5} more." if len(files) > 5 else ".")}
+        if kind == "files.read":
+            return {"file": got.get("name"), "path": got.get("path"), "text": got.get("text", ""), "cut": got.get("cut", False),
+                    "summary": f"Read {got.get('name')}" + (" (the first part; it's long)." if got.get("cut") else ".")}
+        if kind == "app.open":
+            return {"opened": got.get("opened"), "summary": f"Opened {got.get('opened')} on your computer."}
+        return self._look_at_screen(got)
+
+    def _look_at_screen(self, got):
+        import base64
+        from luma.skills import vision
+        try: image = base64.b64decode(got.get("image_b64") or "")
+        except ValueError: image = b""
+        if not image:
+            return {"error": "no_image", "summary": "I couldn't get a look at your screen."}
+        said = None
+        if vision.available():
+            try: said = vision.look(image, "Describe what's on this computer screen: which app is open, what it shows, and any text that matters.")
+            except Exception: said = None
+        if not said:
+            apple = vision.apple_read(image)
+            said = ("Text on the screen: " + " ".join(apple["text"])[:2000]) if apple and apple.get("text") else None
+        if not said:
+            return {"error": "cant_see", "summary": "I got your screen, but I can't see images on this computer yet."}
+        return {"screen": said[:3000], "text": said[:1500], "summary": said[:600]}
 
     def _play_in_chrome(self, what):
         """Ask Chrome to play it, then remember what came on, or leave a card if it couldn't start."""
@@ -2182,6 +2256,9 @@ class Agent:
                 out.append({"mind": True, "text": "They're frustrated with you right now. Own it in a few words, skip the cheerfulness, keep it short, and fix it one step at a time."})
         called = self.store.setting("assistant_name")
         if called and self.mode != "kids": out.append({"mind": True, "text": f"Your owner named you {called}. That's your name with them now; answer to it."})
+        if self.mode != "kids":
+            try: out += [{"skill": True, "text": note} for note in self.skill_notes.notes(text)]
+            except Exception: pass  # a bad skill on disk never stops a reply
         note = getattr(self, "_depth_note", None)
         if note: out.append({"mind": True, "text": note})
         if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):

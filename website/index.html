@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0b0a0c" />
+  <title>Luma S.I.: the friend that lives in your home</title>
+  <meta name="description" content="Luma is a small glowing device that talks like a person, remembers what matters to you, and gets real work done on your phone and computer. Your life stays at home." />
+  <link rel="preload" href="fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg" aria-hidden="true"><div class="photo"></div><div class="glow"></div><div class="veil"></div></div>
+
+  <header class="bar">
+    <a class="word" href="#top">Luma <span>S.I.</span></a>
+    <nav aria-label="Sections">
+      <a href="#talk">Talk</a>
+      <a href="#remember">Memory</a>
+      <a href="#pieces">How it fits</a>
+      <a href="#private">Privacy</a>
+    </nav>
+    <a class="pill small" href="#get">Get Luma</a>
+  </header>
+
+  <main>
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <h1>The friend that lives on your counter.</h1>
+        <p class="lead">Luma is a small glowing device that talks like a person, remembers what matters to you, and gets real work done on your phone and computer. Your life stays at home.</p>
+        <div class="actions">
+          <a class="pill primary" href="https://github.com/mtsjay123-sudo/luma-lumin-device/releases/latest/download/Luma-mac-apple-silicon.dmg">Download for Mac</a>
+          <a class="pill" href="#talk">See it talk</a>
+        </div>
+        <p class="fine">Also for <a href="https://github.com/mtsjay123-sudo/luma-lumin-device/releases/latest/download/Luma-mac-intel.dmg">Intel Macs</a> and <a href="https://github.com/mtsjay123-sudo/luma-lumin-device/releases/latest/download/Luma-windows-setup.exe">Windows</a>.</p>
+      </div>
+      <figure class="device">
+        <div class="halo" aria-hidden="true"></div>
+        <img src="img/luma.webp" alt="The Luma device: a frosted glass capsule with a warm light glowing inside" width="287" height="438" />
+        <figcaption><span class="led" data-led="9:41" data-clock data-label="The time on Luma's display"></span><span><b>Listening.</b> Say "Hey Luma" from anywhere in the room.</span></figcaption>
+      </figure>
+    </section>
+
+    <section class="split" id="talk">
+      <div class="copy">
+        <h2>Talks the way you talk.</h2>
+        <p>Say "ngl that album kinda mid" and Luma answers like a friend from the same group chat. Write like you're at work and it stays polished. It picks up your words, your pace, and your humor, and never puts on a voice that isn't yours.</p>
+        <p>Ask for something big and it runs it as a project: research, a deck, a website, checked piece by piece and handed back to you.</p>
+      </div>
+      <div class="phone" aria-label="The Luma app on a phone, showing today's chats">
+        <div class="screen">
+          <p class="p-hello">Good evening, Jay.</p>
+          <div class="p-ask" aria-hidden="true">Ask Luma anything<i></i></div>
+          <div class="p-panel blue">
+            <div class="p-head"><b>Today's chats</b><span class="led small" data-led="3"></span></div>
+            <div class="p-row"><b>Taco truck plan</b><span>Two trucks already work Peachtree at lunch…</span></div>
+            <div class="p-row"><b>Tokyo in March</b><span>About $420 a month gets you there.</span></div>
+            <div class="p-row"><b>Mom's birthday</b><span>A pottery class for two. You go with her.</span></div>
+          </div>
+          <div class="p-panel green">
+            <div class="p-head"><b>Memory</b><span class="led small" data-led="24"></span></div>
+            <div class="p-cards" aria-hidden="true"><i></i><i></i><i><small>Dates</small>Mom's birthday is June 3.</i><i></i><i></i></div>
+          </div>
+          <div class="p-panel warm">
+            <div class="p-head"><b>Your Luma</b><small>Mic on</small></div>
+            <div class="p-big"><span class="led" data-led="141"></span><b>GB left</b></div>
+            <div class="p-bar" aria-hidden="true"><i style="width:22%"></i></div>
+          </div>
+          <div class="p-dock" aria-hidden="true"><b>Today</b><span>Chats</span><span>Memory</span><span>Luma</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="split reverse" id="remember">
+      <div class="copy">
+        <h2>Remembers what matters.</h2>
+        <p>Your mom's birthday. The drawer with the spare keys. That you hate cilantro. Luma keeps the details you share, sorts them into people, places, likes, dates and plans, and lets you flip through all of it on your phone.</p>
+        <p>Fix anything it got wrong, or make it forget, with one tap. Nothing is kept that you can't see.</p>
+      </div>
+      <div class="deck-wrap">
+      <div class="deck" id="deck" tabindex="0" role="listbox" aria-label="Example memories. Use the arrow keys to flip through.">
+        <button class="card" type="button" role="option"><span class="tag">Dates</span><p>Your mom's birthday is June 3. She'd love a class you take together.</p></button>
+        <button class="card" type="button" role="option"><span class="tag">Places</span><p>Spare keys are in the blue kitchen drawer.</p></button>
+        <button class="card" type="button" role="option"><span class="tag">Likes</span><p>You hate cilantro and love al pastor.</p></button>
+        <button class="card" type="button" role="option"><span class="tag">People</span><p>Dana from work would rather get a text than a call.</p></button>
+        <button class="card" type="button" role="option"><span class="tag">Plans</span><p>Saving for Tokyo in March.</p></button>
+        <button class="card" type="button" role="option"><span class="tag">Health</span><p>Gym on Monday, Wednesday and Friday.</p></button>
+      </div>
+      <div class="deck-nav">
+        <button type="button" class="round" id="deck-prev" aria-label="Previous memory"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span id="deck-pos" aria-live="polite"></span>
+        <button type="button" class="round" id="deck-next" aria-label="Next memory"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      </div>
+    </section>
+
+    <section class="pieces" id="pieces">
+      <h2>One Luma, three ways in.</h2>
+      <div class="three">
+        <article class="piece warm">
+          <div class="art art-device" aria-hidden="true"><img src="img/luma.webp" alt="" width="287" height="438" loading="lazy" /></div>
+          <h3>The device</h3>
+          <p>Always on, at home. It hears you across the room, answers out loud, and keeps your memories and chats on its own storage.</p>
+        </article>
+        <article class="piece blue">
+          <div class="art art-app" aria-hidden="true">
+            <span class="stat chat"><span class="led" data-led="3"></span><small>chats today</small></span>
+            <span class="stat mem"><span class="led" data-led="24"></span><small>memories</small></span>
+            <span class="stat warm"><span class="led" data-led="141"></span><small>GB left</small></span>
+          </div>
+          <h3>The app</h3>
+          <p>Today's chats, everything Luma remembers, and how much room is left on the device. Talk to it from anywhere.</p>
+        </article>
+        <article class="piece green">
+          <div class="art art-pc" aria-hidden="true">
+            <div class="win"><i></i><i></i><i></i><b></b><b class="short"></b><b></b></div>
+            <div class="using"><span class="dot"></span>Luma is using Safari<span class="stop">Stop</span></div>
+          </div>
+          <h3>Your computer</h3>
+          <p>Pair it, and Luma can use it for you: your browser, the folders you choose, your apps. It asks before it changes anything, and you can stop it anytime.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="private" id="private">
+      <h2>Your life stays at home.</h2>
+      <ul class="facts">
+        <li><b>Kept on the device.</b> Memories and chats are encrypted on Luma itself, not on our servers.</li>
+        <li><b>Nothing goes out without a yes.</b> Messages, emails and purchases wait for you to say so.</li>
+        <li><b>A mic switch you can trust.</b> Turn it off from your phone anytime. Turning it back on happens at home.</li>
+        <li><b>A kids mode that means it.</b> No adult memories, no contacting anyone, no buying anything.</li>
+      </ul>
+    </section>
+
+    <section class="get" id="get">
+      <h2>Bring Luma home.</h2>
+      <p>Start on your computer today with Luma Desktop. It sets itself up, and it's free to use.</p>
+      <div class="actions center">
+        <a class="pill primary" href="https://github.com/mtsjay123-sudo/luma-lumin-device/releases/latest/download/Luma-mac-apple-silicon.dmg">Download for Mac</a>
+        <a class="pill" href="https://github.com/mtsjay123-sudo/luma-lumin-device/releases/latest/download/Luma-windows-setup.exe">Download for Windows</a>
+      </div>
+      <p class="fine">Free keeps your newest 200 memories. Luma Plus remembers everything and adds your own Luma number for texting.</p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span class="word small">Luma <span>S.I.</span></span>
+    <span>Made by Lumin Holdings.</span>
+  </footer>
+  <script src="script.js" defer></script>
+</body>
+</html>

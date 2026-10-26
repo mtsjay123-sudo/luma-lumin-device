@@ -340,8 +340,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 if not agent.chrome.valid(token): return self.send({'error':'Pair Luma for Chrome again.'},403)
                 return self.send({'command':agent.chrome.next(25)})
             static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css'),
+                      '/phone/':('phone/index.html','text/html'), '/phone/phone.js':('phone/phone.js','text/javascript'), '/phone/phone.css':('phone/phone.css','text/css'),
+                      '/phone/manifest.webmanifest':('phone/manifest.webmanifest','application/manifest+json'),
                       '/desktop/':('desktop/index.html','text/html'), '/desktop/desktop.js':('desktop/desktop.js','text/javascript'), '/desktop/desktop.css':('desktop/desktop.css','text/css')}
             if path=='/desktop': return self.redirect('/desktop/')
+            if path=='/phone': return self.redirect('/phone/')
+            if path in {'/phone/home.jpg','/phone/device.jpg','/phone/device.webp'}:
+                return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='image/webp' if path.endswith('.webp') else 'image/jpeg')
             if path=='/desktop/logo':
                 # Drop your own logo at web/desktop/brand/logo.png and Luma Desktop uses it everywhere.
                 custom = ROOT/'desktop'/'brand'/'logo.png'
@@ -355,7 +360,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='font/woff2')
             if path in static and not (companion and path.startswith('/desktop/')):
                 file, kind = static[path]
-                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/'} and not companion and not linked)
+                return self.send((ROOT/file).read_bytes(),kind=kind+'; charset=utf-8',owner_cookie=path in {'/','/desktop/','/phone/'} and not companion and not linked)
             if path=='/api/connect/oauth/callback' and not companion:
                 # The app's sign-in page sends the owner's browser back here; the one-time state proves it's the sign-in Luma started.
                 q=parse_qs(urlsplit(self.path).query)
@@ -406,6 +411,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 photo=agent.store.setting('owner_photo','')
                 if not photo: return self.send({'error':'No photo yet'},404)
                 return self.send(base64.b64decode(photo),kind='image/jpeg')
+            if path=='/api/skills':
+                if companion or agent.mode=='kids': return self.send({'error':'Manage skills on the Mac.'},403)
+                return self.send({'skills':agent.skill_notes.list(),'folder':str(agent.skill_notes.folder)})
+            if path=='/api/computer':
+                # What Luma may do on this computer when the device asks: set here, never from the phone.
+                if companion or agent.mode=='kids': return self.send({'error':'Change this on the computer itself.'},403)
+                return self.send(agent.link.computer.status())
             if path=='/api/browser/frame':
                 # What Luma's browser shows right now, for the browser view in Luma's window.
                 if companion or agent.mode=='kids': return self.send({'error':'Open the browser on the Mac.'},403)
@@ -439,6 +451,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         with open(out,'rb') as f: return self.send(f.read(),kind='audio/wav')
                 except Exception as error:
                     return self.send({'error':"Luma's natural voice isn't ready yet: "+str(error)[:120]},503)
+            if path=='/api/today':
+                from luma.control import today
+                return self.send(today.payload(agent))
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
@@ -559,7 +574,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:
                 size = int(self.headers.get('Content-Length','0'))
-                if not 0<size<=12000: return self.send({'error':'Request exceeds limit'},413)
+                if not 0<size<=(80_000 if path=='/api/skills/add' else 12000): return self.send({'error':'Request exceeds limit'},413)
                 data = json.loads(self.rfile.read(size))
                 if not isinstance(data,dict): raise ValueError('Expected an object')
                 if pairing:
@@ -583,6 +598,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         result={'url':url,'expires_at':invite['expires_at'],'qr':'data:image/svg+xml;base64,'+base64.b64encode(svg).decode()}
                     elif path=='/api/phone/revoke': result={'revoked':ctx.pairing.revoke(data.get('id'))}
                     else: return self.send({'error':'Not found'},404)
+                elif path in {'/api/skills/add','/api/skills/remove'}:
+                    # SKILL.md guidance. Adding one waits for the owner's yes on the approval card; removing one doesn't need it.
+                    if companion or agent.mode=='kids': return self.send({'error':'Manage skills on the Mac.'},403)
+                    if path=='/api/skills/add': result=agent.propose('skills.install',{'content':str(data.get('content') or '')})
+                    else: result=agent.skill_notes.remove(data.get('name'))
+                elif path=='/api/computer':
+                    if companion or agent.mode=='kids': return self.send({'error':'Change this on the computer itself.'},403)
+                    computer, act = agent.link.computer, data.get('action')
+                    if act=='grant': result=computer.grant(data.get('folder'))
+                    elif act=='revoke': result=computer.revoke(data.get('folder'))
+                    elif act=='allow': result=computer.allow(data.get('what'), data.get('on') is True)
+                    elif act in {'pause','resume'}: result=computer.pause(act=='pause')
+                    else: raise ValueError('Choose grant, revoke, allow, pause or resume.')
                 elif path=='/api/interrupt': result=agent.interrupt()
                 elif path=='/api/speak':
                     if companion: return self.send({'error':'Voice playback is controlled on the Mac.'},403)
@@ -625,7 +653,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 elif path=='/api/cancel': result=agent.cancel(data.get('id'))
                 elif path=='/api/setting':
                     key,value=data.get('key'),data.get('value')
-                    if companion and key!='hush': return self.send({'error':'Change device and integration settings on the Mac.'},403)
+                    # The phone can always turn the mic off; turning listening back on happens at home (the device or the computer).
+                    if companion and key=='muted' and value is False: return self.send({'error':"Turn the mic back on at home, on your Luma or your computer."},403)
+                    if companion and key not in {'hush','muted'}: return self.send({'error':'Change device and integration settings on the Mac.'},403)
                     if key=='mode': agent.set_mode(value); ctx.events.clear()
                     elif key=='muted' and type(value) is bool: agent.set_muted(value)
                     elif key=='hush': agent.hush()

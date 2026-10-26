@@ -484,6 +484,7 @@ $("#pair-form").onsubmit = async (e) => {
       name: $("#pair-name").value,
     });
     pairToken = "";
+    if (location.protocol === "https:") { location.href = "/phone/"; return; } // a newly paired phone goes straight to the Luma app
     await initialize();
   } catch (error) {
     $("#pair-message").textContent = error.message;

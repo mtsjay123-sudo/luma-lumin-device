@@ -1123,6 +1123,7 @@
     "shop.add_to_cart": ["Checkout", "add this to your cart"], "mail.send": ["Email", "send this email"], "mail.schedule": ["Email", "schedule this email"], "mail.send_web": ["Email", "send this from your Gmail"], "luma.send": ["Text", "send this text"],
     "sms.send": ["Text", "send this text"], "mac_messages.send": ["Text", "send this text"], "browser.act": ["Website", "do this on a website"],
     "booking.create": ["Booking", "book this"], "home.light": ["Home", "change your lights"], "food.checkout": ["Groceries", "set up this checkout"],
+    "skills.install": ["Skill", "add a new skill"],
   };
   const ROUTES = { luma_number: "From Luma's number", mac_imessage: "From your iMessage", mac_sms: "From your number (SMS)", twilio: "From your Twilio number" };
   const TEXTY = ["luma.send", "sms.send", "mac_messages.send"];
@@ -1162,6 +1163,7 @@
       "mail.schedule": `These exact words go out ${sendAt(a.send_at)}, not before. You can cancel any time until then.`,
       "mail.send_web": a.send_at ? `I'll send these exact words from your Gmail ${sendAt(a.send_at)}, not before.` : "I'll open your Gmail and press Send with these exact words.",
       "browser.act": a.reason ? `Why I'm asking: ${a.reason}.` : "Nothing happens on the site until you allow it.",
+      "skills.install": "A skill is written instructions I follow when something you ask fits. It can't give me new powers or skip your rules. Read it before you allow it.",
     }[r.tool] || (String(r.tool).startsWith("mcp.") ? `This changes something in ${app ? app.name : "a connected app"}. Check the details first.` : TEXTY.includes(r.tool) ? (ROUTES[state.status?.message_route] || "Every text waits for you") + ". These are the exact words." : "Nothing happens until you allow it.");
     c.append(el("div", "co-sub", sub));
 
@@ -3132,6 +3134,94 @@
     }).catch(() => body.replaceChildren(el("div", "sub", "Luma Link isn't available here.")));
     return item;
   }
+  // Computer mode: what Luma may do on this computer when your Luma device (or Luma right here) asks.
+  // It's set on this computer only, never from the phone, and Pause stops all of it at once.
+  const DID = { "files.find": "Looked for files", "files.read": "Read a file", "app.open": "Opened an app", "screen.look": "Looked at the screen",
+    open: "Opened a page", play: "Played music", read: "Read the page", tabs: "Checked your tabs", pause: "Paused", resume: "Resumed" };
+  function computerItem() {
+    const item = el("div", "item link-item computer-item");
+    const g = el("div", "grow");
+    const body = el("div", "link-body");
+    g.append(el("div", "title", "What Luma can do on this computer"),
+      el("div", "sub", "Opening web pages and playing music always work. Folders, apps and the screen stay off until you turn them on here. Luma never changes or deletes your files."), body);
+    item.append(g);
+    const change = async (data) => draw(await api("/api/computer", data));
+    const draw = (st) => {
+      body.replaceChildren();
+      const top = el("div", "link-row");
+      top.append(el("span", "dot " + (st.paused ? "off" : "on")), el("span", "grow", st.paused ? "Paused. Luma won't do anything on this computer." : "Luma can use this computer for you."),
+        btn(st.paused ? "Resume" : "Pause", st.paused ? "pill primary small" : "pill soft small", () => change({ action: st.paused ? "resume" : "pause" }).catch((e) => toast(e.message))));
+      const folders = el("div", "computer-folders");
+      for (const f of st.folders) {
+        const chip = el("span", "chip file", f.split(/[\\/]/).pop() || f);
+        chip.title = f;
+        const x = btn("×", "chip-x", () => change({ action: "revoke", folder: f }).catch((e) => toast(e.message)));
+        x.setAttribute("aria-label", "Stop sharing " + f);
+        chip.append(x);
+        folders.append(chip);
+      }
+      if (!st.folders.length) folders.append(el("span", "sub", "No folders shared yet."));
+      const add = el("form", "row-actions");
+      for (const name of ["Documents", "Desktop", "Downloads"]) {
+        if (!st.folders.some((f) => f.split(/[\\/]/).pop() === name))
+          add.append(btn("+ " + name, "pill quiet small", () => change({ action: "grant", folder: "~/" + name }).catch((e) => toast(e.message))));
+      }
+      const path = el("input", "link-addr");
+      path.placeholder = "Or a folder's full path";
+      const share = el("button", "pill soft small", "Share");
+      share.type = "submit";
+      add.append(path, share);
+      add.addEventListener("submit", (e) => { e.preventDefault(); if (path.value.trim()) change({ action: "grant", folder: path.value.trim() }).catch((err) => toast(err.message)); });
+      body.append(top, el("div", "sub", "Folders Luma can look in (find files by name, read text files):"), folders, add,
+        toggleRow("Open apps", "Like \u201copen Spotify\u201d or \u201copen Notes\u201d.", st.apps, (on) => change({ action: "allow", what: "apps", on })),
+        toggleRow("Look at my screen", "Only when you ask, like \u201cwhat's on my screen?\u201d", st.screen, (on) => change({ action: "allow", what: "screen", on })));
+      const log = (st.log || []).slice(-5).reverse();
+      if (log.length) {
+        const list = el("ul", "computer-log");
+        for (const e of log) list.append(el("li", e.ok ? "" : "failed", `${DID[e.kind] || e.kind}${e.what ? " \u00b7 " + e.what : ""}${e.ok ? "" : " (didn't work)"}`));
+        body.append(el("div", "sub", "Lately:"), list);
+      }
+    };
+    api("/api/computer").then(draw).catch(() => body.replaceChildren(el("div", "sub", "Computer mode isn't available here.")));
+    return item;
+  }
+  // Skills: SKILL.md guidance, the format Claude Code and Hermes Agent use. Adding one shows an approval card first.
+  function skillsItem() {
+    const item = el("div", "item link-item");
+    const g = el("div", "grow");
+    const body = el("div", "link-body");
+    g.append(el("div", "title", "Skills"),
+      el("div", "sub", "Written instructions Luma follows when something you ask fits, in the SKILL.md format Claude Code and Hermes use. A skill can't give Luma new powers or skip your rules."), body);
+    item.append(g);
+    const draw = (st) => {
+      body.replaceChildren();
+      const list = el("div", "computer-folders");
+      for (const sk of st.skills) {
+        const chip = el("span", "chip file", sk.name);
+        chip.title = sk.description;
+        const x = btn("×", "chip-x", async () => { try { await api("/api/skills/remove", { name: sk.name }); draw(await api("/api/skills")); } catch (e) { toast(e.message); } });
+        x.setAttribute("aria-label", "Remove " + sk.name);
+        chip.append(x);
+        list.append(chip);
+      }
+      if (!st.skills.length) list.append(el("span", "sub", "No skills yet."));
+      const f = el("form", "skill-add");
+      const text = el("textarea", "link-addr skill-text");
+      text.placeholder = "Paste a SKILL.md here";
+      text.rows = 4;
+      const add = el("button", "pill soft small", "Add skill");
+      add.type = "submit";
+      const slot = el("div");
+      f.append(text, add);
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try { slot.replaceChildren(approval(await api("/api/skills/add", { content: text.value }))); text.value = ""; } catch (err) { toast(err.message); }
+      });
+      body.append(list, f, slot);
+    };
+    api("/api/skills").then(draw).catch(() => body.replaceChildren(el("div", "sub", "Skills aren't available here.")));
+    return item;
+  }
   async function openDevice() {
     try { const entry = await api("/api/link/enter", {}); if (!(await desk?.useDevice?.(entry))) toast("Couldn't open your Luma device."); }
     catch (e) { toast(e.message); }
@@ -3334,6 +3424,8 @@
       acctRow.after(row);
     }).catch(() => {});
     box.append(linkCard());
+    if (!onDevicePage) box.append(computerItem());
+    box.append(skillsItem());
     box.append(talkCard());
     box.append(brainCard());
     box.append(toggleRow("Think before answering", "On something that matters, Luma works it out privately first. Say \u201cthink hard\u201d for a deeper pass.", s.think_first !== false, (on) => api("/api/setting", { key: "think_first", value: on })));

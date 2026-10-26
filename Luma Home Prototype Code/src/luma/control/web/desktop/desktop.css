@@ -1309,6 +1309,16 @@ body.welcoming .app, body.locked .app { filter: blur(18px); }
 .link-row .dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa; flex: none; }
 .link-row .dot.on { background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .18); }
 .link-addr { flex: 1 1 220px; min-width: 0; }
+.computer-folders { display: flex; flex-wrap: wrap; gap: 6px; }
+.link-body .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.computer-folders .chip { display: inline-flex; align-items: center; gap: 4px; cursor: default; }
+.chip-x { border: 0; background: none; color: var(--muted); font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.chip-x:hover { color: var(--ink); }
+.computer-item .item.nested, .computer-item .item { padding-left: 0; padding-right: 0; }
+.skill-add { display: grid; gap: 8px; justify-items: start; }
+.link-addr.skill-text { width: 100%; height: auto; min-height: 92px; padding: 10px 12px; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.computer-log { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 2px; }
+.computer-log .failed { color: var(--bad, #d9534f); }
 .link-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .link-code { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .link-code .sub { flex-basis: 100%; }

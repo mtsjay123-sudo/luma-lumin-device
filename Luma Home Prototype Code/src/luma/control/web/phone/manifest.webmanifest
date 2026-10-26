@@ -1,0 +1,10 @@
+{
+  "name": "Luma",
+  "short_name": "Luma",
+  "start_url": "/phone/",
+  "scope": "/phone/",
+  "display": "standalone",
+  "background_color": "#0b0a0c",
+  "theme_color": "#0b0a0c",
+  "icons": [{ "src": "/phone/device.jpg", "sizes": "420x420", "type": "image/jpeg" }]
+}

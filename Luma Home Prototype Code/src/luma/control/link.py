@@ -207,8 +207,10 @@ class LinkHost:
     def send(self, kind, wait=0, **args):
         ident = secrets.token_hex(6)
         done = threading.Event()
+        what = args.get("url") or args.get("query") or args.get("path") or args.get("name") or ""
         with self.lock:
             self.waiting[ident] = done
+            self._note(ident, {"kind": kind, "what": str(what)[:120], "at": self.clock(), "ok": None})
         self.jobs.put({"id": ident, "kind": kind, "at": self.clock(), **args})
         if not wait:
             return {"id": ident}
@@ -237,7 +239,20 @@ class LinkHost:
         with self.lock:
             self.results[str(ident)] = result if isinstance(result, dict) else {"result": result}
             event = self.waiting.get(str(ident))
+            self._note(str(ident), {"ok": not (isinstance(result, dict) and result.get("error"))}, create=False)
         if event: event.set()
+
+    # what Luma asked the computer to do, kept here too so the phone can show it
+    def _note(self, ident, fields, create=True):
+        log = list(self.store.setting("hands_log") or [])
+        entry = next((e for e in log if e.get("id") == ident), None)
+        if entry: entry.update(fields)
+        elif create: log.append({"id": ident, **fields})
+        else: return
+        self.store.set_setting("hands_log", log[-100:])
+
+    def recent(self, n=5):
+        return [{k: v for k, v in e.items() if k != "id"} for e in (self.store.setting("hands_log") or [])[-n:]][::-1]
 
     # one memory, two places
     def sync(self, incoming):
@@ -282,6 +297,8 @@ class LinkClient:
         self._online = (0, False)
         self.threads = []
         self.stop = threading.Event()
+        from luma.control.computer import Computer
+        self.computer = Computer(self.store, self.clock)  # what the device may do here, set only on this computer
 
     def device(self):
         d = self.store.setting("link_device")
@@ -410,8 +427,19 @@ class LinkClient:
         for t in self.threads: t.start()
 
     def _do(self, job):
-        """Something only this computer can do, asked for by the device."""
+        """Something only this computer can do, asked for by the device. Every request goes in this computer's log."""
+        try: result = self._work(job)
+        except Exception as error: result = {"error": str(error)[:200] or "That didn't work on this computer."}
+        self.computer.record(job, result)
+        return result
+
+    def _work(self, job):
+        from luma.control.computer import KINDS
         kind = job.get("kind")
+        if kind in KINDS:
+            return self.computer.do(job)  # checks Pause itself, since Luma running here calls it directly too
+        if self.computer.settings()["paused"]:
+            return {"error": "Luma is paused on this computer. Resume it there to keep going."}
         chrome = self.agent.chrome
         if kind in {"open", "play", "read", "tabs"} and chrome.connected():
             return chrome.send(kind, wait=20 if kind in {"read", "tabs", "play"} else 0, **{k: v for k, v in job.items() if k not in {"id", "kind", "at"}}) or {"ok": True}
@@ -425,5 +453,5 @@ class LinkClient:
             return {"opened": url}
         if kind == "play":
             from urllib.parse import quote_plus
-            return self._do({"kind": "open", "url": "https://music.youtube.com/search?q=" + quote_plus(str(job.get("query") or "music"))})
+            return self._work({"kind": "open", "url": "https://music.youtube.com/search?q=" + quote_plus(str(job.get("query") or "music"))})
         return {"error": "This computer can't do that one."}
