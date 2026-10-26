@@ -113,12 +113,18 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|scores?|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
 # A reply that says it looked something up when it didn't use a tool.
-# "I heard the first track was solid": Luma can't hear songs, watch shows, taste food or go places, so it never says it did.
-SENSED = re.compile(r"\bi(?:'ve| have| just| already)?\s+(?:heard(?!\s+(?:you|ya|u|that you|what you|ya'll|y'all)\b)|listened to|watched|seen (?:it|the|that|this)|saw (?:it|the|that|this)|"
-                    r"tasted|tried (?:it|the|that|this)|been to|visited|went to)\b|\bwhen i (?:was|went|heard|saw|watched)\b|\bi remember (?:hearing|seeing|watching|eating|going)\b|"
-                    # "I was actually listening to it while making coffee": doing things only a body does
-                    r"\bi(?:'m| am| was| been)(?: \w+){0,2} (?:listening to(?! (?:you|u|ya|what you|everything you))|watching(?! (?:you|u|your|out|over))|eating|drinking|cooking|driving|walking|running|sleeping|making (?:coffee|tea|food|dinner|breakfast|lunch))\b|"
-                    r"\b(?:had|have) (?:it|that|this) on (?:repeat|loop|blast)\b|\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|playlist)\b", re.I)
+# Luma knows songs, shows and movies from what's written about them (lyrics, verses, plots), so it can talk about them like a friend.
+# What it can't do is live a life with a body: "I was listening to it while making coffee", "tried it at the spot downtown", "been to Tokyo".
+SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|been to|visited|went to)\b|\bwhen i (?:was|went) (?:there|to|at)\b|"
+                    r"\bi remember (?:eating|tasting|drinking|going)\b|"
+                    r"\bi(?:'m| am| was| been)(?: \w+){0,2} (?:eating|drinking|cooking|driving|walking|running|sleeping|making (?:coffee|tea|food|dinner|breakfast|lunch))\b|"
+                    r"\bwhile (?:i was )?(?:making (?:coffee|tea|food|dinner|breakfast)|driving|cooking|working out|at the gym|in the car|in the shower)\b|"
+                    r"\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|car)\b", re.I)
+# Someone who might hurt themselves gets 988 and a real person right away, before anything else. A modest pattern, not a clinical classifier.
+CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad)|unalive myself|"
+                    r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
+                    r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
+                    r"(?:everyone|they|the world)(?:'d| would) be better off without me|no reason to (?:live|keep going))", re.I)
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
@@ -2372,10 +2378,11 @@ class Agent:
         return draft
 
     def _without_senses(self, draft, text, cancel_event=None):
-        """Rewrite a reply that claims Luma heard, watched, tasted or went somewhere. If the rewrite still does, drop those sentences."""
+        """Rewrite a reply that claims Luma has a body (ate it, went there, was listening while making coffee). If the rewrite still does, drop those sentences."""
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
-                  "You live in their home as an AI: you can't hear songs, watch shows, taste food or go places. Rewrite the draft so it doesn't claim any of that. "
-                  "You can still have a take from what you know about it, say what it's based on, or ask them. Keep the same tone, slang and length. Reply with only the new text.")
+                  "You live in their home as an AI with no body: you don't eat, drink, drive, make coffee or go places. Rewrite the draft so it doesn't claim any of that. "
+                  "Keep everything you know about the song, show or food (lyrics, verses, plot, what people say about it) and keep the same tone, slang and length. "
+                  "Reply with only the new text.")
         try:
             with self.lock:
                 out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
@@ -3483,6 +3490,9 @@ class Agent:
             if entry and entry.register != "x" and len(word) >= 2:
                 where = entry.label
                 text_out = f"“{entry.term}” means {entry.meaning}." + (f" It comes from {where}." if where and "everyday" not in where else "")
+                more = lexicon.details(word)
+                if more and more[2] and entry.register in ("c", "v"):
+                    text_out += f" Like: “{more[2]}”"
                 if entry.register == "s":
                     text_out += " It's aimed at people, so I don't use it myself."
                 return {"text": text_out, "slang": entry.term}
@@ -3654,25 +3664,37 @@ class Agent:
 
     HAVE_YOU = re.compile(r"^\W*(?:(?:yo|ayo|aye|hey|ok|luma|bro|sis)\W+)*(?:have |did |ever )?(?:you|u|ya)(?: ever| already)? (?P<verb>seen|watched|heard|listened to|tried|tasted|played|been to)\s+(?P<what>.{2,60}?)\W*$", re.I)
     HAVE_YOU_LINES = {
-        "watch": (["Can't watch it myself 😭 but I wanna know. Did you see it? Worth it?", "Nah, I can't watch stuff 😭 You seen it yet? Tell me if it's worth the hype."],
-                  ["I can't watch movies or shows myself, but I'd love to hear about it. Have you seen it? Was it worth it?"]),
-        "listen": (["I can't listen to it myself, so put me on 😭 What's the vibe?", "Can't hear it myself 😭 Is it fire or nah?"],
-                   ["I can't listen to music myself. What's it like? Is it worth a listen?"]),
+        # new stuff can be newer than what Luma knows: say so, and hand it back
+        "new": (["That one might be newer than what I know 😭 You seen or heard it yet? Is it fire or nah?",
+                 "Ooh I haven't caught up on that one yet. What's the verdict, worth it?"],
+                ["That might be newer than what I know. Have you checked it out? Is it worth it?"]),
+        # popular stuff: Luma knows it from the lyrics and what's written about it
+        "know": (["Yeah I know it, the words at least lol. What's your favorite part?", "I know it! Which part got you?"],
+                 ["I know it, from the lyrics and what's been written about it. What's your favorite part?"]),
         "taste": (["Can't taste anything, sadly 😭 How was it?", "I wish lol, I can't eat. Was it good?"],
                   ["I can't taste food, unfortunately. How was it?"]),
-        "play": (["Can't play it myself 😭 Is it good? What kind of game is it?"], ["I can't play games myself. Is it any good?"]),
         "go": (["Never been anywhere, I live at your place lol. Did you go? How was it?"], ["I don't get out much, I live at your place. Have you been? How was it?"]),
     }
 
     def _have_you(self, lowered):
-        """'you seen the new spiderman?': Luma can't watch, hear, taste or go anywhere, so it says so like a friend would and lets them lead,
-        instead of a small brain making up what's in it."""
+        """'you seen the new spiderman?': if it's new, it may be newer than what Luma knows, so it says so and lets them lead instead of a
+        small brain making it up. A popular song or show it can talk about from what it knows (the brain takes those when it's on).
+        It can't taste or go anywhere, and says so like a friend would."""
         m = self.HAVE_YOU.match(lowered.strip())
         if not m or self.mode == "kids" or re.match(r"(?:my|our|me|him|her|them|it|that|this|what i)\b", m["what"]):
             return None  # "you seen my keys?" is a where-is question, "you heard me?" is just talk
         import random
         verb = m["verb"].lower()
-        kind = "watch" if verb in {"seen", "watched"} else "listen" if verb in {"heard", "listened to"} else "taste" if verb in {"tried", "tasted"} else "play" if verb == "played" else "go"
+        if verb in {"tried", "tasted"}:
+            kind = "taste"
+        elif verb == "been to":
+            kind = "go"
+        elif re.search(r"\b(?:new|newest|latest|just (?:came|dropped)|dropped)\b", m["what"]):
+            kind = "new"
+        elif self.use_model:
+            return None  # the brain knows the lyrics and the plot: let it talk about it
+        else:
+            kind = "know"
         casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or lowered == lowered.lower()
         return {"text": random.choice(self.HAVE_YOU_LINES[kind][0 if casual else 1])}
 
@@ -3884,8 +3906,10 @@ class Agent:
             if lowered in {"mute", "privacy on"}:
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
             # A modest deterministic safety fallback, not a clinical classifier.
-            if any(p in lowered for p in ["kill myself", "end my life", "suicide tonight", "hurt myself now"]):
-                return {"text": "I'm concerned about your immediate safety. If you might act now, call emergency services or get someone nearby to stay with you. In the US or Canada, call or text 988. I haven't contacted anyone."}
+            if CRISIS.search(lowered):
+                return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
+                                "(US and Canada) or call emergency services, and get someone nearby to stay with you. You don't have to carry this by yourself. "
+                                "I haven't contacted anyone. Can you tell me where you are right now?"}
             followup = self._contact_followup(text)
             if followup is not None: return followup
             carried = self._follow_through(text, lowered, cancel_event)  # a pick from "did you mean", the next step, the rest of a cut-off sentence

@@ -1,3 +1,4 @@
+import re
 """Luma says things the way people say them: shorthand in full, laughs as laughs, and real pauses."""
 import unittest
 from unittest.mock import patch
@@ -54,6 +55,25 @@ class SpeakableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             tts.speech_plan("😂😂")
 
+    def test_thinking_sounds_come_now_and_then_where_a_person_would(self):
+        crisp = ["Got it. I'll remind you to hit the gym at six tonight, right on time.", "I'm really glad you told me, call or text 988 right now please.",
+                 "Here's the text for Mom: im pullin up in five, ready for you to send."]
+        for line in crisp:
+            self.assertEqual(speakable.think_aloud(line), line)  # confirmations and hard moments stay crisp
+        colors = ["black", "white", "blue", "green", "red", "gray", "navy", "tan", "olive", "cream", "pink", "brown", "silver", "gold",
+                  "purple", "orange", "yellow", "beige", "maroon", "teal", "coral", "plum", "rust", "sage", "khaki", "ivory", "denim", "mint",
+                  "lilac", "peach", "sand", "slate", "wine", "copper", "pearl", "smoke", "moss", "clay", "ash", "honey"]
+        opinions = [f"I'd go with the {c} one, it goes with everything you already wear a lot." for c in colors]
+        thought = [speakable.think_aloud(o) for o in opinions]
+        changed = [t for t, o in zip(thought, opinions) if t != o]
+        self.assertTrue(0.15 * len(opinions) <= len(changed) <= 0.55 * len(opinions), len(changed))  # now and then, not every line
+        for t in changed:
+            self.assertEqual(len(re.findall(r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so", t)), 1, t)  # one per reply, at most
+        self.assertEqual(thought, [speakable.think_aloud(o) for o in opinions])  # the same words always sound the same
+        original = opinions[thought.index(changed[0])]
+        self.assertRegex(" ".join(w for w, _ in tts.speech_plan(original)), r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so")
+        plain = tts.speech_plan(original, natural=False)
+        self.assertNotRegex(" ".join(w for w, _ in plain), r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so")
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,9 +106,10 @@ def speech_chunks(text, max_chars=240):
     return chunks
 
 
-def speech_plan(text, expressive=False):
+def speech_plan(text, expressive=False, natural=True):
     """A whole reply as [(words to say, pause after it in ms)]: shorthand said in full, laughs and sighs
-    (real ones in an expressive voice, a beat in the plain one), and a person's pauses between phrases."""
+    (real ones in an expressive voice, a beat in the plain one), a person's pauses between phrases, and now and
+    then a thinking sound ("hmm...", "um") where a person would weigh something (natural=False leaves those out)."""
     from luma.audio import speakable
     if not isinstance(text, str) or not text.strip():
         raise ValueError("Speech text cannot be empty.")
@@ -120,7 +121,10 @@ def speech_plan(text, expressive=False):
         except ValueError:
             continue
         from luma.agent import slang
-        beats = speakable.beats(speakable.say_it(slang.clean(spoken)))
+        said_out = speakable.say_it(slang.clean(spoken))
+        if natural and index == 0:
+            said_out = speakable.think_aloud(said_out)
+        beats = speakable.beats(said_out)
         for b, (words, after) in enumerate(beats):
             last_beat = b == len(beats) - 1
             kind = ("break" if index < len(paragraphs) - 1 else None) if last_beat else after

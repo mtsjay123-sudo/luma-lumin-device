@@ -362,6 +362,26 @@ def _slang_terms():
 
 
 SLOTS["slang"] = _slang_terms()
+
+
+def _archive_talk():
+    """The slang archive's own example sentences ("No wahala, we can fix it.", "Yinz coming to the game this weekend?"): real talk
+    from dozens of communities, all of it conversation. Ones that read like a request to Luma ("Take the second exit at the rotary")
+    are left out so they don't teach the wrong thing."""
+    try:
+        from luma.agent import slang_archive
+    except Exception:
+        return []
+    out = []
+    for line in slang_archive.EXAMPLES:
+        low = line.lower().rstrip(".")
+        if IMPERATIVE.match(low) or re.match(r"(?:where|let'?s|text|remind|call|play)\b", low) or "{" in low:
+            continue
+        out.append(low)
+    return out
+
+
+ARCHIVE_TALK = _archive_talk()
 KEYBOARD = {c: n for c, n in zip("qwertyuiopasdfghjklzxcvbnm", ["wa", "qes", "wrd", "etf", "ryg", "tuh", "yij", "uok", "ipl", "o", "qsz", "awedxz", "serfcx", "drtgvc",
                                                                    "ftyhbv", "gyujnb", "huikmn", "jiolm", "kop", "asx", "zsdc", "xdfv", "cfgb", "vghn", "bhjm", "njk"])}
 
@@ -425,8 +445,10 @@ def messy(text, rng, level=None):
 
 def say(intent, rng, level=None):
     """One way of asking for this."""
-    template = rng.choice(INTENTS[intent]["t"])
-    core = _fill(template, rng)
+    if intent == "chat" and ARCHIVE_TALK and rng.random() < 0.25:
+        core = rng.choice(ARCHIVE_TALK)
+    else:
+        core = _fill(rng.choice(INTENTS[intent]["t"]), rng)
     asker = rng.choice(ASKERS) if IMPERATIVE.match(core) and intent != "chat" else ""
     text = (rng.choice(OPENERS) + asker + core + rng.choice(CLOSERS)).strip()
     return messy(text, rng, level)
@@ -452,6 +474,7 @@ def count():
                 ways *= len(SLOTS[slot])
             askers = len(set(ASKERS)) if IMPERATIVE.match(template) and name != "chat" else 1
             total += ways * len(set(OPENERS)) * askers * len(set(CLOSERS))
+    total += len(ARCHIVE_TALK) * len(set(OPENERS)) * len(set(CLOSERS))
     slang_variants = 2 ** 6  # each message can take any of several slang swaps
     return total, total * slang_variants
 

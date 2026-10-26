@@ -15,7 +15,9 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
-from luma.agent import slang_data
+from luma.agent import slang_archive, slang_data
+
+ORIGINS = {**slang_data.ORIGINS, **slang_archive.ORIGINS}
 
 # Words that are slang in one sense but everyday English in another ("fire", "tea", "bag"):
 # understood and explained, but they don't count as a sign that someone talks in slang.
@@ -30,7 +32,7 @@ AMBIGUOUS = {
     "ass", "damn", "bitch", "dick", "piss", "streamer", "boss", "respawn", "emote", "camping", "op", "buff", "nerf", "cracked", "throw", "diff",
     "wicked", "reckon", "rad", "stoked", "shred", "mob", "ard", "bul", "brick", "od", "ting", "cheeky", "bloody", "arse", "bugger", "gutted",
     "aura", "chopped", "unc", "tuff", "ate", "gagged", "clock it", "wig", "werk", "realness", "kiki", "shade", "slay", "zesty", "brat",
-}
+} | slang_archive.EVERYDAY
 VULGAR_SAY = {"wtf": "what the fuck", "stfu": "shut the fuck up", "gtfo": "get the fuck out", "idgaf": "I don't give a fuck", "tf": "the fuck",
               "af": "as fuck", "fml": "fuck my life", "lmfao": "laughing my fucking ass off", "mf": "motherfucker", "pmo": "pisses me off"}
 
@@ -46,7 +48,7 @@ class Entry:
 
     @property
     def label(self):
-        return " by way of ".join(slang_data.ORIGINS.get(o, o) for o in self.origins)
+        return " by way of ".join(ORIGINS.get(o, o) for o in self.origins)
 
 
 def _key(text):
@@ -67,7 +69,7 @@ def _extra_lines():
 def lexicon():
     """term -> Entry, plus every spelling variant -> the same Entry. Luma's own entries win over grown ones."""
     by_term, forms = {}, {}
-    curated = slang_data.LEXICON.splitlines()
+    curated = slang_data.LEXICON.splitlines() + slang_archive.LEXICON.splitlines()
     for number, line in enumerate(curated + _extra_lines()):
         grown = number >= len(curated)
         if not line.strip() or line.lstrip().startswith("#"):
@@ -152,6 +154,18 @@ def explain(term):
     return None
 
 
+def details(term):
+    """Where a word comes from, how it's used, and an example sentence, when the archive has them: (origin, usage, example)."""
+    entry = explain(term)
+    if not entry:
+        return None
+    for name in (entry.term,) + entry.variants:
+        found = slang_archive.DETAILS.get(name)
+        if found:
+            return found
+    return None
+
+
 def signals(text):
     """The parts of one message that say how someone talks: real slang (not everyday words), cussing, and energy."""
     found = find(text)
@@ -188,10 +202,10 @@ def learn(stats, text):
 def register_note(stats, preset="everyday"):
     """How they talk, for the brain: their words, their community's register (only theirs), and cussing to match."""
     n = max(1, int(stats.get("n", 0)))
-    if n < 3:
+    if n < 2:
         return ""
-    used = [t for t, c in (stats.get("terms") or {}).items() if c >= 2][:8]
-    families = {f: c for f, c in (stats.get("families") or {}).items() if c >= 3}
+    used = [t for t, c in (stats.get("terms") or {}).items() if c >= 2][:10]
+    families = {f: c for f, c in (stats.get("families") or {}).items() if c >= 2}
     distinct = {f: len({t for t in (stats.get("terms") or {}) if f in _origins_of(t)}) for f in families}
     leaning = [f for f, c in sorted(families.items(), key=lambda kv: -kv[1]) if distinct.get(f, 0) >= 2][:2]
     slangy = int(stats.get("slangy", 0)) / n
@@ -199,18 +213,18 @@ def register_note(stats, preset="everyday"):
     if used:
         lines.append("Slang they use: " + ", ".join(f"“{t}”" for t in used) + ".")
     if leaning:
-        lines.append("Their slang comes from " + " and ".join(slang_data.ORIGINS.get(f, f) for f in leaning) + ". Talk back in that same register, like a friend "
-                     "from their circle: their words, at about their rate, never in every sentence. Don't pull in slang from a community they haven't used, "
-                     "and never put on an accent or a dialect.")
-    elif slangy > 0.3:
-        lines.append("They talk casual with slang. Talk back the same way, naturally, using their words.")
+        lines.append("Their slang comes from " + " and ".join(ORIGINS.get(f, f) for f in leaning) + ". Talk back in that same register, like a friend "
+                     "from their circle: their words and the slang around them, sprinkled in naturally, not in every sentence. Everyday internet slang "
+                     "(bet, lowkey, fr, no cap, it's giving) is always fair game. Just never put on an accent or fake a dialect.")
+    elif slangy > 0.2:
+        lines.append("They talk casual with slang. Talk back the same way: their words plus everyday slang, naturally, like a friend texting back.")
     elif slangy < 0.1 and n >= 6:
-        lines.append("They write without slang. Keep yours out too; match their clean, natural style.")
+        lines.append("They write without slang. Keep yours light too; match their clean, natural style.")
     cuss = int(stats.get("cuss", 0)) / n
     if preset in ("unhinged", "unfiltered") and cuss >= 0.2:
         lines.append("They cuss casually. You can cuss back about as much as they do.")
     elif cuss >= 0.2:
-        lines.append("They cuss sometimes. You don't need to, but don't be prudish about it.")
+        lines.append("They cuss. You can cuss back lightly when it fits; don't be prudish about it.")
     return " ".join(lines)
 
 

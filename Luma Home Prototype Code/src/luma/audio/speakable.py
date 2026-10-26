@@ -87,6 +87,38 @@ def say_it(text):
     return text[:1].upper() + text[1:]
 
 
+# Replies that should come out crisp, not thought about: confirmations, things Luma did, hard moments.
+CRISP = re.compile(r"(?i)^(?:got it|done|okay,? i'?ll|ok,? i'?ll|i'?ll|here'?s|found|playing|opening|your |saved|sent|set|added|reminder|timer|"
+                   r"mic'?s|i can'?t|i couldn'?t|i'?m really glad you told me|you got cut off|my bad|good (?:morning|night|evening|afternoon)|"
+                   r"why did|what do you call|i'?m reading|i only know)\b")
+THINK_START = re.compile(r"(?i)^(?:i'?d|i think|i feel like|honestly|probably|maybe|it depends|depends|i'?m not sure|the|that'?s|that|"
+                         r"i (?:like|love|lean|prefer|wouldn'?t|would)|if i were you|personally|kinda|lowkey|it'?s|it was|you should|you could)\b")
+THINK_MID = re.compile(r"\b(?:I think|I feel like|I'd say|I'd probably|I'd go with|probably|honestly|the real question is)\b(?![,.])")
+
+
+def think_aloud(text):
+    """Now and then, a thinking sound where a person would make one: "Hmm... I'd go with the black one", "I think, um, the
+    second one". Real people do it when they're weighing something, not when they're confirming a reminder, reading a number
+    or helping someone through a hard moment, so those stay crisp. At most one per reply, about a third of the replies that
+    could take one, and always the same for the same words (so it sounds natural, not random every replay)."""
+    t = (text or "").strip()
+    if (len(t.split()) < 8 or re.search(r"\d|988|[“”\"]", t) or CRISP.match(t) or OPENERS.match(t)
+            or re.match(r"(?i)^(?:uh|um|hmm|okay so|so)\b", t)):
+        return text
+    h = zlib.crc32(t.encode("utf-8", "ignore"))
+    if h % 100 >= 35:
+        return text
+    pick = (h // 100) % 4
+    if THINK_START.match(t):
+        lead = ["Hmm...", "Okay so,", "Uh,", "Mm..."][pick]
+        rest = t if re.match(r"I\b|I'", t) else t[:1].lower() + t[1:]
+        return f"{lead} {rest}"
+    m = THINK_MID.search(t)
+    if m:
+        return t[:m.end()] + [", um,", "... uh,", ", like,", "..."][pick] + t[m.end():]
+    return text
+
+
 def for_voice(text, expressive=False):
     """The cue marks as a given voice wants them: [laugh]/[sigh] for an expressive voice, nothing for the plain one."""
     if expressive:

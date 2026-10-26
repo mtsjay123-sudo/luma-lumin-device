@@ -74,23 +74,51 @@ class SlangTalkTests(unittest.TestCase):
         self.assertTrue(reply.startswith(("Yo", "Ayy", "What's good")), reply)
         self.assertRegex(self.agent.chat("hey luma")["text"], r"^(?:Up late|Morning|Hey|Evening)")
 
-    def test_luma_never_claims_it_heard_or_watched_something(self):
-        self.agent.planner = lambda *a: {"type": "reply", "text": "Nah 😭 what lost you, the beats or the hooks?"}
-        self.assertEqual(self.agent._without_senses("Nah, I heard the first track was solid. Which part lost you?", "ngl that album kinda mid"),
-                         "Nah 😭 what lost you, the beats or the hooks?")
+    def test_luma_talks_music_but_never_claims_a_body(self):
         from luma.agent.runtime import SENSED
-        for claim in ["I was actually listening to it while making coffee", "had it on repeat all day", "I've been to Tokyo"]:
+        for fine in ["I heard the second verse goes crazy", "I know that album, the hook on track 3 is everything", "I hear you, that sucks",
+                     "I'm listening to you", "the bridge is where she really goes off"]:
+            self.assertFalse(SENSED.search(fine), fine)  # songs are written out: Luma can talk lyrics like a friend
+        for claim in ["I was actually listening to it while making coffee", "I've been to Tokyo", "Ive been to that spot", "I ate the whole thing"]:
             self.assertTrue(SENSED.search(claim), claim)
-        for fine in ["I hear you, that sucks", "I see what you mean", "I'm listening to you", "I'm watching out for you", "sounds like the bridge lost you"]:
-            self.assertFalse(SENSED.search(fine), fine)
-        self.agent.planner = lambda *a: {"type": "reply", "text": "I watched it twice, it's great."}  # a rewrite that still claims it
-        self.assertEqual(self.agent._without_senses("I watched it twice. The ending is wild though!", "seen dune?"), "The ending is wild though!")
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Nah 😭 the second verse carries that whole album though."}
+        self.assertEqual(self.agent._without_senses("I played it on my commute, the second verse carries it.", "ngl that album kinda mid"),
+                         "Nah 😭 the second verse carries that whole album though.")
+        self.agent.planner = lambda *a: {"type": "reply", "text": "I ate there twice, it's great."}  # a rewrite that still claims it
+        self.assertEqual(self.agent._without_senses("I ate there twice. The tacos are what everyone talks about though!", "you tried that spot?"),
+                         "The tacos are what everyone talks about though!")
 
-    def test_have_you_seen_it_gets_an_honest_answer(self):
-        self.assertIn("Can't watch", self.agent.chat("you seen the new spiderman movie?")["text"])
-        self.assertRegex(self.agent.chat("have you heard the new sza album")["text"], r"listen|hear")
+    def test_have_you_seen_it_gets_a_real_answer(self):
+        self.assertRegex(self.agent.chat("you seen the new spiderman movie?")["text"], r"newer than what I know|caught up")  # may be past what it knows
+        self.assertRegex(self.agent.chat("have you heard sos by sza")["text"], r"(?i)know it")  # a known song: it talks about it
         self.assertRegex(self.agent.chat("yo u tried the new popeyes sandwich")["text"], r"taste|eat")
         self.assertNotIn("watch", self.agent.chat("you seen my keys?")["text"].lower())  # that's a where-is question
+        self.agent.use_model = True
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Kill Bill goes crazy, the hook is so petty lol"}
+        self.assertIn("Kill Bill", self.agent.chat("have you heard sos by sza")["text"])  # with the brain on, it talks the lyrics itself
+
+    def test_a_friend_who_can_hold_the_hard_stuff(self):
+        from luma.agent import mind
+        line = "That's a lot to carry, and you're not alone in this. I'm here for you. What happened?"
+        self.assertEqual(mind.without_disclaimers(line, "i feel like everything is falling apart"), line)  # support stays
+        self.assertNotIn("work so hard", mind.without_disclaimers("I know you work so hard. Want to talk money?", "im stressed about money"))
+        reply = self.agent.chat("honestly i just want to die")["text"]
+        self.assertIn("988", reply)
+        self.assertNotIn("988", self.agent.chat("you seen suicide squad")["text"])
+        self.assertNotIn("988", self.agent.chat("i hurt myself at the gym lol")["text"])
+
+    def test_the_slang_archive_is_part_of_how_luma_talks(self):
+        from luma.agent import slang
+        size = slang.size()
+        self.assertGreater(size["entries"], 1000)
+        self.assertGreaterEqual(size["communities"], 45)
+        for word, where in [("wahala", "africa"), ("kilig", "filipino"), ("yinz", "northeast"), ("chur", "aus"), ("jawn", "philly"), ("guey", "latino")]:
+            self.assertIn(where, slang.explain(word).origins, word)
+        self.assertEqual(slang.signals("I had cheese and wine at the house, the tank is green and cool")["terms"], [])  # everyday words aren't slang
+        reply = self.agent.chat("what does wahala mean")["text"]
+        self.assertIn("trouble", reply)
+        self.assertIn("Like: “", reply)  # with the archive's own example
+        self.assertIn("don't use it myself", self.agent.chat("what does fob mean")["text"])  # labels for people: explained, not said
 
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)

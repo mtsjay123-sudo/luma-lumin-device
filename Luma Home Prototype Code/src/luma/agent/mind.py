@@ -267,8 +267,8 @@ def without_labels(answer):
 
 DISCLAIMER = re.compile(r"\b(?:i (?:don'?t|do not) (?:really )?have (?:any )?(?:personal |real )?(?:opinions?|feelings?|beliefs?|views?|a side|a stance|a take)|"
                         r"as an ai\b|i'?m (?:just )?an ai\b|i'?m (?:totally |pretty |staying )?neutral|i (?:can'?t|cannot) (?:really )?(?:say|share|tell you) (?:what|how) i (?:'?feel|think)|"
-                        # therapy-speak a friend wouldn't say, and guesses about their life nobody told Luma
-                        r"(?:you'?re|you are|ur) not alone(?: in this)?|your feelings are valid|it'?s (?:totally |completely )?(?:okay|ok|normal|valid) to feel|i'?m (?:always )?here for you|"
+                        # guesses about their life nobody told Luma ("I know you work so hard"). Support itself ("you're not alone",
+                        # "I'm here for you") stays: a friend says that, and Luma is meant to be there like one.
                         r"i know (?:you|u) (?:work (?:hard|so hard|a lot)|don'?t want to|always|never|have (?:been|had)|try so hard))", re.I)
 # Questions about Luma herself (what she is, how she feels): the honest answer is the point, so nothing is taken out.
 ABOUT_ME = re.compile(r"\b(?:(?:are|r) (?:you|u) (?:an? )?(?:ai|bot|robot|real|human|alive|conscious|sentient|a person|sad|happy|lonely|mad|okay|ok|alright|tired|bored|scared)|"

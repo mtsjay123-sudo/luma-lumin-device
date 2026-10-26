@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 BOT_PHRASES = [
-    "as an ai", "i'm here for you", "i am here for you", "your feelings are valid", "it's important to",
+    "as an ai", "it's important to",
     "great question", "certainly!", "i'd be happy to", "let me know if you need anything", "hope this helps",
     "i understand how you feel", "language model", "feel free to", "absolutely!",
 ]

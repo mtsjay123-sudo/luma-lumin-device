@@ -43,15 +43,16 @@ class LexiconTests(unittest.TestCase):
                   "Remind me to call the bank.", "Thanks, that works.", "How long is the drive to Durham?"]:
             plain = slang.learn(plain, m)
             plain["n"] += 1
-        self.assertIn("Keep yours out", slang.register_note(plain))
+        self.assertIn("Keep yours light", slang.register_note(plain))
 
     def test_cussing_matches_only_when_allowed(self):
         stats = {"n": 0}
         for m in ["wtf is this", "that shit was crazy", "bro fuck that", "damn ok"]:
             stats = slang.learn(stats, m)
             stats["n"] += 1
-        self.assertIn("cuss back", slang.register_note(stats, "unhinged"))
-        self.assertNotIn("cuss back", slang.register_note(stats, "everyday"))
+        self.assertIn("about as much as they do", slang.register_note(stats, "unhinged"))
+        self.assertIn("lightly", slang.register_note(stats, "everyday"))  # everyday mode: a little, never more than them
+        self.assertNotIn("about as much", slang.register_note(stats, "everyday"))
 
 
 class CharacterTests(unittest.TestCase):
