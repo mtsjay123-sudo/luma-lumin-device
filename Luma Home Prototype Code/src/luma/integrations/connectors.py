@@ -36,6 +36,27 @@ MAX_CONNECTORS = 12
 MAX_TOOLS = 40          # per connector, so a huge app can't flood the brain
 MAX_RESULT = 6000       # characters of an app's answer that reach the brain
 
+# One sign-in, 1,500+ apps: Composio's hosted MCP server. People sign in with their own Composio account in the browser (no
+# developer key), then connect each app (Gmail, Calendar, Slack…) on that app's own consent page. The same idea Open Dot uses.
+COMPOSIO_MCP = "https://connect.composio.dev/mcp"
+# Hub tools that run code on someone else's machine or manage the hub itself: Luma doesn't take them.
+HUB_HIDDEN = re.compile(r"REMOTE_BASH|REMOTE_WORKBENCH|SKILL|SUBMIT_FEEDBACK|WAIT_FOR_CONNECTIONS")
+# An action that only reads (GMAIL_FETCH_EMAILS, GOOGLECALENDAR_LIST_EVENTS) runs on its own. Send, post, create, update, delete ask first.
+READ_VERB = re.compile(r"_(?:GET|LIST|SEARCH|FETCH|FIND|READ|RETRIEVE|QUERY|DESCRIBE|LOOKUP|VIEW|CHECK|COUNT)(?:_|$)")
+APP_NAMES = {"gmail": "Gmail", "googlecalendar": "Google Calendar", "googledrive": "Google Drive", "googledocs": "Google Docs",
+             "googlesheets": "Google Sheets", "outlook": "Outlook", "slack": "Slack", "notion": "Notion", "github": "GitHub", "linear": "Linear",
+             "linkedin": "LinkedIn", "youtube": "YouTube", "reddit": "Reddit", "spotify": "Spotify", "discord": "Discord", "trello": "Trello",
+             "dropbox": "Dropbox", "hubspot": "HubSpot", "figma": "Figma", "calendly": "Calendly", "zoom": "Zoom", "airtable": "Airtable"}
+
+
+# Words that mean an app the hub can reach: its tools are offered to the brain when one comes up.
+HUB_WORDS = re.compile(r"\b(?:gmail|e-?mails?|inbox|calendar|meeting|events?|drive|google docs?|sheets?|slack|notion|outlook|github|linear|linkedin|"
+                       r"youtube|reddit|spotify|discord|trello|dropbox|hubspot|figma|calendly|zoom|airtable)\b", re.I)
+
+
+def app_name(slug):
+    return APP_NAMES.get(slug) or str(slug).replace("_", " ").title()
+
 # Apps people ask for most, with how they connect. Only ones that work without
 # extra accounts or paid plans beyond the app itself.
 PRESETS = [
@@ -59,9 +80,10 @@ PRESETS = [
     {"id": "atlassian", "name": "Jira & Confluence", "about": "Atlassian's Jira and Confluence. Press Connect and sign in.", "url": "https://mcp.atlassian.com/v1/sse", "needs": "signin"},
     {"id": "asana", "name": "Asana", "about": "Your tasks and projects. Press Connect and sign in to Asana.", "url": "https://mcp.asana.com/sse", "needs": "signin"},
     {"id": "stripe", "name": "Stripe", "about": "Payments, customers and invoices. Press Connect and sign in to Stripe.", "url": "https://mcp.stripe.com", "needs": "signin"},
-    # One connector, hundreds of apps (YouTube, Reddit, LinkedIn, HubSpot, Perplexity…): paste the MCP link Composio gives you.
-    {"id": "composio", "name": "Composio (500+ apps)", "about": "YouTube, Reddit, LinkedIn, HubSpot, Perplexity and hundreds more through one connector. "
-     "At composio.dev, connect the apps you want, make an MCP server, and paste its link here.", "needs": "url"},
+    # One sign-in, then Gmail, Calendar, Slack, Notion and 1,500+ more, each with one Allow on the app's own page.
+    {"id": "apps", "name": "Gmail & 1,500+ apps", "about": "Gmail, Google Calendar, Drive, Slack, Notion, Outlook and 1,500+ more, through Composio. "
+     "Press Connect and sign in once (it's free). Then say “connect my Gmail” and press Allow on Google's page. I read on my own and always ask before I send anything.",
+     "url": COMPOSIO_MCP, "needs": "signin"},
     {"id": "custom", "name": "Any MCP app", "about": "Paste the app's MCP address. If it supports sign-in (most new ones do, like Higgsfield or Canva), I'll open it for you; or paste a token or the command from its docs."},
 ]
 
@@ -431,7 +453,7 @@ class Connectors:
                 continue
         raise ConnectorError("That app doesn't offer a sign-in for connectors. Paste an access token from it instead.")
 
-    def sign_in_start(self, name, url, redirect_uri, preset=None):
+    def sign_in_start(self, name, url, redirect_uri, preset=None, then=None):
         """Step 1: register Luma with the app (no developer account needed), then the sign-in page to open."""
         import hashlib, secrets
         spec = next((p for p in PRESETS if p["id"] == preset), None) if preset else None
@@ -448,7 +470,8 @@ class Connectors:
         state = secrets.token_urlsafe(24)
         self._signins = {k: v for k, v in getattr(self, "_signins", {}).items() if v["at"] > time.time() - 900}
         self._signins[state] = {"name": " ".join(str(name or (spec or {}).get("name") or "App").split())[:40], "url": url, "client_id": client["client_id"],
-                                "token_endpoint": meta["token_endpoint"], "verifier": verifier, "redirect_uri": redirect_uri, "at": time.time()}
+                                "token_endpoint": meta["token_endpoint"], "verifier": verifier, "redirect_uri": redirect_uri, "at": time.time(),
+                                "then": then if isinstance(then, str) and re.fullmatch(r"[a-z0-9_]{2,40}", then) else None}
         query = {"response_type": "code", "client_id": client["client_id"], "redirect_uri": redirect_uri, "code_challenge": challenge,
                  "code_challenge_method": "S256", "state": state, "resource": url}
         if meta.get("scopes_supported"): query["scope"] = " ".join(meta["scopes_supported"][:12])
@@ -471,6 +494,12 @@ class Connectors:
                     c.update(refresh_b64=base64.b64encode(tokens["refresh_token"].encode()).decode(), client_id=pending["client_id"],
                              token_endpoint=pending["token_endpoint"], expires=time.time() + int(tokens.get("expires_in") or 3600))
             self._save(configs)
+        if pending.get("then"):
+            # They asked for one app ("connect my Gmail"): go straight on to that app's own Allow page.
+            try:
+                added = {**added, "then_app": app_name(pending["then"]), "then_url": self.app_link(pending["then"])}
+            except Exception:
+                pass
         return added
 
     def _fresh(self, config):
@@ -522,13 +551,16 @@ class Connectors:
             self._clients[config["id"]] = client
             for name in [n for n, t in self._tools.items() if t["connector"] == config["id"]]:
                 self._tools.pop(name)
+            hub = any(str(t.get("name", "")).startswith("COMPOSIO_") for t in tools)
             for tool in tools:
+                if hub and HUB_HIDDEN.search(str(tool.get("name", ""))):
+                    continue
                 fields, kinds = fields_for(tool.get("inputSchema"))
                 notes = tool.get("annotations") or {}
                 luma_name = f"mcp.{config['id']}.{slug(tool['name'], 40)}"
                 about = " ".join(str(tool.get("description") or tool.get("title") or tool["name"]).split())[:260]
                 self._tools[luma_name] = {"connector": config["id"], "connector_name": config["name"], "tool": tool["name"],
-                                          "kinds": kinds, "fields": fields, "read_only": notes.get("readOnlyHint") is True,
+                                          "kinds": kinds, "fields": fields, "read_only": notes.get("readOnlyHint") is True, "hub": hub,
                                           "description": f"{config['name']}: {about}"}
         self.on_tools(dict(self._tools))
         return tools
@@ -546,6 +578,100 @@ class Connectors:
 
     def tools(self):
         return dict(self._tools)
+
+    # ---- the apps hub (Composio): one sign-in, every app
+    def hub(self):
+        """The connected hub's id, if there is one."""
+        return next((t["connector"] for t in self._tools.values() if t.get("hub") and t["tool"] == "COMPOSIO_MANAGE_CONNECTIONS"), None)
+
+    def _hub_call(self, tool, arguments):
+        hub = self.hub()
+        if not hub:
+            raise ConnectorError("Connect your apps first: Connectors, then Gmail & 1,500+ apps.")
+        client = self._clients.get(hub)
+        if not client:
+            self._connect(next(c for c in self._configs() if c["id"] == hub))
+            client = self._clients[hub]
+        result = client.call_tool(tool, arguments)
+        if result.get("isError"):
+            raise ConnectorError(result_text(result)[:200] or "The apps hub said no.")
+        return result_text(result)
+
+    def app_connected(self, app):
+        out = self._hub_call("COMPOSIO_MANAGE_CONNECTIONS", {"toolkits": [{"name": app, "action": "list"}]})
+        return bool(re.search(r'"status"\s*:\s*"ACTIVE"', out, re.I))
+
+    def app_link(self, app):
+        """The app's own sign-in page (Google's, for Gmail), where they press Allow. None when it's already connected."""
+        if self.app_connected(app):
+            return None
+        out = self._hub_call("COMPOSIO_MANAGE_CONNECTIONS", {"toolkits": [{"name": app, "action": "add"}]})
+        url = None
+        try:
+            stack = [json.loads(out)]
+        except ValueError:
+            stack = []
+        while stack and not url:
+            item = stack.pop()
+            if isinstance(item, dict):
+                url = item.get("redirect_url") if isinstance(item.get("redirect_url"), str) else None
+                stack.extend(item.values())
+            elif isinstance(item, list):
+                stack.extend(item)
+        if not url:  # not JSON, or JSON inside text
+            found = re.search(r'"redirect_url"\s*:\s*"([^"]+)"', out)
+            if found:
+                try:
+                    url = json.loads(f'"{found.group(1)}"')
+                except ValueError:
+                    url = found.group(1)
+            else:
+                plain = re.search(r"https://[^\s\"')\]]+", out)
+                url = plain.group(0) if plain else None
+        if not url or not str(url).startswith("https://"):
+            raise ConnectorError(f"I couldn't get a sign-in link for {app_name(app)}. Try again in a minute.")
+        return url
+
+    def reads_only(self, luma_name, args):
+        """Does this call only read? An app marks its read-only tools itself; through the hub, look at the actions inside the call."""
+        tool = self._tools.get(luma_name) or {}
+        if tool.get("read_only"):
+            return True
+        if not tool.get("hub"):
+            return False
+        name = tool["tool"]
+        try:
+            args = arguments_for(tool["kinds"], args or {})
+        except ConnectorError:
+            return False
+        if name == "COMPOSIO_MANAGE_CONNECTIONS":
+            kits = args.get("toolkits")
+            return isinstance(kits, list) and bool(kits) and all(isinstance(k, dict) and k.get("action") == "list" for k in kits)
+        if name == "COMPOSIO_MULTI_EXECUTE_TOOL":
+            items = args.get("tools")
+            return isinstance(items, list) and bool(items) and all(isinstance(i, dict) and READ_VERB.search(str(i.get("tool_slug", "")).upper()) for i in items)
+        return bool(READ_VERB.search(name))  # COMPOSIO_SEARCH_TOOLS, COMPOSIO_GET_TOOL_SCHEMAS: looking, not doing
+
+    def describe(self, luma_name, args):
+        """What a hub action will do, in plain words, for the approval card: {"app": "Gmail", "does": "send email", "to": …}."""
+        tool = self._tools.get(luma_name) or {}
+        if not tool.get("hub") or tool.get("tool") != "COMPOSIO_MULTI_EXECUTE_TOOL":
+            return None
+        try:
+            items = arguments_for(tool["kinds"], args or {}).get("tools") or []
+        except ConnectorError:
+            return None
+        apps, actions, details = [], [], {}
+        for item in [i for i in items if isinstance(i, dict)][:3]:
+            app, _, action = str(item.get("tool_slug", "")).upper().partition("_")
+            apps.append(app_name(app.lower()))
+            actions.append(action.replace("_", " ").lower())
+            given = item.get("arguments") if isinstance(item.get("arguments"), dict) else {}
+            for key, value in given.items():
+                if isinstance(value, (str, int, float)) and len(details) < 6:
+                    details[str(key).replace("_", " ")[:30]] = str(value)[:300]
+        out = {"app": ", ".join(dict.fromkeys(a for a in apps if a)), "does": ", ".join(a for a in actions if a), **details} if apps else {}
+        return out or None
 
     def call(self, luma_name, args):
         tool = self._tools.get(luma_name)

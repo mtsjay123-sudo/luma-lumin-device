@@ -367,7 +367,15 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 try:
                     app=agent.connectors.sign_in_finish((q.get('state') or [''])[0],(q.get('code') or [''])[0])
                     agent.enable('connectors',True)
-                    page=f"<!doctype html><meta charset=utf-8><title>Connected</title><body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>{html.escape(app['name'])} is connected to Luma.</h2><p>You can close this tab and go back to Luma.</p></div>"
+                    then=app.get('then_url')
+                    if isinstance(then,str) and then.startswith('https://'):
+                        # "Connect my Gmail": signed in to the hub, now straight on to Google's own Allow page. Step two of two.
+                        go=html.escape(then,quote=True)
+                        page=(f"<!doctype html><meta charset=utf-8><meta http-equiv=refresh content=\"1;url={go}\"><title>Almost there</title>"
+                              f"<body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>Signed in. One more: {html.escape(app.get('then_app') or 'the app')}.</h2>"
+                              f"<p>Opening its page now. Press Allow and you're done. <a href=\"{go}\">Open it</a></p></div>")
+                    else:
+                        page=f"<!doctype html><meta charset=utf-8><title>Connected</title><body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>{html.escape(app['name'])} is connected to Luma.</h2><p>You can close this tab and go back to Luma.</p></div>"
                 except Exception as error:
                     page=f"<!doctype html><meta charset=utf-8><title>Not connected</title><body style='font:16px -apple-system,sans-serif;display:grid;place-items:center;height:90vh'><div><h2>That didn't connect.</h2><p>{html.escape(str(error)[:200])}</p></div>"
                 return self.send(page.encode(),kind='text/html; charset=utf-8')
@@ -857,6 +865,16 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         elif what=='calendar':
                             result={'calendar':agent.calendar.connect(data.get('url'))}
                             agent.enable('calendar',True)
+                        elif what=='quick_app':
+                            # "Connect Gmail": through the apps hub, one Allow on the app's own page (plus a one-time hub sign-in first).
+                            app=str(data.get('app') or '').lower()
+                            if not re.fullmatch(r'[a-z0-9_]{2,40}',app): return self.send({'error':'Pick an app.'},400)
+                            if agent.mode=='kids': return self.send({'error':'Connecting apps is for grown-ups.'},403)
+                            if agent.connectors.hub():
+                                url=agent.connectors.app_link(app); agent.enable('connectors',True)
+                                result={'already':not url,'url':url,'hub':True}
+                            else:
+                                result={'url':agent.connectors.sign_in_start('Apps','',f"http://127.0.0.1:{self.server.server_port}/api/connect/oauth/callback",preset='apps',then=app)['auth_url'],'hub':False}
                         elif what=='app_signin':
                             result=agent.connectors.sign_in_start(data.get('name'),data.get('url'),f"http://127.0.0.1:{self.server.server_port}/api/connect/oauth/callback",preset=data.get('preset'))
                         elif what=='app':
@@ -1008,6 +1026,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
 
     server=ThreadingHTTPServer((bind or phone_host or '127.0.0.1',port),Handler)
     server.daemon_threads=True
+    if root_context and not phone_host:
+        agent.oauth_redirect=f"http://127.0.0.1:{server.server_port}/api/connect/oauth/callback"  # where app sign-ins come back to
     server.agent_stop=ctx.stop
     server.control_context=ctx
     if root_context:

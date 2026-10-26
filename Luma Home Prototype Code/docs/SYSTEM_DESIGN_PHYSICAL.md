@@ -219,6 +219,28 @@ every Luma owner a developer tool they didn't ask for. **What we take:**
 Power users who already run Hermes can keep doing so. A future "hand this to Hermes" job could pass work to a
 local Hermes install, but nothing in Luma depends on it.
 
+## 5b. What we took from Open Dot
+
+[Open Dot](https://github.com/composio-community/open-dot) is Composio's open-source take on OpenAI Dots. It's an
+Electron and Next.js app that runs agents on a Mac with your own OpenAI or OpenRouter key, plus 1,500+ apps
+through Composio. Its repo has **no license file**, so none of its code is copied into Luma. We rebuilt the
+ideas that make it easy, in Luma's own Python:
+
+1. **One sign-in, every app.** Luma connects to Composio's hosted MCP server (`https://connect.composio.dev/mcp`)
+   with standard MCP sign-in: dynamic client registration and PKCE. There's no developer key, just the owner's
+   own free Composio account, opened in their browser. In Connectors it's called "Gmail & 1,500+ apps".
+2. **"Connect my Gmail" in two clicks.** Say it, or press Connect Gmail in Connectors. The first time, Luma
+   opens the Composio sign-in, and the moment that finishes the browser goes straight on to Google's own Allow
+   page. After that, every app is one Allow. `Agent.connect_app`, `/api/connect/quick_app`.
+3. **Reads freely, asks before sending.** Through the hub, an action that only reads (fetch, list, search, get)
+   runs on its own. Anything that sends, posts, creates, updates or deletes waits for the owner's yes, on a
+   card in plain words: "Gmail · send email · to sam@… · subject …". A batch with one change in it asks.
+4. **No remote shell.** The hub's remote bash and workbench tools are never handed to Luma's brain.
+
+Not taken: Open Dot's cloud computers (E2B), its OpenAI Realtime voice (Luma's voice runs on the device), and
+Composio triggers (they need a developer project key, which is not a consumer step). Triggers are worth
+revisiting if Composio offers them to signed-in users.
+
 ## 6. Trade-offs, and what to revisit
 
 - **The device is the source of truth, not the cloud.** That's more private and cheaper, but there's no

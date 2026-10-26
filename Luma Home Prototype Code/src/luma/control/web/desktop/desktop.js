@@ -2915,8 +2915,26 @@
       ac.append(aa);
       box.append(ac);
     }
+    // One click per app (two the very first time): sign in once to the apps hub, then press Allow on the app's own page.
+    const quick = appCard("Gmail, Calendar, Slack, Notion", "One sign-in, then one Allow per app. 1,500+ apps in all", "linear-gradient(135deg,#ea4335,#fbbc05 45%,#34a853 70%,#4285f4)", "brand:gmail", false, "2 clicks");
+    quick.dataset.key = "quick-apps";
+    quick.append(el("div", "help", "I read on my own (your inbox, your calendar) and always ask before I send, post or delete anything."));
+    const qa = el("div", "actions");
+    for (const [slug, label] of [["gmail", "Gmail"], ["googlecalendar", "Google Calendar"], ["slack", "Slack"], ["notion", "Notion"], ["googledrive", "Drive"]]) {
+      qa.append(btn("Connect " + label, "pill soft small", async () => {
+        try {
+          const r = await api("/api/connect/quick_app", { app: slug });
+          if (r.already) { toast(label + " is already connected."); return; }
+          if (r.url && safeUrl(r.url)) window.open(r.url, "_blank", "noopener");
+          toast(r.hub ? `Press Allow on ${label}'s page and you're done.` : `Sign in on the page that opened, then press Allow for ${label}.`);
+          for (let i = 0; i < 60; i++) { await new Promise((ok) => setTimeout(ok, 3000)); await refreshHome(); if ((state.home?.connections?.apps || []).length) { renderApps(); break; } }
+        } catch (err) { toast(err.message); }
+      }));
+    }
+    quick.append(qa);
+    box.append(quick);
     const presets = con.app_presets || [];
-    const nc = appCard("Connect any app", "Notion, Linear, Hugging Face, Supabase, Figma, GitHub, 500+ more through Composio, and any app with an MCP connector", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
+    const nc = appCard("Connect any app", "Notion, Linear, Hugging Face, Supabase, Figma, GitHub, 1,500+ more through Composio, and any app with an MCP connector", "linear-gradient(135deg,#f5b860,#c58fc8 50%,#6d6cf5)", "plus", false, "Free");
     nc.dataset.key = "add";
     nc.append(strip(["huggingface", "supabase", "figma", "amazonaws", "github", "notion"]));
     const f2 = el("form");

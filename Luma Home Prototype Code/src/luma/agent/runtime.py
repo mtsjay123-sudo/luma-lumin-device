@@ -35,7 +35,7 @@ from luma.agent.rules import Rules
 from luma.agent.helpers import Feed, Helpers, EVERY as HELPER_EVERY
 from luma.integrations.mail import Mailbox, MailError
 from luma.integrations.calendar_feed import CalendarFeed
-from luma.integrations.connectors import Connectors, ConnectorError
+from luma.integrations.connectors import HUB_WORDS, Connectors, ConnectorError, app_name
 from luma.integrations.chrome_bridge import ChromeBridge
 from luma.agent.rules import TOOL_CATEGORY
 
@@ -453,13 +453,56 @@ class Agent:
             allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in sorted(self.contacts.list(), key=lambda c: c["name"].casefold() not in text.casefold())[:24]]
         return allowed
 
+    def _reads(self, name, args):
+        """Only looks, changes nothing: Luma's own look-ups, an app's read-only tools, and hub actions that only read."""
+        if name in READ_TOOLS:
+            return True
+        try:
+            return name.startswith("mcp.") and self.connectors.reads_only(name, args or {})
+        except Exception:
+            return False
+
+    CONNECT_APP = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|pls|please|can you|could you|can u|help me|i (?:want|need) to|let'?s|go ahead and)\W+)*"
+                             r"(?:connect|link|hook up|add|set up|sign (?:me )?in(?:to| to)?|log (?:me )?in(?:to| to)?|plug in)\s+(?:to\s+|up\s+|with\s+)?(?:my\s+|the\s+)?"
+                             r"(?P<app>gmail|google mail|google calendar|gcal|google drive|drive|google docs|google sheets|slack|notion|outlook|github|linear|linkedin|"
+                             r"youtube|reddit|spotify|discord|trello|dropbox|hubspot|figma|calendly|zoom|airtable)(?:\s+(?:account|app|to luma|for me))?\W*$", re.I)
+    APP_SLUGS = {"gmail": "gmail", "google mail": "gmail", "google calendar": "googlecalendar", "gcal": "googlecalendar", "google drive": "googledrive",
+                 "drive": "googledrive", "google docs": "googledocs", "google sheets": "googlesheets"}
+
+    def connect_app(self, app):
+        """'Connect my Gmail': two clicks, the way Open Dot does it. Sign in once to the apps hub (Composio, free), then press
+        Allow on the app's own page (Google's, for Gmail). After that Luma reads on its own and asks before it sends anything."""
+        if self.mode == "kids":
+            return {"text": "Connecting apps is for grown-ups. Ask a parent to do it in adult mode."}
+        name = app_name(app)
+        owner = "Google" if app == "gmail" or app.startswith("google") else name
+        try:
+            if self.connectors.hub():
+                url = self.connectors.app_link(app)
+                self.enable("connectors", True)
+                if not url:
+                    return {"text": f"{name} is already connected. I read on my own and ask before I send anything. What do you need?", "section": "apps"}
+                return {"text": f"Opening {owner}'s page now. Pick your account and press Allow, and I'm in. I'll read on my own and always ask before I send anything.",
+                        "open_url": url, "section": "apps"}
+            redirect = getattr(self, "oauth_redirect", None)
+            if not redirect:
+                raise ConnectorError("Open Luma on your computer to connect apps.")
+            auth = self.connectors.sign_in_start("Apps", "", redirect, preset="apps", then=app)
+            return {"text": f"Easy, two clicks. Sign in on the page I just opened (that's Composio, it's free and it's how I reach {name} safely), then press Allow on "
+                            f"{owner}'s page. After that I read on my own and always ask before I send anything.", "open_url": auth["auth_url"], "section": "apps"}
+        except Exception as error:
+            if app == "gmail":
+                return {"text": "I couldn't open the quick sign-in right now" + (f" ({str(error)[:80]})" if str(error) else "") + ". You can still add Gmail here "
+                                "with an app password from myaccount.google.com/apppasswords.", "connect": "mail", "section": "apps"}
+            return {"text": f"I couldn't open {name}'s sign-in right now. Try again in a minute, or open Connectors.", "section": "apps", "open": "apps"}
+
     def _connector_tools_for(self, lowered, limit=6):
         """The connected apps' tools worth showing the brain for this request: the app is named, or
         the request shares words with what a tool does."""
         words = set(re.findall(r"[a-z0-9]{3,}", lowered)) - {"the", "and", "for", "with", "you", "can", "please", "luma", "what", "that", "this", "from", "into", "about"}
         scored = []
         for name, tool in self.connectors.tools().items():
-            named = tool["connector"] in lowered or tool["connector_name"].lower() in lowered
+            named = tool["connector"] in lowered or tool["connector_name"].lower() in lowered or bool(tool.get("hub") and HUB_WORDS.search(lowered))
             about = set(re.findall(r"[a-z0-9]{3,}", (tool["tool"].replace("_", " ") + " " + tool["description"]).lower()))
             score = (5 if named else 0) + len(words & about)
             if named or score >= 2:
@@ -537,11 +580,14 @@ class Agent:
         if name == "skills.install":
             from luma.agent import skill_notes
             review = skill_notes.preview(args["content"])
+        elif name.startswith("mcp."):
+            review = self.connectors.describe(name, args)
         else:
             review = self.bookings.preview(args) if name == "booking.create" else None
         token = secrets.token_hex(4)
-        # Only an unlocked rule the owner set to "allow" (adding to a cart) skips the review.
-        ask = TOOLS[name].confirm and not (self.mode != "kids" and self.rules.may_skip_approval(name))
+        # Only an unlocked rule the owner set to "allow" (adding to a cart) skips the review. Through the apps hub, reading
+        # (fetch email, list events) runs on its own; sending, posting, creating and deleting always wait for a yes.
+        ask = TOOLS[name].confirm and not (self.mode != "kids" and self.rules.may_skip_approval(name)) and not self._reads(name, args)
         row = self.store.put("action", {"tool": name, "arguments": args, "review": review, "state": "pending" if ask else "ready", "created": self.clock(), "expires": self.clock() + 600, "approval_hash": hashlib.sha256(token.encode()).hexdigest()})
         if ask:
             # Token is returned once to the local control surface, never to LLM.
@@ -1424,7 +1470,13 @@ class Agent:
         return {"text": said}
 
     def _connect_request(self, lowered):
-        """'How can I connect?', 'help me connect it', 'connect my apps': the connect form right here, for what they were doing."""
+        """'How can I connect?', 'help me connect it', 'connect my apps': the connect form right here, for what they were doing.
+        A named app ("yo connect my gmail", "hook up slack") goes straight to the two-click sign-in."""
+        app = self.CONNECT_APP.match(lowered.strip()) if self.mode != "kids" else None
+        if app:
+            slug_ = self.APP_SLUGS.get(app["app"].lower(), app["app"].lower())
+            if not (slug_ == "gmail" and self.mail.connected()):
+                return self.connect_app(slug_)
         if self.mode == "kids" or not re.search(r"\b(?:how (?:can|do|would) i|help me|i (?:want|need) to|let me|can (?:you|i)|where (?:do|can) i|walk me through how to)\s+(?:connect|link|hook up|add|set up|sign in to|log ?in to)\b"
                                               r"|^\W*(?:connect|link|hook up)\s+(?:it|this|that|my|me|gmail|e-?mail|outlook|icloud|calendar|apps?)\b", lowered):
             return None
@@ -1439,7 +1491,7 @@ class Agent:
         if re.search(r"\b(?:e-?mails?|gmail|inbox|mail|outlook|icloud|yahoo)\b", recent) or self.pending_mail:
             if self.mail.connected():
                 return {"text": f"Your email ({self.mail.status().get('address')}) is already connected. Tell me what to send, or say “keep going”.", "connect": "mail"}
-            return {"text": "Here you go: add your email right here. With Gmail, make an app password at myaccount.google.com/apppasswords (it's free) and paste it in. Then I'll pick up where we left off.",
+            return {"text": "Using Gmail? Say “connect my Gmail” and it's two clicks. Any other email, add it right here with an app password (with Gmail you can also make one at myaccount.google.com/apppasswords). Then I'll pick up where we left off.",
                     "connect": "mail", "section": "apps"}
         return {"text": "Here's everything you can connect: email, calendar, Luma's browser (for Instagram, stores and any site), and connectors for other apps. Opening Connectors.",
                 "section": "apps", "open": "apps"}
@@ -2268,6 +2320,10 @@ class Agent:
                             + ", ".join(f"{understanding.label(i).lower()} ({p:.0%})" for i, p in read)})
             if self.clock() < (self.calm_until or 0):
                 out.append({"mind": True, "text": "They're frustrated with you right now. Own it in a few words, skip the cheerfulness, keep it short, and fix it one step at a time."})
+        if self.mode != "kids" and self.connectors.hub():
+            out.append({"mind": True, "text": "Your apps hub (Composio) is connected: for their email, calendar, Slack, Notion, Drive and other apps, find the action "
+                        "with the hub's search tool, then run it with its execute tool. Reading runs on its own; sending, posting, creating or deleting waits for "
+                        "their OK automatically, so just propose it. If an app isn't connected yet, tell them to say “connect my <app>”."})
         called = self.store.setting("assistant_name")
         if called and self.mode != "kids": out.append({"mind": True, "text": f"Your owner named you {called}. That's your name with them now; answer to it."})
         if self.mode != "kids":
@@ -3093,7 +3149,7 @@ class Agent:
                 step = self.propose(name, arguments)
             except ValueError as error:
                 return {**result, "text": "I got partway, but the next step didn't work: " + str(error)}
-            if name not in READ_TOOLS:
+            if not self._reads(name, arguments):
                 return step
             used.add(name)
             tool, result = name, step
@@ -4148,7 +4204,7 @@ class Agent:
                         return {"text": f"Here's one for {who}:\n\n{body}\n\nWant me to text it? Add {who}'s number under People, then say \"text it to {who}\".", "section": "people"}
                     return {"text": str(error) + " Tell me their name and number, or add them under People.", "section": "people"}
                 # Do not include confirmation token or raw provider content in the LLM context.
-                if name in READ_TOOLS and not cancel_event.is_set():
+                if self._reads(name, arguments) and not cancel_event.is_set():
                     return self._follow_up(text, name, result, allowed, cancel_event)
                 return result
             reply = answer.get("text")

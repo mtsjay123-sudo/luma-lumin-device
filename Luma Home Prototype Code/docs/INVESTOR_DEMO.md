@@ -14,7 +14,9 @@ running, and the hardware is in development.
    your Home Screen. Check that Today shows your chats, the memory cards and GB left.
 4. **Computer mode.** Settings, then "What Luma can do on this computer": share Documents and turn on Open apps.
    Put a file with "resume" in its name in Documents.
-5. **Charge everything,** turn on Do Not Disturb, and close other apps on the Mac.
+5. **Gmail (optional, two clicks).** Say "connect my Gmail". Sign in on the page that opens (Composio, free), then
+   press Allow on Google's page. After that Luma reads your inbox on its own and asks before it sends anything.
+6. **Charge everything,** turn on Do Not Disturb, and close other apps on the Mac.
 
 ## The demo
 
@@ -28,6 +30,8 @@ running, and the hardware is in development.
 | 6 | Real work | "research the taco truck market and make me a pitch deck" | A project: research, then a deck, each step checked |
 | 7 | The phone | Open the Luma app | Today: chats, the memory fan, GB left. Tap "Turn the mic off" |
 | 8 | The computer | "find my resume on my laptop" | It finds the file in the folder you shared, and nothing else |
+| 9 | A real moment | "ngl i've been so stressed lately" | It slows down and listens like a friend who's good at this, and asks what you need |
+| 10 | Slang, any community | "what does wahala mean?" | Trouble or problem, from Nigerian Pidgin, with an example. Luma knows 1,100+ words from 51 communities |
 
 **The closing line:** it lives at home, talks like a person, remembers what matters, and gets real work done on your
 phone and computer, while your life stays on your own device.
