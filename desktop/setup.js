@@ -53,10 +53,31 @@ function writeState(home, next) {
   fs.writeFileSync(path.join(home, "setup.json"), JSON.stringify({ ...readState(home), ...next }, null, 2));
 }
 
+const pause = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+// GitHub and the download hosts now and then answer 502, 503 or 504 for a moment. A first launch shouldn't fail on
+// that: try again a few times (about 1, 3 and 8 seconds apart) before giving up. A 404 or 403 won't fix itself.
+async function withRetries(work, tries = 4) {
+  for (let i = 1; ; i++) {
+    try { return await work(); }
+    catch (err) {
+      if (i >= tries || err.permanent) throw err;
+      await pause(900 * 3 ** (i - 1));
+    }
+  }
+}
+function httpError(url, status) {
+  const err = new Error(`${new URL(url).hostname} answered ${status}`);
+  err.permanent = status < 500 && status !== 429 && status !== 408;
+  return err;
+}
+
 async function getJson(url) {
-  const r = await fetch(url, { headers: { ...UA, Accept: "application/vnd.github+json" } });
-  if (!r.ok) throw new Error(`${new URL(url).hostname} answered ${r.status}`);
-  return r.json();
+  return withRetries(async () => {
+    const r = await fetch(url, { headers: { ...UA, Accept: "application/vnd.github+json" } });
+    if (!r.ok) throw httpError(url, r.status);
+    return r.json();
+  });
 }
 
 // Download with resume and progress; verifies size and SHA-256 when known.
@@ -125,11 +146,12 @@ async function findPython(target) {
   const pattern = new RegExp(`^cpython-${PYTHON_MINOR.replace(".", "\\.")}\\.\\d+\\+\\d+-${target}-install_only\\.tar\\.gz$`);
   const base = "https://github.com/astral-sh/python-build-standalone/releases/latest/download/";
   try {
-    const r = await fetch(base + "SHA256SUMS", { headers: UA, redirect: "follow" });
-    if (r.ok) {
-      const hit = (await r.text()).split(/\r?\n/).map((l) => l.trim().split(/\s+/)).find((p) => p[1] && pattern.test(p[1]));
-      if (hit) return { name: hit[1], url: base + hit[1], sha256: hit[0] };
-    }
+    const hit = await withRetries(async () => {
+      const r = await fetch(base + "SHA256SUMS", { headers: UA, redirect: "follow" });
+      if (!r.ok) throw httpError(base, r.status);
+      return (await r.text()).split(/\r?\n/).map((l) => l.trim().split(/\s+/)).find((p) => p[1] && pattern.test(p[1]));
+    }, 3);
+    if (hit) return { name: hit[1], url: base + hit[1], sha256: hit[0] };
   } catch { /* fall back to the API below */ }
   const release = await getJson("https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest");
   const asset = release.assets.find((a) => pattern.test(a.name));
@@ -355,5 +377,5 @@ function needsSetup(home) {
 // Repair: the next start reinstalls Luma's tools and checks its brain file again.
 function forgetInstall(home) { writeState(home, { packages: null, browser: null, naturalVoice: null }); }
 
-module.exports = { forgetInstall, ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady,
+module.exports = { getJson, forgetInstall, ensure, needsSetup, MODEL, PACKAGES, pythonPath, installedBrowser, download, hashFile, ensureVision, visionDir, visionReady, ensureVoice, voiceDir, voiceReady,
   ensureNaturalVoice, naturalVoiceEnv, naturalVoiceDir, naturalVoiceReady, NATURAL_VOICE };
