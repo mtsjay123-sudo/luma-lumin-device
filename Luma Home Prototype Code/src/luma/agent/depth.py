@@ -4,8 +4,8 @@
 one-line answer or a real sit-down. Instead of guessing (and either rambling or brushing it off),
 Luma asks first, in the way they talk:
 
-    "Not gonna lie, gang, how hard you want me to think about this? 😭 I can deep dive, but if you
-     just want my answer right now, I gotchu."
+    "Ngl, how deep you want me to go on this one? 😭 I can really sit with it, or if you just want
+     my answer right now, I gotchu."
 
 Their pick sends it down the quick path (a short, honest answer) or the deep one (Luma thinks it
 through from a few angles and checks itself). Luma remembers what they usually pick for each kind
@@ -32,6 +32,11 @@ ADVICE = re.compile(r"\b(?:should i|do (?:you|u) think i should|what should i do
 LIFE = re.compile(r"\b(?:quit|job|career|boss|raise|school|college|major|degree|drop out|break up|breakup|divorce|marry|married|propose|engaged|move (?:out|in|to|away|back)|"
                   r"relationship|boyfriend|girlfriend|bf|gf|husband|wife|situationship|ex|friend|friendship|family|mom|dad|parents|invest|investing|stocks|house|rent|"
                   r"loan|debt|credit|savings|business|startup|start a|launch|therapy|health|doctor|baby|pregnant|tattoo|car|lease)\b", re.I)
+# Life decisions worth a real sit-down. Everyday asks ("what should I get my mom", "should I text him") are just answered.
+DECISION = re.compile(r"\b(?:quit|resign|leave (?:my|the|this) (?:job|school|relationship|city)|take (?:the|that|this) (?:job|offer)|change (?:careers?|jobs?|majors?)|switch (?:careers?|jobs?|majors?)|"
+                      r"drop out|go back to school|break up|breakup|divorce|marry|propose|get engaged|move (?:out|to|away|back|in with|across)|relocate|invest|buy a (?:house|home|car)|"
+                      r"start (?:a|my own) (?:business|company)|have (?:a )?(?:baby|kids)|cut (?:him|her|them) off|forgive (?:him|her|them)|confront|ask for a raise|go to therapy|take out a loan)\b", re.I)
+DILEMMA = re.compile(r"\b(?:what should i do about|am i wrong|was i wrong|is it bad (?:that|if) i|is it too late)\b", re.I)
 EXPLAIN = re.compile(r"^\W*(?:can (?:you|u) )?(?:explain|break down|walk me through|why (?:does|do|is|are|did|was|were)|how (?:does|do|did) .{3,} (?:work|happen|start)|"
                      r"what(?:'s| is| was) the (?:difference|deal) (?:between|with)|what really happened (?:with|to|in))\b", re.I)
 # "Explain" is worth asking about only when the subject could fill an hour.
@@ -64,7 +69,7 @@ def kind_of(text):
         return "news"
     if OPINION.search(t) and BIG.search(t):
         return "politics"
-    if ADVICE.search(t) and LIFE.search(t):
+    if ADVICE.search(t) and (DECISION.search(t) or DILEMMA.search(t)):  # "should I quit my job", not "what should I get my mom"
         return "advice"
     if COMPARE.search(t) and len(t.split()) >= 4 and BIG.search(t):
         return "compare"
@@ -115,7 +120,7 @@ def ask(kind, text, now, zone, profile=None, style=None, seed=0):
                  [f"It's {date}. Want the quick headlines, or the full rundown?",
                   f"Today's {date}. Should I keep it to the top stories, or go through everything?"])
     elif chill:
-        lines = ["Not gonna lie, gang, how hard you want me to think about this? 😭 I can deep dive, but if you just want my answer right now, I gotchu.",
+        lines = ["Ngl, how deep you want me to go on this one? 😭 I can really sit with it, or if you just want my answer right now, I gotchu.",
                  "Okay wait, you want my quick take, or should I really go in on this one?",
                  "Real talk, I can give you my answer right now, or I can actually sit with it for a sec. Which one?"]
     else:

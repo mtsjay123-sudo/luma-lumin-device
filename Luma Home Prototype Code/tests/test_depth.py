@@ -29,6 +29,7 @@ class KindTests(unittest.TestCase):
 
     def test_simple_things_are_just_answered(self):
         for text in ["what do you think of my outfit", "do you like pineapple on pizza", "set a reminder for 5", "hey", "good news I got the job",
+                     "what should i get my mom for her birthday", "should i text him back",
                      "should I wear the black shoes", "what's the weather", "lol", "what time is it", "catch me up on instagram", "Explain how a reminder can help me"]:
             with self.subTest(text=text):
                 self.assertIsNone(depth.kind_of(text))
