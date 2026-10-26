@@ -161,6 +161,12 @@ class ComputerTests(unittest.TestCase):
         seen = agent._observation_prompt("find my resume", "computer.find", got)
         self.assertIn(json.dumps(str(self.shared.resolve() / "work" / "Resume 2026.txt"))[1:-1], seen)
 
+    def test_find_my_file_on_my_laptop_works_without_the_brain(self):
+        agent = Agent(store=self.store, use_model=False)
+        self.assertIn("No folders are shared", agent.chat("find my resume on my laptop")["text"])
+        agent.link.computer.grant(str(self.shared))
+        self.assertIn("Resume 2026.txt", agent.chat("yo where's my resume on my computer")["text"])
+
     def test_the_owner_can_block_it_in_rules(self):
         agent = Agent(store=self.store, use_model=False)
         agent.rules.set("computer", "block")

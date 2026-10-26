@@ -124,7 +124,7 @@ class GreetingWithoutModelTests(unittest.TestCase):
             try:
                 for hello in ["yo", "what's good", "hey luma!"]:
                     reply = agent.chat(hello)["text"]
-                    self.assertIn("What can I take off your plate?", reply)
+                    self.assertRegex(reply, r"What can I take off your plate\?|What's good\?")  # casual hellos get a casual hello back
                     self.assertNotIn("Model conversation is disabled", reply)
             finally:
                 store.close()

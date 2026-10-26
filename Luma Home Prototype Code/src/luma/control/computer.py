@@ -110,7 +110,7 @@ class Computer:
             path = Path(f).resolve()
             if path.is_dir(): roots.append(path)
         if not roots:
-            raise ValueError("No folders are shared with Luma on this computer yet. Pick some in Luma Desktop, under Computer.")
+            raise ValueError("No folders are shared with Luma on this computer yet. Share one in Luma Desktop: Settings, then What Luma can do on this computer.")
         return roots
 
     def inside(self, path):
@@ -169,7 +169,7 @@ class Computer:
 
     def _open_app(self, job):
         if not self.settings()["apps"]:
-            raise ValueError("Opening apps is off on this computer. Turn it on in Luma Desktop, under Computer.")
+            raise ValueError("Opening apps is off on this computer. Turn it on in Luma Desktop: Settings, then What Luma can do on this computer.")
         name = str(job.get("name") or "").strip()
         if not APP_NAME.fullmatch(name):
             raise ValueError("Tell me the app's name, like Spotify or Notes.")
@@ -188,7 +188,7 @@ class Computer:
 
     def _look(self, job):
         if not self.settings()["screen"]:
-            raise ValueError("Looking at the screen is off on this computer. Turn it on in Luma Desktop, under Computer.")
+            raise ValueError("Looking at the screen is off on this computer. Turn it on in Luma Desktop: Settings, then What Luma can do on this computer.")
         shot = Path(tempfile.mkdtemp(prefix="luma-look-")) / "screen.png"
         try:
             if sys.platform == "darwin":

@@ -118,7 +118,9 @@ RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |t
 from luma.skills.news import asks as asks_news  # noqa: E402
 # "latest on my order", "any news from Jake": about their own life, not the headlines. ("Tell me the news" still is.)
 PERSONAL_NEWS = re.compile(r"\b(?:my|our|about (?:my|our))\b|\bfrom (?!the\b|today\b|this\b|last\b|yesterday\b|tonight\b|overnight\b|around\b|across\b|all\b)\w", re.I)
-GREETING = re.compile(r"(?:yo+|hey+(?: luma)?|hi+(?: luma)?|hello+(?: luma)?|sup|wass?up|what'?s up|whats good|what'?s good|good (?:morning|afternoon|evening)|gm|howdy|hiya)(?: luma)?")
+_HELLO = r"(?:yo+|ayo+|aye+|hey+|hi+|hello+|sup|wass?up|wsp|wsg|what'?s up|whats good|what'?s good|what'?s poppin|good (?:morning|afternoon|evening)|gm|howdy|hiya)"
+GREETING = re.compile(rf"{_HELLO}(?:\s+{_HELLO})?(?:\s+luma)?")  # "yo wassup", "hey luma"
+CHECKING_IN = re.compile(r"(?:(?:yo|hey|aye)\s+)?(?:wyd|hbu|wbu|what (?:are )?(?:you|u) doin[g']?|how (?:are )?(?:you|u) doin[g']?|how are (?:you|u)|how'?s it going|how u been|you good)(?:\s+luma)?")
 CANT_DO = re.compile(r"\bi (?:do not|don't|can ?not|can't|am unable to|'m unable to|am not able to|'m not able to)\s+(?:have\s+)?(?:access(?:\s+to)?|browse|search|look (?:it |that )?up|check|provide|get|see|retrieve|find)\b[^.]{0,60}\b(?:real[- ]?time|live|current|up[- ]to[- ]date|latest|internet|web|online|websites?|prices?|pricing|news|weather)\b|\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model|text[- ]based)", re.I)
 def _first_name(address):
     """sam@example.com -> Sam, sam.rivera@x.com -> Sam; something like info@ stays as is."""
@@ -2687,6 +2689,10 @@ class Agent:
         r"(?:(?:hey|hi|yo|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) you\s+)?(?:please\s+)?"
         r"tell\s+(?!me\b|us\b|him\b|her\b|them\b)((?:my|our)\s+[\w'-]+|[A-Za-z][\w'-]*)\s+(?:that\s+)?(.+)", re.I | re.S)
 
+    TEXT_BARE = re.compile(
+        r"(?:(?:hey|hi|yo|ayo|aye|okay|ok)[,\s]+)?(?:luma[,\s]+)?(?:(?:can|could|would|will) (?:you|u)\s+)?(?:please\s+|pls\s+)?"
+        r"(?:text|txt|message|msg|hit up|hmu)\s+((?:my|our)\s+[\w'-]+|[A-Za-z][\w'-]*)\s+(?!(?:back|later|tonight|tomorrow|tmrw|in \d|at \d|when|about)\b)(.{2,})", re.I | re.S)
+
     def _text_request(self, text):
         match = self.TEXT_REQUEST.fullmatch(text.strip())
         if match and match["r1"]:
@@ -2694,10 +2700,11 @@ class Agent:
         elif match:
             recipient, connector, request = match["r2"], "that", match["b2"]
         else:
-            tell = self.TELL_REQUEST.fullmatch(text.strip())
+            tell = self.TELL_REQUEST.fullmatch(text.strip()) or self.TEXT_BARE.fullmatch(text.strip())
             if not tell: return None
-            try: self.contacts.resolve(tell[1])  # "tell X" only means a text when X is someone saved
-            except ValueError: return None
+            if not re.match(r"(?:my|our)\s", tell[1], re.I):
+                try: self.contacts.resolve(tell[1])  # "tell X" only means a text when X is someone saved
+                except ValueError: return None
             recipient, connector, request = tell[1], "that", tell[2]
         if self.mode == "kids":
             return {"text": "I can't text people in kids mode. Ask a grown-up to help with that one."}
@@ -3202,11 +3209,22 @@ class Agent:
     TASK_VERBS = {"call", "text", "email", "pay", "buy", "pick", "take", "grab", "get", "go", "send", "check", "book", "renew", "cancel", "water", "feed", "walk",
                   "finish", "submit", "start", "clean", "do", "study", "write", "read", "move", "make", "leave", "join", "order", "return", "drink", "stretch",
                   "meditate", "pray", "charge", "follow", "schedule", "bring", "put", "wash", "cook", "defrost", "sign", "print", "mail", "drop", "turn", "tell",
-                  "ask", "visit", "see", "meet", "reply", "respond", "eat", "sleep", "wake", "log", "file", "fill", "plan", "prep", "practice", "run", "work", "change"}
+                  "ask", "visit", "see", "meet", "reply", "respond", "eat", "sleep", "wake", "log", "file", "fill", "plan", "prep", "practice", "run", "work", "change",
+                  "hit", "head", "pull", "swing", "slide", "link", "hop", "jump", "lock", "pack", "shop", "fix", "post", "update", "back", "film", "record", "edit",
+                  "upload", "text", "facetime", "dm", "hmu", "finish", "try", "learn", "watch", "listen", "stop", "quit", "feed", "clean", "shower", "cut", "trim"}
     THEN = re.compile(r",?\s+(?:and\s+)?(?:then|after that|also|plus)\s+(?=(?:put|play|text|email|call|open|set|remind|send|make|find|check|look|tell|turn|start|add|throw|bump)\b)", re.I)
+
+    # "finna hit the gym remind me at 6", "call mom later dont let me forget": what comes first, then the ask
+    REMIND_AFTER = re.compile(r"^\W*(?:(?:yo|ok(?:ay)?|so|ngl|lowkey|bro|aye|ayo)\W+)*(?:(?:i'?m |im )?(?:finna|tryna|boutta|bout to|about to|gonna|gotta|imma|i'?ma|i (?:need|have|gotta|got) to|i need to|need to)\s+)?"
+                              r"(?P<what>[a-z].{2,80}?)[,.]?\s+(?:so\s+|and\s+)?(?:remind me|dont let me forget|don't let me forget|ping me|nudge me)(?P<when>(?:\s+.*)?)$", re.I)
+    # words people tack on that aren't part of what to do: "no cap", "fr", "on god"
+    TAGS = re.compile(r"(?:\s+(?:no cap|fr(?:fr)?|for real|on god|ong|deadass|ngl|tbh|lowkey|bro|bruh|fam|sis|bestie|tho|though|real quick|asap|yk|ya know|you know))+\s*$", re.I)
 
     def _reminder(self, text, cancel_event=None):
         """'remind me to call mom at 5', 'don't let me forget the trash tonight', 'ping me tmrw to pay rent': a reminder, with or without the brain."""
+        after = None if self.REMIND_ASK.match(text.strip()) else self.REMIND_AFTER.match(text.strip())
+        if after and not re.match(r"(?:remind|set|ping|nudge|alert)\b", after["what"], re.I):
+            text = f"remind me to {after['what']}{after['when']}"
         m = self.REMIND_ASK.match(text.strip())
         if not m or self.mode == "kids":
             return None
@@ -3225,6 +3243,7 @@ class Agent:
         for _ in range(2):
             what = re.sub(r"^(?:to|about|that|for|of|i|me|on|at)\s+", "", what, flags=re.I).strip(" ,.;:!?")
         what = re.sub(r"(?:\s+(?:please|pls|plz|thanks|thank you|ok|okay|lol|real quick|for me|rn|right now|again))+$", "", what, flags=re.I).strip(" ,.;:!?")
+        what = self.TAGS.sub("", what).strip(" ,.;:!?")
         if re.fullmatch(r"(?:instead|instead of (?:that|it)|of (?:it|that)|it|that|this|about (?:it|that|this))", what, re.I):
             return None  # "just remind me instead": the conversation it belongs to knows what
         if not what:
@@ -3572,12 +3591,20 @@ class Agent:
             fresh = understanding.guess(text, 1) if unfinished.get("intent") and (asking or commanding) else []
             if fresh and fresh[0][0] not in ("chat", unfinished["intent"]) and fresh[0][1] >= (0.85 if asking else 0.97):
                 unfinished = None  # not an answer: a new request
+            elif str(unfinished.get("prefix", "")).startswith("remind me"):
+                # "remind me at 6" ... "play some drake": music, the weather or a page aren't things to be reminded of
+                fresh = understanding.guess(text, 1)
+                if fresh and fresh[0][0] in self.NOT_A_TASK and fresh[0][1] >= 0.95:
+                    unfinished = None
         if unfinished and now - unfinished["at"] < 300:
             if re.fullmatch(r"\W*(?:ok(?:ay)?|k|kk|yes|yeah|yep|sure|alright|hm+|um+|uh+|so)\W*", lowered):
                 self.unfinished = {**unfinished, "at": now}  # "ok" isn't the answer yet
                 return {"text": "Take your time. What should it be?", "asked": True}
             if unfinished.get("prefix"):
                 answer = text.strip().rstrip(".!")
+                verb = unfinished["prefix"].split()[0].lower()
+                if answer.lower().split()[:1] == [verb]:
+                    return answer + unfinished.get("suffix", "")  # they said the whole thing again: "text my sister happy bday"
                 if re.search(r"\b(?:a|an)\s*$", unfinished["prefix"]):
                     answer = re.sub(r"^(?:a|an|the)\s+", "", answer, flags=re.I)
                 return unfinished["prefix"] + answer + unfinished.get("suffix", "")
@@ -3591,6 +3618,13 @@ class Agent:
             if aimed or (recent and not rest):
                 return self._recover(level, aimed)
         return None
+
+    FIND_ON_COMPUTER = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:can|could) (?:you|u)\s+|please\s+|pls\s+)?(?:find|look for|search for|where'?s|where is|pull up)\s+"
+                                  r"(?:my|the|that)?\s*(?P<q>[\w .'-]{2,60}?)\s+(?:file\s+)?(?:on|in)\s+(?:my\s+)?(?:computer|laptop|mac|macbook|pc|desktop|documents|files|downloads)\W*$", re.I)
+
+    NOT_A_TASK = {"music", "open_site", "weather", "news", "news_topic", "search", "shop", "calendar", "check_email", "timer", "hush", "mute", "photo", "talk",
+                  "style_short", "style_casual", "open_feed", "open_goals", "open_settings", "open_library", "open_rules", "open_connectors", "open_browser",
+                  "open_identity", "open_ideas", "open_news", "list_tasks", "list_timers", "abilities", "briefing", "recap"}
 
     REMIND_LATER = re.compile(r"\b(?:and\s+|so\s+|,\s*)?(?:can you\s+|please\s+)?remind me(?: about (?:it|that|this))?(?P<when>\s+(?:later(?: on| today| tonight)?|in a (?:bit|while|little)|tonight|this (?:afternoon|evening)|tomorrow(?: morning)?|before i leave))\b(?=\s*(?:[.!,;]|$|and\b|so\b|please\b|pls\b|thanks\b|ok\b|lol\b))[.!]*", re.I)
 
@@ -3827,13 +3861,19 @@ class Agent:
             # so nothing gets added to what the owner said.
             texted = self._text_request(text)
             if texted is not None: return texted
+            found = self.FIND_ON_COMPUTER.match(lowered)
+            if found and self.mode != "kids":
+                if not self.computer_ready():
+                    return {"text": "Your computer isn't connected right now. Open Luma Desktop on it and I can look."}
+                got = self.propose("computer.find", {"query": self.TAGS.sub("", found["q"]).strip() or found["q"]})
+                return {**got, "text": got.get("summary") or "I couldn't look on your computer just now."}
             saved = self._save_contact_request(text)
             if saved is not None: return saved
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
-            music = re.match(r"^\W*(?:(?:can you|could you|please|yo|hey|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
+            music = re.match(r"^\W*(?:(?:can you|could you|can u|please|yo|hey|aye|ayo|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
             if music and self.mode != "kids" and not re.match(r"(?:a game|with|around|it cool|it safe)\b", music["what"]):
-                what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", music["what"]).strip(" ,.") or "music for right now"
+                what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", self.TAGS.sub("", music["what"])).strip(" ,.") or "music for right now"
                 from urllib.parse import quote_plus
                 if self._hands().connected():
                     # Their own Chrome, in a tab of its own behind what they're doing: music in the back.
@@ -3913,7 +3953,12 @@ class Agent:
                     hour = datetime.fromtimestamp(self.clock(), self.zone).hour
                     name = (self.profile.get("name") or "").split(" ")[0]
                     hello = ("Up late" if hour < 5 else "Morning" if hour < 12 else "Hey" if hour < 18 else "Evening") + (f", {name}" if name else "")
+                    if re.match(r"(?:yo|ayo|aye|sup|wass?up|wsp|wsg|what'?s (?:good|poppin))", lowered):
+                        return {"text": f"Yo{', ' + name if name else ''}! What's good? Need something, or just saying hi?"}  # they came in casual: so does Luma
                     return {"text": f"{hello}! What can I take off your plate? I can find the cheapest price on something, go through your email, set a reminder, or make a deck."}
+                if CHECKING_IN.fullmatch(lowered.strip(" !?.")):
+                    casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or lowered.split()[0] in {"wyd", "hbu", "wbu", "yo", "aye"}
+                    return {"text": "chillin, just here with you. wbu?" if casual else "Doing good, just here with you. How about you?"}
                 facts = presence.notice_facts(text) if self.store.setting("learn_from_chat", True) else []
                 if facts:
                     return {"text": "Got it. " + " ".join(f + "." for f in facts[:3])}

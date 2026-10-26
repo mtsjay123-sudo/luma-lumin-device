@@ -10,7 +10,7 @@ from unittest import mock
 from luma.agent import scenarios, understanding
 from luma.agent.runtime import Agent
 from luma.memory.store import Store
-from real_talk import REAL_TALK, REAL_TALK_FRESH
+from real_talk import REAL_TALK, REAL_TALK_FRESH, REAL_TALK_SLANG
 
 NOW = 1791900000.0  # Tue 13 Oct 2026, 10:00 in New York
 
@@ -24,6 +24,10 @@ class ModelTests(unittest.TestCase):
         self.assertTrue(understanding.MODEL_PATH.exists())
         self.assertGreaterEqual(accuracy(REAL_TALK), 0.95)
         self.assertGreaterEqual(accuracy(REAL_TALK_FRESH), 0.9)
+
+    def test_heavy_slang_is_still_understood(self):
+        self.assertGreaterEqual(accuracy(REAL_TALK_SLANG), 0.9)
+        self.assertNotEqual(understanding.guess("ngl i need a drink", 1)[0][0], "hush")
 
     def test_generated_scenarios_held_out(self):
         pairs = list(scenarios.generate(1500, seed=909))

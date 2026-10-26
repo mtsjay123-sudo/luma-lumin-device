@@ -57,6 +57,8 @@ SLOTS = {
             "spanish flashcards", "study flashcards", "to do list", "budget tracker", "water tracker", "reading list", "chore chart", "mood tracker"],
     "doc": ["resume", "cover letter", "business plan", "lesson plan", "trip itinerary", "meal plan", "study guide", "one pager", "report", "essay outline",
             "wedding speech", "pitch", "proposal", "newsletter", "press release"],
+    "want": ["a drink", "a nap", "a vacation", "a snack", "coffee", "a hug", "a new phone", "a haircut", "a raise", "sleep", "food", "a break from work",
+             "a day off", "some fries", "a beach day", "new shoes", "a massage", "therapy lol", "a girlfriend", "a boyfriend", "money", "some boba"],
     "question": ["how tall shaq is", "when target closes", "who won the game last night", "the best pizza near me", "how to get a passport", "what time the mall opens",
                  "how much a tesla costs", "the population of canada", "when the next iphone comes out", "how old beyonce is", "the best laptop for school",
                  "flights to tokyo in march", "if the dmv is open saturday", "how long to boil an egg", "what the score is", "who sings this song"],
@@ -215,6 +217,8 @@ INTENTS = {
         "remind me about {task}", "can you remind me to {task}", "set a reminder for {when}", "remind me {when}", "add {task} to my reminders",
         "put {task} on my to do list", "add a task {task}", "i gotta {task} {when}", "don't let me forget {task}", "remember to tell me to {task} {when}",
         "alert me {when} to {task}", "hit me up {when} about {task}", "yo remind me {task}", "{task} {when} remind me", "set an alarm for {when}",
+        "finna {task} remind me {when}", "tryna {task} {when} so remind me", "imma {task} {when} dont let me forget", "{task} remind me {when}",
+        "i gotta {task} remind me {when}", "boutta {task} remind me in a bit", "lowkey need to {task} {when} remind me",
         "wake me up {when}", "remind me", "set a reminder"]},
     "timer": {"label": "Start a timer", "ask": "How long should the timer be?", "prefix": "set a timer for ", "t": [
         "set a timer for {dur}", "timer {dur}", "start a {dur} timer", "{dur} timer", "count down {dur}", "set timer {dur}", "time me for {dur}",
@@ -231,7 +235,8 @@ INTENTS = {
         "hit up {person} and ask if {ask2}", "ask {person} if {ask2}", "text {person} and ask if {ask2}", "check if {person} {ask2}", "see if {person} wants to {task}",
         "text {person} {msg}", "text {person} saying {msg}", "send {person} a text {msg}", "message {person} {msg}", "tell {person} {msg}",
         "let {person} know {msg}", "shoot {person} a text", "hit up {person}", "text {person}", "send a message to {person}", "dm {person}",
-        "can you text {person} that {msg}", "send a text", "msg {person} {msg}", "reply to {person}", "text back {person}", "imessage {person} {msg}"]},
+        "can you text {person} that {msg}", "send a text", "msg {person} {msg}", "reply to {person}", "text back {person}", "imessage {person} {msg}",
+        "text {person} im pullin up", "tell {person} im outside", "hit {person} and say {msg}", "lmk text {person} {msg}", "text {person} wya"]},
     "email": {"label": "Write an email", "ask": "Who's it to, and what's it about?", "prefix": "email ", "t": [
         "email {person} about {topic}", "write an email to {person}", "send {person} an email saying {msg}", "draft an email to {person}",
         "write {person} an email about {topic}", "email {person} {msg}", "reply to {person}'s email", "compose an email", "write an email",
@@ -304,19 +309,25 @@ INTENTS = {
         "would you rather", "truth or dare", "how do i get better at {topic}", "is {topic} worth it", "why is {topic} a big deal", "summarize {topic}",
         "brainstorm names for my {doc}", "help me plan a date night", "what should i do this weekend", "give me a workout", "what's a good book",
         "how do i tie a tie", "how do i ask for a raise", "i'm proud of myself", "guess what", "you know what", "never mind", "nothing", "idk",
-        "wyd", "hbu", "same", "true", "fr", "no cap", "on god", "say less", "deadass", "that's crazy", "wow", "omg", "bruh"]},
+        "wyd", "hbu", "same", "true", "fr", "no cap", "on god", "say less", "deadass", "that's crazy", "wow", "omg", "bruh",
+        "{slang}", "{slang} lol", "{slang} fr", "ngl {slang}", "thats {slang}", "lowkey {slang}", "{slang} no cap", "bro {slang}", "{slang} lmaooo",
+        "ngl i need {want}", "i need {want}", "lowkey need {want}", "i could use {want}", "i want {want} so bad", "bro i need {want} fr",
+        "wassup", "whats good", "nm hbu", "chillin", "wbu", "how u been", "its giving", "i'm dead", "im weak", "that ate", "mid", "slay",
+        "this hits different", "who asked lol", "be fr", "you trippin", "ok bet", "say less fam", "nah fr", "aight", "word to my mother"]},
 }
 
 # What people wrap around a request
 OPENERS = ["", "", "", "", "", "", "hey luma ", "luma ", "hey ", "yo ", "yo luma ", "ok ", "okay ", "um ", "uh ", "so ", "hey luna ", "luna ", "ayo ", "aye ",
            "alright ", "wait ", "actually ", "oh and ", "btw ", "quick question ", "real quick ", "listen ", "ok so ", "bro ", "hey girl ", "hey lumen ",
-           "hmm ", "and ", "also ", "oh ", "ok luma ", "hey there ", "excuse me ", "sorry ", "ugh ", "lol ", "please ", "luma bottom drop "]
+           "hmm ", "and ", "also ", "oh ", "ok luma ", "hey there ", "excuse me ", "sorry ", "ugh ", "lol ", "please ", "luma bottom drop ",
+           "ngl ", "lowkey ", "fr ", "deadass ", "aight ", "sis ", "fam ", "bestie ", "on god ", "bruh ", "tbh ", "ayo luma ", "yo yo ", "aye luma "]
 ASKERS = ["", "", "", "", "can you ", "could you ", "can u ", "would you ", "will you ", "please ", "pls ", "i need you to ", "i want you to ", "go ahead and ",
           "can you please ", "could you please ", "i need to ", "help me ", "lemme ", "i'd like you to ", "id like to ", "you think you could ", "mind if you ",
           "cn u ", "can ya ", "u think u can ", "i was wondering if you could ", "do me a favor and ", "i need u to "]
 CLOSERS = ["", "", "", "", "", "", " please", " pls", " plz", " rn", " right now", " real quick", " for me", " lol", " lmao", " fr", " bro", " bruh", " thx",
            " thanks", " asap", " when you get a chance", "?", "!", "...", " luma", " ty", " please and thank you", " if you can", " ok", " k", " haha",
-           " no rush", " fam", " thank u", " 🙏", " 😭", " right", " yeah", " for real", " pleaseee", " ??", " !!"]
+           " no rush", " fam", " thank u", " 🙏", " 😭", " right", " yeah", " for real", " pleaseee", " ??", " !!",
+           " no cap", " ong", " frfr", " deadass", " tbh", " ngl", " sis", " bestie", " fr tho", " lowkey", " rn tho", " on god", " 💀"]
 IMPERATIVE = re.compile(r"^(?:open|show|go|take|pull|switch|bring|check|read|look|search|google|find|play|put|throw|bump|queue|make|build|create|write|draft|"
                         r"send|text|message|tell|let|remind|set|start|add|track|watch|keep|monitor|connect|hook|link|install|pair|turn|use|get|give|plan|"
                         r"run|brief|summarize|interview|grill|ask|learn|teach|record|forget|delete|erase|mute|record|compose|reply|launch|load|navigate|"
@@ -337,7 +348,20 @@ SLANG = [(r"\byou\b", "u"), (r"\byour\b", "ur"), (r"\byou're\b", "ur"), (r"\bple
 HEARD = [(r"\bluma\b", "luna"), (r"\bluma\b", "lumen"), (r"\bluma\b", "loom a"), (r"\bto\b", "two"), (r"\bfor\b", "four"), (r"\bremind\b", "rewind"),
          (r"\btext\b", "texts"), (r"\bemail\b", "e mail"), (r"\bdeck\b", "deg"), (r"\bplay\b", "plays"), (r"\bfeed\b", "feet"), (r"\bgoals\b", "goes"),
          (r"\btimer\b", "time her"), (r"\bpodcast\b", "pod cast"), (r"\bweather\b", "whether"), (r"\bwhere\b", "wear"), (r"\bnews\b", "noose")]
-FILLERS = ["like", "um", "uh", "you know", "kinda", "just", "basically", "literally", "actually", "lowkey", "real quick"]
+FILLERS = ["like", "um", "uh", "you know", "kinda", "just", "basically", "literally", "actually", "lowkey", "real quick", "ngl", "fr", "deadass", "tbh"]
+
+
+def _slang_terms():
+    """Everyday slang from Luma's lexicon (casual register only: no cussing, nothing aimed at people), for chat examples."""
+    try:
+        from luma.agent import slang
+        by_term, _ = slang.lexicon()
+        return sorted({e.term.lower() for e in by_term.values() if e.register == "c" and 2 <= len(e.term) <= 24})
+    except Exception:
+        return ["bet", "no cap", "fire", "mid", "bussin", "say less", "deadass", "lowkey", "slaps", "facts"]
+
+
+SLOTS["slang"] = _slang_terms()
 KEYBOARD = {c: n for c, n in zip("qwertyuiopasdfghjklzxcvbnm", ["wa", "qes", "wrd", "etf", "ryg", "tuh", "yij", "uok", "ipl", "o", "qsz", "awedxz", "serfcx", "drtgvc",
                                                                    "ftyhbv", "gyujnb", "huikmn", "jiolm", "kop", "asx", "zsdc", "xdfv", "cfgb", "vghn", "bhjm", "njk"])}
 
