@@ -57,6 +57,23 @@ class SlangTalkTests(unittest.TestCase):
         self.assertIn("don't know your dads birthday yet", self.agent.chat("whats my dads birthday")["text"])  # never Mom's by mistake
         self.assertNotIn("don't know", self.agent.chat("what's my schedule today")["text"])  # a lookup, not a memory
 
+    def test_jokes_are_told_as_written_and_not_repeated(self):
+        from luma.agent import jokes
+        first = self.agent.chat("tell me a joke")["text"]
+        self.assertIn(first, jokes.JOKES)
+        second = self.agent.chat("another one")["text"]
+        self.assertIn(second, jokes.JOKES)
+        self.assertNotEqual(first, second)
+        told = {self.agent.chat("tell me a joke")["text"] for _ in range(len(jokes.JOKES) - 2)}
+        self.assertEqual(len(told | {first, second}), len(jokes.JOKES))  # every joke once before any repeats
+        self.assertFalse(jokes.asked("another one", 0, 100))  # "another one" alone isn't a joke request
+
+    def test_a_plain_hello_gets_a_plain_hello_back(self):
+        self.agent.use_model = True  # even with the brain on: it's instant and in their register
+        reply = self.agent.chat("yo what's good luma")["text"]
+        self.assertTrue(reply.startswith(("Yo", "Ayy", "What's good")), reply)
+        self.assertRegex(self.agent.chat("hey luma")["text"], r"^(?:Up late|Morning|Hey|Evening)")
+
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)
         self.agent.chat("ngl i need a drink")

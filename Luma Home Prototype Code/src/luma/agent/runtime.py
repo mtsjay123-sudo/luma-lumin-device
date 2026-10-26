@@ -3619,6 +3619,31 @@ class Agent:
                 return self._recover(level, aimed)
         return None
 
+    def _joke(self, text, lowered):
+        """Told as written: a small brain garbles punchlines. "another one" right after gets the next one."""
+        from luma.agent import jokes
+        if not jokes.asked(text, getattr(self, "last_joke_at", 0), self.clock()):
+            return None
+        told = list(self.store.setting("jokes_told") or [])
+        line = jokes.pick(told)
+        self.store.set_setting("jokes_told", (told + [line])[-len(jokes.JOKES) + 1:])
+        self.last_joke_at = self.clock()
+        return {"text": line}
+
+    def _hello(self, lowered):
+        """A plain hello gets a plain hello back, right away, in their register. Anything more goes to the brain."""
+        if self.mode == "kids" or not GREETING.fullmatch(lowered.strip(" !?.")):
+            return None
+        import random
+        name = (self.profile.get("name") or "").split(" ")[0]
+        n = f", {name}" if name else ""
+        if re.match(r"(?:yo|ayo|aye|sup|wass?up|wsp|wsg|what'?s (?:good|poppin))", lowered.strip()):
+            return {"text": random.choice([f"Yo{n}! What's good?", f"Ayy{n}, what's up? What you on today?", f"Yo{n}. I'm here, what's the move?",
+                                           f"What's good{n}! Need something, or just checking in?"])}
+        hour = datetime.fromtimestamp(self.clock(), self.zone).hour
+        part = "Up late" if hour < 5 else "Morning" if hour < 12 else "Hey" if hour < 18 else "Evening"
+        return {"text": random.choice([f"{part}{n}! What's going on?", f"{part}{n}. What can I do for you?", f"Hey{n}! What's up?"])}
+
     # "when's my mom's birthday?", "where are my spare keys": answered straight from what they told Luma
     MEMORY_Q = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:do you|u) (?:remember|know)\s+)?(?:when'?s|when is|what'?s|what is|where'?s|where is|where are|where'?d i put|who'?s|who is)\s+"
                           r"(?P<about>(?:my|our)\s+.{2,60}?)\W*$", re.I)
@@ -3895,6 +3920,10 @@ class Agent:
             if lowered.startswith("search ") and not (self._hands().connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
             # Common ways of asking for a text are drafted by rules, not the model,
             # so nothing gets added to what the owner said.
+            joke = self._joke(text, lowered)
+            if joke is not None: return joke
+            hello = self._hello(lowered)
+            if hello is not None: return hello
             texted = self._text_request(text)
             if texted is not None: return texted
             found = self.FIND_ON_COMPUTER.match(lowered)
