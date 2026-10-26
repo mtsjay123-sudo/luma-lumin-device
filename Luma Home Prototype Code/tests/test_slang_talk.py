@@ -78,6 +78,11 @@ class SlangTalkTests(unittest.TestCase):
         self.agent.planner = lambda *a: {"type": "reply", "text": "Nah 😭 what lost you, the beats or the hooks?"}
         self.assertEqual(self.agent._without_senses("Nah, I heard the first track was solid. Which part lost you?", "ngl that album kinda mid"),
                          "Nah 😭 what lost you, the beats or the hooks?")
+        from luma.agent.runtime import SENSED
+        for claim in ["I was actually listening to it while making coffee", "had it on repeat all day", "I've been to Tokyo"]:
+            self.assertTrue(SENSED.search(claim), claim)
+        for fine in ["I hear you, that sucks", "I see what you mean", "I'm listening to you", "I'm watching out for you", "sounds like the bridge lost you"]:
+            self.assertFalse(SENSED.search(fine), fine)
         self.agent.planner = lambda *a: {"type": "reply", "text": "I watched it twice, it's great."}  # a rewrite that still claims it
         self.assertEqual(self.agent._without_senses("I watched it twice. The ending is wild though!", "seen dune?"), "The ending is wild though!")
 

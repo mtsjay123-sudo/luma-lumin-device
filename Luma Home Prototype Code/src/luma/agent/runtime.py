@@ -115,7 +115,10 @@ LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|tempe
 # A reply that says it looked something up when it didn't use a tool.
 # "I heard the first track was solid": Luma can't hear songs, watch shows, taste food or go places, so it never says it did.
 SENSED = re.compile(r"\bi(?:'ve| have| just| already)?\s+(?:heard(?!\s+(?:you|ya|u|that you|what you|ya'll|y'all)\b)|listened to|watched|seen (?:it|the|that|this)|saw (?:it|the|that|this)|"
-                    r"tasted|tried (?:it|the|that|this)|been to|visited|went to)\b|\bwhen i (?:was|went|heard|saw|watched)\b|\bi remember (?:hearing|seeing|watching|eating|going)\b", re.I)
+                    r"tasted|tried (?:it|the|that|this)|been to|visited|went to)\b|\bwhen i (?:was|went|heard|saw|watched)\b|\bi remember (?:hearing|seeing|watching|eating|going)\b|"
+                    # "I was actually listening to it while making coffee": doing things only a body does
+                    r"\bi(?:'m| am| was| been)(?: \w+){0,2} (?:listening to(?! (?:you|u|ya|what you|everything you))|watching(?! (?:you|u|your|out|over))|eating|drinking|cooking|driving|walking|running|sleeping|making (?:coffee|tea|food|dinner|breakfast|lunch))\b|"
+                    r"\b(?:had|have) (?:it|that|this) on (?:repeat|loop|blast)\b|\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|playlist)\b", re.I)
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
