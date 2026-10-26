@@ -54,6 +54,10 @@ class AppsHubTests(unittest.TestCase):
         self.assertIn("GMAIL_SEND_EMAIL", done["text_from_app"])
         mixed = {"tools": '[{"tool_slug": "GMAIL_FETCH_EMAILS"}, {"tool_slug": "GMAIL_DELETE_MESSAGE"}]', "thought": ""}
         self.assertEqual(self.agent.propose(run, mixed)["state"], "pending")  # one change in the batch: the whole batch asks
+        from luma.integrations.connectors import only_reads
+        self.assertTrue(only_reads("GMAIL_FETCH_EMAILS") and only_reads("GOOGLECALENDAR_EVENTS_LIST"))
+        for change in ["GMAIL_SEND_EMAIL", "SLACK_SEARCH_AND_DELETE_MESSAGES", "GMAIL_LIST_AND_TRASH", "GITHUB_CREATE_ISSUE", "", None]:
+            self.assertFalse(only_reads(change), change)  # a name that changes anything always asks
         self.assertTrue(self.agent.connectors.reads_only("mcp.apps.composio_manage_connections", {"toolkits": '[{"name": "gmail", "action": "list"}]'}))
         self.assertFalse(self.agent.connectors.reads_only("mcp.apps.composio_manage_connections", {"toolkits": '[{"name": "gmail", "action": "add"}]'}))
 

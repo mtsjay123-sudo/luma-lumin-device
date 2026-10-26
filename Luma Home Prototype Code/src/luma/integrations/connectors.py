@@ -43,6 +43,15 @@ COMPOSIO_MCP = "https://connect.composio.dev/mcp"
 HUB_HIDDEN = re.compile(r"REMOTE_BASH|REMOTE_WORKBENCH|SKILL|SUBMIT_FEEDBACK|WAIT_FOR_CONNECTIONS")
 # An action that only reads (GMAIL_FETCH_EMAILS, GOOGLECALENDAR_LIST_EVENTS) runs on its own. Send, post, create, update, delete ask first.
 READ_VERB = re.compile(r"_(?:GET|LIST|SEARCH|FETCH|FIND|READ|RETRIEVE|QUERY|DESCRIBE|LOOKUP|VIEW|CHECK|COUNT)(?:_|$)")
+# ...and a name that also says it changes something ("…_SEARCH_AND_DELETE") always asks.
+WRITE_VERB = re.compile(r"_(?:SEND|CREATE|UPDATE|DELETE|REMOVE|POST|PUT|PATCH|ADD|MOVE|TRASH|ARCHIVE|REPLY|FORWARD|INVITE|SHARE|UPLOAD|SET|STAR|"
+                        r"MARK|MODIFY|EDIT|WRITE|INSERT|APPEND|CLEAR|CANCEL|ACCEPT|DECLINE|SCHEDULE|PUBLISH|LIKE|FOLLOW|BLOCK|BAN|KICK|PIN|EXECUTE|"
+                        r"RUN|TRIGGER|ENABLE|DISABLE|MERGE|CLOSE|START|STOP|BATCH|PURCHASE|BUY|ORDER|PAY|TRANSFER|SUBMIT|APPROVE|REJECT)(?:_|$)")
+
+
+def only_reads(slug_):
+    slug_ = str(slug_ or "").upper()
+    return bool(READ_VERB.search(slug_)) and not WRITE_VERB.search(slug_)
 APP_NAMES = {"gmail": "Gmail", "googlecalendar": "Google Calendar", "googledrive": "Google Drive", "googledocs": "Google Docs",
              "googlesheets": "Google Sheets", "outlook": "Outlook", "slack": "Slack", "notion": "Notion", "github": "GitHub", "linear": "Linear",
              "linkedin": "LinkedIn", "youtube": "YouTube", "reddit": "Reddit", "spotify": "Spotify", "discord": "Discord", "trello": "Trello",
@@ -649,8 +658,8 @@ class Connectors:
             return isinstance(kits, list) and bool(kits) and all(isinstance(k, dict) and k.get("action") == "list" for k in kits)
         if name == "COMPOSIO_MULTI_EXECUTE_TOOL":
             items = args.get("tools")
-            return isinstance(items, list) and bool(items) and all(isinstance(i, dict) and READ_VERB.search(str(i.get("tool_slug", "")).upper()) for i in items)
-        return bool(READ_VERB.search(name))  # COMPOSIO_SEARCH_TOOLS, COMPOSIO_GET_TOOL_SCHEMAS: looking, not doing
+            return isinstance(items, list) and bool(items) and all(isinstance(i, dict) and only_reads(i.get("tool_slug")) for i in items)
+        return only_reads(name)  # COMPOSIO_SEARCH_TOOLS, COMPOSIO_GET_TOOL_SCHEMAS: looking, not doing
 
     def describe(self, luma_name, args):
         """What a hub action will do, in plain words, for the approval card: {"app": "Gmail", "does": "send email", "to": …}."""
