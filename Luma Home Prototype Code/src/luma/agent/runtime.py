@@ -3652,6 +3652,30 @@ class Agent:
         self.last_joke_at = self.clock()
         return {"text": line}
 
+    HAVE_YOU = re.compile(r"^\W*(?:(?:yo|ayo|aye|hey|ok|luma|bro|sis)\W+)*(?:have |did |ever )?(?:you|u|ya)(?: ever| already)? (?P<verb>seen|watched|heard|listened to|tried|tasted|played|been to)\s+(?P<what>.{2,60}?)\W*$", re.I)
+    HAVE_YOU_LINES = {
+        "watch": (["Can't watch it myself 😭 but I wanna know. Did you see it? Worth it?", "Nah, I can't watch stuff 😭 You seen it yet? Tell me if it's worth the hype."],
+                  ["I can't watch movies or shows myself, but I'd love to hear about it. Have you seen it? Was it worth it?"]),
+        "listen": (["I can't listen to it myself, so put me on 😭 What's the vibe?", "Can't hear it myself 😭 Is it fire or nah?"],
+                   ["I can't listen to music myself. What's it like? Is it worth a listen?"]),
+        "taste": (["Can't taste anything, sadly 😭 How was it?", "I wish lol, I can't eat. Was it good?"],
+                  ["I can't taste food, unfortunately. How was it?"]),
+        "play": (["Can't play it myself 😭 Is it good? What kind of game is it?"], ["I can't play games myself. Is it any good?"]),
+        "go": (["Never been anywhere, I live at your place lol. Did you go? How was it?"], ["I don't get out much, I live at your place. Have you been? How was it?"]),
+    }
+
+    def _have_you(self, lowered):
+        """'you seen the new spiderman?': Luma can't watch, hear, taste or go anywhere, so it says so like a friend would and lets them lead,
+        instead of a small brain making up what's in it."""
+        m = self.HAVE_YOU.match(lowered.strip())
+        if not m or self.mode == "kids" or re.match(r"(?:my|our|me|him|her|them|it|that|this|what i)\b", m["what"]):
+            return None  # "you seen my keys?" is a where-is question, "you heard me?" is just talk
+        import random
+        verb = m["verb"].lower()
+        kind = "watch" if verb in {"seen", "watched"} else "listen" if verb in {"heard", "listened to"} else "taste" if verb in {"tried", "tasted"} else "play" if verb == "played" else "go"
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or lowered == lowered.lower()
+        return {"text": random.choice(self.HAVE_YOU_LINES[kind][0 if casual else 1])}
+
     def _hello(self, lowered):
         """A plain hello gets a plain hello back, right away, in their register. Anything more goes to the brain."""
         if self.mode == "kids" or not GREETING.fullmatch(lowered.strip(" !?.")):
@@ -3946,6 +3970,8 @@ class Agent:
             if joke is not None: return joke
             hello = self._hello(lowered)
             if hello is not None: return hello
+            asked_if = self._have_you(lowered)
+            if asked_if is not None: return asked_if
             texted = self._text_request(text)
             if texted is not None: return texted
             found = self.FIND_ON_COMPUTER.match(lowered)

@@ -86,6 +86,12 @@ class SlangTalkTests(unittest.TestCase):
         self.agent.planner = lambda *a: {"type": "reply", "text": "I watched it twice, it's great."}  # a rewrite that still claims it
         self.assertEqual(self.agent._without_senses("I watched it twice. The ending is wild though!", "seen dune?"), "The ending is wild though!")
 
+    def test_have_you_seen_it_gets_an_honest_answer(self):
+        self.assertIn("Can't watch", self.agent.chat("you seen the new spiderman movie?")["text"])
+        self.assertRegex(self.agent.chat("have you heard the new sza album")["text"], r"listen|hear")
+        self.assertRegex(self.agent.chat("yo u tried the new popeyes sandwich")["text"], r"taste|eat")
+        self.assertNotIn("watch", self.agent.chat("you seen my keys?")["text"].lower())  # that's a where-is question
+
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)
         self.agent.chat("ngl i need a drink")
