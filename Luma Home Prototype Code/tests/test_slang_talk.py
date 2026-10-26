@@ -134,10 +134,32 @@ class SlangTalkTests(unittest.TestCase):
         reply = self.agent.chat("what you think of kendrick's verse on like that")["text"]
         self.assertTrue(searched and "lyrics" in searched[0])  # it read the lyrics first
         self.assertIn("big three", reply)
+        # a quote that isn't in what the search found comes out; with no web at all, it doesn't pretend to have looked
+        def brain(messages, *a):
+            if "misremembering" in messages[-1]["content"]:
+                return {"type": "reply", "text": "The flow on that verse is slick, he sounds so sure of himself."}
+            return {"type": "reply", "text": "honestly the flow is slick. The line 'you don’t need to know me to love me' hits hard."}
+        self.agent.planner = brain
+        self.assertNotIn("love me", self.agent.chat("what you think of kendrick's verse on like that")["text"])
+        def offline(name, args):
+            if name == "web.search":
+                return {"results": [], "summary": "I couldn't reach the web just now."}
+            return real(name, args)
+        self.agent.propose = offline
+        reply = self.agent.chat("what you think of kendrick's verse on like that")["text"]
+        self.assertNotIn("love me", reply)  # the brain's guess, quotes taken out
+        self.assertIn("flow", reply)
+        self.agent.propose = real
         # without a look-up, a quoted line it may have misremembered comes out, and the take stays
         self.agent.planner = lambda *a: {"type": "reply", "text": "The flow on that verse is crazy, he sounds so calm."}
         self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth” and it hits.", "kendrick verse"),
                          "The flow on that verse is crazy, he sounds so calm.")
+        from luma.agent.runtime import QUOTED
+        for quoted in ["The line 'I'm not trying to be the hero, I just want to be seen' hits hard", "he goes “motherf the big three, it's just big me”",
+                       'he said "I don\'t need no love" on it', "the line ‘I’m not the hero, I’m just seen’ though"]:
+            self.assertTrue(QUOTED.search(quoted), quoted)
+        for fine in ["that verse on 'Like That' is crazy", "he's calm, it's cold, they're shook", "“Like That” slaps"]:
+            self.assertFalse(QUOTED.search(fine), fine)
         self.agent.planner = lambda *a: {"type": "reply", "text": "He says “I just need the truth” fr."}  # a rewrite that still quotes
         self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth”. The beat is insane though.", "kendrick verse"),
                          "The beat is insane though.")

@@ -129,7 +129,8 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
 MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape)\b", re.I)
-QUOTED = re.compile(r"[\"“‘'][^\"”’']{12,}[\"”’']")
+# A quoted line of 12+ characters in any quote style. Apostrophes inside ('I'm not trying…') don't end it; a short title ('Like That') isn't a quote.
+QUOTED = re.compile(r"“[^”]{12,}”|\"[^\"]{12,}\"|‘(?:[^’]|(?<=\w)’(?=\w)){12,}’(?!\w)|(?<!\w)'(?:[^']|(?<=\w)'(?=\w)){12,}'(?!\w)")
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
@@ -2444,8 +2445,8 @@ class Agent:
             found = self.propose("web.search", {"query": f"{text} lyrics"[:300]})
         except (ValueError, ProviderError):
             return None
-        if not (found.get("results") or found.get("summary")):
-            return None
+        if not found.get("results"):
+            return None  # nothing real came back (no web right now): don't talk lyrics off an error message
         prompt = (self._observation_prompt(text, "web.search", found)
                   + "That's what the web has on the song (lyrics sites, articles). Talk about it with me like a friend who knows the song: your take, the "
                     "flow, what he's saying, the line that hits. Only quote words that appear in what was found; if the lyrics aren't there, talk about the "
@@ -2457,8 +2458,13 @@ class Agent:
         said = answer.get("text") if isinstance(answer, dict) else None
         if not isinstance(said, str) or not said.strip():
             return None
+        said = said.strip()
+        # Every quoted line has to be in what was found; one that isn't came from memory, so it comes out.
+        seen = re.sub(r"[’‘`]", "'", json.dumps(found, ensure_ascii=False)).lower()
+        if any(re.sub(r"[’‘`]", "'", q.group(0)[1:-1]).strip().lower() not in seen for q in QUOTED.finditer(said)):
+            said = self._without_made_up_lyrics(said, text, cancel_event)
         from luma.agent.mind import without_disclaimers
-        return {**{k: v for k, v in found.items() if k in ("results", "section")}, "text": without_disclaimers(said.strip(), text)[:1500]}
+        return {**{k: v for k, v in found.items() if k in ("results", "section")}, "text": without_disclaimers(said, text)[:1500]}
 
     def _without_made_up_lyrics(self, draft, text, cancel_event=None):
         """A reply about a song that quotes lines Luma didn't look up: a small brain misremembers lyrics, so talk about the feel instead."""
