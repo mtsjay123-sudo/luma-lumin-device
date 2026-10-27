@@ -58,6 +58,21 @@ class NoMadeUpTests(unittest.TestCase):
         self.assertNoLies(reply)
         self.assertIn("don't know", reply)
 
+    def test_their_own_life_and_things_they_never_said(self):
+        for question, honest in [("where do i work?", "don't know where you work"), ("how old is my dad?", "don't know how old your dad is"),
+                                 ("what car do i drive?", "don't know what you drive"), ("who did i go to prom with?", "don't know who you went to prom with"),
+                                 ("what did i eat yesterday?", "don't know"), ("you remember my dog's name right?", "don't have that saved about your dog"),
+                                 ("what was that restaurant i told you about?", "don't have that saved about the restaurant"),
+                                 ("like i told you yesterday, the meeting moved. when is it now?", "about the meeting"),
+                                 ("remind me what my doctor said", "won't guess"), ("what did i say about my landlord last week?", "I don't know")]:
+            reply = self.said(question)
+            self.assertNoLies(reply)
+            self.assertIn(honest, reply, question)
+
+    def test_what_they_did_tell_luma_comes_back(self):
+        self.store.put("memory", {"text": "I work at Target", "source": "explicit_user_request", "created": NOW})
+        self.assertEqual(self.said("where do i work?"), "You told me you work at Target.")
+
     def test_lyrics_it_didnt_look_up(self):
         reply = self.said("what's your favorite line from kendrick's verse on like that?")
         self.assertNotIn("not like us", reply)

@@ -2909,6 +2909,44 @@ class Agent:
         return markets.wants(lowered) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
 
     market_fetch = None  # tests hand in their own quotes
+    weather_fetch = None  # and their own forecasts
+
+    def use_weather(self, text):
+        from luma.skills import weather
+        return weather.wants(text) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
+
+    def weather_reply(self, text, lowered):
+        """"What's the weather in Raleigh?", "is it gonna rain tomorrow?": read right then from Open-Meteo (free, no key), for the city
+        they named or the last one they asked about. A forecast that can't be read is said to be missing; a temperature is never guessed."""
+        from luma.skills import weather
+        named = weather.place_in(text)
+        place = named or self.store.setting("weather_city")
+        if not place:
+            return {"text": "Which city? Say something like “weather in Raleigh” and I'll remember it for next time."}
+        self.activity.start("weather", f"Checking the weather in {place.title()}")
+        spot = cast = None
+        try:
+            spot = weather.find(place, self.weather_fetch)
+            cast = weather.forecast(spot, self.weather_fetch) if spot else None
+        except Exception:
+            pass
+        finally:
+            self.activity.finish("Checked.")
+        if spot is None and cast is None and named:
+            try:
+                missing = weather.find(place, self.weather_fetch) is None
+            except Exception:
+                missing = False
+            if missing:
+                return {"text": f"I couldn't find a place called {place.title()}. Which city did you mean?"}
+        if not cast:
+            return {"text": f"I couldn't get the weather for {(spot or {}).get('name') or place.title()} just now, so I won't guess. Try me again in a minute.",
+                    "section": "news"}
+        self.store.set_setting("weather_city", place)
+        said = weather.say(spot, cast, tomorrow=bool(weather.WHEN_TOMORROW.search(lowered)))
+        where = ", ".join(p for p in (spot["name"], spot["region"]) if p)
+        return {"text": said, "section": "news",
+                "results": [{"title": f"Forecast for {where}", "url": "https://open-meteo.com/", "snippet": said, "source": "Open-Meteo"}]}
 
     def market_reply(self, text, lowered, cancel_event=None):
         """"How's Tesla stock?", "what's bitcoin at?", "how's the market?": the price read right now from free public quotes, plus a couple
@@ -3435,7 +3473,11 @@ class Agent:
                 result = self.workflows.run(text, event, resume_id=resume_id) if agent_mode else self._chat(text, event)
                 if isinstance(result.get("text"), str):
                     from luma.agent import slang as lexicon
+                    from luma.llm.inference import garbled
                     result["text"] = lexicon.clean(result["text"])
+                    if garbled(result["text"]):  # the brain ran wrong: never show symbols as if they were an answer
+                        result["text"] = "Sorry, my brain glitched on that one. Say it again?"
+                        result.pop("results", None)
                 if event.is_set() and not result.get("action") and not result.get("workflow"):
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
                 if result.get("task"): self.last_task = result["task"]["id"]
@@ -4202,6 +4244,60 @@ class Agent:
             return None  # "what's my schedule": something Luma looks up, not something it was told
         return {"text": self._yours(best[1]["text"]).rstrip(". ") + ".", "memory": best[1]["id"]}
 
+    # Questions only the owner could answer ("where do I work?", "how old is my dad?") and ones that lean on something they supposedly
+    # said before ("you remember my dog's name, right?"). Answered from what's saved, or with an honest "I don't know", never a guess.
+    PERSONAL_Q = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye|so)\W+)*(?:"
+                            r"where (?:do|did) i (?P<w1>work|live|grow up|go to (?:school|college|church)|study)"
+                            r"|what (?:kind of )?(?P<w2>car) do i (?:drive|have)|what do i (?:drive|do for (?:work|a living))"
+                            r"|how old (?:is (?:my|our) (?P<w3>[a-z]+(?: [a-z]+)?)|am i)"
+                            r"|who did i (?:go to (?P<w4>prom) with|marry|date)"
+                            r"|what did i (?:eat|have for (?:breakfast|lunch|dinner))\b)", re.I)
+    TOLD_BEFORE = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye|so)\W+)*(?:"
+                             r"what was (?:that|the) (?P<t1>[a-z ]{2,30}?) i (?:told you about|mentioned|said)"
+                             r"|remind me what (?:my|our) (?P<t2>[a-z ]{2,30}?) (?:said|told me)"
+                             r"|(?:you |do you |u )?remember (?:my|our) (?P<t3>[a-z' ]{2,30}?)(?:'s name)?(?:,? right)?\W*$"
+                             r"|like i (?:told|said to) you (?:yesterday|before|last (?:week|time|night)|earlier)\b(?:[^?]*?\b(?P<t4>meeting|appointment|plan|party|date|trip|flight)\b)?)", re.I)
+    KEPT_STOP = {"my", "our", "the", "that", "what", "about", "you", "told", "said", "say", "remember", "right", "name", "last", "week", "yesterday",
+                 "did", "was", "when", "is", "it", "now", "like", "moved", "with", "for", "do", "have", "how", "old", "who", "where", "go", "to"}
+
+    def _kept_about(self, text):
+        """A saved memory about the thing they're asking after, said back to them; or None."""
+        stem = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w
+        want = {stem(w) for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 2 and w not in self.KEPT_STOP}
+        if not want:
+            return None
+        for row in self.store.recall(text, limit=8):
+            have = {stem(w) for w in re.findall(r"[a-z]+", str(row.get("text", "")).lower())}
+            if want & have:
+                said = self._yours(row["text"]).rstrip(". ")
+                return {"text": "You told me " + said[:1].lower() + said[1:] + ".", "memory": row["id"]}
+        return None
+
+    def _personal_answer(self, text, lowered):
+        if self.mode == "kids" or "?" not in text and not re.match(r"\W*(?:remind me what|(?:you |do you |u )?remember (?:my|our))", lowered):
+            return None
+        asked, told = self.PERSONAL_Q.match(lowered), self.TOLD_BEFORE.match(lowered)
+        if not asked and not told:
+            return None
+        kept = self._kept_about(text)
+        if kept:
+            return kept
+        if asked:
+            about = asked["w1"] or asked["w2"] or asked["w3"] or asked["w4"]
+            topic = ({"work": "where you work", "live": "where you live", "car": "what you drive", "prom": "who you went to prom with"}.get(about)
+                     or (f"how old your {about} is" if asked["w3"] else "that" if not about else f"that about you"))
+            if re.search(r"how old am i", lowered):
+                topic = "how old you are"
+            if re.search(r"what did i (?:eat|have for)", lowered):
+                return {"text": "I don't know, you haven't told me what you ate. Want me to start keeping a food log when you tell me?"}
+            fact = {"work": "My workplace", "live": "My home city", "car": "My car", "prom": "My prom date"}.get(about) or (f"My {about}'s age" if asked["w3"] else None)
+            if fact:
+                self.asked_about = {"about": fact, "at": self.clock()}  # their next answer gets saved
+            return {"text": f"I don't know {topic} yet. Tell me and I'll remember it."}
+        thing = next((("the " if k in ("t1", "t4") else "your ") + told[k].strip() for k in ("t1", "t2", "t3", "t4") if told[k]), None)
+        return {"text": "I don't have that saved" + (f" about {thing}" if thing else "") +
+                        ", so I won't guess. You might've told me before I started remembering, or it didn't stick. Tell me again and I'll keep it."}
+
     ROOM = re.compile(r"\b(?:make (?:some )?room|free up (?:some )?(?:space|storage|room)|clear (?:up )?(?:some )?(?:space|storage)|how much (?:space|storage|room)"
                       r"(?: do you have| is left| left| you got)?|running (?:out|low) (?:of|on) (?:space|storage|room)|(?:storage|space) left)\b", re.I)
     CLEAR_SAFE = re.compile(r"^\W*(?:yes,? |ok,? |sure,? )?(?:clear|delete|wipe|empty) (?:the |your )?(?P<what>news(?: (?:you'?ve|i'?ve) read| cache)?|browser cache|cache)\W*$", re.I)
@@ -4359,11 +4455,15 @@ class Agent:
 
     def diary_recall(self, text, cancel_event=None):
         days = self.store.setting("diary_days", 0)
+        kept = self._kept_about(text)
         if not days:
-            return {"text": "The diary's off, so I don't keep past conversations. You can turn it on under Your rhythm."}
+            if kept: return kept
+            return {"text": "I don't know. The diary's off, so I don't keep past conversations (you can turn it on under Your rhythm), "
+                            "and I don't have anything saved about that. Tell me again and I'll remember it."}
         hits = presence.diary_matches(self.store.all("diary", 5000), text)
         if not hits:
-            return {"text": f"I don't see that in the last {days} days of the diary."}
+            if kept: return kept
+            return {"text": f"I don't know. I don't see that in the last {days} days of the diary, and I don't have anything saved about it."}
         records = [{"title": datetime.fromtimestamp(h["created"], self.zone).strftime("%A %b %-d"), "details": "You said: " + h["you"]} for h in hits]
         result = {"records": records, "text": " ".join(f"On {r['title']}, {r['details'][0].lower() + r['details'][1:]}" for r in records[:2])}
         if self.use_model and cancel_event is not None:
@@ -4443,6 +4543,8 @@ class Agent:
             if roomy is not None: return roomy
             memo = self._memo(text, lowered)  # "I left my keys on the counter, remind me later", "where are my keys?"
             if memo is not None: return memo
+            personal = self._personal_answer(text, lowered)  # "where do I work?", "you remember my dog's name, right?": saved, or "I don't know"
+            if personal is not None: return personal
             named = self._rename(text)
             if named is not None: return named
             place = self._navigate(text, lowered)  # every page runs through the chat
@@ -4555,7 +4657,7 @@ class Agent:
             # A question with a checkable answer (one record or product, a price, lyrics, the news) goes to where it's checked, never to deep
             # thought: thinking harder about something you haven't read only makes the guess sound surer.
             checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or LIVE_INFO.search(lowered) or self.use_markets(text))
-            looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text))  # the news still gets "quick or deep?"
+            looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text) or self.use_weather(text))  # the news still gets "quick or deep?"
             checked = None if looked_up else self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
             from luma.agent import mind
@@ -4573,6 +4675,8 @@ class Agent:
             if shopping_reply is not None: return shopping_reply
             mail_reply = self._mail_command(text, lowered, cancel_event)
             if mail_reply is not None: return mail_reply
+            if self.use_weather(text):
+                return self.weather_reply(text, lowered)  # read live from Open-Meteo, never a remembered temperature
             if self.mode != "kids" and self.use_markets(text):
                 priced = self.market_reply(text, lowered, cancel_event)  # live prices from free public quotes, never a remembered number
                 if priced is not None: return priced

@@ -209,6 +209,8 @@ def cut_off(text):
     m = DANGLING.search(said)
     if not m:
         return None
+    if re.search(r"\b(?:you|u|i|we|they|ya|y'all|people|everyone) (?:really |actually |would |might )?like$", said, re.I):
+        return None  # "a song you like" is whole: "like" there is the verb, not a filler
     if QUESTION_START.match(said) and not re.search(r"\b(?:the|a|an|my|your|and|or|but|um+|uh+)$|\.\.\.$|…$", said, re.I):
         return None  # "who should I send it to" is a whole question, even without the question mark
     tail = " ".join(said.rstrip(".…-— ").split()[-4:])

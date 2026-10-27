@@ -61,19 +61,31 @@ class AgentActsTests(unittest.TestCase):
         self.assertTrue(result["offers"])
         self.assertNotIn("real-time", result.get("text", ""))
 
+    # (The weather itself is read from Open-Meteo now, see test_weather; store hours still come from the web.)
+    def hours(self):
+        class HoursBrowser(SearchBrowser):
+            def search_results(self):
+                return [{"title": "Target Raleigh store hours: open until 10 PM", "url": "https://stores.example/target-raleigh", "snippet": "Open today until 10 PM."}]
+        self.agent._browser = HoursBrowser(LISTINGS)
+
     def test_a_shrug_about_anything_live_becomes_a_web_search(self):
-        result = self.agent.chat("is it going to rain in raleigh")
-        self.assertEqual(result["results"][0]["url"], "https://weather.example/raleigh")
-        self.assertIn("sunny", result["text"].lower())
+        self.hours()
+        self.agent.planner = lambda messages, context, allowed, mode: (
+            {"type": "reply", "text": "Target in Raleigh is open until 10 tonight."} if "[What your" in messages[-1]["content"]
+            else shrugging_planner(messages, context, allowed, mode))
+        result = self.agent.chat("what time does target in raleigh close tonight")
+        self.assertEqual(result["results"][0]["url"], "https://stores.example/target-raleigh")
+        self.assertIn("10", result["text"])
         self.assertNotIn("real-time", result["text"])
 
     def test_live_questions_go_to_the_web_before_the_model_can_guess(self):
+        self.hours()
         self.agent.planner = lambda messages, context, allowed, mode: (
-            {"type": "reply", "text": "It's 70% likely to rain tomorrow afternoon."} if "[What your" in messages[-1]["content"]
-            else {"type": "reply", "text": "Just checked: light rain in the morning."})
-        result = self.agent.chat("is it going to rain in raleigh tomorrow")
-        self.assertEqual(result["results"][0]["url"], "https://weather.example/raleigh")
-        self.assertIn("70%", result["text"])
+            {"type": "reply", "text": "It closes at 10 PM tonight."} if "[What your" in messages[-1]["content"]
+            else {"type": "reply", "text": "Just checked: it closes at 9."})
+        result = self.agent.chat("what time does target close tonight")
+        self.assertEqual(result["results"][0]["url"], "https://stores.example/target-raleigh")
+        self.assertIn("10 PM", result["text"])
 
     def test_a_claim_to_have_checked_without_checking_gets_a_real_look(self):
         self.agent.planner = lambda messages, context, allowed, mode: (

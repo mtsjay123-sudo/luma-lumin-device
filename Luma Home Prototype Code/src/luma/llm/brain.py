@@ -136,12 +136,17 @@ def _local(call, *args, **kwargs):
 
 def _apply_local():
     from luma.llm import inference
-    wanted = _store is None or _store.setting("brain_local", "auto") != "small"
+    wanted = _store is None or _store.setting("brain_local", "auto") not in ("small", "auto_fast")  # auto_fast: too slow on this Mac
     inference.use_model_path(big_model_path() if wanted else None)
 
 
 def use_small(small=True):
     _store.set_setting("brain_local", "small" if small else "auto")
+    if not small:  # back to the bigger brain: time it afresh rather than holding old slow replies against it
+        speeds = _store.setting("brain_speed") or {}
+        speeds.pop("big", None)
+        _store.set_setting("brain_speed", speeds)
+        _store.set_setting("brain_note", None)
     _apply_local()
 
 
@@ -202,8 +207,9 @@ def status():
     from luma.llm import cloud
     big = big_model_path()
     gb = ram_gb()
-    using_big = bool(big) and (_store is None or _store.setting("brain_local", "auto") != "small")
+    using_big = bool(big) and (_store is None or _store.setting("brain_local", "auto") not in ("small", "auto_fast"))
     local_name = f"{big_label(big)} (bigger)" if using_big else "Qwen3 4B"
+    measured = speed()
     return {
         "cloud": {"on": cloud_on(), "has_key": bool(cloud_key()), "keys": {which: bool(cloud_key(which)) for which in KEY_SETTING},
                   "model": cloud_model(), "provider": provider(), "models": cloud_models(),
@@ -211,7 +217,9 @@ def status():
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb), "using_big": using_big,
                   "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else "Qwen3 30B"),
                   "studio": gb >= STUDIO_RAM_GB and not (big and ("397B" in big.name or "235B" in big.name)),
-                  "fetching": progress(), "fetch_error": fetching["error"]},
+                  "fetching": progress(), "fetch_error": fetching["error"],
+                  "speed": measured, "keeps_up": (measured.get("big" if using_big else "fast", KEEPS_UP) >= KEEPS_UP),
+                  "note": (_store.setting("brain_note") if _store else None)},
         "health": health(),
         "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
     }
@@ -248,7 +256,42 @@ def _metered(label, tier, call, args, kwargs, sent):
         usage.record(_store, label, usage.tokens(sent), 0, timer.seconds, ok=False, tier=tier)
         raise
     usage.record(_store, label, usage.tokens(sent), usage.tokens(result), timer.seconds, ok=True, tier=tier)
+    if label.endswith("(local)"):
+        note_speed(usage.tokens(result), timer.seconds)
     return result
+
+
+# -- how fast it really is on this computer -----------------------------------------
+KEEPS_UP = 8.0     # tokens a second, start to finish: below this a spoken reply leaves people waiting
+SPEED_SAMPLES = 6  # replies timed before deciding anything
+
+
+def note_speed(tokens, seconds):
+    """Every real reply is timed on this computer. If the bigger brain can't keep up here (in auto, not when the owner
+    picked it), Luma goes back to the fast one on its own; the choice comes from this Mac, not from a spec sheet."""
+    if _store is None or tokens < 20 or seconds <= 0:
+        return
+    which = "big" if inference_model_is_big() else "fast"
+    speeds = _store.setting("brain_speed") or {}
+    rates = (speeds.get(which) or [])[-(SPEED_SAMPLES - 1):] + [round(tokens / seconds, 1)]
+    speeds[which] = rates
+    _store.set_setting("brain_speed", speeds)
+    if which == "big" and len(rates) >= SPEED_SAMPLES and _median(rates) < KEEPS_UP and _store.setting("brain_local", "auto") == "auto":
+        _store.set_setting("brain_local", "auto_fast")
+        _store.set_setting("brain_note", f"The bigger brain answered at about {_median(rates):.0f} words a second on this Mac, too slow to talk, "
+                                         "so I switched to the fast one. You can switch back in Settings.")
+        _apply_local()
+
+
+def _median(values):
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2] if ordered else 0.0
+
+
+def speed():
+    """What this computer has measured: {"fast": tokens/s, "big": tokens/s} (median of recent replies), or empty."""
+    speeds = (_store.setting("brain_speed") or {}) if _store is not None else {}
+    return {which: _median(rates) for which, rates in speeds.items() if rates}
 
 
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None):

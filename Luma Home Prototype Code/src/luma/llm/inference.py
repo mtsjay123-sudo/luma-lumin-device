@@ -169,18 +169,60 @@ def _load_model():
             f"Model not found at {model_path}. Check LUMA_MODEL_PATH or run scripts/download_models.sh for the original model."
         )
 
-    with _silence_stderr():
-        _llm = Llama(
-            model_path=str(model_path),
-            n_ctx=LLAMA_CONTEXT_SIZE,
-            n_gpu_layers=_gpu_layers(),
-            n_threads=LLAMA_THREADS,
-            n_batch=min(LLAMA_BATCH_SIZE, LLAMA_CONTEXT_SIZE),
-            chat_format=LLAMA_CHAT_FORMAT,
-            verbose=False,
-        )
+    def make(layers):
+        with _silence_stderr():
+            return Llama(
+                model_path=str(model_path),
+                n_ctx=LLAMA_CONTEXT_SIZE,
+                n_gpu_layers=layers,
+                n_threads=LLAMA_THREADS,
+                n_batch=min(LLAMA_BATCH_SIZE, LLAMA_CONTEXT_SIZE),
+                chat_format=LLAMA_CHAT_FORMAT,
+                verbose=False,
+            )
+
+    global note
+    layers = _gpu_layers()
+    _llm = make(layers)
+    if layers != 0 and not _sane(_llm):
+        # Some graphics chips (a virtual Mac's, an old driver) run the model but return nonsense. The processor is
+        # slower but right: think there from now on in this process.
+        close = getattr(_llm, "close", None)
+        if close:
+            try:
+                close()
+            except Exception:
+                pass
+        _llm = None
+        os.environ["LUMA_GPU_LAYERS"] = "0"
+        _llm = make(0)
+        note = "My brain came out garbled on the graphics chip, so I'm thinking on the processor instead. A bit slower, but right."
     _llm_path = model_path
     return _llm
+
+
+note = ""  # what the brain had to change about itself, in plain words
+
+
+def garbled(text):
+    """Symbols where words should be ('+A57', '#8++&B+,#$C8'): a model running wrong, not one that's just terse."""
+    compact = "".join((text or "").split())
+    if len(compact) < 3:
+        return False
+    return sum(ch.isalpha() or ord(ch) > 0x2000 for ch in compact) / len(compact) < 0.5  # emoji are fine: "😭😭" is an answer
+
+
+def _sane(model):
+    """One tiny, fixed question right after loading: real words back, or this model is running wrong here."""
+    try:
+        reply = model.create_chat_completion(messages=[{"role": "user", "content": "Say hello in a few words."}],
+                                             max_tokens=12, temperature=0)["choices"][0]["message"]["content"]
+    except Exception:
+        return True  # it couldn't answer at all: that's handled where it happens, not mistaken for nonsense
+    if not isinstance(reply, str):
+        return True
+    import re
+    return not garbled(re.sub(r"</?think>", "", reply))
 
 
 def _strip_repetition(text: str) -> str:

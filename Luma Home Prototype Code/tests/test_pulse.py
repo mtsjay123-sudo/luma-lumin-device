@@ -76,6 +76,24 @@ class PulseTests(unittest.TestCase):
         news.youtube_feeds(self.store, lambda: NOW + 60, page)
         self.assertEqual(len(asked), before, "ids are looked up once and kept")
 
+    def test_new_uploads_from_the_channel_page_when_the_feed_is_down(self):
+        page = ('{"richItemRenderer":{"content":{"videoRenderer":{"videoId":"abcDEF12345","thumbnail":{},"title":{"runs":[{"text":"I Survived 7 Days \\u0026 Nights"}]},'
+                '"publishedTimeText":{"simpleText":"3 hours ago"}}}},{"videoRenderer":{"videoId":"zzzZZZ98765","title":{"runs":[{"text":"Second one"}]},'
+                '"publishedTimeText":{"simpleText":"Streamed 2 days ago"}}}').encode()
+        items = news.youtube_page_items(page, "YouTube · MrBeast", NOW)
+        self.assertEqual([i["title"] for i in items], ["I Survived 7 Days & Nights", "Second one"])
+        self.assertEqual(items[0]["url"], "https://www.youtube.com/watch?v=abcDEF12345")
+        self.assertEqual(items[0]["published"], NOW - 3 * 3600)
+        self.assertEqual(items[1]["published"], NOW - 2 * 86400)
+        self.assertEqual(news.youtube_page_items(b"<html>nothing here</html>", "YouTube · X", NOW), [])
+
+    def test_index_pages_are_not_stories(self):
+        feed = (b"<rss><channel><item><title>Browsing: Lothario - The Shade Room</title><link>https://theshaderoom.com/tag/x</link></item>"
+                b"<item><title>Singer surprises fans</title><link>https://theshaderoom.com/a</link></item></channel></rss>")
+        got = news.refresh(self.store, lambda: NOW, fetch=lambda url: feed)
+        self.assertNotIn("Browsing: Lothario - The Shade Room", [i["title"] for i in got["items"]])
+        self.assertIn("Singer surprises fans", [i["title"] for i in got["items"]])
+
     def test_culture_feeds_are_on_by_default(self):
         names = {f[0] for f in news.FEEDS}
         for outlet in ["The Shade Room", "TMZ", "Billboard", "XXL", "Complex", "HotNewHipHop", "Reddit", "Yahoo Finance"]:
@@ -133,6 +151,22 @@ class MarketTests(unittest.TestCase):
         self.assertNotRegex(out["text"], r"\$\d")
         self.agent.market_fetch = lambda url: (_ for _ in ()).throw(OSError("offline"))
         self.assertIn("won't guess a number", self.agent.chat("how's the market today")["text"])
+
+    def test_yahoo_finance_first_with_the_move_since_the_last_close(self):
+        chart = {"chart": {"result": [{"meta": {"regularMarketPrice": 255.0, "regularMarketTime": 1793131200, "exchangeTimezoneName": "America/New_York"},
+                                       "timestamp": [1792867800, 1792954200, 1793127000], "indicators": {"quote": [{"close": [244.0, 250.0, 255.0]}]}}]}}
+        seen = []
+        def fetch(url):
+            seen.append(url)
+            if url.startswith("https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC") or url.startswith("https://query1.finance.yahoo.com/v8/finance/chart/^GSPC"):
+                return json.dumps(chart).encode()
+            if url.startswith("https://query1.finance.yahoo.com/v8/finance/chart/TSLA"):
+                return json.dumps(chart).encode()
+            raise OSError("offline")
+        quote = markets.stock("TSLA", fetch=fetch)
+        self.assertEqual((quote["source"], quote["price"], quote["previous_close"], quote["change_pct"]), ("Yahoo Finance", 255.0, 250.0, 2.0))
+        self.assertEqual(markets.stock("^SPX", fetch=fetch)["source"], "Yahoo Finance", "the S&P 500 is ^GSPC at Yahoo")
+        self.assertFalse(any("stooq" in u for u in seen), "Stooq only when Yahoo can't be read")
 
     def test_what_counts_as_a_price_question(self):
         self.assertTrue(markets.wants("should i buy apple stock"))

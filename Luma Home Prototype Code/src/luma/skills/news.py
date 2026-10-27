@@ -155,6 +155,36 @@ def youtube_channel(handle, fetch_page):
     return {"id": next(g for g in found.groups() if g), "name": html.unescape(name.group(1)) if name else handle[1:]}
 
 
+YT_VIDEO = re.compile(r'"videoRenderer":\{"videoId":"([\w-]{11})"')
+YT_TITLE = re.compile(r'"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.){1,200})"')
+YT_WHEN = re.compile(r'"publishedTimeText":\{"simpleText":"(?:Streamed |Premiered )?(\d+) (second|minute|hour|day|week|month|year)s? ago"')
+JUNK_TITLE = re.compile(r"^\s*(?:Browsing|Archives?|Category|Tag|Author)\s*:", re.I)
+UNIT_SECONDS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 7 * 86400, "month": 30 * 86400, "year": 365 * 86400}
+
+
+def youtube_page_items(page, source, now, limit=15):
+    """New uploads from a channel's public videos page: the title, the link and roughly when, the same as its feed gives."""
+    text = page.decode("utf-8", "replace") if isinstance(page, bytes) else str(page)
+    items = []
+    for m in YT_VIDEO.finditer(text):
+        window = text[m.end(): m.end() + 6000]
+        title, when = YT_TITLE.search(window), YT_WHEN.search(window)
+        if not title:
+            continue
+        try:
+            name = json.loads(f'"{title.group(1)}"')
+        except ValueError:
+            name = title.group(1)
+        item = {"title": html.unescape(name), "url": f"https://www.youtube.com/watch?v={m.group(1)}", "source": source, "snippet": ""}
+        if when:
+            item["published"] = now - int(when.group(1)) * UNIT_SECONDS[when.group(2)]
+        if not any(i["url"] == item["url"] for i in items):
+            items.append(item)
+        if len(items) >= limit:
+            break
+    return items
+
+
 def youtube_feeds(store, clock, fetch_page):
     """Feeds for the YouTube channels Luma follows: the defaults plus any the owner added. Ids are looked up once and kept."""
     known = dict(store.setting("youtube_channels") or {})
@@ -418,6 +448,18 @@ def refresh(store, clock, allow_local=False, fetch=None):
             items = parse(fetch(url), name)
         except Exception:
             items = None
+        if not items and own:  # some sites only answer a browser
+            try:
+                items = parse(_fetch_page(url, allow_local=allow_local), name)
+            except Exception:
+                items = None
+        if not items and own and kind == "youtube":  # the feed is down: the same titles from the channel's public list of videos
+            try:
+                channel = url.split("channel_id=", 1)[1]
+                items = youtube_page_items(_fetch_page(f"https://www.youtube.com/channel/{channel}/videos", allow_local=allow_local), name, now)
+            except Exception:
+                items = None
+        items = [i for i in items or [] if not JUNK_TITLE.match(i.get("title") or "")]
         for item in items or []:
             item["topic"] = kind
             item["seen"] = now  # when Luma first saw it: the age for a story with no date

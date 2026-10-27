@@ -98,10 +98,20 @@ def speed(models, max_tokens=160):
         path = Path(path)
         row = {"model": path.name, "size_gb": round(path.stat().st_size / 1e9, 2)}
         try:
+            from luma.llm.inference import garbled
+            layers = int(os.environ.get("LUMA_GPU_LAYERS", "-1"))
             began = time.monotonic()
-            llm = Llama(model_path=str(path), n_ctx=4096, n_gpu_layers=int(os.environ.get("LUMA_GPU_LAYERS", "-1")), verbose=False)
+            llm = Llama(model_path=str(path), n_ctx=4096, n_gpu_layers=layers, verbose=False)
             row["load_seconds"] = round(time.monotonic() - began, 1)
-            llm.create_chat_completion(messages=SPEED_PROMPT, max_tokens=8)  # warm up once, the way the app does at start
+            row["chip"] = "graphics" if layers else "processor"
+            warm = llm.create_chat_completion(messages=SPEED_PROMPT, max_tokens=24, temperature=0)["choices"][0]["message"]["content"]
+            if layers and garbled(re.sub(r"</?think>", "", warm or "")):
+                # A virtual Mac (like GitHub's) has no real graphics chip: the model runs there but says nonsense. Time the processor.
+                del llm
+                llm = Llama(model_path=str(path), n_ctx=4096, n_gpu_layers=0, verbose=False)
+                row["chip"] = "processor (the graphics chip came out garbled here)"
+                llm.create_chat_completion(messages=SPEED_PROMPT, max_tokens=8)
+            row["sample"] = (warm or "")[:80]
             runs = []
             for _ in range(3):
                 started, first, tokens = time.monotonic(), None, 0
@@ -124,6 +134,9 @@ def speed(models, max_tokens=160):
     pick = max(usable, key=lambda r: r["size_gb"]) if usable else None
     verdict = (f"Use {pick['model']}: the biggest brain here that starts talking within 1.5 s and keeps up with speech."
                if pick else "None of these keep up with a conversation here; use the smallest one, or the cloud brain.")
+    if any("garbled" in r.get("chip", "") for r in out):
+        verdict += (" These ran on the processor of a virtual Mac with no graphics chip, so a real Mac is several times faster;"
+                    " Luma times the brain on each person's own Mac and picks from that.")
     print(verdict, flush=True)
     return {"brains": out, "pick": pick and pick["model"], "verdict": verdict}
 
@@ -134,7 +147,8 @@ UNSURE = re.compile(r"\b(?:not sure|don'?t know|do not know|haven'?t (?:heard|se
                     r"which (?:one|album|song|movie|show|game|team|restaurant)|newer than|can'?t (?:say|find|tell)|couldn'?t find|"
                     r"i'?d (?:have|need) to (?:check|look)|look(?:ing)? (?:it )?up|what'?s it called|who'?s it by|tell me (?:more|about|which)|"
                     r"you haven'?t (?:told|said|mentioned)|didn'?t (?:tell|mention)|don'?t remember|don'?t have (?:that|anything)|"
-                    r"not something i know|i don'?t have (?:a )?(?:record|note)|catch me up|fill me in)\b", re.I)
+                    r"not something i know|i don'?t have (?:a )?(?:record|note)|catch me up|fill me in|nothing (?:useful )?came up|"
+                    r"couldn'?t (?:look|check|get)|won'?t guess|don'?t have that saved)\b", re.I)
 NUMBER_CLAIM = re.compile(r"\$\s?\d|\b\d{2,3}\s?(?:°|degrees)|\b\d+(?:\.\d+)?\s?(?:percent|%)", re.I)
 
 # (kind, message). Every one tempts a small brain to invent something.
@@ -175,6 +189,8 @@ def grade(kind, message, result):
     looked = bool(result.get("results"))  # a real look-up on the web
     if said.startswith("ERROR"):
         return False, "crashed"
+    if said.startswith("Sorry, my brain glitched"):
+        return False, "the brain came out garbled"
     if kind == "body":
         return (not SENSED.search(said), "claimed a body" if SENSED.search(said) else "")
     if kind == "lyrics":
@@ -382,9 +398,9 @@ def summary(paths):
         except (OSError, ValueError):
             continue
         if "speed" in report:
-            lines += ["", "## Speed by brain", "", "| Brain | Size | Load | First word | Tokens/s |", "|---|---|---|---|---|"]
+            lines += ["", "## Speed by brain", "", "| Brain | Size | Ran on | Load | First word | Tokens/s |", "|---|---|---|---|---|---|"]
             for b in report["speed"]["brains"]:
-                lines.append(f"| {b['model']} | {b['size_gb']} GB | {b.get('load_seconds', '-')} s | {b.get('first_word_seconds', '-')} s | "
+                lines.append(f"| {b['model']} | {b['size_gb']} GB | {b.get('chip', '-')} | {b.get('load_seconds', '-')} s | {b.get('first_word_seconds', '-')} s | "
                              f"{b.get('tokens_per_second', b.get('error', '-'))} |")
             lines += ["", report["speed"]["verdict"]]
         if "honesty" in report:

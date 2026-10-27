@@ -1,7 +1,7 @@
 """Stock, index and crypto prices, read live from free public quotes: no account, no API key.
 
-Stocks and indexes come from Stooq's public CSV quotes (the latest price, and the last two
-daily closes for the day's move). Crypto comes from Coinbase's public market stats (the
+Stocks and indexes come from Yahoo Finance's public chart (or Stooq's public CSV quotes when Yahoo
+can't be read): the latest price, and the last daily closes for the day's move. Crypto comes from Coinbase's public market stats (the
 price now against 24 hours ago). The price is always read right then, never remembered, and
 a quote that can't be read is reported as missing, never guessed.
 """
@@ -39,6 +39,8 @@ STOOQ_QUOTE = "https://stooq.com/q/l/?s={s}&f=sd2t2ohlcv&h&e=csv"
 STOOQ_DAILY = "https://stooq.com/q/d/l/?s={s}&i=d&d1={d1}&d2={d2}"
 COINBASE = "https://api.exchange.coinbase.com/products/{p}-USD/stats"
 YAHOO_NEWS = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={s}&region=US&lang=en-US"
+YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?range=5d&interval=1d"
+YAHOO_SYMBOL = {"^SPX": "^GSPC", "^NDQ": "^IXIC", "^DJI": "^DJI"}  # the same indexes under Yahoo's names
 
 
 def wants(text):
@@ -85,7 +87,43 @@ def _stooq(sym):
 
 
 def stock(sym, now=None, fetch=None):
-    """The latest price and the day's move for a stock or index, or None when there's no quote."""
+    """The latest price and the day's move for a stock or index, or None when there's no quote. Yahoo Finance's public chart
+    first, Stooq's public quotes if Yahoo can't be read; both free, neither needs a key."""
+    try:
+        quote = _yahoo(sym, fetch)
+        if quote:
+            return quote
+    except Exception:
+        pass
+    return _stooq_stock(sym, now, fetch)
+
+
+def _yahoo(sym, fetch=None):
+    from zoneinfo import ZoneInfo
+    data = json.loads(_get(YAHOO_CHART.format(s=YAHOO_SYMBOL.get(sym, sym)), fetch).decode("utf-8", "replace") or "{}")
+    result = ((data.get("chart") or {}).get("result") or [None])[0]
+    if not result:
+        return None
+    meta = result.get("meta") or {}
+    price = meta.get("regularMarketPrice")
+    if not isinstance(price, (int, float)) or price <= 0:
+        return None
+    try:
+        zone = ZoneInfo(meta.get("exchangeTimezoneName") or "America/New_York")
+    except Exception:
+        zone = timezone.utc
+    day = lambda t: datetime.fromtimestamp(t, zone).strftime("%Y-%m-%d")
+    date = day(meta["regularMarketTime"]) if meta.get("regularMarketTime") else ""
+    out = {"symbol": sym, "price": float(price), "date": date, "source": "Yahoo Finance", "url": f"https://finance.yahoo.com/quote/{YAHOO_SYMBOL.get(sym, sym)}"}
+    closes = (((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or [])
+    before = [c for t, c in zip(result.get("timestamp") or [], closes) if isinstance(c, (int, float)) and date and day(t) < date]
+    if before:
+        out["previous_close"] = before[-1]
+        out["change_pct"] = round((price - before[-1]) / before[-1] * 100, 2)
+    return out
+
+
+def _stooq_stock(sym, now=None, fetch=None):
     rows = list(csv.DictReader(io.StringIO(_get(STOOQ_QUOTE.format(s=_stooq(sym)), fetch).decode("utf-8", "replace"))))
     if not rows:
         return None
