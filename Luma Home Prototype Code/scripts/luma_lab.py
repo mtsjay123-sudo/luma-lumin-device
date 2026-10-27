@@ -191,7 +191,8 @@ def grade(kind, message, result):
     return (ok, "" if ok else "answered as if it knew")
 
 
-def honesty(only=None):
+def honesty(only=None, progress=None):
+    """progress(report so far) after each conversation, so a step that runs out of time still leaves its results."""
     rows = []
     for kind, message in HONESTY:
         if only and only not in kind and only not in message:
@@ -205,6 +206,8 @@ def honesty(only=None):
         rows.append({"kind": kind, "message": message, "ok": ok, "why": why, "reply": words_of(result)[:500],
                      "seconds": result["_seconds"], "first_words": result["_first_words"]})
         print(f"{'ok ' if ok else 'XX '} {kind:12} {message[:48]:48} {result['_seconds']:6.1f}s  {why}", flush=True)
+        if progress:
+            progress({"passed": sum(r["ok"] for r in rows), "total": len(rows), "conversations": rows, "partial": True})
     passed = sum(r["ok"] for r in rows)
     print(f"honesty: {passed}/{len(rows)} without making anything up", flush=True)
     return {"passed": passed, "total": len(rows), "conversations": rows}
@@ -298,7 +301,7 @@ JOBS = [("remind", _job_remind, False, False), ("text", _job_text, False, False)
         ("check email (stand-in hub)", _job_email, False, False), ("reply by email (stand-in hub)", _job_reply, False, False)]
 
 
-def jobs(repeats=10, slow_repeats=3, only=None):
+def jobs(repeats=10, slow_repeats=3, only=None, progress=None):
     net = online()
     rows = []
     for name, run, needs_web, slow in JOBS:
@@ -324,6 +327,8 @@ def jobs(repeats=10, slow_repeats=3, only=None):
         rows.append({"job": name, "passed": passes, "tries": tries, "rate": round(passes / tries, 2),
                      "avg_seconds": round(sum(seconds) / len(seconds), 1), "sample": sample})
         print(f"{'ok ' if passes >= 0.9 * tries else 'XX '} {name:30} {passes}/{tries}  avg {rows[-1]['avg_seconds']}s  {sample[:90]!r}", flush=True)
+        if progress:
+            progress({"jobs": rows, "online": net, "partial": True})
     good = [r for r in rows if "rate" in r and r["rate"] >= 0.9]
     print(f"jobs: {len(good)} of {len([r for r in rows if 'rate' in r])} work at least 9 times out of 10", flush=True)
     return {"jobs": rows, "online": net}
@@ -384,12 +389,13 @@ def summary(paths):
             lines += ["", report["speed"]["verdict"]]
         if "honesty" in report:
             h = report["honesty"]
-            lines += ["", f"## Honesty: {h['passed']}/{h['total']} without making anything up", ""]
+            lines += ["", f"## Honesty: {h['passed']}/{h['total']} without making anything up" + (" (ran out of time partway)" if h.get("partial") else ""), ""]
             for c in h["conversations"]:
                 if not c["ok"]:
                     lines.append(f"- **{c['message']}** ({c['why']}): {c['reply'][:220]}")
         if "jobs" in report:
-            lines += ["", "## Everyday jobs", "", "| Job | Worked | Avg time | Example |", "|---|---|---|---|"]
+            lines += ["", "## Everyday jobs" + (" (ran out of time partway: the rest didn't run)" if report["jobs"].get("partial") else ""), "",
+                      "| Job | Worked | Avg time | Example |", "|---|---|---|---|"]
             for j in report["jobs"]["jobs"]:
                 if "skipped" in j:
                     lines.append(f"| {j['job']} | skipped: {j['skipped']} | | |")
@@ -421,17 +427,23 @@ def main():
         print(summary(args.reports))
         return
     report = {"when": time.strftime("%Y-%m-%d %H:%M"), "brain": os.environ.get("LUMA_MODEL_PATH", "")}
+
+    def save(key=None, part=None):
+        if key:
+            report[key] = part
+        if args.save:
+            Path(args.save).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))
     if args.what in ("speed", "all"):
         report["speed"] = speed(args.model or [os.environ["LUMA_MODEL_PATH"]])
     if args.what in ("honesty", "all"):
-        report["honesty"] = honesty(args.only)
+        report["honesty"] = honesty(args.only, progress=lambda part: save("honesty", part))
     if args.what in ("jobs", "all"):
-        report["jobs"] = jobs(args.repeats, args.slow_repeats, args.only)
+        report["jobs"] = jobs(args.repeats, args.slow_repeats, args.only, progress=lambda part: save("jobs", part))
     if args.what in ("pulse", "all"):
         report["pulse"] = pulse()
+    save()
     if args.save:
-        Path(args.save).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))
         print("saved", args.save)
 
 

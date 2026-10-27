@@ -137,7 +137,8 @@ jobs:
       group: brain-lab
       cancel-in-progress: false
     runs-on: macos-14
-    timeout-minutes: 170
+    # Each step has its own limit, so one that runs long fails on its own and the summary still gets written.
+    timeout-minutes: 300
     continue-on-error: true
     defaults:
       run:
@@ -158,6 +159,7 @@ jobs:
             || CMAKE_ARGS="-DGGML_METAL=on" python -m pip install --no-binary llama-cpp-python "llama-cpp-python>=0.3.9"
           python -m playwright install chromium
       - name: Speed by brain size (small, the one Luma ships, bigger)
+        timeout-minutes: 50
         run: |
           mkdir -p "$RUNNER_TEMP/brains" "$RUNNER_TEMP/lab"
           get() { curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/$1" "$2" || echo "couldn't download $1"; }
@@ -171,14 +173,17 @@ jobs:
           rm -f "$RUNNER_TEMP/brains/big.gguf"
       - name: Always-on feeds with real internet (news, culture, YouTube, Reddit, prices)
         if: always()
+        timeout-minutes: 10
         run: python scripts/luma_lab.py pulse --save "$RUNNER_TEMP/lab/pulse.json"
       - name: Honesty, 50 conversations
         if: always()
+        timeout-minutes: 80
         env:
           LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
         run: python scripts/luma_lab.py honesty --save "$RUNNER_TEMP/lab/honesty.json"
       - name: The 10 everyday jobs, with real internet
         if: always()
+        timeout-minutes: 140
         env:
           LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
         run: python scripts/luma_lab.py jobs --repeats 10 --slow-repeats 2 --save "$RUNNER_TEMP/lab/jobs.json"

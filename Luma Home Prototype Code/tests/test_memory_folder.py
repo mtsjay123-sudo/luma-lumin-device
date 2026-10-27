@@ -39,6 +39,15 @@ class MemoryFolderTests(unittest.TestCase):
         self.assertIn("June 3", self.agent.chat("it's june 3rd lol")["text"])
         self.assertIn("June 3", self.agent.chat("when's my dad's birthday?")["text"])
 
+    def test_what_they_say_is_kept_even_when_the_brain_fails(self):
+        agent = Agent(store=self.store, use_model=True, now=lambda: self.now)
+        def broken(*a, **k):
+            raise RuntimeError("My brain's model file is missing.")
+        agent._chat = broken
+        with self.assertRaises(RuntimeError):
+            agent.chat("my sister's name is dana")
+        self.assertIn("My sister's name is Dana", [m["text"] for m in self.store.all("memory", 10)])
+
     def test_a_new_question_or_a_no_isnt_saved_as_the_answer(self):
         self.agent.chat("what's my best friend's name?")
         self.agent.chat("what's the weather like?")

@@ -39,7 +39,8 @@ LINES = [
 DESIGNS = [
     ("warm", "A warm, playful young woman in her early twenties with a relaxed American accent, quick to laugh, confident and friendly, natural conversational pacing."),
     ("smooth", "A smooth, upbeat young African American woman, casual and expressive, with natural warmth, humor and a relaxed Southern lilt."),
-    ("late-night", "A calm, soft-spoken young woman with a slightly husky voice, intimate and reassuring, like a close friend on a late-night phone call."),
+    ("late-night", "A calm, warm young woman with a slightly low, smooth voice, relaxed and reassuring, speaking clearly at a normal volume, "
+                   "like a close friend on a late-night phone call."),
 ]
 
 
@@ -66,6 +67,35 @@ def render(text, expressive):
     return np.concatenate(pieces), rate, plan
 
 
+def render_with(v, engine, text, entry, restarts=2):
+    """Every phrase made by this engine itself, never quietly by the classic voice (that would rank the classic voice
+    under the new one's name). If the engine stops (a GPU hang, a timeout), it's started again and the phrase retried."""
+    plan = tts.speech_plan(text, expressive=bool(v.tags))
+    pieces, rate = [], None
+    for chunk, pause in plan:
+        last = None
+        for _ in range(3):
+            if not v.ready():
+                if entry.get("restarts", 0) >= restarts:
+                    raise RuntimeError(f"it stopped and didn't come back: {v.note or last}")
+                entry["restarts"] = entry.get("restarts", 0) + 1
+                v.state = "off"
+                if v.prepare(engine, "luma", timeout=1800)["state"] != "ready" or v.engine != engine:
+                    raise RuntimeError(f"it stopped and wouldn't start again: {v.note or last}")
+            try:
+                made = v.say(chunk, 300)
+                entry.setdefault("rtf", []).append(v.rtf)
+                break
+            except Exception as error:
+                last = error
+        else:
+            raise RuntimeError(f"couldn't say {chunk[:40]!r}: {last}")
+        pcm, r = tts._with_pause(made, pause)
+        rate = rate or r
+        pieces.append(tts._resample(pcm, r, rate))
+    return np.concatenate(pieces), rate, plan
+
+
 def main(out):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -86,16 +116,7 @@ def main(out):
     for engine in ("expressive", "studio", "dia", "csm"):
         natural.ENGINES = (engine,)
         v = natural.NaturalVoice()
-        natural._voice = v
-        misses, real_say = [], v.say
-
-        def say(text, timeout=60, real_say=real_say, misses=misses):
-            try:
-                return real_say(text, timeout)
-            except Exception as error:  # the classic voice says this phrase instead: note it, so it's not mistaken for the new voice
-                misses.append(f"{text[:50]}: {error}")
-                raise
-        v.say = say
+        natural._voice = None  # nothing here may fall back to the classic voice: render_with talks to this engine only
         started = time.time()
         status = v.prepare(engine, "luma", timeout=3600)
         entry = {"status": status, "load_seconds": round(time.time() - started, 1)}
@@ -104,17 +125,13 @@ def main(out):
             shutil.copy(ref, out / "reference.wav")  # what the new voices learn Luma's voice from
             summary["files"]["reference.wav"] = natural.REF_TEXT
         if status["state"] == "ready" and status["engine"] == engine:
-            rtfs = []
             for name, text in LINES:
                 try:
-                    pcm, rate, plan = render(text, expressive=natural.active())
+                    pcm, rate, plan = render_with(v, engine, text, entry)
                     write(out / f"{engine}-{name}.wav", pcm, rate)
                     summary["files"][f"{engine}-{name}.wav"] = words(plan)
-                    rtfs.append(v.rtf)
                 except Exception as error:
                     entry.setdefault("errors", []).append(f"{name}: {error}")
-            entry["rtf"] = rtfs
-            entry["said_by_classic_voice"] = misses
             # How fast the smaller builds are, for Macs where the full model can't keep up.
             for repo in natural.FASTER.get(engine, []):
                 try:

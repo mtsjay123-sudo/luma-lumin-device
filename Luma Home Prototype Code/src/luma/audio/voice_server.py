@@ -44,6 +44,28 @@ def _script(engine, text):
 
 state = {"model": None, "engine": None, "repo": None, "ref": None, "ref_text": None, "rate": 24000, "conds": False}
 
+# How many audio steps each model makes per second of speech, to cap how long it can go on.
+STEPS_PER_SECOND = {"expressive": 25, "studio": 12.5, "dia": 86}
+
+
+def _limit(engine, model, text, kwargs):
+    """Never more audio than this text could take to say. A model that misses its own stop would otherwise go on
+    for up to a minute and a half (CSM's default), which is just babble, and on a slower Mac takes minutes to make."""
+    import inspect
+    import re
+    tags = len(re.findall(r"\[(?:laugh|chuckle|sigh|cough)\]|\((?:laughs|sighs|coughs)\)", text))
+    n = len(re.sub(r"\[[^\]]*\]|\([^)]*\)", "", text).strip())
+    seconds = 4.0 + n / 5 + 1.5 * tags  # a little more than the longest real speech of it (see natural.sounds_right)
+    try:
+        params = inspect.signature(model.generate).parameters
+    except (TypeError, ValueError):
+        return kwargs
+    if engine == "csm" and "max_audio_length_ms" in params:
+        kwargs["max_audio_length_ms"] = int(seconds * 1000)
+    elif engine in STEPS_PER_SECOND and "max_tokens" in params:
+        kwargs["max_tokens"] = int(seconds * STEPS_PER_SECOND[engine]) + 16
+    return kwargs
+
 
 # Replies go to the real stdout; anything a library prints goes to stderr instead, so it can't garble a reply.
 _replies = os.fdopen(os.dup(1), "w")
@@ -118,7 +140,7 @@ def say(text):
     model = state["model"]
     if model is None:
         raise RuntimeError("No voice loaded yet.")
-    kwargs = {"text": _script(state["engine"], text)}
+    kwargs = _limit(state["engine"], model, text, {"text": _script(state["engine"], text)})
     if state["ref"] and os.path.exists(state["ref"]) and not state.get("conds"):
         kwargs["ref_audio"] = state["ref"]
         if state["engine"] in ("studio", "dia", "csm") and state["ref_text"]:

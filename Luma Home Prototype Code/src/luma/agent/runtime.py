@@ -3464,6 +3464,11 @@ class Agent:
                 if isinstance(error, GenerationCancelled):
                     self.history.append({"role":"assistant", "content":"Response interrupted by the user; no next action was assumed."})
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
+                if self.mode != "kids" and not agent_mode:
+                    try:
+                        self._notice(text)  # the brain failed, but what they told me is still kept: memory never depends on the brain
+                    except Exception:
+                        pass
                 raise
             finally:
                 self.busy = False

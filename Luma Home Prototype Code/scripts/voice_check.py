@@ -149,6 +149,8 @@ def main(out, size="small.en"):
             print(f"{engine} wasn't the one that loaded ({status.get('engine')} did)")
         if info.get("error") or info.get("errors"):
             print(f"{engine} didn't render everything: {info.get('error') or '; '.join(info['errors'][:2])}"[:500])
+        if info.get("restarts"):
+            print(f"{engine} stopped and was started again {info['restarts']} time(s)")
         if info.get("said_by_classic_voice"):
             print(f"{engine}: {len(info['said_by_classic_voice'])} phrases fell back to the classic voice, first: {info['said_by_classic_voice'][0]}"[:500])
         for key, design in info.items() if engine == "design" else ():
@@ -162,7 +164,7 @@ def main(out, size="small.en"):
     if report.get("ranking"):
         print("how human each voice sounds (UTMOSv2, 1 to 5), among the ones that say their words right:")
         for row in report["ranking"]:
-            print(f"  {row['voice']:12} {row['mos']:.2f}  (word error {row['wer']:.3f}){'  <- most human' if row is report['ranking'][0] else ''}")
+            print(f"  {row['voice']:12} {row['mos']:.2f}  (word error {row['wer']:.3f}, {row['files']} files){'  <- most human' if row is report['ranking'][0] else ''}")
 
 
 if __name__ == "__main__":
