@@ -135,14 +135,17 @@ def main(out):
         designs = {}
         for key, description in DESIGNS:
             started = time.time()
-            audio = []
             line = "Okay so, you're telling me he really showed up late again? Nah, that's crazy. What did you say to him?"
-            for result in model.generate_voice_design(text=line, language="English", instruct=description):
-                audio.append(np.asarray(result.audio, dtype=np.float32).reshape(-1))
-            pcm = (np.clip(np.concatenate(audio), -1, 1) * 32767).astype(np.int16)
+            tries = 0
+            for tries in range(1, 4):  # it samples, and now and then stops after a word or two: try again, like the live voice does
+                audio = [np.asarray(result.audio, dtype=np.float32).reshape(-1)
+                         for result in model.generate_voice_design(text=line, language="English", instruct=description)]
+                pcm = (np.clip(np.concatenate(audio) if audio else np.zeros(0, np.float32), -1, 1) * 32767).astype(np.int16)
+                if pcm.size and natural.sounds_right(line, pcm.size / 24000):
+                    break
             write(out / f"design-{key}.wav", pcm, 24000)
             summary["files"][f"design-{key}.wav"] = line
-            designs[key] = {"description": description, "seconds": round(time.time() - started, 1)}
+            designs[key] = {"description": description, "seconds": round(time.time() - started, 1), "tries": tries}
         summary["voices"]["design"] = designs
     except Exception as error:
         summary["voices"]["design"] = {"error": str(error)[:400]}

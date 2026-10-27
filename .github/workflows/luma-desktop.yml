@@ -80,6 +80,11 @@ jobs:
   # layer, the new open-source voices (Chatterbox-Turbo, Qwen3-TTS) learning Luma's voice, and candidate
   # designs for Luma's own voice. Download "Luma-voice-samples" from the run to listen. Never blocks a release.
   voice:
+    # Once per commit (main), one at a time: the same commit on the work branch would only wait in line for the same Macs.
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: voice-lab
+      cancel-in-progress: false
     runs-on: macos-14
     timeout-minutes: 120
     continue-on-error: true
@@ -127,6 +132,10 @@ jobs:
   # Luma's lab on a real Apple Silicon Mac with real internet: how fast each brain size talks, 50 conversations built
   # to tempt it into making things up, and the 10 everyday jobs run again and again. Doesn't hold up the release.
   brain-lab:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: brain-lab
+      cancel-in-progress: false
     runs-on: macos-14
     timeout-minutes: 170
     continue-on-error: true

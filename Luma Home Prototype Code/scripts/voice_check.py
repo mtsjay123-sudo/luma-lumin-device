@@ -140,8 +140,20 @@ def main(out, size="small.en"):
         print(f"{name:28} {r['wer']:6.3f}  {r['seconds']:5.1f}  {'' if r['ok'] else '!! '}{r['heard']}")
     print("average word error rate by voice:", json.dumps(report["by_voice"]))
     for engine, info in (summary.get("voices") or {}).items():  # which engines rendered, and why one didn't
-        if isinstance(info, dict) and (info.get("error") or info.get("errors")):
+        if not isinstance(info, dict):
+            continue
+        status = info.get("status") or {}
+        if status and status.get("state") != "ready":
+            print(f"{engine} never got ready ({status.get('state')}): {status.get('note') or 'no reason given'} tried {status.get('tried')}"[:700])
+        elif status and status.get("engine") not in (None, engine):
+            print(f"{engine} wasn't the one that loaded ({status.get('engine')} did)")
+        if info.get("error") or info.get("errors"):
             print(f"{engine} didn't render everything: {info.get('error') or '; '.join(info['errors'][:2])}"[:500])
+        if info.get("said_by_classic_voice"):
+            print(f"{engine}: {len(info['said_by_classic_voice'])} phrases fell back to the classic voice, first: {info['said_by_classic_voice'][0]}"[:500])
+        for key, design in info.items() if engine == "design" else ():
+            if isinstance(design, dict) and design.get("seconds") is not None:
+                print(f"design {key}: {design['seconds']} s")
     if report.get("naturalness_error"):
         print("couldn't rank naturalness:", report["naturalness_error"])
     failed = [f"{n}: {r['mos_error']}" for n, r in results.items() if r.get("mos_error")]
