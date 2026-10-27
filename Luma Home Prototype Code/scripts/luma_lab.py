@@ -453,7 +453,7 @@ def pulse():
             print(line, flush=True)
         now = time.time()
         items = got["items"]
-        headlines = [i for i in items if i.get("topic") not in news.NOT_HEADLINES]
+        headlines = [i for i in items if i.get("topic") not in news.NOT_TOP]
         top = news.stories(news.within(headlines, 24, now), 12)
         print("\nTOP STORIES RIGHT NOW (most outlets covering first)", flush=True)
         for st in top:

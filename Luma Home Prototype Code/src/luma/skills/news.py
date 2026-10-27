@@ -33,6 +33,7 @@ FEEDS = [
     ("TechCrunch", "https://techcrunch.com/feed/", "tech"),
     ("Hacker News", "https://news.ycombinator.com/rss", "tech"),
     ("ESPN", "https://www.espn.com/espn/rss/news", "sports"),
+    ("ESPN", f"{GOOGLE}/search?q=site:espn.com+when:1d&{REGION}", "sports"),  # the feed turns some networks away: the same stories through Google News
     # The culture: what people are actually talking about.
     ("The Shade Room", "https://theshaderoom.com/feed/", "culture"),
     ("The Shade Room", f"{GOOGLE}/search?q=site:theshaderoom.com+when:2d&{REGION}", "culture"),
@@ -45,6 +46,7 @@ FEEDS = [
     ("Google News", f"{GOOGLE}/headlines/section/topic/ENTERTAINMENT?{REGION}", "culture"),
     ("Reddit", "https://www.reddit.com/r/popular/top/.rss?t=day", "viral"),
     ("Yahoo Finance", "https://finance.yahoo.com/news/rssindex", "business"),
+    ("Google News", f"{GOOGLE}/headlines/section/topic/BUSINESS?{REGION}", "business"),
 ]
 # TikTok and Instagram can't be read without an account, and Luma doesn't scrape creators. What it reads instead, and says so: what
 # news outlets report is blowing up there, what people are searching right now (Google Trends) and what they looked up most (Wikipedia).
@@ -56,6 +58,8 @@ SOCIAL = [
 WIKI_TOP = "https://en.wikipedia.org/api/rest_v1/feed/featured/{day}"
 # Not headlines: kept for "what's trending" and "what's new on YouTube", left out of "what's in the news".
 NOT_HEADLINES = {"youtube", "viral", "trending", "lookedup", "tiktok", "instagram"}
+# Celebrity and gossip feeds: theirs is "what's the tea", not "what's the top news" (a big one still reaches the top through Google News).
+NOT_TOP = NOT_HEADLINES | {"culture"}
 # Big YouTube channels whose new uploads Luma keeps up with (the owner can add their own). A handle that doesn't resolve is skipped.
 DEFAULT_YOUTUBE = ["@MrBeast", "@KaiCenat", "@IShowSpeed", "@Complex", "@genius", "@FirstWeFeast", "@NBA", "@NFL", "@SNL", "@colbertlateshow",
                    "@WWE", "@Druski", "@BETNetworks", "@HotNewHipHop", "@XXL"]
@@ -72,7 +76,7 @@ ASKS_CULTURE = re.compile(
     r"hnhh|hot ?new ?hip ?hop|xxl|billboard)\b|\b(?:shade ?room|tsr|tmz|bossip)\b.{0,30}\b(?:post(?:ed|ing)?|say(?:ing)?|got|up to|report(?:ed|ing)?)\b|"
     r"\bwhat'?s (?:poppin|popping|trending|viral|hot|the move|going viral)\b(?! (?:with you|wit you|w you))|\bwhat'?s (?:new |good |poppin |popping |trending |viral |hot )?on "
     r"(?:youtube|yt|reddit|tik ?tok|instagram|insta|ig|the gram|twitter|x)\b|\b(?:tik ?tok|instagram|insta|ig) (?:trends?|trending|viral)\b|"
-    r"\b(?:trending|viral|blowing up|going viral) (?:on|right now|today|rn)\b|\bwhat(?:'s| is| are) (?:people|everybody|everyone|folks) (?:talking about|searching|posting)\b|"
+    r"\b(?:trending|viral|blowing up|going viral) (?:on|right now|today|rn)\b|\bwhat(?:'s| is| are) (?:people|everybody|everyone|folks) (?:talking about|searching|posting|saying)\b|"
     r"\b(?:top|biggest) trends\b|\b(?:new|latest) (?:youtube|yt) (?:videos?|uploads?)\b|\bwhat'?s the tea\b|\bspill(?: the)? tea\b|\b(?:any|the) (?:tea|gossip|drama) "
     r"(?:today|rn|right now|lately)\b|\bcelebrity (?:news|gossip|drama)\b|\bhip ?hop news\b|\bwho(?:'s| is) beefing\b", re.I)
 # Google News' own sections: what Luma reads when you ask for "sports news" or "business news".
@@ -85,7 +89,7 @@ TOPIC_WORDS = {
     "tiktok": r"tik ?tok|tiktoks",
     "instagram": r"instagram|insta|ig|the gram|reels?",
     "youtube": r"youtube|yt videos?|youtubers?",
-    "viral": r"viral|reddit|going viral|blowing up|memes?",
+    "viral": r"reddit",
     "culture": r"shade ?room|tsr|tmz|bossip|xxl|hnhh|tea|gossip|drama|beef(?:ing)?|poppin|popping|hip ?hop|rap(?:pers?)?|the culture|pop culture|celeb(?:s|rity|rities)? (?:news|gossip|drama)",
     "world": r"world news|international|global|foreign", "us": r"u\.s\.?|us news|national|america|american|domestic",
     "business": r"business|markets?|stocks?|economy|economic|finance|financial|money|wall street",
@@ -93,7 +97,7 @@ TOPIC_WORDS = {
     "sports": r"sports?|nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf|f1|ufc",
     "science": r"science|space|nasa|climate", "health": r"health|medical|medicine|covid|flu",
     "entertainment": r"entertainment|celebrity|celebrities|movies?|films?|music|hollywood|tv shows?|box office",
-    "trending": r"trending|trends|viral right now|(?:people|everybody|everyone|folks) (?:are |is )?(?:talking about|searching|posting)",
+    "trending": r"trending|trends|viral|going viral|blowing up|memes?|(?:people|everybody|everyone|folks) (?:are |is )?(?:talking about|searching|posting|saying)",
 }
 KEEP_HOURS = 48
 MAX_ITEMS = 600
@@ -281,6 +285,10 @@ def _when(text):
 
 
 GN_OUTLET = re.compile(r"<font[^>]*>([^<]{2,40})</font>", re.I)
+# Searches for "viral" pull in spam pages planted on hijacked sites ("XXX viral video Original Clip", walls of hashtags). Never a story.
+SPAM = re.compile(r"\bxxx\b|\b18\s*\+|\bnsfw\b|\bporn|\bnude|\bsex(?:y)? (?:tape|video|clip)|\bleak(?:ed)? (?:video|clip|mms)|\bmms\b|"
+                  r"\b(?:full|original|viral) (?:video|clip)s?\b.{0,40}\b(?:original|link|full|new|hot|watch)\b|\bhot pics\b|\bwatch (?:full|now|free)\b|"
+                  r"\btelegram link\b|\bclick here\b|[~*+#!]{2,}|\[\s*clips?\b|(?:#\w+.*){4,}", re.I)
 
 
 def parse_trends(data, source="Google Trends"):
@@ -317,7 +325,20 @@ def parse_trends(data, source="Google Trends"):
         out.append(item)
         if len(out) >= 25:
             break
+    out.sort(key=lambda i: searches(i.get("traffic")), reverse=True)  # the biggest searches first
     return out
+
+
+def searches(traffic):
+    """'2,000+' or '20K+' -> 2000 or 20000; 0 when unknown."""
+    m = re.match(r"\s*([\d.,]+)\s*([kKmM]?)", str(traffic or ""))
+    if not m:
+        return 0
+    try:
+        n = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return 0
+    return int(n * {"k": 1_000, "m": 1_000_000}.get(m.group(2).lower(), 1))
 
 
 def parse_mostread(data, source="Wikipedia"):
@@ -375,7 +396,7 @@ def parse(data, source):
                 if when:
                     break
         image = _image(node, summary)
-        if title and link.startswith(("https://", "http://")):
+        if title and link.startswith(("https://", "http://")) and not SPAM.search(title):
             outlet = source
             if source.startswith("Google News"):  # "Headline - Outlet": credit the outlet that wrote it
                 head, dash, tail = title.rpartition(" - ")
@@ -636,10 +657,19 @@ def terms(text):
     return {w for w in WORDS.findall(str(text).lower()) if w not in STOP and len(w) > 2 and not FILLER.match(w)}
 
 
+# "World Series", "World Cup", "Big Ten", "Top Gun": the everyday word is part of the name.
+KEEP_BEFORE = {"world": {"series", "cup", "war", "bank", "championship", "championships", "record", "tour", "health", "trade", "games"},
+               "big": {"ten", "east", "12", "brother"}, "top": {"gun", "chef", "model"}, "good": {"morning", "friday"}}
+
+
 def query_for(text):
     """The words worth searching the news for, in the order they said them."""
     out = []
-    for w in WORDS.findall(str(text).lower()):
+    said = WORDS.findall(str(text).lower())
+    for n, w in enumerate(said):
+        if w in KEEP_BEFORE and n + 1 < len(said) and said[n + 1] in KEEP_BEFORE[w]:
+            out.append(w)
+            continue
         if w in STOP or len(w) < 2 or FILLER.match(w) or w in out: continue
         if w in {"sports", "sport", "tech", "technology", "business", "science", "health", "entertainment", "us", "international", "global", "national"}:
             continue
@@ -667,9 +697,15 @@ WIRES = {"Associated Press", "AP News", "Reuters", "BBC", "BBC News", "NPR", "Th
          "CNN", "NBC News", "ABC News", "CBS News", "Bloomberg", "The Guardian", "Financial Times", "Axios", "Politico", "USA Today", "ESPN"}
 
 
+COLUMN = re.compile(r"^(?:opinion|analysis|column|commentary|review|editorial|perspective|letters?|discursive verses|the big story)\b", re.I)
+
+
 def stories(items, limit=8):
     """The same story from different outlets, grouped, biggest first: the one the most outlets are covering, then the newest.
     Each: the lead item plus 'outlets' (everyone covering it) and 'latest' (its newest update)."""
+    def same(a, b):  # the same word, or the same stem ("Israel", "Israelis"; "elect", "election")
+        return a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5])
+
     groups = []
     for item in sorted(items, key=when, reverse=True):
         words = terms(item["title"])
@@ -677,8 +713,10 @@ def stories(items, limit=8):
             continue
         home = None
         for g in groups:
-            shared = len(words & g["words"])
-            if shared >= 3 or (shared >= 2 and shared / len(words | g["words"]) >= 0.4):
+            matched = [w for w in words if any(same(w, v) for v in g["words"])]
+            shared = len(matched)
+            close_in_time = abs(when(item) - when(g["items"][0])) <= 12 * 3600
+            if shared >= 3 or (shared >= 2 and (shared / len(words | g["words"]) >= 0.3 or (close_in_time and any(len(w) >= 7 for w in matched)))):
                 home = g
                 break
         if home is None:
@@ -688,9 +726,14 @@ def stories(items, limit=8):
     out = []
     for g in groups:
         outlets = list(dict.fromkeys([i["source"] for i in g["items"]] + [o for i in g["items"] for o in i.get("also", [])]))
-        lead = next((i for i in g["items"] if i["source"] in WIRES), g["items"][0])
+        # Google's own pick for the story (the one listing who else covers it), else a first-hand outlet, else the newest. Not a column.
+        lead = max(g["items"], key=lambda i: (len(i.get("also", [])), i["source"] in WIRES and not COLUMN.search(i["title"]), when(i)))
         out.append(dict(lead, outlets=outlets, latest=max(when(i) for i in g["items"])))
-    out.sort(key=lambda s: (min(len(s["outlets"]), 6), s["latest"]), reverse=True)
+    def weight(s):  # how many outlets carry it; a first-hand outlet counts a little more, gossip only one site has a little less
+        first_hand = any(o in WIRES for o in s["outlets"])
+        lone_gossip = len(s["outlets"]) == 1 and s.get("topic") == "culture"
+        return min(len(s["outlets"]), 6) + (0.5 if first_hand else 0) - (0.5 if lone_gossip else 0)
+    out.sort(key=lambda s: (weight(s), s["latest"]), reverse=True)
     return out[:limit]
 
 

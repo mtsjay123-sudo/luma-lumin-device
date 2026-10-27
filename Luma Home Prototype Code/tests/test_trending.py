@@ -96,6 +96,36 @@ class RankingTests(unittest.TestCase):
         self.assertEqual(news.credit(gossip), "only TMZ so far")
 
 
+class FromTheLiveCheckTests(unittest.TestCase):
+    """What the first live news check (real internet, Oct 27) caught."""
+
+    def test_spam_planted_on_hijacked_sites_is_never_a_story(self):
+        for spam in ["~#(XXX+TrendinG!)* instagram viral video Original HOT Pics & Videos NEW XXX Viral",
+                     "[clips 18+ videos] 131 Second Kanda Video Viral Xaukiya on TikTok",
+                     "Adjustable double .#FirstVideoChallenge#unpopularopinion#CaughtnCamera#jokejuxtapose#crazy#love#funny",
+                     "++XXX+FULL+!!caramel macchiato viral video Original Clip in Social Media x TikTok"]:
+            self.assertTrue(news.SPAM.search(spam), spam)
+        for real in ["Onalaska family's homemade sausage race goes viral on TikTok during World Series",
+                     "The odd origin of TikTok's viral 'I'm feeling tremendous' sound", "What Is Ferritin Face? Truth Behind Viral TikTok Trend",
+                     "Israel election latest: Early Israeli election turnout highest in decades"]:
+            self.assertFalse(news.SPAM.search(real), real)
+        rss = (b'<rss><channel><item><title>~#(XXX+TrendinG!)* instagram viral video Original HOT Pics - NYC Health + Hospitals</title>'
+               b'<link>https://news.google.com/x</link></item><item><title>Instagram tests 90-minute videos - The Verge</title>'
+               b'<link>https://news.google.com/y</link></item></channel></rss>')
+        self.assertEqual([i["title"] for i in news.parse(rss, "Google News")], ["Instagram tests 90-minute videos"])
+
+    def test_the_lead_headline_is_the_story_not_a_column(self):
+        items = [item("NPR", "Discursive Verses: Jay-Z, the Super Bowl and playing with house money", hours_ago=0.1),
+                 item("Billboard", "Jay-Z named 2027 Super Bowl halftime show headliner", hours_ago=1, also=["Variety", "ESPN", "Rolling Stone"])]
+        self.assertEqual(news.stories(items)[0]["title"], "Jay-Z named 2027 Super Bowl halftime show headliner")
+
+    def test_searches_biggest_first(self):
+        self.assertEqual(news.searches("5,000+"), 5000)
+        self.assertEqual(news.searches("20K+"), 20000)
+        rss = TRENDS_RSS.replace(b"2000000+", b"200+")
+        self.assertEqual(news.parse_trends(rss)[0]["title"], "daylight saving time")
+
+
 class AgentTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -124,14 +154,14 @@ class AgentTests(unittest.TestCase):
         out = self.agent.chat("what's the top news right now")
         self.assertTrue(out["text"].split("): ", 1)[1].startswith("Senate passes"), out["text"])
         self.assertRegex(out["text"], r"\((?:BBC, NPR|NPR, BBC)")
-        self.assertIn("only TMZ so far", out["text"])
+        self.assertNotIn("Rapper spotted", out["text"], "gossip only one site has is for 'what's the tea'")
         for not_news in ("world series game 3", "octopuses", "100 Houses", "2026 World Series"):
             self.assertNotIn(not_news, out["text"])
 
     def test_whats_trending_on_tiktok_is_said_for_what_it_is(self):
         out = self.agent.chat("what's trending on tiktok rn")
         self.assertIn("silent walk", out["text"])
-        self.assertIn("can't scroll TikTok myself", out["text"])
+        self.assertIn("check my TikTok", out["text"])
         self.assertNotIn("Instagram post", out["text"])
         ig = self.agent.chat("whats viral on ig")
         self.assertIn("Instagram post breaks the internet", ig["text"])
@@ -142,6 +172,50 @@ class AgentTests(unittest.TestCase):
         self.assertIn("Most looked up yesterday: 2026 World Series", out["text"])
         self.assertIn("silent walk", out["text"])
         self.assertEqual({r["source"] for r in out["results"]} >= {"Google Trends", "Wikipedia"}, True)
+
+    def test_celebrity_gossip_doesnt_crowd_out_the_news(self):
+        self.store.set_setting("news", {"fetched": NOW, "items": [
+            item("TMZ", "Rapper spotted leaving club with mystery woman", "culture", 0.1),
+            item("TMZ", "Singer announces surprise tour dates", "culture", 0.2, also=["People", "Billboard", "Variety", "E! News"]),
+            item("Reuters", "Israel election too close to call as turnout hits 45-year high", hours_ago=1)]})
+        out = self.agent.chat("any big news?")
+        self.assertIn("Israel election", out["text"])
+        self.assertNotIn("Rapper spotted", out["text"])
+        self.assertIn("Rapper spotted", self.agent.chat("what's the tea")["text"], "it's still there for the culture")
+
+    def test_what_people_are_saying_about_something_is_a_search_for_it(self):
+        searched = []
+        self.agent._live_news = lambda query, section, hours: searched.append(query) or []
+        self.agent.chat("what are people saying about the brewers on twitter")
+        self.assertEqual(searched[0], "brewers")
+
+    def test_is_it_true(self):
+        checked = self.agent.chat("is it true the senate passed the funding bill?")
+        self.assertIn("Senate passes", checked["text"])
+        self.assertIn("BBC", checked["text"])
+        rumor = self.agent.chat("beyonce is retiring, is that true?")
+        self.assertIn("wouldn't trust it yet", rumor["text"])
+        self.assertIn("rumor", rumor["text"])
+        self.agent.look_it_up = lambda text, *a, **k: {"text": "", "results": []}
+        self.assertIn("can't say either way", self.agent.chat("is it true that octopuses have three hearts")["text"], "not news: never called a rumor")
+        self.assertIsNone(self.agent.claim_in("is it true you remember everything?"), "about Luma, not the news")
+
+    def test_their_own_feed_is_a_different_ask(self):
+        opened = []
+        self.agent.check_feed = lambda site, question, cancel_event=None: opened.append(site) or {"text": "ok"}
+        self.agent.chat("what's on my instagram")
+        self.agent.chat("whats on my fyp")
+        self.assertEqual(opened, ["instagram", "tiktok"])
+        self.agent.chat("what's trending on instagram")
+        self.assertEqual(opened, ["instagram", "tiktok"], "trending isn't their feed")
+
+    def test_a_programs_error_never_reaches_them(self):
+        from luma.agent import polish
+        self.assertEqual(polish.plain_errors("I couldn't open Instagram: The browser hit a problem: Page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://x"),
+                         "I couldn't open Instagram just now. The connection didn't go through, so check the Wi-Fi and ask me again?")
+        self.assertEqual(polish.plain_errors("That didn't work: KeyError('title')"), "That didn't work. Try me again in a minute?")
+        explaining = "You're getting a TypeError because you're adding a number and a string."
+        self.assertEqual(polish.plain_errors(explaining), explaining)
 
     def test_nothing_trending_means_saying_so(self):
         self.store.set_setting("news", {"fetched": NOW, "items": []})

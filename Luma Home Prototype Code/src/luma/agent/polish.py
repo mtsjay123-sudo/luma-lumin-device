@@ -47,3 +47,28 @@ def slips(text):
     prose = _parts(text)[::2]
     return sum(len(p.findall(piece)) for piece in prose
                for p in (DOUBLED, A_BEFORE_VOWEL, AN_BEFORE_CONSONANT, A_BEFORE_SILENT_H, SPACE_BEFORE, DOUBLE_COMMA))
+
+
+# What a person should never read: a program's error. Caught on the way out, whatever part of Luma it came from.
+TECHNICAL = re.compile(r"net::ERR_\w+|\bPage\.\w+:|Traceback \(most recent|\[Errno -?\d+\]|<urlopen error|\b(?:HTTPError|URLError|ConnectionError|"
+                       r"ConnectionRefusedError|ConnectionResetError|RemoteDisconnected|TimeoutError|SSLError|SSLCertVerificationError|JSONDecodeError|"
+                       r"KeyError|TypeError|AttributeError|IndexError|NameError|OSError|BrokenPipeError)(?:\(|: )|Tunnel connection failed|Max retries exceeded|"
+                       r"\bobject at 0x[0-9a-f]+|'NoneType' object|getaddrinfo failed|Name or service not known|nodename nor servname")
+NETWORK = re.compile(r"net::ERR_|Tunnel|URLError|urlopen|Connection(?:Error|Refused|Reset)|RemoteDisconnected|timed? ?out|Timeout|Name or service|getaddrinfo|"
+                     r"nodename|Errno (?:-?2|-?3|8|51|60|61|64|65|101|110|111|113)\]|SSL|Max retries|unreachable", re.I)
+
+
+def plain_errors(text):
+    """A reply that carries a program's error, said the way a person would: what didn't work, and what to try."""
+    if not isinstance(text, str) or "```" in text or len(text) > 400:
+        return text  # code, or a real explanation (helping debug someone's code mentions errors on purpose)
+    m = TECHNICAL.search(text)
+    if not m:
+        return text
+    online = bool(NETWORK.search(text))
+    lead = re.split(r"\s*(?::\s|\s\(|\s—\s|\s-\s)", text[:m.start()], maxsplit=1)[0].strip().rstrip(".:;,(")
+    if not (lead.lower().startswith(("i couldn", "i can't", "i didn", "that didn", "that one didn", "i got partway", "i wasn't able")) and len(lead) <= 90):
+        lead = "I couldn't reach the internet" if online else "Something went wrong on my side with that one"
+    if online and not lead.lower().endswith(("just now", "right now")):
+        lead += " just now"
+    return lead + (". The connection didn't go through, so check the Wi-Fi and ask me again?" if online else ". Try me again in a minute?")
