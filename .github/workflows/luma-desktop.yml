@@ -86,7 +86,7 @@ jobs:
       group: voice-lab
       cancel-in-progress: false
     runs-on: macos-14
-    timeout-minutes: 120
+    timeout-minutes: 150
     continue-on-error: true
     defaults:
       run:
@@ -106,6 +106,7 @@ jobs:
           curl -fsSL -o models/kokoro-82m/kokoro-v1.0.int8.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx
           curl -fsSL -o models/kokoro-82m/voices-v1.0.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
       - name: Render the samples
+        timeout-minutes: 100  # each voice is saved as it's done, so the check still runs on what was made
         env:
           LUMA_NATURAL_DIR: ${{ runner.temp }}/natural
           TQDM_DISABLE: "1"

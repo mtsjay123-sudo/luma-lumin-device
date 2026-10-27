@@ -36,6 +36,8 @@ LINES = [
     ("friend", "Man, that hurts. First thing, you're not broken, you just felt it deep. Want to talk it through, or just sit with it for a bit?"),
 ]
 
+ENGINE_BUDGET = 15 * 60  # seconds of rendering per new voice, at most
+
 DESIGNS = [
     ("warm", "A warm, playful young woman in her early twenties with a relaxed American accent, quick to laugh, confident and friendly, natural conversational pacing."),
     ("smooth", "A smooth, upbeat young African American woman, casual and expressive, with natural warmth, humor and a relaxed Southern lilt."),
@@ -125,7 +127,11 @@ def main(out):
             shutil.copy(ref, out / "reference.wav")  # what the new voices learn Luma's voice from
             summary["files"]["reference.wav"] = natural.REF_TEXT
         if status["state"] == "ready" and status["engine"] == engine:
+            began = time.time()
             for name, text in LINES:
+                if time.time() - began > ENGINE_BUDGET:  # one slow engine can't take the whole contest's time
+                    entry.setdefault("errors", []).append(f"{name}: out of time on this Mac (over {ENGINE_BUDGET // 60} minutes for this voice)")
+                    continue
                 try:
                     pcm, rate, plan = render_with(v, engine, text, entry)
                     write(out / f"{engine}-{name}.wav", pcm, rate)
@@ -133,7 +139,7 @@ def main(out):
                 except Exception as error:
                     entry.setdefault("errors", []).append(f"{name}: {error}")
             # How fast the smaller builds are, for Macs where the full model can't keep up.
-            for repo in natural.FASTER.get(engine, []):
+            for repo in (natural.FASTER.get(engine, []) if time.time() - began < ENGINE_BUDGET else []):
                 try:
                     v._call("load", 3600, engine=engine, ref=str(ref), ref_text=natural.REF_TEXT, repos=[repo])
                     v._call("say", 300, text="Okay, I'm here.")
@@ -144,6 +150,7 @@ def main(out):
         v.stop()
         natural._voice = None
         print(engine, json.dumps(entry, indent=1), flush=True)
+        (out / "summary.json").write_text(json.dumps(summary, indent=2))  # saved as it goes: a run cut short still gets checked
 
     # 4. Candidate voices for Luma's own identity (a description, no real person's voice).
     try:
