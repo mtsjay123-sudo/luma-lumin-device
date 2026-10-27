@@ -185,7 +185,7 @@
       big.append(dots(s.free >= 10 ? Math.round(s.free) : s.free.toFixed(1)), el("span", "unit", "GB left"));
       big.setAttribute("aria-label", `${s.free} GB left`);
       const lumaGB = (s.luma.models || 0) + (s.luma.data || 0) + (s.luma.files || 0);
-      label.textContent = `Out of ${Math.round(s.total)} GB. Luma itself uses ${size(lumaGB)}.` + (s.low ? " Running low. Delete old projects to free up space." : "");
+      label.textContent = `Out of ${Math.round(s.total)} GB. Luma itself uses ${size(lumaGB)}.` + (s.low ? " Running low. Tap Make room to clear space." : "");
       bar.setAttribute("aria-label", `${s.free} of ${s.total} GB free`);
       const n = 40, luma = Math.round((lumaGB / s.total) * n), other = Math.max(0, Math.round(((s.used - lumaGB) / s.total) * n));
       for (let i = 0; i < n; i++) bar.append(el("i", i < luma ? "luma" : i < luma + other ? "other" : ""));
@@ -257,6 +257,39 @@
     $("sheet-body").replaceChildren(body);
     if (!sheet.open) sheet.showModal();
   }
+  // Make room: clear what's taking up space on the Luma, so new memories fit. Memories go one by one, from the deck.
+  const bytes = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (Number(n) || 0) + " bytes");
+  async function openRoom(freed) {
+    const wrap = el("div", "room");
+    wrap.append(el("p", "hint", "Clear what you don't need so new memories fit. Memories only go when you forget them."));
+    openSheet("Make room", wrap);
+    let sp;
+    try { sp = await api("/api/space"); } catch (e) { wrap.append(el("p", "hint", e.message)); return; }
+    if (freed) wrap.append(el("p", "hint", `Freed ${bytes(freed)}.`));
+    if (!sp.options.length) wrap.append(el("p", "hint", "Nothing else is taking up room right now."));
+    for (const o of sp.options) {
+      const row = el("div", "row");
+      const words = el("span");
+      words.append(el("b", null, `${o.label} \u00b7 ${bytes(o.bytes)}`), el("small", null, o.detail || ""));
+      const go = el("button", "pill", "Clear");
+      go.type = "button";
+      go.addEventListener("click", async () => {
+        if (!confirm(`Clear ${o.label.toLowerCase()}? This can't be undone.`)) return;
+        try { const r = await api("/api/space/clean", { key: o.key }); openRoom(r.freed_bytes); refresh(); } catch (e) { toast(e.message); }
+      });
+      row.append(words, go);
+      wrap.append(row);
+    }
+    const m = sp.memories || {};
+    const old = el("button", "pill danger", "Forget memories older than 6 months");
+    old.type = "button";
+    old.addEventListener("click", async () => {
+      if (!confirm("Forget every memory older than 6 months? This can't be undone.")) return;
+      try { const r = await api("/api/memory/forget", { older_than_days: 182 }); toast(`Forgot ${r.forgotten}.`); openRoom(); refresh(); } catch (e) { toast(e.message); }
+    });
+    wrap.append(el("p", "hint", `Memories: ${m.used || 0}${m.limit ? " of " + m.limit + " on the free plan" : ""} (${bytes(m.bytes)}).`), old);
+  }
+  $("make-room").addEventListener("click", () => openRoom());
   $("sheet-close").addEventListener("click", () => sheet.close());
   sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
 

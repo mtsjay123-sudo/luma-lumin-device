@@ -246,6 +246,31 @@ class PhoneAppTests(unittest.TestCase):
         self.run_jobs()
         self.assertEqual(self.cloud.phone_reads(link)[-1]["today"], {"kids": True, "name": "", "chats": [], "memory": None, "device": None, "projects": [], "approvals": 0})
 
+    def test_the_memory_folder_and_making_room_work_from_the_phone(self):
+        link = self.pair()
+        keep = self.store.put("memory", {"text": "My sister's name is Dana", "source": "explicit_user_request", "created": time.time()})
+        self.store.put("memory", {"text": "Mom's birthday is June 3", "source": "explicit_user_request", "created": time.time() - 400 * 86400})
+        self.store.set_setting("news", {"fetched": time.time(), "items": [{"title": "headline " * 30, "url": "https://a.com", "source": "A"}] * 10})
+        def ask(message):
+            self.cloud.phone_says(link, message)
+            self.app.poll_once()
+            self.run_jobs()
+            return self.cloud.phone_reads(link)[-1]
+        got = ask({"t": "memory"})
+        self.assertEqual(got["t"], "memory")
+        self.assertEqual({k["kind"] for k in got["memory"]["kinds"]}, {"People", "Dates"})
+        got = ask({"t": "forget", "older_than_days": 182})
+        self.assertEqual(got["forgotten"], 1)
+        self.assertEqual([m["id"] for m in self.store.all("memory", 10)], [keep["id"]])
+        room = ask({"t": "space"})["space"]
+        self.assertIn("news", [o["key"] for o in room["options"]])
+        cleaned = ask({"t": "clean", "key": "news"})
+        self.assertGreater(cleaned["freed"], 0)
+        self.assertIn("device", cleaned["today"])
+        self.assertIn("Pick something", ask({"t": "clean", "key": "memories"})["text"])
+        self.agent.set_mode("kids")
+        self.assertIn("adult mode", ask({"t": "memory"})["text"])
+
     def test_kids_mode_keeps_the_phone_out(self):
         link = self.pair()
         self.agent.set_mode("kids")

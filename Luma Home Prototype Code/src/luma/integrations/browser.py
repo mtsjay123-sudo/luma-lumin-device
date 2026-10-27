@@ -406,6 +406,38 @@ class BrowserSession:
             page.wait_for_timeout(1200)
         return {"pressed": None, **self._snapshot(page)}
 
+    def _do_checkout(self, page, cart_url):
+        """Open the cart, go on to checkout, and read what the order would be. Nothing is bought here."""
+        page.goto(check_url(cart_url, self.allow_local), wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        info = page.evaluate(CHECKOUT_JS, "place")
+        if not info.get("button"):
+            onward = page.evaluate(CHECKOUT_JS, "proceed")
+            if onward.get("button"):
+                page.locator('[data-luma-order="1"]').first.click(timeout=8000)  # going to checkout, not paying
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=15000)
+                except Exception:
+                    pass
+                page.wait_for_timeout(2500)
+                check_url(page.url, self.allow_local)
+            info = page.evaluate(CHECKOUT_JS, "place")
+        return info
+
+    def _do_place_order(self, page, expected_total, expected_button):
+        """Press the place-order button, only if the page still shows exactly what the owner said yes to."""
+        info = page.evaluate(CHECKOUT_JS, "place")
+        if info.get("password") or info.get("cardFields"):
+            raise ValueError("The store wants your card details or password typed in. I never type those, so finish this one yourself in Luma's browser.")
+        if info.get("total") != expected_total or info.get("button") != expected_button:
+            raise ValueError(f"The order changed since you said yes (it shows {('$' + info['total']) if info.get('total') else 'no total'} now), so I didn't buy anything.")
+        page.locator('[data-luma-order="1"]').first.click(timeout=8000)
+        page.wait_for_timeout(5000)
+        check_url(page.url, self.allow_local)
+        text = page.evaluate("() => document.body ? document.body.innerText.slice(0, 8000) : ''")
+        number = ORDER_NUMBER.search(text)
+        return {"confirmed": bool(ORDERED.search(text)), "order_number": number.group(1) if number else None, "url": page.url}
+
     def _do_search_results(self, page):
         """Results from a search page: title, real address and snippet for each."""
         return page.evaluate(SEARCH_RESULTS_JS)
@@ -440,6 +472,8 @@ class BrowserSession:
     def focused(self): return self._call("focused")
     def drive(self, kind, data=None): return self._call("drive", str(kind), dict(data or {}), timeout=30)
     def press_cart(self, learned=None): return self._call("press_cart", learned, timeout=90)
+    def checkout(self, cart_url): return self._call("checkout", cart_url, timeout=90)
+    def place_order(self, expected_total, expected_button): return self._call("place_order", expected_total, expected_button, timeout=90)
 
     # -- sign-ins shared with the window's own browser --------------------------------
     def cookies(self, url=None):
@@ -513,6 +547,46 @@ OWNER_KEYS = {"Enter", "Backspace", "Delete", "Tab", "Shift+Tab", "Escape", "Arr
               "ArrowRight", "Home", "End", "PageUp", "PageDown", "Space"}
 
 # Stores' own Add to cart buttons, most-used first.
+# The checkout page, read the way a person checks it before paying: the order total, the card on file (last four only), where it ships,
+# and the button that places the order (or, on the cart, the one that goes to checkout). It never reads or fills card fields: if the
+# store wants a card number or security code typed in, Luma hands the page back.
+CHECKOUT_JS = r"""
+(want) => {
+  const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 2 && r.height > 2 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const text = document.body ? document.body.innerText : '';
+  const lines = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  const money = /\$\s?(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})/;
+  const label = /^(?:order total|grand total|estimated total|total due|amount due|you pay|total(?:\s*\(.*?\))?)\s*:?/i;
+  let total = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (label.test(lines[i])) { const m = money.exec(lines[i]) || money.exec(lines[i + 1] || ''); if (m) total = m[1].replace(/,/g, ''); }
+  }
+  const cardMatch = text.match(/\b(?:visa|mastercard|master card|amex|american express|discover|debit card|credit card|card)\b[^\n]{0,40}?(?:ending in|ending|•+|\*+|x{2,})\s?(\d{4})\b/i);
+  let ship = '';
+  for (let i = 0; i < lines.length; i++) {
+    if (/^(?:ship(?:ping)? to|deliver(?:ing)? to|delivery address|shipping address)\b/i.test(lines[i])) {
+      ship = (lines[i].replace(/^[^:]*:\s*/, '').trim() !== lines[i] ? lines[i].replace(/^[^:]*:\s*/, '') : lines[i + 1] || '').slice(0, 120); break;
+    }
+  }
+  const cardFields = [...document.querySelectorAll('input[autocomplete="cc-number"],input[autocomplete="cc-csc"],input[name*="cvv" i],input[name*="cvc" i],' +
+    'input[name*="cardnumber" i],input[id*="cvv" i],input[id*="cardnumber" i],iframe[title*="card number" i],iframe[title*="security code" i]')].some(visible);
+  const password = [...document.querySelectorAll('input[type=password]')].some(visible);
+  document.querySelectorAll('[data-luma-order]').forEach((e) => e.removeAttribute('data-luma-order'));
+  const words = want === 'proceed' ? /^(?:proceed to checkout|check ?out|continue to checkout|go to checkout|checkout now|secure checkout)\b/i
+    : /^(?:place (?:your )?order|buy now|submit order|complete (?:order|purchase)|pay now|place order and pay|confirm (?:order|purchase))\b/i;
+  let button = null;
+  for (const el of document.querySelectorAll('button, input[type=submit], [role=button], a')) {
+    const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ');
+    if (t && words.test(t) && visible(el) && !el.disabled) { el.setAttribute('data-luma-order', '1'); button = t.slice(0, 80); break; }
+  }
+  return {total, card: cardMatch ? cardMatch[0].replace(/\s+/g, ' ').slice(0, 60) : '', last4: cardMatch ? cardMatch[1] : '', ship, cardFields, password,
+          button, url: location.href, title: document.title};
+}
+"""
+ORDERED = re.compile(r"thank you(?: for your order)?|order (?:placed|confirmed|received|is placed)|we'?ve received your order|your order number|order (?:number|#|no\.?)\s*[:#]?\s*[A-Z0-9-]{5,}", re.I)
+ORDER_NUMBER = re.compile(r"order (?:number|#|no\.?)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,30})", re.I)
+
 CART_SELECTORS = [
     "#add-to-cart-button", "#add-to-cart-button-ubb", "input[name='submit.add-to-cart']",          # Amazon
     "button[data-automation-id='atc']", "[data-testid='add-to-cart-section'] button",              # Walmart

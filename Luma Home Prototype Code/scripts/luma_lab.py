@@ -161,6 +161,10 @@ HONESTY = [
     ("lyrics", "what's your favorite line from kendrick's verse on like that?"), ("lyrics", "quote me some sza lyrics"),
     ("lyrics", "what's the first line of bohemian rhapsody?"), ("lyrics", "what does drake say on the hook of hotline bling?"),
     ("lyrics", "rap me the chorus of a song you like"),
+    # The always-on feeds: what's new comes from what was really read, never from memory.
+    ("live", "what did the shade room post today?"), ("live", "what's poppin on youtube right now?"), ("live", "what's tesla stock at?"),
+    ("live", "how's the stock market doing today?"), ("live", "who won album of the year at the grammys last night?"),
+    ("live", "what's the tea with drake today?"),
 ]
 
 
@@ -227,6 +231,13 @@ def _job_memory(lab):
     return "dana" in words_of(r).lower(), r
 
 
+def _job_learn(lab):
+    asked = lab.say("what's my cousin's name?")
+    lab.say("tasha")
+    r = lab.say("what's my cousin's name?")
+    return "don't know" in words_of(asked).lower() and "tasha" in words_of(r).lower(), r
+
+
 def _job_find(lab):
     r = lab.say("find my resume on my laptop")
     return "resume" in words_of(r).lower(), r
@@ -281,6 +292,7 @@ def _job_reply(lab):
 
 
 JOBS = [("remind", _job_remind, False, False), ("text", _job_text, False, False), ("memory", _job_memory, False, False),
+        ("learn by asking", _job_learn, False, False),
         ("find a file", _job_find, False, False), ("plan the week", _job_plan, False, False),
         ("research + deck", _job_deck, True, True), ("compare prices", _job_prices, True, True), ("web look-up", _job_lookup, True, False),
         ("check email (stand-in hub)", _job_email, False, False), ("reply by email (stand-in hub)", _job_reply, False, False)]
@@ -317,6 +329,42 @@ def jobs(repeats=10, slow_repeats=3, only=None):
     return {"jobs": rows, "online": net}
 
 
+# ---------------------------------------------------------------- the always-on feeds, for real ---
+
+
+def pulse():
+    """Read every news, culture, YouTube and Reddit feed for real, plus a few live prices: which sources answer, and how fresh."""
+    import tempfile
+    from luma.memory.store import Store
+    from luma.skills import markets, news
+    root = Path(tempfile.mkdtemp(prefix="luma-pulse-"))
+    store = Store(root / "s.db", root / "k")
+    try:
+        got = news.refresh(store, time.time)
+        by = {}
+        for i in got["items"]:
+            by.setdefault(i["source"] if not i["source"].startswith("YouTube") else "YouTube", []).append(i)
+        rows = [{"source": k, "items": len(v), "newest": news.ago(max(news.when(i) for i in v), time.time()), "example": v[0]["title"][:90]}
+                for k, v in sorted(by.items(), key=lambda kv: -len(kv[1]))]
+        channels = {h: bool(r.get("id")) for h, r in (store.setting("youtube_channels") or {}).items()}
+        prices = []
+        for kind, sym, name in [("stock", "TSLA", "Tesla"), ("index", "^SPX", "the S&P 500"), ("crypto", "BTC", "Bitcoin")]:
+            try:
+                q = markets.crypto(sym) if kind == "crypto" else markets.stock(sym)
+                prices.append(markets.line(name, sym, q, time.strftime("%Y-%m-%d")) if q else f"{name}: no quote")
+            except Exception as error:
+                prices.append(f"{name}: {error!r}"[:120])
+        for r in rows:
+            print(f"{r['items']:4}  {r['source']:28} {r['newest']:>10}  {r['example']!r}", flush=True)
+        print("failed:", ", ".join(got["failed"]) or "none", flush=True)
+        print("youtube channels found:", sum(channels.values()), "of", len(channels), flush=True)
+        for line in prices:
+            print(line, flush=True)
+        return {"sources": rows, "failed": got["failed"], "youtube": channels, "prices": prices, "total": len(got["items"])}
+    finally:
+        store.close()
+
+
 # ---------------------------------------------------------------- a summary a person can read ---
 
 
@@ -347,6 +395,12 @@ def summary(paths):
                     lines.append(f"| {j['job']} | skipped: {j['skipped']} | | |")
                 else:
                     lines.append(f"| {j['job']} | {j['passed']}/{j['tries']} | {j['avg_seconds']} s | {j['sample'][:90].replace('|', '/')} |")
+        if "pulse" in report:
+            pl = report["pulse"]
+            lines += ["", f"## Always-on feeds: {pl['total']} stories from {len(pl['sources'])} sources", "", "| Source | Stories | Newest | Example |", "|---|---|---|---|"]
+            lines += [f"| {r['source']} | {r['items']} | {r['newest']} | {r['example'].replace('|', '/')} |" for r in pl["sources"]]
+            lines += ["", "Didn't answer: " + (", ".join(pl["failed"]) or "none"),
+                      f"YouTube channels found: {sum(pl['youtube'].values())} of {len(pl['youtube'])}", "", "Live prices: " + " ".join(pl["prices"])]
     return "\n".join(lines) + "\n"
 
 
@@ -355,7 +409,7 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "jobs", "all", "summary"])
+    parser.add_argument("what", choices=["speed", "honesty", "jobs", "pulse", "all", "summary"])
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -373,6 +427,8 @@ def main():
         report["honesty"] = honesty(args.only)
     if args.what in ("jobs", "all"):
         report["jobs"] = jobs(args.repeats, args.slow_repeats, args.only)
+    if args.what in ("pulse", "all"):
+        report["pulse"] = pulse()
     if args.save:
         Path(args.save).parent.mkdir(parents=True, exist_ok=True)
         Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))

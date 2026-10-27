@@ -159,6 +159,9 @@ jobs:
           get big.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf"
           [ -f "$RUNNER_TEMP/brains/big.gguf" ] && python scripts/luma_lab.py speed --model "$RUNNER_TEMP/brains/big.gguf" --save "$RUNNER_TEMP/lab/speed-big.json" || true
           rm -f "$RUNNER_TEMP/brains/big.gguf"
+      - name: Always-on feeds with real internet (news, culture, YouTube, Reddit, prices)
+        if: always()
+        run: python scripts/luma_lab.py pulse --save "$RUNNER_TEMP/lab/pulse.json"
       - name: Honesty, 50 conversations
         if: always()
         env:

@@ -349,6 +349,23 @@ class LinkClient:
         self.store.set_setting("link_device", None)
         self.stop.set()
 
+    def rehome(self, finder=None):
+        """The paired device stopped answering where it was. Look for it on the Wi-Fi again; the same device (same pinned certificate) at a
+        new address is followed there. A different device never is."""
+        d = self.store.setting("link_device")
+        if not d:
+            return None
+        try:
+            found = (finder or self.discover)()
+        except OSError:
+            return None
+        same = next((f for f in found if f.get("fingerprint") == d.get("fingerprint")), None)
+        if same and (same["host"], int(same["port"])) != (d.get("host"), int(d.get("port") or 0)):
+            self.store.set_setting("link_device", {**d, "host": same["host"], "port": int(same["port"])})
+            self._online = (0, False)
+            return self.device()
+        return None
+
     def call(self, method, path, body=None, timeout=10):
         d = self.store.setting("link_device")
         if not d:
@@ -410,10 +427,15 @@ class LinkClient:
                 self.stop.wait(60)
 
         def hands():
+            misses = 0
             while not self.stop.is_set() and self.store.setting("link_device"):
                 try:
                     job = self.call("GET", "/link/hands/next", timeout=40).get("job")
+                    misses = 0
                 except LinkError:
+                    misses += 1
+                    if misses % 4 == 0:
+                        self.rehome()  # the router may have given the device a new address: find it again by its pinned certificate
                     self.stop.wait(15)
                     continue
                 if not job:

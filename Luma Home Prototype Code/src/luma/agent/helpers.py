@@ -13,7 +13,7 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-EVERY = {"every_30m": 1800, "hourly": 3600, "every_6h": 6 * 3600, "daily": 86400, "weekly": 7 * 86400}
+EVERY = {"every_15m": 900, "every_30m": 1800, "hourly": 3600, "every_6h": 6 * 3600, "daily": 86400, "weekly": 7 * 86400}
 KINDS = {
     "price_watch": "Price watch",
     "inbox_digest": "Inbox check",
@@ -158,12 +158,12 @@ class Helpers:
         """The daily ideas pass, so the Ideas tab has fresh things to suggest."""
         if not any(r.get("kind") == "ideas" for r in self.store.all("helper", 60)):
             self.create("ideas", every="daily", at="07:20", system=True, run_now=False)
-        # Read the news every hour, so Luma knows what happened after its training (and re-reads on the spot when asked).
+        # Read the news and the culture every 15 minutes, so Luma knows what happened after its training (and re-reads on the spot when asked).
         reader = next((r for r in self.store.all("helper", 60) if r.get("kind") == "news"), None)
         if not reader:
-            self.create("news", every="hourly", system=True, run_now=True)
-        elif reader.get("every") != "hourly":
-            self.update(reader["id"], every="hourly")
+            self.create("news", every="every_15m", system=True, run_now=True)
+        elif reader.get("every") != "every_15m":
+            self.update(reader["id"], every="every_15m")
         # Every night, Luma reflects on its conversations and rewires its sense of itself.
         if not any(r.get("kind") == "reflect" for r in self.store.all("helper", 60)):
             self.create("reflect", every="daily", at="03:30", system=True, run_now=False)

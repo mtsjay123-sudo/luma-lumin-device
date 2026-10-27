@@ -2207,7 +2207,12 @@
     const stage = el("section", "mem-stage");
     const side = el("div", "mem-side");
     const tags = el("div", "mem-tags");
-    side.append(el("h3", null, "Memories"), el("p", null, "Everything I keep about you, newest in front. Scroll back through it."), tags);
+    const room = el("div", "mem-room");
+    room.append(btn("Make room", "pill quiet small", () => openRoom()), btn("Forget old ones", "pill quiet small danger", async () => {
+      if (!confirm("Forget every memory older than 6 months? This can't be undone.")) return;
+      try { const r = await api("/api/memory/forget", { older_than_days: 182 }); toast(`Forgot ${r.forgotten}.`); await refreshHome(); renderIdentity(); } catch (e) { toast(e.message); }
+    }));
+    side.append(el("h3", null, "Memories"), el("p", null, "Everything I keep about you, newest in front. Scroll back through it. It all stays on this device."), tags, room);
     const deck = el("div", "mem-deck");
     deck.tabIndex = 0;
     deck.setAttribute("aria-label", "Your memories, newest first. Use the arrow keys to move through them.");
@@ -3155,8 +3160,61 @@
   // Computer mode: what Luma may do on this computer when your Luma device (or Luma right here) asks.
   // It's set on this computer only, never from the phone, and Pause stops all of it at once.
   const DID = { "files.find": "Looked for files", "files.read": "Read a file", "app.open": "Opened an app", "screen.look": "Looked at the screen",
-    "ui.read": "Looked at an app", "ui.press": "Pressed", "ui.type": "Typed into",
+    "ui.read": "Looked at an app", "ui.press": "Pressed", "ui.type": "Typed into", "shell.run": "Ran",
     open: "Opened a page", play: "Played music", read: "Read the page", tabs: "Checked your tabs", pause: "Paused", resume: "Resumed" };
+  // The Luma device's Wi-Fi: which network, and switching networks. Only shows where Luma can manage Wi-Fi (on the device).
+  function wifiItem() {
+    const item = el("div", "item link-item");
+    const g = el("div", "grow");
+    const sub = el("div", "sub", "Checking Wi-Fi\u2026");
+    g.append(el("div", "title", "Wi-Fi"), sub);
+    item.append(g);
+    item.hidden = true;
+    const join = (n) => {
+      const body = el("form", "room-sheet");
+      const pw = el("input", "link-addr");
+      pw.type = "password"; pw.autocomplete = "current-password"; pw.placeholder = n.secure ? `Password for ${n.ssid}` : "No password needed";
+      pw.disabled = !n.secure;
+      const go = el("button", "pill primary small", "Join");
+      go.type = "submit";
+      body.append(el("p", "sub", "Your password goes straight to the device's Wi-Fi settings. Luma never keeps it."), pw, go);
+      body.addEventListener("submit", async (e) => {
+        e.preventDefault(); go.disabled = true; go.textContent = "Joining\u2026";
+        try { const r = await api("/api/wifi/join", { ssid: n.ssid, password: pw.value }); toast(`On ${r.wifi.ssid || n.ssid} now.`); closeSheet(); draw(); }
+        catch (err) { toast(err.message); go.disabled = false; go.textContent = "Join"; }
+      });
+      openSheet(n.ssid, body);
+    };
+    const pick = async () => {
+      const body = el("div", "room-sheet");
+      body.append(el("p", "sub", "Looking for networks\u2026"));
+      openSheet("Change Wi-Fi", body);
+      try {
+        const r = await api("/api/wifi?scan=1");
+        body.replaceChildren();
+        for (const n of r.networks || []) {
+          const row = el("div", "item");
+          const words = el("div", "grow");
+          words.append(el("div", "title", n.ssid), el("div", "sub", `${n.signal >= 70 ? "Strong" : n.signal >= 40 ? "Good" : "Weak"} signal${n.secure ? "" : " \u00b7 open network"}`));
+          row.append(words, btn("Join", "pill soft small", () => join(n)));
+          body.append(row);
+        }
+        if (!(r.networks || []).length) body.append(el("p", "sub", "I can't see any networks right now. Move me closer to the router and try again."));
+      } catch (e) { body.replaceChildren(el("p", "sub", e.message)); }
+    };
+    const draw = async () => {
+      try {
+        const r = await api("/api/wifi");
+        const w = r.wifi || {};
+        if (!w.available) { item.hidden = true; return; }
+        item.hidden = false;
+        sub.textContent = w.setup ? "Not on your home Wi-Fi yet. Pick it below." : w.ssid ? `On ${w.ssid}${w.signal != null ? ` \u00b7 ${w.signal >= 70 ? "strong" : w.signal >= 40 ? "good" : "weak"} signal` : ""}${w.ip ? ` \u00b7 ${w.ip}` : ""}` : w.ethernet ? "On a cable, no Wi-Fi needed." : "Not connected.";
+        if (!item.querySelector("button")) item.append(btn("Change Wi-Fi", "pill soft small", pick));
+      } catch (_) { item.hidden = true; }
+    };
+    draw();
+    return item;
+  }
   function computerItem() {
     const item = el("div", "item link-item computer-item");
     const g = el("div", "grow");
@@ -3194,6 +3252,8 @@
       body.append(top, el("div", "sub", "Folders Luma can look in (find files by name, read text files):"), folders, add,
         toggleRow("Open apps", "Like \u201copen Spotify\u201d or \u201copen Notes\u201d.", st.apps, (on) => change({ action: "allow", what: "apps", on })),
         toggleRow("Look at my screen", "Only when you ask, like \u201cwhat's on my screen?\u201d", st.screen, (on) => change({ action: "allow", what: "screen", on })),
+        toggleRow("Run commands in Terminal", "Like \u201ccheck my git status\u201d or \u201chow much disk space is left?\u201d Luma shows you the exact command and waits for your yes every time. It never runs anything that needs your admin password.", st.terminal, (on) => change({ action: "allow", what: "terminal", on })),
+        toggleRow("Keep this computer awake for my Luma", "While it's paired with your Luma device, this computer won't go to sleep, so Luma can always reach it. The screen can still turn off.", st.awake, (on) => change({ action: "allow", what: "awake", on })),
         toggleRow("Click and type in apps", "Like \u201cin Notes, make a new note.\u201d Luma asks you before every click and every bit of typing, never types passwords, and stays out of Terminal, password managers and System Settings. Works on a Mac; macOS will ask you to allow Luma under Accessibility.", st.control, (on) => change({ action: "allow", what: "control", on })));
       const log = (st.log || []).slice(-5).reverse();
       if (log.length) {
@@ -3444,6 +3504,7 @@
       acctRow.after(row);
     }).catch(() => {});
     box.append(linkCard());
+    box.append(wifiItem());  // hidden unless this Luma can manage its own Wi-Fi (the device)
     if (!onDevicePage) box.append(computerItem());
     box.append(skillsItem());
     box.append(talkCard());
@@ -3881,6 +3942,29 @@
   }
 
   // -------------------------------------------------------------- sheet ---
+  // Make room: what's taking up space on this device, and clearing it so new memories fit.
+  const sizeOf = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (Number(n) || 0) + " bytes");
+  async function openRoom(freed) {
+    const body = el("div", "room-sheet");
+    body.append(el("p", "sub", "Clear what you don't need so new memories fit. Memories only go when you forget them."));
+    openSheet("Make room", body);
+    let sp;
+    try { sp = await api("/api/space"); } catch (e) { body.append(el("p", "sub", e.message)); return; }
+    if (freed) body.append(el("p", "sub", `Freed ${sizeOf(freed)}.`));
+    if (!sp.options.length) body.append(el("p", "sub", "Nothing else is taking up room right now."));
+    for (const o of sp.options) {
+      const row = el("div", "item");
+      const g = el("div", "grow");
+      g.append(el("div", "title", `${o.label} \u00b7 ${sizeOf(o.bytes)}`), el("div", "sub", o.detail || ""));
+      row.append(g, btn("Clear", "pill soft small", async () => {
+        if (!confirm(`Clear ${o.label.toLowerCase()}? This can't be undone.`)) return;
+        try { const r = await api("/api/space/clean", { key: o.key }); openRoom(r.freed_bytes); } catch (e) { toast(e.message); }
+      }));
+      body.append(row);
+    }
+    const m = sp.memories || {};
+    body.append(el("p", "sub", `Memories: ${m.used || 0}${m.limit ? " of " + m.limit + " on the free plan" : ""} (${sizeOf(m.bytes)}). Forget the ones you don't need from the Memories page.`));
+  }
   function openSheet(title, body, wide) {
     $("sheet-title").textContent = title;
     $("sheet-body").replaceChildren(body);

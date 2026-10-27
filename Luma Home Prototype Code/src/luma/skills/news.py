@@ -1,7 +1,9 @@
 """What's new in the world, read live from free public news feeds (RSS/Atom).
 
 The local model only knows what it learned before its training ended. Every
-hour Luma reads a handful of public feeds and keeps two days of headlines. When
+15 minutes Luma reads public feeds (world news, the culture: The Shade Room, TMZ,
+Billboard, XXL, Complex and friends, what's new on big YouTube channels, what's
+blowing up on Reddit, markets) and keeps two days of it. When
 you ask, it reads them again if they're more than a few minutes old, and for a
 topic ("latest on the Fed", "tech news") it searches Google News right then, so
 the answer is minutes old, not hours. No accounts, no API keys, no cost. Feeds
@@ -31,11 +33,45 @@ FEEDS = [
     ("TechCrunch", "https://techcrunch.com/feed/", "tech"),
     ("Hacker News", "https://news.ycombinator.com/rss", "tech"),
     ("ESPN", "https://www.espn.com/espn/rss/news", "sports"),
+    # The culture: what people are actually talking about.
+    ("The Shade Room", "https://theshaderoom.com/feed/", "culture"),
+    ("The Shade Room", f"{GOOGLE}/search?q=site:theshaderoom.com+when:2d&{REGION}", "culture"),
+    ("TMZ", "https://www.tmz.com/rss.xml", "culture"),
+    ("Billboard", "https://www.billboard.com/feed/", "culture"),
+    ("XXL", "https://www.xxlmag.com/feed/", "culture"),
+    ("Bossip", "https://bossip.com/feed/", "culture"),
+    ("Complex", f"{GOOGLE}/search?q=site:complex.com+when:2d&{REGION}", "culture"),
+    ("HotNewHipHop", f"{GOOGLE}/search?q=site:hotnewhiphop.com+when:2d&{REGION}", "culture"),
+    ("Google News", f"{GOOGLE}/headlines/section/topic/ENTERTAINMENT?{REGION}", "culture"),
+    ("Reddit", "https://www.reddit.com/r/popular/top/.rss?t=day", "viral"),
+    ("Yahoo Finance", "https://finance.yahoo.com/news/rssindex", "business"),
 ]
+# Big YouTube channels whose new uploads Luma keeps up with (the owner can add their own). A handle that doesn't resolve is skipped.
+DEFAULT_YOUTUBE = ["@MrBeast", "@KaiCenat", "@IShowSpeed", "@Complex", "@genius", "@FirstWeFeast", "@NBA", "@NFL", "@SNL", "@colbertlateshow",
+                   "@WWE", "@Druski", "@BETNetworks", "@HotNewHipHop", "@XXL"]
+# Outlets people ask about by name, and the site to search when the cache has nothing from them.
+SOURCES = {
+    "The Shade Room": (r"(?:the )?shade ?room|tsr|theshaderoom", "theshaderoom.com"), "TMZ": (r"tmz", "tmz.com"),
+    "Billboard": (r"billboard", "billboard.com"), "XXL": (r"xxl", "xxlmag.com"), "Bossip": (r"bossip", "bossip.com"),
+    "Complex": (r"complex", "complex.com"), "HotNewHipHop": (r"hnhh|hot ?new ?hip ?hop", "hotnewhiphop.com"),
+    "YouTube": (r"youtube|yt", None), "Reddit": (r"reddit", None), "ESPN": (r"espn", "espn.com"),
+}
+# "what did the shade room post", "what's poppin on youtube", "what's the tea": the culture, not a search.
+ASKS_CULTURE = re.compile(
+    r"\b(?:what(?:'s|s| is| did| has)?|anything|any(?:thing)? new|new|latest|post(?:ed|ing)?|say(?:ing)?|on)\b.{0,40}\b(?:shade ?room|tsr|tmz|bossip|"
+    r"hnhh|hot ?new ?hip ?hop|xxl|billboard)\b|\b(?:shade ?room|tsr|tmz|bossip)\b.{0,30}\b(?:post(?:ed|ing)?|say(?:ing)?|got|up to|report(?:ed|ing)?)\b|"
+    r"\bwhat'?s (?:poppin|popping|trending|viral|hot|the move|going viral)\b(?! (?:with you|wit you|w you))|\bwhat'?s (?:new |good |poppin |popping |trending )?on "
+    r"(?:youtube|yt|reddit)\b|\b(?:new|latest) (?:youtube|yt) (?:videos?|uploads?)\b|\bwhat'?s the tea\b|\bspill(?: the)? tea\b|\b(?:any|the) (?:tea|gossip|drama) "
+    r"(?:today|rn|right now|lately)\b|\bcelebrity (?:news|gossip|drama)\b|\bhip ?hop news\b|\bwho(?:'s| is) beefing\b", re.I)
 # Google News' own sections: what Luma reads when you ask for "sports news" or "business news".
 TOPICS = {"world": "WORLD", "us": "NATION", "business": "BUSINESS", "tech": "TECHNOLOGY", "sports": "SPORTS",
           "science": "SCIENCE", "health": "HEALTH", "entertainment": "ENTERTAINMENT"}
+# Read from Luma's own feeds, not a Google section.
+OWN_TOPICS = {"culture", "youtube", "viral"}
 TOPIC_WORDS = {
+    "youtube": r"youtube|yt videos?|youtubers?",
+    "viral": r"viral|reddit|going viral|blowing up|memes?",
+    "culture": r"shade ?room|tsr|tmz|bossip|xxl|hnhh|tea|gossip|drama|beef(?:ing)?|poppin|popping|trending|hip ?hop|rap(?:pers?)?|the culture|pop culture|celeb(?:s|rity|rities)? (?:news|gossip|drama)",
     "world": r"world news|international|global|foreign", "us": r"u\.s\.?|us news|national|america|american|domestic",
     "business": r"business|markets?|stocks?|economy|economic|finance|financial|money|wall street",
     "tech": r"tech|technology|ai|a\.i\.|startups?|silicon valley|gadgets?",
@@ -44,8 +80,8 @@ TOPIC_WORDS = {
     "entertainment": r"entertainment|celebrity|celebrities|movies?|films?|music|hollywood|tv shows?|box office",
 }
 KEEP_HOURS = 48
-MAX_ITEMS = 300
-FRESH_SECONDS = 3600     # the background reader: every hour
+MAX_ITEMS = 600
+FRESH_SECONDS = 15 * 60  # the background reader: every 15 minutes
 LIVE_SECONDS = 15 * 60   # when they ask: anything older than this gets read again first
 WORDS = re.compile(r"[a-z0-9]+")
 STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "were", "with", "at", "by", "from", "what", "whats",
@@ -82,9 +118,61 @@ def feeds():
 
 
 def asks(text):
-    """They want the headlines (not: "I have good news")."""
+    """They want the headlines or the culture (not: "I have good news")."""
     text = str(text or "")
-    return bool(ASKS_NEWS.search(text)) and not SHARING_NEWS.search(text)
+    return bool(ASKS_NEWS.search(text) or ASKS_CULTURE.search(text)) and not SHARING_NEWS.search(text)
+
+
+def named_source(text):
+    """'what did the shade room post' -> 'The Shade Room'. None when they didn't name an outlet."""
+    text = str(text or "").lower()
+    for name, (words, _site) in SOURCES.items():
+        if re.search(rf"\b(?:{words})\b", text):
+            return name
+    return None
+
+
+def from_source(items, name):
+    """What one outlet put out: 'YouTube' covers every channel Luma follows."""
+    return [i for i in items if i.get("source") == name or (name == "YouTube" and str(i.get("source", "")).startswith("YouTube"))
+            or (name == "Reddit" and i.get("topic") == "viral")]
+
+
+YT_ID = re.compile(r'"(?:channelId|externalId|browseId)":"(UC[\w-]{22})"|<meta itemprop="(?:identifier|channelId)" content="(UC[\w-]{22})"|/channel/(UC[\w-]{22})')
+YT_NAME = re.compile(r'<meta property="og:title" content="([^"]{1,80})"')
+
+
+def youtube_channel(handle, fetch_page):
+    """A channel's id and name from its public page (@handle), so its uploads can be read from YouTube's free feed."""
+    handle = "@" + str(handle or "").strip().lstrip("@")
+    if not re.fullmatch(r"@[\w.-]{2,40}", handle):
+        return None
+    page = fetch_page(f"https://www.youtube.com/{handle}").decode("utf-8", "replace")
+    found = YT_ID.search(page)
+    if not found:
+        return None
+    name = YT_NAME.search(page)
+    return {"id": next(g for g in found.groups() if g), "name": html.unescape(name.group(1)) if name else handle[1:]}
+
+
+def youtube_feeds(store, clock, fetch_page):
+    """Feeds for the YouTube channels Luma follows: the defaults plus any the owner added. Ids are looked up once and kept."""
+    known = dict(store.setting("youtube_channels") or {})
+    handles = list(dict.fromkeys((store.setting("youtube_follow") or []) + DEFAULT_YOUTUBE))[:40]
+    changed = False
+    for handle in handles:
+        row = known.get(handle)
+        if row is None or (not row.get("id") and clock() - row.get("checked", 0) > 7 * 86400):
+            try:
+                found = youtube_channel(handle, fetch_page)
+            except Exception:
+                found = None
+            known[handle] = {**(found or {}), "checked": clock()}
+            changed = True
+    if changed:
+        store.set_setting("youtube_channels", known)
+    return [(f"YouTube · {known[h]['name']}", f"https://www.youtube.com/feeds/videos.xml?channel_id={known[h]['id']}", "youtube")
+            for h in handles if known.get(h, {}).get("id")]
 
 
 def window_hours(text):
@@ -319,6 +407,7 @@ def _key(item):
 
 def refresh(store, clock, allow_local=False, fetch=None):
     """Read every feed at once (a small reader each), merge, de-duplicate and keep two days."""
+    own = fetch is None and not os.environ.get("LUMA_NEWS_FEEDS")  # Luma's own sources (not a test's, not the owner's custom list)
     fetch = fetch or (lambda url: _fetch(url, allow_local=allow_local))
     found, failed = [], []
     lock = threading.Lock()
@@ -335,7 +424,13 @@ def refresh(store, clock, allow_local=False, fetch=None):
         with lock:
             (found.extend(items) if items else failed.append(name))
 
-    workers = [threading.Thread(target=read, args=feed, daemon=True) for feed in feeds()]
+    sources = list(feeds())
+    if own:
+        try:
+            sources += youtube_feeds(store, clock, lambda url: _fetch_page(url, allow_local=allow_local))
+        except Exception:
+            pass  # YouTube unreachable: the rest of the news still comes in
+    workers = [threading.Thread(target=read, args=feed, daemon=True) for feed in sources]
     for w in workers: w.start()
     for w in workers: w.join(timeout=20)
     old = (store.setting("news") or {}).get("items", [])

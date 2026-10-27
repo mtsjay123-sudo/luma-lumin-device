@@ -8,7 +8,8 @@ this computer turns it on, here, and only here:
   * open apps by name,
   * look at the screen (off unless they switch it on),
   * click and type in apps (on a Mac, through its accessibility system; off unless they switch it on, and the device asks
-    the owner before every click and every bit of typing).
+    the owner before every click and every bit of typing),
+  * run commands in the Terminal (off unless they switch it on; the device shows the exact command and asks first, every time).
 
 Some things are never done from here at all: anything under a folder that holds
 keys, passwords or wallets, any file outside the picked folders (symlinks
@@ -28,7 +29,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-KINDS = {"files.find", "files.read", "app.open", "screen.look", "ui.read", "ui.press", "ui.type"}
+KINDS = {"files.find", "files.read", "app.open", "screen.look", "ui.read", "ui.press", "ui.type", "shell.run"}
 # never read from, or even list, anything that looks like keys, passwords or wallets
 SECRET = re.compile(r"(?:^|[/\\])(?:\.ssh|\.gnupg|\.aws|\.azure|\.kube|\.docker|\.netrc|\.npmrc|\.pypirc|\.env(?:\.[\w-]+)?|keychains?|"
                     r"id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|[^/\\]*\.(?:pem|key|p12|pfx|kdbx|keychain-db)|[^/\\]*(?:password|passwd|secret|wallet|credential)[^/\\]*)(?:$|[/\\])", re.I)
@@ -43,6 +44,14 @@ OFF_LIMITS = re.compile(r"^(?:terminal|iterm2?|warp|alacritty|kitty|hyper|ghostt
                         r"keychain access|passwords|1password(?: \d+)?|bitwarden|lastpass|dashlane|keeper|enpass|"
                         r"system settings|system preferences|disk utility|migration assistant|boot camp assistant|installer|luma(?: desktop)?)$", re.I)
 UI_LIMIT = 150  # elements described per window
+TERMINALS = re.compile(r"^(?:terminal|iterm2?|warp|alacritty|kitty|hyper|ghostty)$", re.I)
+# Even with a yes, never: anything that needs the admin password, wipes a disk or the home folder, reads saved passwords or keys,
+# pipes a download straight into a shell, or turns the computer off.
+NEVER_RUN = re.compile(r"(?:^|[;&|]\s*|\$\(\s*|`\s*)(?:sudo|su|doas|passwd|mkfs\S*|fdisk|diskutil\s+(?:erase|zero|secureerase|partition)\w*|dd\s|shutdown|reboot|halt|"
+                       r"launchctl\s+(?:unload|bootout)|csrutil|nvram)\b|\brm\s+-[a-z]*r[a-z]*f?\s+(?:/|~|\$HOME)(?:\s|$|/\*)|:\(\)\s*\{|"
+                       r"\bsecurity\s+(?:find|dump|export)|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|fi)?sh\b|\bchmod\s+-R\s+777\s+/|>\s*/dev/(?:disk|sd)", re.I)
+RUN_TIMEOUT = 60
+OUTPUT_LIMIT = 8000
 # The accessibility tree of one window, read and acted on through System Events. The job comes in as JSON in argv; nothing
 # from it is ever spliced into the script. Password fields are never read or typed into. Refs are positions in the window's
 # element list; press and type check the element is still the one the owner approved (same role and label) before acting.
@@ -116,7 +125,8 @@ class Computer:
     def settings(self):
         saved = self.store.setting("computer_mode") or {}
         return {"folders": [f for f in saved.get("folders", []) if isinstance(f, str)], "apps": bool(saved.get("apps", False)),
-                "screen": bool(saved.get("screen", False)), "control": bool(saved.get("control", False)), "paused": bool(saved.get("paused", False))}
+                "screen": bool(saved.get("screen", False)), "control": bool(saved.get("control", False)), "terminal": bool(saved.get("terminal", False)),
+                "awake": bool(saved.get("awake", True)), "paused": bool(saved.get("paused", False))}
 
     def _save(self, **changes):
         self.store.set_setting("computer_mode", {**self.settings(), **changes})
@@ -143,8 +153,8 @@ class Computer:
         return self._save(folders=[f for f in self.settings()["folders"] if f != str(folder)])
 
     def allow(self, what, on):
-        if what not in {"apps", "screen", "control"}:
-            raise ValueError("Choose apps, screen or control.")
+        if what not in {"apps", "screen", "control", "terminal", "awake"}:
+            raise ValueError("Choose apps, screen, control, terminal or awake.")
         return self._save(**{what: bool(on)})
 
     def pause(self, on=True):
@@ -161,7 +171,7 @@ class Computer:
 
     def record(self, job, result):
         """Called for every request from the device, including the ones Chrome handles."""
-        what = job.get("url") or job.get("query") or job.get("path") or job.get("name") or job.get("label") or job.get("app") or ""
+        what = job.get("url") or job.get("query") or job.get("path") or job.get("name") or job.get("command") or job.get("label") or job.get("app") or ""
         self._record(str(job.get("kind"))[:20], what, not (isinstance(result, dict) and result.get("error")))
 
     # the work
@@ -170,7 +180,7 @@ class Computer:
         if self.settings()["paused"]:
             return {"error": "Luma is paused on this computer. Resume it there to keep going."}
         handler = {"files.find": self._find, "files.read": self._read, "app.open": self._open_app, "screen.look": self._look,
-                   "ui.read": self._ui, "ui.press": self._ui, "ui.type": self._ui}.get(kind)
+                   "ui.read": self._ui, "ui.press": self._ui, "ui.type": self._ui, "shell.run": self._run}.get(kind)
         if not handler:
             return {"error": "This computer can't do that one."}
         try:
@@ -291,9 +301,12 @@ class Computer:
         kind, app = job.get("kind"), str(job.get("app") or "").strip()
         if app and not APP_NAME.fullmatch(app):
             raise ValueError("Tell me the app's name, like Notes or Mail.")
-        if app and OFF_LIMITS.match(app):
+        # Reading what's in a Terminal window is fine once Terminal is turned on here; typing in it never is (commands go through shell.run).
+        reading_terminal = kind == "ui.read" and app and TERMINALS.match(app) and self.settings()["terminal"]
+        if app and OFF_LIMITS.match(app) and not reading_terminal:
             raise ValueError(UI_ERRORS["off_limits"])
-        task = {"kind": kind, "app": app, "limit": UI_LIMIT, "blocked": OFF_LIMITS.pattern}
+        blocked = OFF_LIMITS.pattern.replace("terminal|iterm2?|warp|alacritty|kitty|hyper|ghostty|", "") if reading_terminal else OFF_LIMITS.pattern
+        task = {"kind": kind, "app": app, "limit": UI_LIMIT, "blocked": blocked}
         if kind in {"ui.press", "ui.type"}:
             if type(job.get("ref")) is not int or job["ref"] < 0 or not str(job.get("label") or "") or not str(job.get("role") or ""):
                 raise ValueError("Look at the window first, then pick something from it.")
@@ -318,3 +331,24 @@ class Computer:
         if got.get("error"):
             raise ValueError(UI_ERRORS.get(got["error"], "That didn't work in that app."))
         return got
+
+    def _run(self, job, run=subprocess.run):
+        """One command the owner approved, in their own shell, in their home folder. What it prints comes back (the end of it, if it's long)."""
+        if not self.settings()["terminal"]:
+            raise ValueError("Running commands is off on this computer. Turn it on in Luma Desktop: Settings, then What Luma can do on this computer.")
+        command = str(job.get("command") or "").strip()
+        if not command or len(command) > 2000 or "\x00" in command:
+            raise ValueError("Tell me the command to run.")
+        if NEVER_RUN.search(command) or SECRET.search(command.replace(" ", "/")):
+            raise ValueError("I won't run that one: it needs your admin password, could wipe something, or touches passwords and keys. Run it yourself if you're sure.")
+        shell = (["cmd", "/c", command] if os.name == "nt" else [os.environ.get("SHELL") if os.path.basename(os.environ.get("SHELL", "")) in {"zsh", "bash"} else "/bin/bash", "-lc", command])
+        try:
+            done = run(shell, cwd=str(Path.home()), capture_output=True, text=True, timeout=RUN_TIMEOUT, stdin=subprocess.DEVNULL,
+                       env={**os.environ, "TERM": "dumb", "PAGER": "cat", "GIT_PAGER": "cat", "NO_COLOR": "1"})
+        except subprocess.TimeoutExpired:
+            raise ValueError(f"That ran longer than {RUN_TIMEOUT} seconds, so I stopped it.")
+        except OSError:
+            raise ValueError("I couldn't start a shell on this computer.")
+        out = ((done.stdout or "") + (("\n" + done.stderr) if done.stderr else "")).strip()
+        cut = len(out) > OUTPUT_LIMIT
+        return {"command": command, "exit": done.returncode, "output": out[-OUTPUT_LIMIT:], "cut": cut}

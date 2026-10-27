@@ -13,7 +13,7 @@ YES_WORDS = (r"yes|yeah|yea|yep|yup|ya|yes sir|yessir|yesss*|sure|ok|okay|k|kk|b
 CONFIRM = re.compile(
     r"^(?:(?:" + YES_WORDS + r")[,!.\s]*){0,3}(?:please |pls |go ahead and |yeah )?"
     r"(?:(?:go ahead and )?send(?: it| that| that text| the text| the email| it now| it off)?(?: now)?|do it|do that|go ahead|go for it|fire away|fire it off|"
-    r"confirm|ship it|approved?|run it|book it|post it|schedule it|go|" + YES_WORDS + r")(?: (?:please|pls|thanks|thank you|bro|fam|twin|luma))?[.!\s]*$", re.I)
+    r"confirm|ship it|approved?|run it|book it|post it|schedule it|place it|place the order|buy it|order it|go|" + YES_WORDS + r")(?: (?:please|pls|thanks|thank you|bro|fam|twin|luma))?[.!\s]*$", re.I)
 CANCEL = re.compile(
     r"^(?:(?:no|nah|nope|ok|okay|wait|actually|hold up|hol up|hang on)[,!.\s]+)?"
     r"(?:no|nah|nope|no thanks|no thank you|don'?t|don'?t send(?: it| that)?|do not send(?: it| that)?|cancel(?: it| that)?|"

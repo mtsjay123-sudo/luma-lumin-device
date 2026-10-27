@@ -78,7 +78,7 @@ class ComputerTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_nothing_is_shared_until_the_person_here_turns_it_on(self):
-        self.assertEqual(self.computer.settings(), {"folders": [], "apps": False, "screen": False, "control": False, "paused": False})
+        self.assertEqual(self.computer.settings(), {"folders": [], "apps": False, "screen": False, "control": False, "terminal": False, "awake": True, "paused": False})
         self.assertIn("No folders are shared", self.computer.do({"kind": "files.find", "query": "resume"})["error"])
         self.assertIn("Opening apps is off", self.computer.do({"kind": "app.open", "name": "Spotify"})["error"])
         self.assertIn("Looking at the screen is off", self.computer.do({"kind": "screen.look"})["error"])

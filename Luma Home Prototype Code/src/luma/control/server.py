@@ -410,7 +410,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 from luma.agent import insights
                 return self.send(insights.overview(agent))
             if path=='/api/activity':
-                return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5],'due_soon':agent.due_soon()})
+                # keep_awake: this computer is the paired Luma's hands, so Luma Desktop keeps it from dozing off (switch it off in What Luma can do here).
+                hands=bool(agent.link.device()) and agent.link.computer.settings()['awake']
+                return self.send({'activity':agent.activity.view(),'recent':agent.activity.recent[:5],'due_soon':agent.due_soon(),'keep_awake':hands})
             if path=='/api/activity/shot':
                 image=agent.activity.image()
                 if not image: return self.send({'error':'No picture yet'},404)
@@ -462,6 +464,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/today':
                 from luma.control import today
                 return self.send(today.payload(agent))
+            if path=='/api/wifi':
+                # Which Wi-Fi the device is on, and (asked for) the networks around it, to switch from the phone or computer.
+                if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
+                from luma.hardware.wifi import Wifi, WifiError
+                wifi=Wifi()
+                try:
+                    out={'wifi':wifi.status()}
+                    if out['wifi'].get('available') and parse_qs(urlsplit(self.path).query).get('scan')==['1']: out['networks']=wifi.scan()
+                except WifiError as error: return self.send({'error':str(error)},503)
+                return self.send(out)
+            if path in ('/api/memory/folder','/api/space'):
+                # The memory folder and what could go to make room: from the computer or the owner's phone, never in kids mode.
+                if agent.mode=='kids': return self.send({'error':'Switch to adult mode to see memories.'},403)
+                from luma.agent import memory_folder
+                return self.send(memory_folder.folder(agent) if path=='/api/memory/folder' else memory_folder.space(agent))
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
@@ -670,6 +687,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif key=='hush': agent.hush()
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
                     elif key=='backchannels' and type(value) is bool: agent.store.set_setting('backchannels',value)
+                    elif key=='spend_cap' and type(value) is int and 10<=value<=2000: agent.store.set_setting('spend_cap',value)  # daily limit for orders Luma places, in dollars
                     elif key=='lock_touchid' and type(value) is bool: agent.store.set_setting('lock_touchid',value)
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)
@@ -766,6 +784,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/wifi/join':
+                        if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
+                        from luma.hardware.wifi import Wifi
+                        result={'wifi':Wifi().join(data.get('ssid'),data.get('password') or '')}  # the password goes to NetworkManager only, never stored or logged here
+                    elif path in ('/api/memory/forget','/api/space/clean'):
+                        if agent.mode=='kids': return self.send({'error':'Switch to adult mode to clear memories.'},403)
+                        from luma.agent import memory_folder
+                        if path=='/api/memory/forget':
+                            ids=data.get('ids') if isinstance(data.get('ids'),list) else None
+                            days=data.get('older_than_days')
+                            result=memory_folder.forget(agent,ids=[str(i) for i in ids][:500] if ids else None,kind=data.get('kind') or None,
+                                                        older_than_days=days if type(days) is int else None)
+                        else: result=memory_folder.clean(agent,str(data.get('key','')))
                     elif path=='/api/memory/add':
                         if companion or agent.mode=='kids': return self.send({'error':'Add memories on the Mac.'},403)
                         text=' '.join(str(data.get('text') or '').split())
@@ -1035,6 +1066,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
     if root_context:
         write_cli_token(agent, ctx.cli_token, server.server_port)
         ctx.phone_app.start()
+        from luma.hardware import wifi as wifi_watch
+        wifi_watch.start_watch(say=lambda text: ctx.publish({'type':'notice','text':text}))  # on the device only: setup network if it can't get online
         try: agent.helpers.ensure_system()
         except Exception: pass
         def clock_loop():

@@ -207,3 +207,7 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
   .panel, .sheet[open] { animation: none; }
   .card, .switch, .switch::after, .toast { transition: none; }
 }
+
+.storage #make-room { margin-top: 12px; }
+.room .row { gap: 12px; }
+.room .row small { display: block; }

@@ -277,6 +277,26 @@ class PhoneApp:
             if kind == "mute":
                 self.agent.set_muted(True)  # the phone can turn the mic off, never back on: that happens at home
             return self.send(link_id, {"t": "today", "re": n, "today": today.compact(self.agent)})
+        if kind in {"memory", "forget", "space", "clean"}:
+            # The memory folder and making room on the device, from anywhere. Kids mode keeps it closed.
+            from luma.agent import memory_folder
+            if self.agent.mode == "kids":
+                return self.send(link_id, {"t": "reply", "re": n, "text": "Switch Luma to adult mode at home to see memories."})
+            try:
+                if kind == "forget":
+                    ids = message.get("ids") if isinstance(message.get("ids"), list) else None
+                    days = message.get("older_than_days")
+                    done = memory_folder.forget(self.agent, ids=[str(i) for i in ids][:200] if ids else None, kind=message.get("kind") or None,
+                                                older_than_days=days if type(days) is int else None)
+                    return self.send(link_id, {"t": "memory", "re": n, "forgotten": done["forgotten"], "memory": compact_folder(memory_folder.folder(self.agent))})
+                if kind == "clean":
+                    done = memory_folder.clean(self.agent, str(message.get("key", "")))
+                    return self.send(link_id, {"t": "space", "re": n, "freed": done["freed_bytes"], "space": done, "today": today_compact(self.agent)})
+                if kind == "space":
+                    return self.send(link_id, {"t": "space", "re": n, "space": memory_folder.space(self.agent)})
+                return self.send(link_id, {"t": "memory", "re": n, "memory": compact_folder(memory_folder.folder(self.agent))})
+            except ValueError as error:
+                return self.send(link_id, {"t": "reply", "re": n, "text": str(error)})
         if kind in {"confirm", "cancel"}:
             action = str(message.get("action", ""))
             if kind == "cancel":
@@ -327,3 +347,19 @@ class PhoneApp:
             return self.send_many(links, message, notify=True)
         except ProviderError:
             return None
+
+
+def compact_folder(full, per_kind=40, limit=15000):
+    """The memory folder, small enough for one sealed relay message: the newest of each kind, trimmed until it fits."""
+    while True:
+        out = {k: full.get(k) for k in ("used", "limit", "plan", "bytes")}
+        out["kinds"] = [{"kind": k["kind"], "count": k["count"], "items": [{"id": i["id"], "text": i["text"][:200], "when": i.get("when")} for i in k["items"][:per_kind]]}
+                        for k in full.get("kinds", [])]
+        if len(json.dumps(out, ensure_ascii=False)) <= limit or per_kind <= 3:
+            return out
+        per_kind = per_kind // 2
+
+
+def today_compact(agent):
+    from luma.control import today
+    return today.compact(agent)
