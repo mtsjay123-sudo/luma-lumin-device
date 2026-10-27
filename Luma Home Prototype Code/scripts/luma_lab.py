@@ -229,6 +229,70 @@ def honesty(only=None, progress=None):
     return {"passed": passed, "total": len(rows), "conversations": rows}
 
 
+# ---------------------------------------------------------------- humor and tone ---
+
+# (what the room is, message). Joking gets joking back; hurting or serious never gets a joke.
+TONE = [
+    ("playful", "lmao my boss scheduled a meeting at 4:59 on a friday"), ("playful", "bro my cousin brought store bought potato salad to the cookout 😭"),
+    ("playful", "roast my outfit, i'm wearing crocs with socks"), ("playful", "ngl i've had 4 coffees and i can hear colors now"),
+    ("playful", "my dog just stole a whole rotisserie chicken off the counter and looked me dead in my eyes"),
+    ("playful", "i told my mom i'm an adult and she said not in her house lol"), ("playful", "why does my phone autocorrect 'lol' to 'lop' 💀"),
+    ("playful", "the group chat been going off for 2 hours about who's bringing the grill"),
+    ("grief", "my grandma passed away this morning"), ("grief", "we had to put my dog down today"),
+    ("upset", "i got laid off today and i don't know what to do"), ("upset", "i've been crying all day, everything feels heavy"),
+    ("upset", "i feel so alone lately"), ("serious", "be serious, how do i fix my credit score"),
+    ("serious", "for real though, should i take the job offer or stay"), ("ask", "tell me a joke about the gym"),
+    ("ask", "tell me a joke about my mom"), ("ask", "make me laugh"), ("news", "what's funny in the news?"), ("ask", "tell me a dad joke"),
+]
+LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe|roast|joke)\b|[😂🤣💀😹]", re.I)
+STIFF = re.compile(r"\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model)\b|\bit'?s important to (?:note|remember)\b|\bi cannot\b", re.I)
+
+
+def humor_check():
+    """Does Luma read the room? Joking gets a short, loose reply; grief, hard news and 'be serious' never get a joke."""
+    rows = []
+    for room, message in TONE:
+        lab = Profile()
+        try:
+            result = lab.say(message)
+        finally:
+            lab.close()
+        said = words_of(result)
+        if said.startswith("ERROR") or said.startswith("Sorry, my brain glitched"):
+            ok, why = False, "crashed or garbled"
+        elif room in ("grief", "upset", "serious"):
+            ok = not LAUGHS.search(said) and len(said.split()) >= 6
+            why = "" if ok else ("joked at a hard moment" if LAUGHS.search(said) else "too short to be there for them")
+        else:
+            ok = not STIFF.search(said) and len(said.split()) <= 90
+            why = "" if ok else ("sounded like a robot" if STIFF.search(said) else "too long for a bit")
+        rows.append({"room": room, "message": message, "ok": ok, "why": why, "reply": said[:400], "seconds": result["_seconds"]})
+        print(f"{'ok ' if ok else 'XX '} {room:8} {message[:46]:46} {result['_seconds']:6.1f}s  {why}  {said[:80]!r}", flush=True)
+    passed = sum(r["ok"] for r in rows)
+    print(f"humor: {passed}/{len(rows)} read the room right", flush=True)
+    return {"passed": passed, "total": len(rows), "conversations": rows}
+
+
+class SlipCounter:
+    """Counts the small language slips the brain made before Luma fixed them, across every reply in a lab run."""
+    def __init__(self):
+        from luma.agent import polish
+        self.polish, self.real, self.replies, self.slips, self.examples = polish, polish.tidy, 0, 0, []
+        polish.tidy = self
+
+    def __call__(self, text):
+        n = self.polish.slips(text)
+        self.replies += 1
+        if n:
+            self.slips += n
+            if len(self.examples) < 8:
+                self.examples.append(str(text)[:160])
+        return self.real(text)
+
+    def report(self):
+        return {"replies": self.replies, "slips": self.slips, "examples": self.examples}
+
+
 # ---------------------------------------------------------------- the 10 everyday jobs ---
 
 
@@ -409,6 +473,14 @@ def summary(paths):
             for c in h["conversations"]:
                 if not c["ok"]:
                     lines.append(f"- **{c['message']}** ({c['why']}): {c['reply'][:220]}")
+        if "humor" in report:
+            hu = report["humor"]
+            lines += ["", f"## Humor and tone: {hu['passed']}/{hu['total']} read the room right", ""]
+            for c in hu["conversations"]:
+                lines.append(f"- {'✅' if c['ok'] else '❌'} ({c['room']}) **{c['message']}**: {c['reply'][:200]}" + (f" _({c['why']})_" if c["why"] else ""))
+        if "language" in report:
+            la = report["language"]
+            lines += ["", f"## Language: {la['slips']} small slips caught and fixed in {la['replies']} replies"] + [f"- {e}" for e in la["examples"]]
         if "jobs" in report:
             lines += ["", "## Everyday jobs" + (" (ran out of time partway: the rest didn't run)" if report["jobs"].get("partial") else ""), "",
                       "| Job | Worked | Avg time | Example |", "|---|---|---|---|"]
@@ -431,7 +503,7 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "jobs", "pulse", "all", "summary"])
+    parser.add_argument("what", choices=["speed", "honesty", "humor", "jobs", "pulse", "all", "summary"])
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -450,12 +522,19 @@ def main():
         if args.save:
             Path(args.save).parent.mkdir(parents=True, exist_ok=True)
             Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))
+    slips = SlipCounter() if args.what in ("honesty", "humor", "jobs", "all") else None
     if args.what in ("speed", "all"):
         report["speed"] = speed(args.model or [os.environ["LUMA_MODEL_PATH"]])
     if args.what in ("honesty", "all"):
         report["honesty"] = honesty(args.only, progress=lambda part: save("honesty", part))
+    if args.what in ("humor", "all"):
+        report["humor"] = humor_check()
+        save()
     if args.what in ("jobs", "all"):
         report["jobs"] = jobs(args.repeats, args.slow_repeats, args.only, progress=lambda part: save("jobs", part))
+    if slips is not None:
+        report["language"] = slips.report()
+        print(f"language: {slips.slips} small slips caught and fixed in {slips.replies} replies", flush=True)
     if args.what in ("pulse", "all"):
         report["pulse"] = pulse()
     save()

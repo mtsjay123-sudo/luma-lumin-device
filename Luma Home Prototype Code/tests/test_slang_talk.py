@@ -62,14 +62,15 @@ class SlangTalkTests(unittest.TestCase):
         self.assertEqual(notice_facts("my mom is tired"), [])  # not a name
 
     def test_jokes_are_told_as_written_and_not_repeated(self):
-        from luma.agent import jokes
+        from luma.agent import humor_bank, jokes
+        bits = {text for _, _, text, grown in humor_bank.all_bits() if not grown}
         first = self.agent.chat("tell me a joke")["text"]
-        self.assertIn(first, jokes.JOKES)
+        self.assertIn(first, bits, "Luma's own material, told exactly as written")
         second = self.agent.chat("another one")["text"]
-        self.assertIn(second, jokes.JOKES)
-        self.assertNotEqual(first, second)
-        told = {self.agent.chat("tell me a joke")["text"] for _ in range(len(jokes.JOKES) - 2)}
-        self.assertEqual(len(told | {first, second}), len(jokes.JOKES))  # every joke once before any repeats
+        self.assertIn(second, bits)
+        told = [self.agent.chat("tell me a joke")["text"] for _ in range(60)]
+        self.assertEqual(len(set(told + [first, second])), 62, "never the same one twice")
+        self.assertIn(self.agent.chat("tell me a dad joke")["text"], jokes.JOKES, "the classic puns are still there for a dad joke")
         self.assertFalse(jokes.asked("another one", 0, 100))  # "another one" alone isn't a joke request
 
     def test_a_plain_hello_gets_a_plain_hello_back(self):

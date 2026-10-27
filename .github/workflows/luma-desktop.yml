@@ -182,6 +182,12 @@ jobs:
         env:
           LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
         run: python scripts/luma_lab.py honesty --save "$RUNNER_TEMP/lab/honesty.json"
+      - name: Humor and tone, 20 conversations (jokes back when joking, never at a hard moment)
+        if: always()
+        timeout-minutes: 30
+        env:
+          LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
+        run: python scripts/luma_lab.py humor --save "$RUNNER_TEMP/lab/humor.json"
       - name: The 10 everyday jobs, with real internet
         if: always()
         timeout-minutes: 140

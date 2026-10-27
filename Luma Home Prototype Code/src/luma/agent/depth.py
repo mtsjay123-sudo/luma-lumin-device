@@ -127,7 +127,11 @@ def ask(kind, text, now, zone, profile=None, style=None, seed=0):
         lines = ["Okay, how deep you want me to go on this? I can give you my answer right now, or really think it through.",
                  "Quick take, or you want me to really dig into this one?",
                  "I can answer that right now, or sit with it for a sec and give you the real deep dive. Your call."]
-    return lines[seed % len(lines)]
+    line = lines[seed % len(lines)]
+    from luma.agent import humor
+    if humor.read_tone(text)["mood"] in ("grief", "upset", "serious"):
+        line = line.replace(" 😭", "")  # "for real though, should I take the job?" is serious: no laughing-crying face
+    return line
 
 
 # How to answer once they've picked. Deep goes through Luma's deliberation; these shape the quick answers.
