@@ -23,7 +23,7 @@ running, and the hardware is in development.
 | # | Show | Say or do | What they see |
 |---|---|---|---|
 | 1 | The Luma page | Scroll once, slowly | The device, the app, "three ways in", privacy |
-| 2 | Talk | "yo what's good luma" then "ngl that album kinda mid" | It answers like a friend and matches how you talk |
+| 2 | Talk | "yo what's good luma" then "ngl that album kinda mid", then name one ("SOS by SZA") | It answers like a friend and matches how you talk. It asks which album instead of pretending, then gives a real take |
 | 3 | Memory | "when's my mom's birthday?" | It remembers, from what you told it last night |
 | 4 | A reminder | "finna hit the gym remind me at 6" | "Got it. I'll remind you to hit the gym at 6 PM." |
 | 5 | A text | "text my mom im pullin up in 5" | A draft for Mom that waits for your OK. Nothing sends on its own |

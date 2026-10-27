@@ -30,6 +30,8 @@ LINES = [
     ("news", "Hmm, okay. It's Saturday, October twenty-fourth, and honestly the big story today is the Fed holding rates steady. Want the quick version, or the full rundown?"),
     ("bday", "Wait, your mom's birthday is Saturday? Bet. I'll remind you Friday morning so you're not scrambling lol."),
     ("care", "I hear you. That sounds really heavy... Take your time, I'm right here."),
+    ("think", "Hmm... I'd go with the black one. It hides scuffs, and honestly, it still looks sharp a year from now."),
+    ("friend", "Man, that hurts. First thing, you're not broken, you just felt it deep. Want to talk it through, or just sit with it for a bit?"),
 ]
 
 DESIGNS = [

@@ -475,6 +475,21 @@ class Agent:
     APP_SLUGS = {"gmail": "gmail", "google mail": "gmail", "google calendar": "googlecalendar", "gcal": "googlecalendar", "google drive": "googledrive",
                  "drive": "googledrive", "google docs": "googledocs", "google sheets": "googlesheets"}
 
+    def _hub_gmail(self):
+        """Gmail connected through the apps hub (not an app-password mailbox): email requests then go to the brain, which reads and
+        sends through the hub (sending still asks first). Checked with the hub at most once a minute."""
+        if self.mail.connected() or not self.connectors.hub():
+            return False
+        seen = getattr(self, "_hub_gmail_seen", None)
+        if seen and self.clock() - seen[0] < 60:
+            return seen[1]
+        try:
+            ok = self.connectors.app_connected("gmail")
+        except Exception:
+            ok = False
+        self._hub_gmail_seen = (self.clock(), ok)
+        return ok
+
     def connect_app(self, app):
         """'Connect my Gmail': two clicks, the way Open Dot does it. Sign in once to the apps hub (Composio, free), then press
         Allow on the app's own page (Google's, for Gmail). After that Luma reads on its own and asks before it sends anything."""
@@ -482,6 +497,7 @@ class Agent:
             return {"text": "Connecting apps is for grown-ups. Ask a parent to do it in adult mode."}
         name = app_name(app)
         owner = "Google" if app == "gmail" or app.startswith("google") else name
+        self._hub_gmail_seen = None  # they're connecting something: look again next time
         try:
             if self.connectors.hub():
                 url = self.connectors.app_link(app)
@@ -492,14 +508,14 @@ class Agent:
                         "open_url": url, "section": "apps"}
             redirect = getattr(self, "oauth_redirect", None)
             if not redirect:
-                raise ConnectorError("Open Luma on your computer to connect apps.")
+                return {"text": f"Let's do that one on your computer: open Luma there and say “connect my {name}”. It's two clicks.", "section": "apps"}
             auth = self.connectors.sign_in_start("Apps", "", redirect, preset="apps", then=app)
             return {"text": f"Easy, two clicks. Sign in on the page I just opened (that's Composio, it's free and it's how I reach {name} safely), then press Allow on "
                             f"{owner}'s page. After that I read on my own and always ask before I send anything.", "open_url": auth["auth_url"], "section": "apps"}
-        except Exception as error:
+        except Exception:
             if app == "gmail":
-                return {"text": "I couldn't open the quick sign-in right now" + (f" ({str(error)[:80]})" if str(error) else "") + ". You can still add Gmail here "
-                                "with an app password from myaccount.google.com/apppasswords.", "connect": "mail", "section": "apps"}
+                return {"text": "I couldn't open the quick Gmail sign-in just now. Try again in a minute, or add Gmail here with an app password "
+                                "from myaccount.google.com/apppasswords.", "connect": "mail", "section": "apps"}
             return {"text": f"I couldn't open {name}'s sign-in right now. Try again in a minute, or open Connectors.", "section": "apps", "open": "apps"}
 
     def _connector_tools_for(self, lowered, limit=6):
@@ -1425,7 +1441,9 @@ class Agent:
     def email_reply(self, who, request, cancel_event=None):
         """'Reply to Sam saying I'll be there at 6': a draft in their Drafts folder, then a review card to send it."""
         if not self.mail.connected():
-            return {"text": "Connect your email right here first (free, with an app password) and I'll write that reply as soon as it's connected.", "section": "apps", "connect": "mail"}
+            if self._hub_gmail():
+                return None  # Gmail is connected through the apps hub: the brain writes it there, and sending waits for a yes
+            return {"text": "Connect your email first and I'll write that reply as soon as it's in. Using Gmail? Say “connect my Gmail”, it's two clicks.", "section": "apps", "connect": "mail"}
         try:
             original = self.mail.find_latest_from(who)
             if original is None:
@@ -1887,9 +1905,9 @@ class Agent:
         watched = {h["params"].get("query", "").lower() for h in self.helpers.list() if h["kind"] == "price_watch"}
         if self.last_query and self.last_query.lower() not in watched:
             idea(f"Watch the price of {self.last_query}", f"watch the price of {self.last_query}", "I'll check every day and tell you when it drops.", "deal")
-        if not self.mail.connected():
-            idea("Let me handle your inbox", "connect my email", "Connect Gmail or iCloud free with an app password. I'll sort mail and write replies.", "setup")
-        elif not any(h["kind"] == "inbox_digest" for h in self.helpers.list()):
+        if not self.mail.connected() and not self.connectors.hub():
+            idea("Let me handle your inbox", "connect my gmail", "Two clicks: sign in once, then Allow on Google's page. I'll sort mail and write replies, and ask before sending.", "setup")
+        elif self.mail.connected() and not any(h["kind"] == "inbox_digest" for h in self.helpers.list()):
             idea("Go through my inbox every morning", "every morning go through my inbox", "A short summary of what needs you, before you open Gmail.", "inbox")
         if not self.calendar.connected():
             idea("Put your calendar on Today", "connect my calendar", "Paste your calendar's private iCal link and I'll plan around it.", "setup")
@@ -2119,7 +2137,11 @@ class Agent:
                      r"|\b(?:any|new)\s+e-?mails?\b|\bdid i get (?:any )?(?:new )?e-?mails?\b", lowered):
             if self.mode == "kids": return {"text": "I don't read email in kids mode."}
             if not self.mail.connected():
-                return {"text": "I can go through your email once it's connected. Add Gmail, iCloud or Yahoo right here with an app password (it's free) and I'll go straight through it.", "section": "apps", "connect": "mail"}
+                if self._hub_gmail():
+                    if self.use_model:
+                        return None  # through the apps hub: the brain fetches it and answers from what's there
+                    return {"text": "I can read your Gmail as soon as my brain finishes loading. Ask me again in a moment."}
+                return {"text": "I can go through your email once it's connected. Using Gmail? Say “connect my Gmail”, it's two clicks. iCloud or Yahoo, add it right here with an app password.", "section": "apps", "connect": "mail"}
             try:
                 messages = self.mail.inbox(limit=10, unread_only=True)
                 label = "unread"
@@ -3492,6 +3514,8 @@ class Agent:
         intent, p = top[0]
         from luma.agent.scenarios import INTENTS
         spec = INTENTS[intent]
+        if intent == "check_email" and self.use_model and self._hub_gmail():
+            return None  # Gmail is connected through the apps hub: the brain reads it there
         if p >= 0.8:
             if spec.get("prefix"):
                 plain = understanding.respell(text)
@@ -3780,6 +3804,33 @@ class Agent:
                   ["I can't taste food, unfortunately. How was it?"]),
         "go": (["Never been anywhere, I live at your place lol. Did you go? How was it?"], ["I don't get out much, I live at your place. Have you been? How was it?"]),
     }
+
+    UNNAMED = re.compile(r"^\W*(?:(?:ngl|lowkey|highkey|honestly|tbh|fr|bro|yo|nah|man|bruh|deadass|ok|okay)\W+)*(?:that|this|the new|his new|her new|their new)\s+"
+                         r"(?P<what>album|song|track|movie|show|episode|mixtape|ep|film|book|game)\b(?P<rest>.{0,80})$", re.I)
+    REACTIONS = {"down": re.compile(r"\b(?:mid|trash|wack|boring|ass|bad|overrated|meh|not it|garbage|weak|dry)\b", re.I),
+                 "up": re.compile(r"\b(?:fire|hard|crazy|slaps|goes|hits|amazing|insane|bussin|so good|ate|elite|tuff)\b", re.I)}
+
+    def _which_one(self, text, lowered):
+        """'ngl that album kinda mid', with no album named and none in the last few messages: Luma doesn't know which one, so it
+        asks like a friend would, instead of a small brain inventing "the intro had that raw energy". Named, it talks about it."""
+        m = self.UNNAMED.match(lowered.strip())
+        if not m or self.mode == "kids" or re.search(r"\bby\b|[\"“”‘’']\w", m["rest"]):
+            return None
+        earlier = [t for t in self.history[-7:] if str(t.get("content", "")).strip() != text.strip()][-6:]  # not this message itself
+        if any(m["what"] in str(turn.get("content", "")).lower() for turn in earlier):
+            return None  # they've been talking about one: "that album" is that one, the brain takes it
+        import random
+        what = m["what"]
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
+        mood = "down" if self.REACTIONS["down"].search(m["rest"]) else "up" if self.REACTIONS["up"].search(m["rest"]) else "plain"
+        if casual:
+            lead = {"down": ["Mid?? 😭", "Nah, not mid 😭", "Damn, that bad?"], "up": ["Ooh okay 👀", "Say less 👀", "Wait, that good?"],
+                    "plain": ["Wait,", "Okay okay,", "Hold on,"]}[mood]
+            tail = [f"which {what} we talking? Tell me and I'll give you my real take.", f"which {what}? Put me on and I'll tell you what I think.",
+                    f"which {what} though? I need to know before I pick a side lol."]
+            first, rest = random.choice(lead), random.choice(tail)
+            return {"text": f"{first} {rest if first.endswith(',') else rest[:1].upper() + rest[1:]}"}
+        return {"text": f"Which {what} do you mean? Tell me and I'll give you my honest take."}
 
     def _have_you(self, lowered):
         """'you seen the new spiderman?': if it's new, it may be newer than what Luma knows, so it says so and lets them lead instead of a
@@ -4101,6 +4152,8 @@ class Agent:
             if hello is not None: return hello
             asked_if = self._have_you(lowered)
             if asked_if is not None: return asked_if
+            which = self._which_one(text, lowered)
+            if which is not None: return which
             texted = self._text_request(text)
             if texted is not None: return texted
             found = self.FIND_ON_COMPUTER.match(lowered)
@@ -4280,6 +4333,7 @@ class Agent:
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
             if SENSED.search(reply):
                 reply = self._without_senses(reply, text, cancel_event)
-            if MUSIC_TOPIC.search(lowered) and QUOTED.search(reply):
+            recent = " ".join(str(t.get("content", "")) for t in self.history[-3:])  # "SOS by SZA", answering "which album?"
+            if (MUSIC_TOPIC.search(lowered) or MUSIC_TOPIC.search(recent)) and QUOTED.search(reply):
                 reply = self._without_made_up_lyrics(reply, text, cancel_event)
             return {"text": without_disclaimers(reply, text)[:2000]}

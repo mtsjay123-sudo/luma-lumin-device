@@ -33,7 +33,7 @@ class SlangTalkTests(unittest.TestCase):
         self.assertEqual(sorted(self.titles()), ["Call grandma", "The dentist"])
 
     def test_the_reason_can_come_first(self):
-        self.assertIn("go to the gym at 6", self.agent.chat("finna go to the gym remind me at 6")["text"])
+        self.assertRegex(self.agent.chat("finna go to the gym remind me at 6")["text"], r"go to the gym (?:tomorrow )?at 6")  # "tomorrow" after 6 PM
         self.assertIn("Go to the gym", self.titles())
 
     def test_a_text_without_that(self):
@@ -49,7 +49,7 @@ class SlangTalkTests(unittest.TestCase):
         self.assertIn("Playing drake on", reply)
         self.assertEqual(self.titles(), [])
         self.agent.chat("remind me at 6")
-        self.assertIn("call mom at 6", self.agent.chat("call mom")["text"])  # an answer is still an answer
+        self.assertRegex(self.agent.chat("call mom")["text"], r"call mom (?:tomorrow )?at 6")  # an answer is still an answer
 
     def test_questions_about_what_they_told_luma(self):
         self.assertEqual(self.agent.chat("my mom's birthday is June 3")["text"], "Got it. Your mom's birthday is June 3.")
@@ -163,6 +163,26 @@ class SlangTalkTests(unittest.TestCase):
         self.agent.planner = lambda *a: {"type": "reply", "text": "He says “I just need the truth” fr."}  # a rewrite that still quotes
         self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth”. The beat is insane though.", "kendrick verse"),
                          "The beat is insane though.")
+
+    def test_that_album_with_no_album_named_gets_which_one(self):
+        reply = self.agent.chat("ngl that album kinda mid")["text"]
+        self.assertIn("which album", reply.lower())  # a friend asks; it never invents "the intro had that raw energy"
+        self.assertNotRegex(reply, r"[?!] [a-z]")  # a new sentence starts with a capital
+        self.assertRegex(self.agent.chat("this song goes so hard")["text"].lower(), r"which song")
+        self.assertIsNone(self.agent._which_one("ngl that album by sza kinda mid", "ngl that album by sza kinda mid"))  # named: the brain talks about it
+        self.agent.history = [{"role": "user", "content": "you heard the new sza album?"}, {"role": "assistant", "content": "Yeah, what you think?"}]
+        self.assertIsNone(self.agent._which_one("that album kinda mid", "that album kinda mid"))  # they've been on one: it's that one
+        self.agent.use_model = True  # naming it after "which album?": the take stays, a quoted line it may have misremembered goes
+        def brain(messages, *a):
+            if "misremembering" in messages[-1]["content"]:
+                return {"type": "reply", "text": "SOS? Nah, that one's not mid at all. Kill Bill alone carries it."}
+            return {"type": "reply", "text": "SOS? Nah, not mid. When she sings 'I might kill my ex, not the best idea' I lose it."}
+        self.agent.planner = brain
+        self.assertNotIn("'", self.agent.chat("sos by sza")["text"].replace("one's", ""))
+        self.agent.use_model = False
+        self.agent.history = self.agent.threads["main"] = []  # a fresh conversation, with someone who writes in full sentences
+        self.store.set_setting("their_style", None)
+        self.assertEqual(self.agent.chat("That album is a bit overrated.")["text"], "Which album do you mean? Tell me and I'll give you my honest take.")
 
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)

@@ -342,7 +342,7 @@ class FeedbackThreadsAndServerTests(unittest.TestCase):
 
     def test_ideas_offer_next_steps(self):
         ideas = self.agent.ideas()
-        self.assertTrue(any(i["say"] == "connect my email" for i in ideas))
+        self.assertTrue(any(i["say"] == "connect my gmail" for i in ideas))  # two clicks through the apps hub
         self.assertTrue(all(i["title"] and i["say"] for i in ideas))
 
     def test_home_activity_rules_and_feedback_over_http(self):

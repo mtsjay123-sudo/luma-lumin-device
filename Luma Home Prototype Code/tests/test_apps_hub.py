@@ -86,6 +86,24 @@ class AppsHubTests(unittest.TestCase):
         self.assertEqual(done["then_app"], "Gmail")
         self.assertTrue(done["then_url"].startswith("https://accounts.google.com/"))
 
+    def test_after_connecting_gmail_email_requests_go_through_the_hub(self):
+        self.add_hub()
+        self.agent.use_model = True
+        saw = []
+        def brain(messages, context, allowed, mode):
+            saw.append(sorted(t for t in allowed if t.startswith("mcp.")))
+            if "found" not in messages[-1]["content"] and "mcp.apps.composio_multi_execute_tool" in allowed:
+                return {"type": "tool", "name": "mcp.apps.composio_multi_execute_tool",
+                        "arguments": {"tools": '[{"tool_slug": "GMAIL_FETCH_EMAILS", "arguments": {"max_results": 5}}]', "thought": ""}}
+            return {"type": "reply", "text": "One from Sam: lunch Friday?"}
+        self.agent.planner = brain
+        self.assertIn("app password", self.agent.chat("check my gmail")["text"])  # Gmail isn't connected in the hub yet
+        self.agent.chat("connect my gmail")  # (the stand-in hub connects it right away)
+        reply = self.agent.chat("check my gmail")
+        self.assertNotIn("app password", reply["text"])
+        self.assertIn("Sam", reply["text"])  # read through the hub, answered from what it found
+        self.assertTrue(any("mcp.apps.composio_multi_execute_tool" in tools for tools in saw))  # the brain was handed the hub's tools
+
     def test_kids_cant_connect_apps(self):
         self.store.set_setting("mode", "kids")
         self.assertNotIn("open_url", self.agent.connect_app("gmail"))
