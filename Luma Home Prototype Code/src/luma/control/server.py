@@ -205,7 +205,7 @@ def _natural_voice(agent):
     """Where the new expressive voice is: off, getting ready, ready (and whether it can laugh), or resting after a problem."""
     try:
         from luma.audio import natural
-        return {**natural.voice().status(), 'mode': agent.store.setting('natural_voice') or 'auto',
+        return {**natural.voice().status(), 'mode': agent.store.setting('natural_voice') or natural.DEFAULT_MODE,
                 'choice': agent.store.setting('natural_voice_engine') or 'expressive'}
     except Exception as error:
         return {'supported': False, 'state': 'off', 'note': str(error)[:120]}
@@ -739,7 +739,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         # The new expressive voice: auto (on when this Mac can run it), on or off; and which open model.
                         if companion: return self.send({'error':'Set the voice on the Mac.'},403)
                         from luma.audio import natural
-                        mode=data.get('mode') or agent.store.setting('natural_voice') or 'auto'
+                        mode=data.get('mode') or agent.store.setting('natural_voice') or natural.DEFAULT_MODE
                         engine=data.get('engine') or agent.store.setting('natural_voice_engine') or 'expressive'
                         if mode not in ('auto','on','off') or engine not in ('expressive','studio'): raise ValueError('Choose auto, on or off, and expressive or studio.')
                         changed=engine!=(agent.store.setting('natural_voice_engine') or 'expressive')
@@ -1144,7 +1144,7 @@ def serve(agent,port,phone_host=None,phone_port=8096):
         # The new expressive voice (Apple Silicon): downloads once in the background; the classic voice talks until it's ready.
         try:
             from luma.audio import natural
-            if natural.supported() and (agent.store.setting('natural_voice') or 'auto') != 'off':
+            if natural.supported() and (agent.store.setting('natural_voice') or natural.DEFAULT_MODE) != 'off':
                 natural.voice().prepare_in_background(agent.store.setting('natural_voice_engine') or 'expressive', prefs.get('voice') or 'luma')
         except Exception as error:
             print(f'LUMA new voice not started: {error}',flush=True)

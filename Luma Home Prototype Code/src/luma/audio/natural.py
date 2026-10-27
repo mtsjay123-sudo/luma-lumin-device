@@ -10,6 +10,10 @@ It runs in its own process with its own Python (luma/audio/voice_server.py), dow
 background, and the classic voice keeps talking until it's ready, and takes over again if the new
 one ever stops, garbles a phrase or can't keep up on this Mac.
 Setting "natural_voice": "auto" (on when this computer can run it), "on" or "off".
+
+Off (the classic voice) by default: in two fair contests on a real Mac, judged by UTMOSv2 on each voice's own audio, the classic
+voice with Luma's conversation layer sounded more natural (3.47 and 3.66 out of 5) than Chatterbox-Turbo learning it (3.32 and
+3.20), with the same words right. The expressive voice stays one tap away in Settings for its real laughs.
 """
 from __future__ import annotations
 
@@ -38,6 +42,7 @@ SPEED_LINE = "Alright, so tell me everything that happened today, I'm listening.
 MAX_RTF = 0.9              # it has to make speech faster than it talks, or the conversation stalls between phrases
 SLOW_FOR = 7 * 86400       # an engine that was too slow on this Mac isn't tried again for a week
 ENGINES = ("expressive", "studio")
+DEFAULT_MODE = "off"  # the classic voice, until a new one beats it in the contest (scripts/voice_check.py)
 # Smaller (quantized) builds of each model: a little less detail, a lot faster. Tried when the full one can't keep up.
 FASTER = {"expressive": ["mlx-community/chatterbox-turbo-8bit", "mlx-community/chatterbox-turbo-4bit"],
           "studio": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"]}
