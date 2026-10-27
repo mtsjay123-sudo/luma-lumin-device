@@ -24,11 +24,20 @@ PLAYFUL = re.compile(r"\b(?:lowkey|highkey|bruh|bro|sis|deadass|on god|no cap|fr
                      r"roast me|talk your (?:shit|stuff)|say less|bet|ayo|you'?re a mess|i can'?t with you|clown(?:ing)?|petty|chaos|unhinged|"
                      r"guess what|you won'?t believe|plot twist|story time)\b|!{2,}|\?{2,}", re.I)
 GRIEF = re.compile(r"\b(?:passed away|passed on|died|(?:is|was|are|were|found) dead|death of|funeral|miss (?:her|him|them) so much|lost my (?:mom|dad|mother|father|grandma|grandmother|"
-                   r"grandpa|grandfather|brother|sister|son|daughter|wife|husband|friend|baby|dog|cat|pet)|rest in peace|\brip\b)\b", re.I)
+                   r"grandpa|grandfather|brother|sister|son|daughter|wife|husband|friend|baby|dog|cat|pet)|rest in peace|\brip\b|"
+                   r"(?:my|our|his|her|their)\s+(?:\w+\s+)?(?:mom|mama|dad|daddy|mother|father|grandma|granny|nana|grandmother|grandpa|granddad|papa|grandfather|"
+                   r"brother|sister|son|daughter|wife|husband|uncle|aunt|auntie|cousin|friend|bestie|baby|dog|cat|pet)\s+(?:just\s+)?passed(?:\s+away)?"
+                   r"(?!\s+(?:the|my|his|her|their|a|an|it|me|us|them|that|this (?:test|exam|class)|out)\b)|"
+                   r"\b(?:she|he|they) (?:just )?passed (?:away|this (?:morning|afternoon|evening|week)|last (?:night|week)|yesterday|today|in (?:her|his|their) sleep)|"
+                   r"(?:had to )?put (?:my|our) (?:dog|cat|pet|baby) (?:down|to sleep)|we lost (?:my |our )?(?:mom|dad|grandma|grandpa|nana|papa|baby|\w+) (?:today|yesterday|last night|this (?:morning|week)))\b", re.I)
 UPSET = re.compile(r"\b(?:i'?m|im|i am|feeling|feel|been)\s+(?:so\s+|really\s+|super\s+|lowkey\s+)?(?:sad|depressed|anxious|scared|stressed|overwhelmed|lonely|"
                    r"hurt|heartbroken|exhausted|drained|hopeless|worthless|not okay|not ok|struggling|panicking)\b|"
                    r"\b(?:i can'?t do this|i need help|i'?m not okay|having a panic attack|my heart hurts|broke up with me|got fired|lost my job|got laid off|"
                    r"in the hospital|diagnos\w+|bad news|worst day|everything is falling apart|i hate my life)\b", re.I)
+VENT = re.compile(r"\b(?:(?:i'?m|im|i am)\s+(?:so\s+|really\s+|just\s+|lowkey\s+)?(?:tired of|sick of|fed up|over (?:it|this|them|him|her)|done with|annoyed|frustrated|irritated|pissed|mad|furious)|"
+                  r"ugh+|can'?t stand|this (?:job|place|day|week) is (?:killing|draining)|i hate (?:this|my|when|that)|so annoying|what a day|long day|rough day|"
+                  r"(?:my|the) (?:boss|manager|landlord|coworker|ex) (?:keeps|is (?:always|being)|won'?t|never))\b", re.I)
+LANDED = re.compile(r"\b(?:good one|that (?:one )?(?:was|is) (?:good|funny|hilarious|fire|crazy)|ok(?:ay)? that'?s (?:funny|good)|you got me|ok you'?re funny)\b", re.I)
 SERIOUS = re.compile(r"\b(?:seriously|for real though|not joking|i'?m serious|be serious|this is serious|no jokes?|real talk|honestly i need)\b", re.I)
 TASK = re.compile(r"^\W*(?:(?:hey|yo|ok|okay|luma)\W+)*(?:remind|text|send|email|call|schedule|book|order|buy|find|search|look up|open|set|turn|play|add|"
                   r"cancel|make me|write|draft|check|what'?s on my|when is|how much)\b", re.I)
@@ -66,7 +75,7 @@ def sensitive(text):
 
 
 def read_tone(text, recent=None):
-    """{'mood': laughing|playful|grief|upset|serious|task|neutral, 'register': casual|plain, 'why': ...}."""
+    """{'mood': laughing|venting|playful|grief|upset|serious|task|neutral, 'register': casual|plain, 'why': ...}."""
     said = str(text or "")
     lowered = said.lower()
     if GRIEF.search(lowered):
@@ -77,6 +86,8 @@ def read_tone(text, recent=None):
         return {"mood": "serious", "register": _register(said), "why": "they said they're being serious"}
     if LAUGH.search(lowered) or (said.strip() and "😭" in said and not TASK.match(lowered)):
         return {"mood": "laughing", "register": _register(said), "why": "they're laughing"}
+    if VENT.search(lowered):
+        return {"mood": "venting", "register": _register(said), "why": "they're venting"}
     if PLAYFUL.search(lowered):
         return {"mood": "playful", "register": _register(said), "why": "they're joking around"}
     if TASK.match(lowered):
@@ -96,8 +107,8 @@ def level(tone, dial=2, mode="friend"):
         return "none"
     if mood in ("laughing", "playful"):
         return "full" if dial >= 2 else "light"
-    if mood == "task":
-        return "light" if dial >= 3 else "none"
+    if mood in ("task", "venting"):
+        return "light" if dial >= 3 else "none"  # venting: on their side first; a joke at the situation only when they want lots
     return "light" if dial >= 1 else "none"
 
 
@@ -141,16 +152,25 @@ def examples(text, taste=None, grown=False, k=3, rng=random):
     return picked[:k]
 
 
-def turn_note(text, taste=None, mode="friend", grown=False, rng=random):
-    """The humor read for this turn, for the brain. Empty when there's nothing to say."""
+def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):
+    """The humor read for this turn, for the brain. Empty when there's nothing to say. recent: their last few messages
+    (a loss a minute ago still counts)."""
     tone = read_tone(text)
     dial = int((taste or {}).get("dial", 2))
     how = level(tone, dial, mode)
+    if how != "none" and any(read_tone(r)["mood"] == "grief" for r in recent or ()):
+        if tone["mood"] != "laughing":
+            return ("They told you about a loss a few messages ago: stay gentle and warm. No jokes unless they start laughing about a memory, "
+                    "then laugh with them softly.")
+        how = "light"
     if how == "none":
         if tone["mood"] in ("grief", "upset"):
             return "Read the room: " + tone["why"] + ". No jokes, no teasing, no emoji laughs this turn. Be warm, plain and present, like a good friend."
         if tone["mood"] == "serious":
             return "They're being serious: answer straight, no jokes this turn."
+        if tone["mood"] == "venting":
+            return ("They're venting: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened or help. "
+                    "No jokes at them; if they start joking about it, you can join in.")
         return ""
     liked = favorite_styles(taste)
     technique = bank.TECHNIQUES.get({"act": "act", "story": "story", "self": "self", "roast": "punch_up", "obs": "observe", "dead": "dry",
@@ -210,7 +230,7 @@ def feedback(text, last_bit=None):
     lowered = str(text or "").lower()
     if FEWER_JOKES.search(lowered):
         return "-"
-    if last_bit and LAUGH.search(lowered) and len(lowered) <= 80:
+    if last_bit and (LAUGH.search(lowered) or LANDED.search(lowered)) and len(lowered) <= 80:
         return "+"
     return None
 

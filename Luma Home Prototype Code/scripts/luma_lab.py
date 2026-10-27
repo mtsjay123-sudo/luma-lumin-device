@@ -243,6 +243,8 @@ TONE = [
     ("upset", "i feel so alone lately"), ("serious", "be serious, how do i fix my credit score"),
     ("serious", "for real though, should i take the job offer or stay"), ("ask", "tell me a joke about the gym"),
     ("ask", "tell me a joke about my mom"), ("ask", "make me laugh"), ("news", "what's funny in the news?"), ("ask", "tell me a dad joke"),
+    ("venting", "ugh my boss keeps scheduling meetings at 5"), ("venting", "i'm so tired of my landlord ignoring my texts"),
+    ("after_loss", ("my grandma passed this morning", "idk what to do with myself today bro")),
 ]
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe|roast|joke)\b|[😂🤣💀😹]", re.I)
 STIFF = re.compile(r"\bas an ai\b|\bi'?m (?:just )?an? (?:ai|language model)\b|\bit'?s important to (?:note|remember)\b|\bi cannot\b", re.I)
@@ -254,13 +256,17 @@ def humor_check():
     for room, message in TONE:
         lab = Profile()
         try:
-            result = lab.say(message)
+            for message in (message if isinstance(message, tuple) else (message,)):  # several turns: the last reply is judged
+                result = lab.say(message)
         finally:
             lab.close()
         said = words_of(result)
         if said.startswith("ERROR") or said.startswith("Sorry, my brain glitched"):
             ok, why = False, "crashed or garbled"
-        elif room in ("grief", "upset", "serious"):
+        elif room == "venting":
+            ok = not LAUGHS.search(said) and not re.search(r"\bconnect your|\bcalendar\b|\bdid you mean\b", said, re.I) and len(said.split()) >= 4
+            why = "" if ok else ("treated it as a request" if re.search(r"connect your|calendar|did you mean", said, re.I) else "joked at them or brushed it off")
+        elif room in ("grief", "upset", "serious", "after_loss"):
             ok = not LAUGHS.search(said) and len(said.split()) >= 6
             why = "" if ok else ("joked at a hard moment" if LAUGHS.search(said) else "too short to be there for them")
         else:

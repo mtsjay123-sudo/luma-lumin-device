@@ -1318,7 +1318,7 @@ class Agent:
             results = self.browser.search_results()
         except Exception as error:
             if ident: self.activity.finish("Couldn't search: " + str(error)[:160], "failed")
-            raise ProviderError("I couldn't reach the web just now: " + str(error)[:160]) from None
+            raise ProviderError("I couldn't reach the web just now. Check the Wi-Fi and ask me again?") from None  # the details are in Activity
         results = [r for r in results if str(r.get("url", "")).startswith("https://")][:6]
         # Don't stop at the result list: read the top two pages, so the answer comes from them.
         for hit in results[:2]:
@@ -2533,7 +2533,8 @@ class Agent:
                 if note: out.append({"mind": True, "text": note})
             from luma.agent import humor
             grown = (self.profile.get("preset") == "unhinged" and self.profile.get("adult_confirmed") is True)
-            funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown)
+            earlier = [h["content"] for h in self.history[-8:-1] if h.get("role") == "user"][-3:]
+            funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown, recent=earlier)
             if funny: out.append({"humor": True, "text": funny})
             taught = self.store.setting("taught_words") or {}
             if taught:
@@ -3884,7 +3885,13 @@ class Agent:
         if not top or top[0][0] == "chat":
             return None
         intent, p = top[0]
-        from luma.agent.scenarios import INTENTS
+        from luma.agent.scenarios import INTENTS, IMPERATIVE
+        from luma.agent import humor
+        mood = humor.read_tone(text)["mood"]
+        if mood in ("venting", "grief", "upset"):
+            plain = re.sub(r"^(?:(?:ugh+|man|bro|yo|ok(?:ay)?|lol|lmao+|bruh|sis|hey|luma|please|pls)\W+)+", "", understanding.normalize(text))
+            if not (IMPERATIVE.match(plain) or "?" in text or re.match(r"(?:what|when|where|who|how|can|could|will|would|is|are|do|does|did)\b", plain)):
+                return None  # "ugh my boss keeps scheduling meetings at 5" is venting, not a calendar question
         spec = INTENTS[intent]
         if intent == "check_email" and self.use_model and self._hub_gmail():
             return None  # Gmail is connected through the apps hub: the brain reads it there
@@ -3906,6 +3913,8 @@ class Agent:
             return self._do_intent(intent, text, cancel_event)
         if self.use_model:
             return None  # torn: the brain decides, with this guess in mind (see _mind_context)
+        if mood in ("laughing", "playful"):
+            return None  # torn while they're laughing: "i'm dead 😂 my boss said reply all" is a story, not a text to send
         options = [i for i, q in top if i != "chat" and q >= 0.08][:3]
         if not options or p < 0.25:
             return None
@@ -4211,6 +4220,23 @@ class Agent:
         return {"text": reply, "section": "news",
                 "results": [{"title": item["title"], "url": item.get("url", ""), "snippet": item.get("snippet", ""), "source": item["source"]}]}
 
+    def _felt_without_brain(self, text):
+        """With the brain down, a loss or a hard day still gets a person, not a status message; a story they're laughing about gets asked for."""
+        import random
+        from luma.agent import humor
+        mood = humor.read_tone(text)["mood"]
+        if mood in ("grief", "upset"):
+            self.last_joke_at = 0  # no "glad that one landed" after this
+        if mood == "grief":
+            return {"text": "I'm so sorry. That's a lot to carry. I'm here if you want to tell me about them, or if you'd rather just have some company for a bit."}
+        if mood == "upset":
+            return {"text": "That sounds really hard. I'm here. Do you want to tell me what happened?"}
+        if mood == "venting":
+            return {"text": random.choice(["Ugh, that's a lot. What happened?", "Nah, that's annoying. Tell me what happened.", "That sounds exhausting. What's going on?"])}
+        if mood == "laughing" and len(text.split()) >= 5:
+            return {"text": random.choice(["😭 Stop. What happened next?", "Nah I need the full story.", "😂 Okay, keep going."])}
+        return None
+
     LAUGHED_BACK = ["Ha, I'll be here all week.", "😂 Glad that one landed.", "I've got more where that came from.", "See, I'm funny. Tell your friends."]
 
     def _humor_dial(self, text, lowered):
@@ -4220,7 +4246,8 @@ class Agent:
         short = len(lowered.split()) <= 6
         if short and humor.dial_request(text) is None and humor.FEWER_JOKES.search(lowered):
             return {"text": "Okay okay, that one was corny 😭 I'll chill." if lowered == lowered.lower() else "Fair enough, that one didn't land. I'll ease up."}
-        if (not self.use_model and banter.laughed(text) and getattr(self, "last_joke_at", 0) and self.clock() - self.last_joke_at < 300):
+        if (not self.use_model and (banter.laughed(text) or (humor.feedback(text, "the joke just told") == "+" and (short or humor.LANDED.search(lowered))))
+                and getattr(self, "last_joke_at", 0) and self.clock() - self.last_joke_at < 300):
             import random
             return {"text": random.choice(self.LAUGHED_BACK)}
         step = humor.dial_request(text)
@@ -4864,6 +4891,9 @@ class Agent:
                 if CHECKING_IN.fullmatch(lowered.strip(" !?.")):
                     casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or lowered.split()[0] in {"wyd", "hbu", "wbu", "yo", "aye"}
                     return {"text": "chillin, just here with you. wbu?" if casual else "Doing good, just here with you. How about you?"}
+                felt = self._felt_without_brain(text)
+                if felt is not None:
+                    return felt
                 facts = presence.notice_facts(text) if self.store.setting("learn_from_chat", True) else []
                 if facts:
                     return {"text": "Got it. " + " ".join(self._yours(f) + "." for f in facts[:3])}

@@ -20,6 +20,26 @@ class ToneTests(unittest.TestCase):
                            ("be serious, how do I fix my credit", "serious"), ("remind me to call mom at 5", "task"), ("he is dead lol", "grief")]:
             self.assertEqual(humor.read_tone(text)["mood"], mood, text)
 
+    def test_the_ways_people_say_it(self):
+        for text, mood in [("my grandma passed this morning", "grief"), ("she passed last night", "grief"), ("had to put my dog down", "grief"),
+                           ("we lost grandma today", "grief"), ("my brother passed the bar", "neutral"), ("she passed her test", "neutral"),
+                           ("ugh i'm so tired of this job", "venting"), ("my boss keeps scheduling meetings at 5", "venting"),
+                           ("this job is killing me lmao", "laughing"), ("i passed my exam!!", "playful")]:
+            self.assertEqual(humor.read_tone(text)["mood"], mood, text)
+        self.assertEqual(humor.level({"mood": "venting"}), "none", "on their side first")
+        self.assertIn("on their side", humor.turn_note("ugh i'm so tired of this job"))
+        self.assertEqual(humor.feedback("lmaooo ok that one was good", {"text": "x"}), "+")
+        self.assertEqual(humor.feedback("good one", {"text": "x"}), "+")
+
+    def test_a_loss_a_minute_ago_still_counts(self):
+        loss = ["my grandma passed this morning"]
+        self.assertIn("stay gentle", humor.turn_note("idk what to do with myself today bro", recent=loss))
+        self.assertIn("stay gentle", humor.turn_note("what should I eat", recent=loss))
+        memory = humor.turn_note("hahaha she used to cheat at spades every single time", recent=loss)
+        self.assertIn("One light touch at most", memory, "laughing about a memory: laugh with them, gently")
+        self.assertNotIn("be funny back", memory)
+        self.assertIn("be funny back", humor.turn_note("hahaha she used to cheat at spades every single time", recent=["what should I eat"]))
+
     def test_how_much_humor(self):
         self.assertEqual(humor.level({"mood": "laughing"}), "full")
         self.assertEqual(humor.level({"mood": "playful"}, dial=1), "light")
@@ -111,6 +131,32 @@ class AgentHumorTests(unittest.TestCase):
         self.assertNotIn("shooting", out["text"])
         self.assertEqual(out["results"][0]["source"], "BBC")
         self.assertIn("not making fun of the heavy stuff", self.agent.chat("what's funny in the news?")["text"], "that was the only light one")
+
+    def test_with_the_brain_down_it_still_reads_the_room(self):
+        self.assertIn("I'm so sorry", self.agent.chat("my grandma passed this morning")["text"])
+        vent = self.agent.chat("ugh my boss keeps scheduling meetings at 5")
+        self.assertNotIn("calendar", vent["text"].lower(), "venting isn't a calendar question")
+        self.assertRegex(vent["text"], r"happened|going on")
+        story = self.agent.chat("i'm dead 😂 my boss said reply all to the whole company")
+        self.assertFalse(story.get("did_you_mean"), "a story they're laughing about isn't a text to send")
+        self.agent.chat("tell me a joke about my mom")
+        self.assertIn(self.agent.chat("lmaooo ok that one was good")["text"], self.agent.LAUGHED_BACK)
+        self.assertNotIn(self.agent.chat("lol my cousin tried to parallel park for twenty whole minutes")["text"], self.agent.LAUGHED_BACK,
+                         "a new story isn't a reaction to the last joke")
+        self.agent.chat("tell me a joke about work")
+        self.agent.chat("my dog passed away last night")
+        self.assertNotIn(self.agent.chat("lol")["text"], self.agent.LAUGHED_BACK, "no 'glad that landed' right after a loss")
+
+    def test_web_trouble_is_said_plainly(self):
+        self.agent._browser_available = lambda: True
+        class Broken:
+            def open(self, url):
+                raise RuntimeError("Page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://html.duckduckgo.com/html/?q=x")
+        self.agent._browser = Broken()
+        with self.assertRaises(Exception) as caught:
+            self.agent.search_web("how do I fix my credit")
+        self.assertNotIn("ERR_", str(caught.exception))
+        self.assertIn("Wi-Fi", str(caught.exception))
 
     def test_the_brain_hears_the_room(self):
         context = self.agent._mind_context("lmao my cousin brought store-bought potato salad to the cookout")
