@@ -154,6 +154,12 @@ def main(out):
 
     # 4. Candidate voices for Luma's own identity (a description, no real person's voice).
     try:
+        import mlx.core as mx
+        try:
+            if not mx.metal.is_available():
+                mx.set_default_device(mx.cpu)  # a virtual Mac with no usable graphics chip: the processor, slower but the same voice
+        except Exception:
+            mx.set_default_device(mx.cpu)
         from mlx_audio.tts.utils import load_model
         model = load_model("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16")
         designs = {}

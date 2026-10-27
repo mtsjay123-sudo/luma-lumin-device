@@ -135,9 +135,10 @@ def main(out, size="small.en"):
     report = {"model": f"faster-whisper {size}", "by_voice": {v: round(sum(w) / len(w), 3) for v, w in voices.items()}, "files": results}
     report.update(naturalness(out, results))
     (out / "check.json").write_text(json.dumps(report, indent=2))
-    print(f"{'file':28} {'WER':>6}  {'sec':>5}  heard")
+    print(f"{'file':28} {'WER':>6}  {'sec':>5}  {'MOS':>4}  heard")
     for name, r in results.items():
-        print(f"{name:28} {r['wer']:6.3f}  {r['seconds']:5.1f}  {'' if r['ok'] else '!! '}{r['heard']}")
+        mos = f"{r['mos']:4.2f}" if isinstance(r.get("mos"), (int, float)) else "   -"
+        print(f"{name:28} {r['wer']:6.3f}  {r['seconds']:5.1f}  {mos}  {'' if r['ok'] else '!! '}{r['heard']}")
     print("average word error rate by voice:", json.dumps(report["by_voice"]))
     for engine, info in (summary.get("voices") or {}).items():  # which engines rendered, and why one didn't
         if not isinstance(info, dict):

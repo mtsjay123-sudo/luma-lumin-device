@@ -87,7 +87,25 @@ def _device():
         return None
 
 
+def _processor_if_no_graphics():
+    """A Mac with no usable graphics chip (a virtual one, a headless session) can still speak, on the processor: slower, same voice."""
+    try:
+        import mlx.core as mx
+    except Exception:
+        return
+    try:
+        missing = not mx.metal.is_available()
+    except Exception:
+        missing = True
+    if missing:
+        try:
+            mx.set_default_device(mx.cpu)
+        except Exception:
+            pass
+
+
 def load(engine, ref=None, ref_text=None, repos=None):
+    _processor_if_no_graphics()
     from mlx_audio.tts.utils import load_model
     spec = ENGINES.get(engine)
     if not spec:
