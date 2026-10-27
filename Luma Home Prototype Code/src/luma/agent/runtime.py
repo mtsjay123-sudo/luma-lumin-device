@@ -3824,7 +3824,7 @@ class Agent:
         casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
         mood = "down" if self.REACTIONS["down"].search(m["rest"]) else "up" if self.REACTIONS["up"].search(m["rest"]) else "plain"
         if casual:
-            lead = {"down": ["Mid?? 😭", "Nah, not mid 😭", "Damn, that bad?"], "up": ["Ooh okay 👀", "Say less 👀", "Wait, that good?"],
+            lead = {"down": ["Mid?? 😭", "Nooo 😭 that bad?", "Damn, that bad?"], "up": ["Ooh okay 👀", "Say less 👀", "Wait, that good?"],
                     "plain": ["Wait,", "Okay okay,", "Hold on,"]}[mood]
             tail = [f"which {what} we talking? Tell me and I'll give you my real take.", f"which {what}? Put me on and I'll tell you what I think.",
                     f"which {what} though? I need to know before I pick a side lol."]
