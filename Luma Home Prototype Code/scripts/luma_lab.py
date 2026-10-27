@@ -464,7 +464,7 @@ def pulse():
             print(f"\n{kind.upper()} (news coverage of what's blowing up there)", flush=True)
             for st in social[kind]:
                 print(f"  {news.ago(st['latest'], now):>10}  {st['title'][:110]}  — {news.credit(st)}", flush=True)
-        trends = [i for i in items if i.get("source") == "Google Trends"][:12]
+        trends = sorted((i for i in items if i.get("source") == "Google Trends"), key=lambda i: news.searches(i.get("traffic")), reverse=True)[:12]
         print("\nGOOGLE TRENDS (US searches right now)", flush=True)
         for i in trends:
             print(f"  {i.get('traffic', ''):>10}  {i['title']}  — {i.get('snippet', '')[:90]}", flush=True)
@@ -473,7 +473,7 @@ def pulse():
         for i in looked:
             print(f"  {i.get('views') or '':>9}  {i['title']}", flush=True)
         dated = sum(1 for i in items if i.get("published"))
-        stale = [r["source"] for r in rows if r["newest"] not in ("", "just now") and ("day" in r["newest"] or r["newest"] == "yesterday")]
+        stale = [r["source"] for r in rows if r["items"] >= 3 and ("day" in r["newest"] or r["newest"] == "yesterday")]  # a real feed gone quiet
         print(f"\nfreshness: {dated}/{len(items)} stories carry their real publish time; sources whose newest story is a day or more old: "
               + (", ".join(stale) or "none"), flush=True)
         checks = check_links(top[:8])

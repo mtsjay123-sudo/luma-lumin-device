@@ -103,7 +103,8 @@ class FromTheLiveCheckTests(unittest.TestCase):
         for spam in ["~#(XXX+TrendinG!)* instagram viral video Original HOT Pics & Videos NEW XXX Viral",
                      "[clips 18+ videos] 131 Second Kanda Video Viral Xaukiya on TikTok",
                      "Adjustable double .#FirstVideoChallenge#unpopularopinion#CaughtnCamera#jokejuxtapose#crazy#love#funny",
-                     "++XXX+FULL+!!caramel macchiato viral video Original Clip in Social Media x TikTok"]:
+                     "++XXX+FULL+!!caramel macchiato viral video Original Clip in Social Media x TikTok",
+                     "(Viral\U0001F459@pori moni)pori moni viral video News Instagram \U0001F459"]:
             self.assertTrue(news.SPAM.search(spam), spam)
         for real in ["Onalaska family's homemade sausage race goes viral on TikTok during World Series",
                      "The odd origin of TikTok's viral 'I'm feeling tremendous' sound", "What Is Ferritin Face? Truth Behind Viral TikTok Trend",
@@ -113,6 +114,9 @@ class FromTheLiveCheckTests(unittest.TestCase):
                b'<link>https://news.google.com/x</link></item><item><title>Instagram tests 90-minute videos - The Verge</title>'
                b'<link>https://news.google.com/y</link></item></channel></rss>')
         self.assertEqual([i["title"] for i in news.parse(rss, "Google News")], ["Instagram tests 90-minute videos"])
+        town = '<rss><channel><item><title>Kanda video on TikTok - \u5c0f\u8c46\u5cf6\u753a</title><link>https://news.google.com/z</link></item></channel></rss>'
+        self.assertEqual(news.parse(town.encode(), "Google News"), [], "spam planted on a town hall's site")
+        self.assertFalse(news.SPAM.search("Viral video of a dog opening the fridge has millions laughing"))
 
     def test_the_lead_headline_is_the_story_not_a_column(self):
         items = [item("NPR", "Discursive Verses: Jay-Z, the Super Bowl and playing with house money", hours_ago=0.1),

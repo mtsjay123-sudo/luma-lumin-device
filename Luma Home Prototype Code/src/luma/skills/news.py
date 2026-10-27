@@ -53,6 +53,7 @@ FEEDS = [
 SOCIAL = [
     ("Google News", f"{GOOGLE}/search?q=tiktok+viral+OR+trend+OR+trending+when:2d&{REGION}", "tiktok"),
     ("Google News", f"{GOOGLE}/search?q=instagram+viral+OR+trending+when:2d&{REGION}", "instagram"),
+    ("Google News", f"{GOOGLE}/search?q=tiktok+song+OR+sound+viral+OR+trending+when:7d&{REGION}", "tiktok"),  # the sounds everyone's using
     ("Google Trends", "https://trends.google.com/trending/rss?geo=US", "trending"),
 ]
 WIKI_TOP = "https://en.wikipedia.org/api/rest_v1/feed/featured/{day}"
@@ -288,7 +289,10 @@ GN_OUTLET = re.compile(r"<font[^>]*>([^<]{2,40})</font>", re.I)
 # Searches for "viral" pull in spam pages planted on hijacked sites ("XXX viral video Original Clip", walls of hashtags). Never a story.
 SPAM = re.compile(r"\bxxx\b|\b18\s*\+|\bnsfw\b|\bporn|\bnude|\bsex(?:y)? (?:tape|video|clip)|\bleak(?:ed)? (?:video|clip|mms)|\bmms\b|"
                   r"\b(?:full|original|viral) (?:video|clip)s?\b.{0,40}\b(?:original|link|full|new|hot|watch)\b|\bhot pics\b|\bwatch (?:full|now|free)\b|"
-                  r"\btelegram link\b|\bclick here\b|[~*+#!]{2,}|\[\s*clips?\b|(?:#\w+.*){4,}", re.I)
+                  r"\btelegram link\b|\bclick here\b|[~*+#!]{2,}|\[\s*clips?\b|(?:#\w+.*){4,}|[\U0001F459\U0001F51E\U0001F351\U0001F346\U0001F4A6]|"
+                  r"\(viral|@\w+\)|\bviral video\s+(?:news|link|original|full|leak\w*|download|hd|telegram)\b", re.I)
+# Places spam gets planted (a hospital system's site, a town hall's), and outlets in a script an English edition doesn't use.
+SPAM_OUTLET = re.compile(r"NYC Health \+ Hospitals|[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
 
 
 def parse_trends(data, source="Google Trends"):
@@ -402,6 +406,8 @@ def parse(data, source):
                 head, dash, tail = title.rpartition(" - ")
                 if dash and head and 1 < len(tail) <= 40:
                     title, outlet = head.strip(), tail.strip()
+                if SPAM_OUTLET.search(outlet):
+                    continue
             raw = summary.text if summary is not None else ""
             also = []
             if source.startswith("Google News") and raw:  # its top stories list the other outlets covering the same story
