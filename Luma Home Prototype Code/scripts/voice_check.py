@@ -90,13 +90,19 @@ def naturalness(out, results):
     except Exception as error:  # not installed here: the word check still stands on its own
         return {"naturalness_error": str(error)[:300]}
     voices = {}
+    def predict(path):
+        # One file at a time, on the CPU, without worker processes (a macOS runner has no CUDA, and spawned loaders re-import this script).
+        try:
+            return float(model.predict(input_path=str(path), device="cpu", num_workers=0, verbose=False))
+        except TypeError:  # an older UTMOSv2 without those options
+            return float(model.predict(input_path=str(path)))
     for name, r in results.items():
         if name == "reference.wav":
             continue
         try:
-            mos = float(model.predict(input_path=str(out / name)))
+            mos = predict(out / name)
         except Exception as error:
-            r["mos_error"] = str(error)[:200]
+            r["mos_error"] = f"{type(error).__name__}: {error}"[:300]
             continue
         r["mos"] = round(mos, 3)
         voices.setdefault(name.split("-")[0].replace(".wav", ""), []).append((mos, r["wer"]))
@@ -133,6 +139,14 @@ def main(out, size="small.en"):
     for name, r in results.items():
         print(f"{name:28} {r['wer']:6.3f}  {r['seconds']:5.1f}  {'' if r['ok'] else '!! '}{r['heard']}")
     print("average word error rate by voice:", json.dumps(report["by_voice"]))
+    for engine, info in (summary.get("voices") or {}).items():  # which engines rendered, and why one didn't
+        if isinstance(info, dict) and (info.get("error") or info.get("errors")):
+            print(f"{engine} didn't render everything: {info.get('error') or '; '.join(info['errors'][:2])}"[:500])
+    if report.get("naturalness_error"):
+        print("couldn't rank naturalness:", report["naturalness_error"])
+    failed = [f"{n}: {r['mos_error']}" for n, r in results.items() if r.get("mos_error")]
+    if failed:
+        print(f"naturalness failed on {len(failed)} files, first: {failed[0]}")
     if report.get("ranking"):
         print("how human each voice sounds (UTMOSv2, 1 to 5), among the ones that say their words right:")
         for row in report["ranking"]:

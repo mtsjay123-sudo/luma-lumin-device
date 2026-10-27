@@ -115,7 +115,8 @@ jobs:
           python -m venv "$RUNNER_TEMP/stt"
           "$RUNNER_TEMP/stt/bin/python" -m pip install -q "faster-whisper==1.2.1"
           "$RUNNER_TEMP/stt/bin/python" -m pip install -q "git+https://github.com/sarulab-speech/UTMOSv2.git" || echo "UTMOSv2 didn't install; words only"
-          "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'verbose = off\n' > "$RUNNER_TEMP/wgetrc"  # the ranking model's weights download quietly, so the results stay readable
+          WGETRC="$RUNNER_TEMP/wgetrc" "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
