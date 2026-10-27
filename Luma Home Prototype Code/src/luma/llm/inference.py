@@ -204,6 +204,21 @@ def _load_model():
 note = ""  # what the brain had to change about itself, in plain words
 
 
+def garbled_seen():
+    """A reply came out as symbols after the start-up check passed (a graphics chip that goes bad partway): think on the processor from the next turn on."""
+    global _llm, note
+    from luma.llm import worker
+    if worker.enabled():
+        worker.brain().to_processor()
+        return
+    if os.environ.get("LUMA_GPU_LAYERS") == "0":
+        return
+    os.environ["LUMA_GPU_LAYERS"] = "0"
+    with _inference_lock:
+        _llm = None  # reloaded on the processor next time
+    note = "My brain came out garbled on the graphics chip, so I'm thinking on the processor instead. A bit slower, but right."
+
+
 def garbled(text):
     """Symbols where words should be ('+A57', '#8++&B+,#$C8'): a model running wrong, not one that's just terse."""
     compact = "".join((text or "").split())

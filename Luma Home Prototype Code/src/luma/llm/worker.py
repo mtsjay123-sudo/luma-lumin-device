@@ -198,6 +198,15 @@ class Brain:
                     self._crashed(op, proc.exitcode)
                     raise BrainCrashed("My brain stopped unexpectedly.")
 
+    def to_processor(self):
+        """Its answers came out garbled on the graphics chip: the next thought starts a fresh brain process on the processor."""
+        with self.lock:
+            if not self.gpu:
+                return
+            self.gpu = False
+            self.note = "My brain came out garbled on the graphics chip, so I switched to thinking on the processor. It's a bit slower but right."
+            self.stop()
+
     def _crashed(self, op, code):
         now = time.time()
         self.crashes = [c for c in self.crashes if now - c["at"] < 900] + [{"at": now, "op": op, "code": code, "gpu": self.gpu, "big": bool(self.override)}]

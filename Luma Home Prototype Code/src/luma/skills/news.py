@@ -158,7 +158,7 @@ def youtube_channel(handle, fetch_page):
 YT_VIDEO = re.compile(r'"videoRenderer":\{"videoId":"([\w-]{11})"')
 YT_TITLE = re.compile(r'"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.){1,200})"')
 YT_WHEN = re.compile(r'"publishedTimeText":\{"simpleText":"(?:Streamed |Premiered )?(\d+) (second|minute|hour|day|week|month|year)s? ago"')
-JUNK_TITLE = re.compile(r"^\s*(?:Browsing|Archives?|Category|Tag|Author)\s*:", re.I)
+JUNK_TITLE = re.compile(r"^\s*(?:Browsing|Archives?|Category|Tag|Author)\s*:|\bArchives?\s*[-–|]\s*\S", re.I)  # "Browsing: X", "X Archives - The Shade Room"
 UNIT_SECONDS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 7 * 86400, "month": 30 * 86400, "year": 365 * 86400}
 
 

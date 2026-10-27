@@ -610,6 +610,36 @@ class Connectors:
         out = self._hub_call("COMPOSIO_MANAGE_CONNECTIONS", {"toolkits": [{"name": app, "action": "list"}]})
         return bool(re.search(r'"status"\s*:\s*"ACTIVE"', out, re.I))
 
+    def recent_emails(self, count=5, query="in:inbox"):
+        """The newest emails in their Gmail, through the hub: [{'from', 'subject', 'preview'}]. Only reads, so it runs without a yes."""
+        out = self._hub_call("COMPOSIO_MULTI_EXECUTE_TOOL", {"tools": [{"tool_slug": "GMAIL_FETCH_EMAILS",
+                                                                         "arguments": {"max_results": int(count), "query": query}}]})
+        try:
+            data = json.loads(out)
+        except ValueError:
+            return []
+        found = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                if isinstance(node.get("messages"), list):
+                    found.extend(m for m in node["messages"] if isinstance(m, dict))
+                    return
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for value in node:
+                    walk(value)
+        walk(data)
+        mails = []
+        for m in found[:count]:
+            preview = m.get("preview") if isinstance(m.get("preview"), dict) else {}
+            body = preview.get("body") or m.get("messageText") or m.get("snippet") or ""
+            sender = re.sub(r"\s*<[^>]+>", "", str(m.get("sender") or m.get("from") or "")).strip() or "Someone"
+            mails.append({"from": sender[:80], "subject": str(m.get("subject") or preview.get("subject") or "(no subject)")[:140],
+                          "preview": " ".join(str(body).split())[:200]})
+        return mails
+
     def app_link(self, app):
         """The app's own sign-in page (Google's, for Gmail), where they press Allow. None when it's already connected."""
         if self.app_connected(app):

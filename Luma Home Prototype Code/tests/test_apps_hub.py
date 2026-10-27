@@ -102,7 +102,7 @@ class AppsHubTests(unittest.TestCase):
         reply = self.agent.chat("check my gmail")
         self.assertNotIn("app password", reply["text"])
         self.assertIn("Sam", reply["text"])  # read through the hub, answered from what it found
-        self.assertTrue(any("mcp.apps.composio_multi_execute_tool" in tools for tools in saw))  # the brain was handed the hub's tools
+        self.assertEqual(reply["emails"][0]["subject"], "Lunch Friday?")  # read straight from the hub (a 4B brain picked the wrong action 10 times out of 10)
 
     def test_kids_cant_connect_apps(self):
         self.store.set_setting("mode", "kids")
