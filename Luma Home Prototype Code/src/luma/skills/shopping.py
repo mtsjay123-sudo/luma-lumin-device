@@ -139,8 +139,22 @@ def stores_from_env(env):
     return [{"id": s.get("id") or re.sub(r"\W+", "", s["name"].lower()), "name": s["name"], "search": s["search"]} for s in stores]
 
 
+# What stores call the thing and what people call it: "PlayStation 5 Console" is a "ps5".
+ALIASES = [(re.compile(r"\bplay ?station ?([345])\b"), r"ps\1"), (re.compile(r"\bnintendo switch\b"), "switch"),
+           (re.compile(r"\bxbox series ([xs])\b"), r"xbox series\1"), (re.compile(r"\bair ?pods\b"), "airpods")]
+# A game, a controller or a gift card *for* the device, when they asked for the device itself.
+CONTENT_FOR = {"esrb", "rating", "rated", "game", "games", "controller", "dualsense", "headset", "membership", "dlc", "gift", "subscription",
+               "faceplate", "remote", "voucher"}
+# Words that name a device and nothing else: when that's all they asked for, they want the device.
+DEVICE = {"ps5", "ps4", "ps3", "xbox", "seriesx", "seriess", "one", "switch", "oled", "lite", "steam", "deck", "quest", "meta", "console",
+          "slim", "digital", "edition", "pro", "portal"}
+
+
 def tokens(text):
-    words = re.findall(r"[a-z0-9]+(?:\.[0-9]+)?", str(text).lower())
+    text = str(text).lower()
+    for pattern, short in ALIASES:
+        text = pattern.sub(short, text)
+    words = re.findall(r"[a-z0-9]+(?:\.[0-9]+)?", text)
     words = [re.sub(r"^(\d+)(?:st|nd|rd|th)$", r"\1", w) for w in words]  # "2nd gen" is generation 2
     return [t for t in words if t not in STOPWORDS and (len(t) > 1 or t.isdigit())]
 
@@ -160,6 +174,9 @@ def relevance(query, title):
     if numbers and not numbers <= have:
         score *= 0.5  # "AirPods Pro 2" shouldn't match the first generation
     words = tokens(title)
+    just_the_device = all(w in DEVICE or w.isdigit() for w in want)
+    if just_the_device and any(w in CONTENT_FOR for w in words) and not ({"console", "bundle"} & set(words)):
+        score *= 0.35  # "Ghost of Yotei PS5 ESRB Rating: Mature" is a game, not the PS5
     extra = [i for i, w in enumerate(words) if w in ACCESSORY and w not in want]
     if extra:
         lowered = str(title).lower()

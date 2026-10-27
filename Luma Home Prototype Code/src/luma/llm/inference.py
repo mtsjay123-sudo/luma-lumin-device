@@ -219,12 +219,20 @@ def garbled_seen():
     note = "My brain came out garbled on the graphics chip, so I'm thinking on the processor instead. A bit slower, but right."
 
 
+ODD = set("+#&@^~*<>=|\\{}[]_`")
+READABLE = set(".,!?'\"%$:;()-/€£")
+
+
 def garbled(text):
-    """Symbols where words should be ('+A57', '#8++&B+,#$C8'): a model running wrong, not one that's just terse."""
-    compact = "".join((text or "").split())
-    if len(compact) < 3:
+    """Symbols where words should be ('+A57', '#8++&B+,#$C8'): a model running wrong, not one that's just terse. Numbers are
+    words here ("the S&P 500 is at 7,727.85, up 0.67%", "7:30"), emoji are fine ("😭😭" is an answer), and so is code."""
+    text = text or ""
+    compact = "".join(text.split())
+    if len(compact) < 3 or "```" in text:
         return False
-    return sum(ch.isalpha() or ord(ch) > 0x2000 for ch in compact) / len(compact) < 0.5  # emoji are fine: "😭😭" is an answer
+    odd = sum(ch in ODD for ch in compact)
+    readable = sum(ch.isalnum() or ord(ch) > 0x2000 or ch in READABLE for ch in compact)
+    return odd / len(compact) > 0.15 or readable / len(compact) < 0.6
 
 
 def _sane(model):

@@ -120,7 +120,7 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 
 
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
-LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|scores?|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
+LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|(?<!credit )(?<!fico )(?<!test )(?<!sat )(?<!act )(?<!vantage)(?<!high )scores?(?! (?:higher|up|better|range))|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
 # A reply that says it looked something up when it didn't use a tool.
 # Luma knows songs, shows and movies from what's written about them (lyrics, verses, plots), so it can talk about them like a friend.
 # What it can't do is live a life with a body: "I was listening to it while making coffee", "tried it at the spot downtown", "been to Tokyo".
@@ -137,6 +137,16 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
+# "Quote me some SZA lyrics", "sing me the chorus", "what's the first line of...": words only a lookup can get right.
+LYRICS_ASK = re.compile(r"\blyrics?\b|\b(?:quote|sing|rap|recite|spit)\s+(?:me\s+)?(?:some|the|a|that|his|her|their)?\s*(?:lines?|bars|verse|hook|chorus|song)\b|"
+                        r"\b(?:first|last|opening)\s+(?:line|bar|verse)s?\s+(?:of|in|from|to)\b|\bwhat(?:'s| is| are)\s+the\s+words\s+to\b", re.I)
+# Asked to say the words themselves (not to talk about them): only a lookup can get those right.
+QUOTE_ASK = re.compile(r"\b(?:quote|sing|recite|say|give|tell|type|write out)\s+(?:me\s+|us\s+)?(?:some|the|a few|a|that|his|her|their|those)?\s*"
+                       r"(?:[\w'.$&-]+\s+){0,3}?(?:lyrics|lines|chorus|hook|words)\b(?!\s+(?:i|we)\s+wrote|\s+mean|\s+(?:are|is) about)|"
+                       r"\b(?:quote|sing|recite|say|give|tell)\s+(?:me\s+|us\s+)?(?:some|the|a few|a|that|his|her|their|those)?\s*"
+                       r"(?:(?!(?:me|us|some|a|the|few|ur|your|my|new|original)\b)[\w'.$&-]+\s+){1,3}?(?:bars|verse)\b|"  # someone's bars, not new ones
+                       r"\b(?:first|last|opening)\s+(?:line|bar|verse|words)s?\s+(?:of|in|from|to)\b|"
+                       r"\bwhat(?:'s| is| are)\s+the\s+(?:words|lyrics)\s+(?:to|of|in)\b|\bhow does\s+the\s+(?:chorus|hook|verse)\s+go\b", re.I)
 MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|record|single|ep|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape|tape)\b", re.I)
 # "what do you think of glass pelican's new record?", "is the zentrix pro 9 worth it?", "what's the plot of silver lanterns?": a question about
 # one specific thing a small brain may not really know. It invented a track for a band that doesn't exist, so Luma looks these up first.
@@ -3707,6 +3717,9 @@ class Agent:
                     from luma.llm.inference import garbled
                     from luma.agent import polish
                     result["text"] = polish.plain_errors(polish.tidy(lexicon.clean(result["text"])))  # "the the", "a apple", a program's error: fixed before anyone sees them
+                    if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
+                            (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
+                        result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
                     if garbled(result["text"]):  # the brain ran wrong: never show symbols as if they were an answer
                         result["text"] = "Sorry, my brain glitched on that one. Say it again?"
                         result.pop("results", None)
@@ -4467,18 +4480,45 @@ class Agent:
     REACTIONS = {"down": re.compile(r"\b(?:mid|trash|wack|boring|ass|bad|overrated|meh|not it|garbage|weak|dry)\b", re.I),
                  "up": re.compile(r"\b(?:fire|hard|crazy|slaps|goes|hits|amazing|insane|bussin|so good|ate|elite|tuff)\b", re.I)}
 
+    FILLERS = r"^\W*(?:(?:ngl|lowkey|highkey|honestly|tbh|fr|bro|yo|nah|man|bruh|deadass|ok|okay|yo luma|luma|aye|ayo)\W+)*"
+    # "you watch the game?": which game? "his verse was the best part fr": whose verse, on what?
+    UNNAMED_EVENT = re.compile(FILLERS + r"(?:did |have )?(?:you|u|ya) (?:even )?(?:watch|see|catch|peep|watching|seeing|catching|watched|saw|caught)\s+"
+                               r"(?:the|that|last night'?s|tonight'?s|today'?s)\s+(?P<what>game|fight|match|show|episode|finale|performance|speech|debate|"
+                               r"halftime show|race|premiere|announcement)\b(?P<rest>.{0,60})$", re.I)
+    UNNAMED_PART = re.compile(FILLERS + r"(?:his|her|their|that|the)\s+(?P<what>verse|part|line|bars|hook|chorus|feature|solo|scene|ending|outro|intro|"
+                              r"performance|set)\s+(?:was|is|go(?:es)?|went|hit|hits|got|be|bein|been|had)\b(?P<rest>.{0,80})$", re.I)
+
     def _which_one(self, text, lowered):
         """'ngl that album kinda mid', with no album named and none in the last few messages: Luma doesn't know which one, so it
-        asks like a friend would, instead of a small brain inventing "the intro had that raw energy". Named, it talks about it."""
-        m = self.UNNAMED.match(lowered.strip())
-        if not m or self.mode == "kids" or re.search(r"\bby\b|[\"“”‘’']\w", m["rest"]):
+        asks like a friend would, instead of a small brain inventing "the intro had that raw energy". Named, it talks about it.
+        The same for "you watch the game?" (which game?) and "his verse was the best part fr" (whose, on what?)."""
+        if self.mode == "kids":
             return None
         earlier = [t for t in self.history[-7:] if str(t.get("content", "")).strip() != text.strip()][-6:]  # not this message itself
+        said_before = " ".join(str(t.get("content", "")).lower() for t in earlier if t.get("role") == "user"  # what they named, not Luma's own questions
+                               and not (self.UNNAMED_EVENT.match(str(t.get("content", "")).lower().strip())  # "you watch the game?" named nothing
+                                        or self.UNNAMED_PART.match(str(t.get("content", "")).lower().strip())))
+        import random
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
+        event = self.UNNAMED_EVENT.match(lowered.strip())
+        if event and not re.search(r"\b(?:between|vs\.?|versus|against)\b", event["rest"]) and event["what"] not in said_before:
+            what = event["what"]
+            look = " I can pull up the score if you tell me who played." if what in ("game", "match", "fight", "race") else ""
+            return {"text": (random.choice([f"Nah, I don't get to watch 😭 Which {what}?", f"I didn't catch it! Which {what} we talking?"]) if casual
+                             else f"I didn't get to watch it. Which {what} do you mean?") + look}
+        part = self.UNNAMED_PART.match(lowered.strip())
+        if part and not re.search(r"\b(?:on|in|from)\s+\S+", part["rest"]) and not MUSIC_TOPIC.search(said_before) \
+                and not re.search(r"\b(?:show|movie|film|episode|song|album|track)\b", said_before):
+            what = part["what"]
+            whose = "Whose" if text.lower().startswith(("his", "her", "their")) or " his " in lowered or " her " in lowered or " their " in lowered else "Which"
+            return {"text": (f"Wait, {whose.lower()} {what}? Which song or show? Tell me and I'll pull it up so I'm not guessing." if casual
+                             else f"{whose} {what} do you mean? Tell me the song or show and I'll look it up.")}
+        m = self.UNNAMED.match(lowered.strip())
+        if not m or re.search(r"\bby\b|[\"“”‘’']\w", m["rest"]):
+            return None
         if any(m["what"] in str(turn.get("content", "")).lower() for turn in earlier):
             return None  # they've been talking about one: "that album" is that one, the brain takes it
-        import random
         what = m["what"]
-        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
         mood = "down" if self.REACTIONS["down"].search(m["rest"]) else "up" if self.REACTIONS["up"].search(m["rest"]) else "plain"
         if casual:
             lead = {"down": ["Mid?? 😭", "Nooo 😭 that bad?", "Damn, that bad?"], "up": ["Ooh okay 👀", "Say less 👀", "Wait, that good?"],

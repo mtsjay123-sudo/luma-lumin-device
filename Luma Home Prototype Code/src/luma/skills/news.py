@@ -179,7 +179,8 @@ def youtube_channel(handle, fetch_page):
 YT_VIDEO = re.compile(r'"videoRenderer":\{"videoId":"([\w-]{11})"')
 YT_TITLE = re.compile(r'"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.){1,200})"')
 YT_WHEN = re.compile(r'"publishedTimeText":\{"simpleText":"(?:Streamed |Premiered )?(\d+) (second|minute|hour|day|week|month|year)s? ago"')
-JUNK_TITLE = re.compile(r"^\s*(?:Browsing|Archives?|Category|Tag|Author)\s*:|\bArchives?\s*[-–|]\s*\S", re.I)  # "Browsing: X", "X Archives - The Shade Room"
+JUNK_TITLE = re.compile(r"^\s*(?:Browsing|Archives?|Category|Tag|Author)\s*:|\bArchives?\s*[-–|]\s*\S|"
+                        r"(?:\s/\s[^/]+){2,}\s+-\s+\w+$|\bEvents Calendar\b", re.I)  # index pages, and store pages ("SSSTUFFF / Layered Shirt / Sweatshirts - Complex")  # "Browsing: X", "X Archives - The Shade Room"
 UNIT_SECONDS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 7 * 86400, "month": 30 * 86400, "year": 365 * 86400}
 
 
@@ -578,7 +579,7 @@ def refresh(store, clock, allow_local=False, fetch=None):
                 items = youtube_page_items(_fetch_page(f"https://www.youtube.com/channel/{channel}/videos", allow_local=allow_local), name, now)
             except Exception:
                 items = None
-        items = [i for i in items or [] if not JUNK_TITLE.match(i.get("title") or "")]
+        items = [i for i in items or [] if not JUNK_TITLE.search(i.get("title") or "")]  # anywhere in the title: "Zeus Archives - The Shade Room"
         for item in items or []:
             item["topic"] = kind
             item["seen"] = now  # when Luma first saw it: the age for a story with no date
