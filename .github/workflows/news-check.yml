@@ -1,0 +1,39 @@
+# Reads every news, culture and trend source for real (a couple of minutes on a plain Linux machine) and shows what Luma would
+# call the top stories (the most outlets covering first), what's blowing up on TikTok and Instagram per the news, Google Trends
+# and Wikipedia's most read, which sources have gone stale, and whether each top story's page says what its headline says.
+name: News check
+
+on:
+  push:
+    paths:
+      - "Luma Home Prototype Code/src/luma/skills/news.py"
+      - "Luma Home Prototype Code/src/luma/skills/markets.py"
+      - "Luma Home Prototype Code/scripts/luma_lab.py"
+      - ".github/workflows/news-check.yml"
+  schedule:
+    - cron: "23 13 * * *"  # once a day: a source that went quiet shows up here
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Luma Home Prototype Code
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q "cryptography>=44" tzdata
+      - name: Read every source for real
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab"
+          python scripts/luma_lab.py pulse --save "$RUNNER_TEMP/lab/pulse.json"
+      - name: Summary
+        if: always()
+        run: python scripts/luma_lab.py summary "$RUNNER_TEMP"/lab/*.json | tee -a "$GITHUB_STEP_SUMMARY"

@@ -104,6 +104,21 @@ class AppsHubTests(unittest.TestCase):
         self.assertIn("Sam", reply["text"])  # read through the hub, answered from what it found
         self.assertEqual(reply["emails"][0]["subject"], "Lunch Friday?")  # read straight from the hub (a 4B brain picked the wrong action 10 times out of 10)
 
+    def test_email_is_current_newest_first_and_the_real_ones_before_the_sales(self):
+        self.add_hub()
+        self.agent.clock = lambda: 1793116800.0  # 16:00 UTC; Sam wrote at 11:48, the sale came at 9:00
+        self.agent.chat("connect my gmail")
+        out = self.agent.chat("check my gmail")
+        self.assertEqual([m["subject"] for m in out["emails"]], ["Lunch Friday?"], "a sale isn't what 'check my email' means")
+        self.assertIn("4h ago, unread", out["text"])
+        sale = self.agent.chat("any emails from oldnavy?")
+        self.assertIn("50% off", sale["text"], "asked for by name: there it is")
+        self.assertEqual(self.agent.chat("any emails from grandma today")["text"], "No emails from grandma today.")
+        from luma.integrations.connectors import _mail_time
+        self.assertEqual(_mail_time("2026-10-27T11:48:00Z"), 1793101680.0)
+        self.assertEqual(_mail_time("1793101680000"), 1793101680.0)
+        self.assertIsNone(_mail_time(""))
+
     def test_kids_cant_connect_apps(self):
         self.store.set_setting("mode", "kids")
         self.assertNotIn("open_url", self.agent.connect_app("gmail"))

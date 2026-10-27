@@ -31,8 +31,18 @@ def call(name, args):
         results = []
         for item in args.get("tools") or []:
             slug = item.get("tool_slug")
-            if slug == "GMAIL_FETCH_EMAILS":
-                data = {"messages": [{"sender": "Sam <sam@example.com>", "subject": "Lunch Friday?", "preview": {"body": "Want to grab lunch?"}}]}
+            if slug == "GMAIL_FETCH_EMAILS":  # the fields Gmail's fetch really returns, oldest first on purpose
+                query = (item.get("arguments") or {}).get("query") or ""
+                mails = [{"sender": "Old Navy <deals@oldnavy.com>", "subject": "50% off everything ends tonight", "messageTimestamp": "2026-10-27T09:00:00Z",
+                          "labelIds": ["INBOX", "CATEGORY_PROMOTIONS", "UNREAD"], "preview": {"body": "Shop now"}},
+                         {"sender": "Sam <sam@example.com>", "subject": "Lunch Friday?", "messageTimestamp": "2026-10-27T11:48:00Z",
+                          "labelIds": ["INBOX", "UNREAD", "CATEGORY_PERSONAL"], "preview": {"body": "Want to grab lunch?"}}]
+                if "-category:promotions" in query:
+                    mails = [m for m in mails if "CATEGORY_PROMOTIONS" not in m["labelIds"]]
+                if "from:" in query:
+                    who = query.split("from:", 1)[1].split()[0]
+                    mails = [m for m in mails if who in m["sender"].lower().replace(" ", "")]
+                data = {"messages": mails}
             else:
                 data = {"done": slug, "arguments": item.get("arguments")}
             results.append({"tool_slug": slug, "response": {"successful": True, "data": data}})

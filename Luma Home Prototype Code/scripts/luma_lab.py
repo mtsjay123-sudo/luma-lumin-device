@@ -451,9 +451,64 @@ def pulse():
         print("youtube channels found:", sum(channels.values()), "of", len(channels), flush=True)
         for line in prices:
             print(line, flush=True)
-        return {"sources": rows, "failed": got["failed"], "youtube": channels, "prices": prices, "total": len(got["items"])}
+        now = time.time()
+        items = got["items"]
+        headlines = [i for i in items if i.get("topic") not in news.NOT_HEADLINES]
+        top = news.stories(news.within(headlines, 24, now), 12)
+        print("\nTOP STORIES RIGHT NOW (most outlets covering first)", flush=True)
+        for st in top:
+            print(f"  [{len(st['outlets']):2} outlets] {news.ago(st['latest'], now):>10}  {st['title'][:110]}  — {news.credit(st)}", flush=True)
+        social = {}
+        for kind in ("tiktok", "instagram"):
+            social[kind] = news.stories(news.within([i for i in items if i.get("topic") == kind], 48, now), 6)
+            print(f"\n{kind.upper()} (news coverage of what's blowing up there)", flush=True)
+            for st in social[kind]:
+                print(f"  {news.ago(st['latest'], now):>10}  {st['title'][:110]}  — {news.credit(st)}", flush=True)
+        trends = [i for i in items if i.get("source") == "Google Trends"][:12]
+        print("\nGOOGLE TRENDS (US searches right now)", flush=True)
+        for i in trends:
+            print(f"  {i.get('traffic', ''):>10}  {i['title']}  — {i.get('snippet', '')[:90]}", flush=True)
+        looked = [i for i in items if i.get("source") == "Wikipedia"][:8]
+        print("\nWIKIPEDIA MOST READ (yesterday)", flush=True)
+        for i in looked:
+            print(f"  {i.get('views') or '':>9}  {i['title']}", flush=True)
+        dated = sum(1 for i in items if i.get("published"))
+        stale = [r["source"] for r in rows if r["newest"] not in ("", "just now") and ("day" in r["newest"] or r["newest"] == "yesterday")]
+        print(f"\nfreshness: {dated}/{len(items)} stories carry their real publish time; sources whose newest story is a day or more old: "
+              + (", ".join(stale) or "none"), flush=True)
+        checks = check_links(top[:8])
+        for c in checks:
+            print(f"  link {c['verdict']:>14}  {c['title'][:80]}  ({c['url'][:70]})", flush=True)
+        return {"sources": rows, "failed": got["failed"], "youtube": channels, "prices": prices, "total": len(items),
+                "top": [{"title": st["title"], "outlets": st["outlets"], "ago": news.ago(st["latest"], now), "url": st["url"]} for st in top],
+                "social": {k: [{"title": st["title"], "outlets": st["outlets"], "ago": news.ago(st["latest"], now)} for st in v] for k, v in social.items()},
+                "trends": [{"term": i["title"], "traffic": i.get("traffic"), "behind": i.get("snippet")} for i in trends],
+                "looked_up": [{"title": i["title"], "views": i.get("views")} for i in looked],
+                "dated": dated, "stale": stale, "links": checks}
     finally:
         store.close()
+
+
+def check_links(stories):
+    """Does each top story's link open, and does the page say what the headline says? (Google News links need a browser to follow, so
+    for those the check is how many outlets carry the story.)"""
+    from luma.skills import news
+    out = []
+    for st in stories:
+        url = st["url"]
+        if "news.google.com" in url:
+            out.append({"title": st["title"], "url": url, "verdict": f"{len(st['outlets'])} outlets"})
+            continue
+        try:
+            page = news._fetch_page(url).decode("utf-8", "replace")
+            m = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)', page) or re.search(r"<title[^>]*>([^<]+)</title>", page, re.I)
+            said = news._clean(m.group(1), 300) if m else ""
+            shared = news.terms(said) & news.terms(st["title"])
+            verdict = "matches" if len(shared) >= max(2, len(news.terms(st["title"])) // 3) else ("no title" if not said else "DIFFERENT")
+        except Exception as error:
+            verdict = "unreachable"
+        out.append({"title": st["title"], "url": url, "verdict": verdict})
+    return out
 
 
 # ---------------------------------------------------------------- a summary a person can read ---
@@ -501,6 +556,20 @@ def summary(paths):
             lines += [f"| {r['source']} | {r['items']} | {r['newest']} | {r['example'].replace('|', '/')} |" for r in pl["sources"]]
             lines += ["", "Didn't answer: " + (", ".join(pl["failed"]) or "none"),
                       f"YouTube channels found: {sum(pl['youtube'].values())} of {len(pl['youtube'])}", "", "Live prices: " + " ".join(pl["prices"])]
+            if pl.get("top"):
+                lines += ["", "### Top stories right now (most outlets covering first)", ""]
+                lines += [f"- {t['title']} ({len(t['outlets'])} outlets: {', '.join(t['outlets'][:4])}; {t['ago']})" for t in pl["top"]]
+            for kind, label in (("tiktok", "TikTok"), ("instagram", "Instagram")):
+                if (pl.get("social") or {}).get(kind):
+                    lines += ["", f"### {label}, per news coverage", ""] + [f"- {t['title']} ({', '.join(t['outlets'][:3])}; {t['ago']})" for t in pl["social"][kind]]
+            if pl.get("trends"):
+                lines += ["", "### Google Trends right now", ""] + [f"- {t['term']} ({t['traffic'] or '?'})" + (f": {t['behind']}" if t["behind"] else "") for t in pl["trends"]]
+            if pl.get("looked_up"):
+                lines += ["", "### Wikipedia most read yesterday", ""] + [f"- {t['title']} ({t['views']} views)" for t in pl["looked_up"]]
+            if pl.get("links"):
+                lines += ["", "### Links checked", ""] + [f"- {c['verdict']}: {c['title']}" for c in pl["links"]]
+            if "dated" in pl:
+                lines += ["", f"{pl['dated']}/{pl['total']} stories carry their real publish time. Stale sources: {', '.join(pl['stale']) or 'none'}."]
     return "\n".join(lines) + "\n"
 
 

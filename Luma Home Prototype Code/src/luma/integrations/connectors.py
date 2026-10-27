@@ -611,7 +611,8 @@ class Connectors:
         return bool(re.search(r'"status"\s*:\s*"ACTIVE"', out, re.I))
 
     def recent_emails(self, count=5, query="in:inbox"):
-        """The newest emails in their Gmail, through the hub: [{'from', 'subject', 'preview'}]. Only reads, so it runs without a yes."""
+        """The newest emails in their Gmail, through the hub, newest first: [{'from', 'subject', 'preview', 'when', 'unread'}] ('when' is
+        a timestamp, or None when Gmail didn't say). Only reads, so it runs without a yes."""
         out = self._hub_call("COMPOSIO_MULTI_EXECUTE_TOOL", {"tools": [{"tool_slug": "GMAIL_FETCH_EMAILS",
                                                                          "arguments": {"max_results": int(count), "query": query}}]})
         try:
@@ -632,13 +633,16 @@ class Connectors:
                     walk(value)
         walk(data)
         mails = []
-        for m in found[:count]:
+        for m in found:
             preview = m.get("preview") if isinstance(m.get("preview"), dict) else {}
             body = preview.get("body") or m.get("messageText") or m.get("snippet") or ""
-            sender = re.sub(r"\s*<[^>]+>", "", str(m.get("sender") or m.get("from") or "")).strip() or "Someone"
+            sender = re.sub(r"\s*<[^>]+>", "", str(m.get("sender") or m.get("from") or "")).strip().strip('"') or "Someone"
+            labels = m.get("labelIds") if isinstance(m.get("labelIds"), list) else []
             mails.append({"from": sender[:80], "subject": str(m.get("subject") or preview.get("subject") or "(no subject)")[:140],
-                          "preview": " ".join(str(body).split())[:200]})
-        return mails
+                          "preview": " ".join(str(body).split())[:200], "when": _mail_time(m.get("messageTimestamp") or m.get("internalDate") or m.get("date")),
+                          "unread": "UNREAD" in labels})
+        mails.sort(key=lambda x: x["when"] or 0, reverse=True)  # newest first, whatever order they came in
+        return mails[:count]
 
     def app_link(self, app):
         """The app's own sign-in page (Google's, for Gmail), where they press Allow. None when it's already connected."""
@@ -734,3 +738,23 @@ class Connectors:
         for client in list(self._clients.values()):
             client.close()
         self._clients.clear()
+
+
+def _mail_time(value):
+    """Gmail's time for an email (ISO text, milliseconds, or a date header) as a timestamp; None when there isn't one."""
+    from datetime import datetime
+    from email.utils import parsedate_to_datetime
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text.isdigit():
+        number = int(text)
+        return number / 1000 if number > 10**11 else float(number)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        pass
+    try:
+        return parsedate_to_datetime(text).timestamp()
+    except (TypeError, ValueError, IndexError):
+        return None
