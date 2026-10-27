@@ -175,14 +175,14 @@ def sms_code_reply(text, code):
     return confirm_intent(text)
 
 
-def for_sms(result, code=None):
-    """Turn a Luma result into a text message back to the owner."""
+def for_sms(result, code=None, limit=600):
+    """Turn a Luma result into a text message back to the owner (WhatsApp takes a longer one)."""
     text = result.get("text") or result.get("summary") or "Done."
     text = re.sub(r"\*\*|`|^#+\s*", "", text, flags=re.M)
     if result.get("state") == "pending" and code:
         text += f" Reply YES {code} to send, or NO to cancel."
     if result.get("file"):
         text += " It's in the Luma app to download."
-    if len(text) > 600:
-        text = text[:590].rsplit(" ", 1)[0] + "…"
+    if len(text) > limit:
+        text = text[:limit - 10].rsplit(" ", 1)[0] + "…"
     return text

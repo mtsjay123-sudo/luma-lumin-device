@@ -23,6 +23,7 @@ CATEGORIES = {
     "apps_read": {"label": "Look things up in your connected apps", "default": "allow", "choices": ("allow", "block")},
     "apps_act": {"label": "Make changes in your connected apps", "default": "ask", "choices": ("ask", "block")},
     "computer": {"label": "Use your paired computer: shared folders, apps, the screen if you allow it", "default": "allow", "choices": ("allow", "block")},
+    "computer_act": {"label": "Click and type in apps on your computer", "default": "ask", "choices": ("ask", "block")},
     "spend": {"label": "Checkout and payment", "default": "block", "choices": ("block",)},
 }
 
@@ -41,6 +42,7 @@ TOOL_CATEGORY = {
     "home.light": "home",
     "food.checkout": "cart",
     "computer.find": "computer", "computer.read": "computer", "computer.open_app": "computer", "computer.look": "computer",
+    "computer.ui_read": "computer", "computer.ui_press": "computer_act", "computer.ui_type": "computer_act",
 }
 
 VERBS = {
@@ -49,6 +51,7 @@ VERBS = {
     "bookings": "book appointments", "home": "control devices", "spend": "check out or pay",
     "apps_read": "look things up in your connected apps", "apps_act": "make changes in your connected apps",
     "computer": "use your computer",
+    "computer_act": "click or type in apps on your computer",
 }
 
 

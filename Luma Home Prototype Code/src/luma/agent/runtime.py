@@ -98,6 +98,9 @@ TOOLS = {
     "computer.read": Tool("Read a text file from a folder the owner shared on their computer, by the path computer.find gave", {"path": "string"}),
     "computer.open_app": Tool("Open an app by name on the owner's computer, like Spotify, Notes or Slack", {"name": "string"}),
     "computer.look": Tool("Look at what's on the owner's computer screen right now (only works if they allowed it on that computer)", {}),
+    "computer.ui_read": Tool("See the buttons, fields and text in an app's window on the owner's computer, each with a ref. app is the app's name, or empty for the one in front", {"app": "text"}),
+    "computer.ui_press": Tool("Press a button, tab, link or menu item from computer.ui_read: its ref, role and label exactly as read", {"app": "string", "ref": "integer", "role": "string", "label": "string"}, confirm=True),
+    "computer.ui_type": Tool("Type text into a field from computer.ui_read: its ref, role and label exactly as read, and the text", {"app": "string", "ref": "integer", "role": "string", "label": "string", "text": "string"}, confirm=True),
     "skills.install": Tool("Add a SKILL.md skill the owner gave (written instructions Luma follows as guidance)", {"content": "skill"}, confirm=True),
     "helpers.create": Tool("Set up something Luma keeps doing on its own. kind: price_watch (detail is the product, target_price in dollars or 0), inbox_digest, feed_digest (detail is the site), agenda, or goal (detail is the goal). every: hourly, every_6h, daily or weekly", {"kind": "string", "detail": "text", "target_price": "integer", "every": "string"}),
 }
@@ -105,9 +108,13 @@ TOOLS = {
 
 TOOLS.update({name: Tool(spec["description"], spec["fields"], kids=name.startswith(("timers.", "cooking.", "briefing."))) for name, spec in TOOL_SPECS.items()})
 
+# Apps Luma may be asked to click or type in by name (the computer decides what's off limits).
+COMPUTER_APPS = (r"(?:notes|mail|messages|slack|spotify|finder|calendar|reminders|safari|chrome|word|excel|pages|numbers|keynote|discord|zoom|teams|music|"
+                 r"photos|whatsapp|notion|figma|xcode|vs ?code|outlook|preview|textedit|maps|facetime|podcasts|tv|books|obsidian|todoist|linear)")
+
 READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "timers.list", "briefing.today", "booking.availability",
               "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda",
-              "computer.find", "computer.read", "computer.look"}
+              "computer.find", "computer.read", "computer.look", "computer.ui_read"}
 
 
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
@@ -128,7 +135,15 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
-MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape)\b", re.I)
+MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|record|single|ep|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape|tape)\b", re.I)
+# "what do you think of glass pelican's new record?", "is the zentrix pro 9 worth it?", "what's the plot of silver lanterns?": a question about
+# one specific thing a small brain may not really know. It invented a track for a band that doesn't exist, so Luma looks these up first.
+GROUND = re.compile(r"(?<!my )(?<!our )\b(?:new|newest|latest|upcoming)\s+(?:[\w'-]+\s+){0,2}(?:record|album|single|song|track|ep|mixtape|tape|project|movie|film|"
+                    r"show|series|season|episode|book|novel|game|phone|laptop|app|car|collab)s?\b|"
+                    r"\bis (?:the |that |this |a |an )?(?!it\b|that\b|this\b)\w[\w' .-]{1,40}? (?:worth (?:it|buying|getting|the money)|any good)\b|"
+                    r"\b(?:plot|storyline) of\b|\btrack ?list\b|\bbest (?:dish|food|order|thing to (?:get|order)) (?:at|from)\b|"
+                    r"\bwhat did (?:professor|prof|dr|doctor|senator|president|ceo|coach|governor|mayor)\.? \w+|\b(?<!my )\w+'s beef\b|"
+                    r"\bhave you read (?!my\b|it\b|that\b|this\b|what\b|the (?:message|text|email|doc))", re.I)
 # A quoted line of 12+ characters in any quote style. Apostrophes inside ('I'm not trying…') don't end it; a short title ('Like That') isn't a quote.
 QUOTED = re.compile(r"“[^”]{12,}”|\"[^\"]{12,}\"|‘(?:[^’]|(?<=\w)’(?=\w)){12,}’(?!\w)|(?<!\w)'(?:[^']|(?<=\w)'(?=\w)){12,}'(?!\w)")
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
@@ -445,6 +460,9 @@ class Agent:
             (r"\b(?:every (?:day|morning|night|evening|week|hour)|each (?:day|morning|week)|keep an eye|watch (?:the )?price|let me know (?:if|when)|tell me (?:if|when)|daily|weekly|hourly)\b", {"helpers.create"}),
             (r"\b(?:(?:my|the) (?:computer|laptop|mac|macbook|pc|screen|desktop|downloads|documents)|files?|folders?|spreadsheet|on my (?:computer|laptop|mac|pc)|open (?:up )?(?:the )?\w+ app|what'?s on my screen)\b",
              {"computer.find", "computer.read", "computer.open_app", "computer.look"}),
+            (rf"\b(?:click|press|tap|type|fill|hit|select|toggle|check|uncheck)\b.{{0,80}}(?:\bapp\b|\bon my (?:computer|mac|laptop|pc)\b|\bin (?:the )?{COMPUTER_APPS}\b)"
+             rf"|\bin (?:the )?{COMPUTER_APPS}\b.{{0,60}}\b(?:click|press|tap|type|fill|hit|select|toggle|check|uncheck)\b|\bwhat'?s (?:in|on) (?:the |my )?{COMPUTER_APPS}(?: app| window)?\b",
+             {"computer.ui_read", "computer.ui_press", "computer.ui_type"}),
         ]
         for pattern, names in groups:
             if re.search(pattern, lowered): relevant.update(names)
@@ -452,7 +470,7 @@ class Agent:
         # Conversational requests to 'talk to me' aren't preference changes.
         if not re.search(r"\b(?:more|less|style|tone|shorter|longer|slang|brief|detailed|playful|direct|classic|modern)\b",lowered): relevant.discard("personality.set_style")
         relevant.update(self._connector_tools_for(lowered))
-        if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look"}
+        if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
         if not wants_message(text): allowed.pop("messages.prepare", None)
         if "messages.prepare" in allowed:
@@ -546,6 +564,8 @@ class Agent:
 
     def integration_on(self, service):
         value = self.store.setting("integration:" + service, None)
+        if value is None and service == "sms":
+            return self.texting_on()  # on by itself when texts go through the owner's own Mac
         if value is None:
             return service in self.DEFAULT_ON and self.mode != "kids" and (service != "browser" or self._browser_available())
         return bool(value)
@@ -556,7 +576,15 @@ class Agent:
 
     @property
     def message_route(self):
-        return self.store.setting("message_route", "phone_draft")
+        # On a Mac, texts go out free from the owner's own iMessage unless they picked another way. Each one still waits for a yes.
+        return self.store.setting("message_route", None) or ("mac_imessage" if self._mac_texting() else "phone_draft")
+
+    def _mac_texting(self):
+        return self.mode != "kids" and MacMessages(env=self.providers.env).readiness().get("available") is True
+
+    def texting_on(self):
+        chosen = self.store.setting("integration:sms", None)
+        return bool(chosen) if chosen is not None else self.message_route.startswith("mac_")
 
     def set_message_route(self, route):
         if self.mode == "kids": raise ValueError("Message settings are unavailable in kids mode.")
@@ -604,6 +632,9 @@ class Agent:
             review = skill_notes.preview(args["content"])
         elif name.startswith("mcp."):
             review = self.connectors.describe(name, args)
+        elif name in {"computer.ui_press", "computer.ui_type"}:
+            pressing = name == "computer.ui_press"
+            review = {"app": args["app"], "does": f"press “{args['label']}”" if pressing else f"type into “{args['label']}”", **({} if pressing else {"text": args["text"]})}
         else:
             review = self.bookings.preview(args) if name == "booking.create" else None
         token = secrets.token_hex(4)
@@ -615,7 +646,10 @@ class Agent:
             # Token is returned once to the local control surface, never to LLM.
             self.approval_tokens = {k: v for k, v in self.approval_tokens.items() if v[1] > self.clock()}
             self.approval_tokens[row["id"]] = (token, row["expires"])
-            return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered."}
+            asked = (f"Want me to press “{args['label']}” in {args['app']}?" if name == "computer.ui_press"
+                     else f"Want me to type “{args['text'][:200]}” into “{args['label']}” in {args['app']}?" if name == "computer.ui_type" else None)
+            return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered.",
+                    **({"text": asked} if asked else {})}
         return self._execute(row, {"ready"})
 
     def confirm(self, id, token):
@@ -660,7 +694,7 @@ class Agent:
 
     def texting_status(self):
         account = self.cloud.cached_account()
-        return {"route": self.message_route, "enabled": self.store.setting("integration:sms", False),
+        return {"route": self.message_route, "enabled": self.texting_on(),
                 "luma_number": {"signed_in": self.cloud.signed_in(), "verifying": bool(self.store.setting("luma_cloud_pending")),
                                 "account": account},
                 "sent_this_month": sum(1 for r in self.store.all("sent_text", 300)
@@ -1089,7 +1123,8 @@ class Agent:
         return self.link_host if self.link_host.connected() else self.chrome
 
     # computer mode: the paired computer (or this one, when Luma runs right here) as Luma's hands
-    COMPUTER_KINDS = {"computer.find": "files.find", "computer.read": "files.read", "computer.open_app": "app.open", "computer.look": "screen.look"}
+    COMPUTER_KINDS = {"computer.find": "files.find", "computer.read": "files.read", "computer.open_app": "app.open", "computer.look": "screen.look",
+                      "computer.ui_read": "ui.read", "computer.ui_press": "ui.press", "computer.ui_type": "ui.type"}
 
     def computer_ready(self):
         """On the device: a paired computer is connected. On a computer running Luma itself: always, its own settings decide."""
@@ -1118,6 +1153,16 @@ class Agent:
                     "summary": f"Read {got.get('name')}" + (" (the first part; it's long)." if got.get("cut") else ".")}
         if kind == "app.open":
             return {"opened": got.get("opened"), "summary": f"Opened {got.get('opened')} on your computer."}
+        if kind == "ui.read":
+            items = got.get("elements") or []
+            lines = [f"[{e['ref']}] {e['role']} “{e.get('label') or ''}”" + (f" = “{e['value']}”" if e.get("value") else "") + (" (password field)" if e.get("secure") else "")
+                     + (" (disabled)" if e.get("disabled") else "") for e in items[:80]]
+            where = got.get("app", "the app") + (f" ({got['window']})" if got.get("window") else "")
+            return {"app": got.get("app"), "elements": items, "summary": f"In {where}: " + ("; ".join(lines) if lines else "nothing I can use in that window.")}
+        if kind == "ui.press":
+            return {"pressed": got.get("pressed"), "summary": f"Pressed “{got.get('pressed')}” in {got.get('app')}."}
+        if kind == "ui.type":
+            return {"typed": got.get("typed"), "summary": f"Typed into “{got.get('typed')}” in {got.get('app')}."}
         return self._look_at_screen(got)
 
     def _look_at_screen(self, got):
@@ -2809,7 +2854,7 @@ class Agent:
         args = {"to": contact["phone"], "body": body}
         validate("sms.send", args)
         name = contact["name"]
-        if self.store.setting("integration:sms", False):
+        if self.texting_on():
             route, account, result = self.message_route, None, None
             if route == "luma_number" and not self.cloud.signed_in():
                 draft = self.store.put("phone_draft", {**args, "name": name, "created": self.clock()})
@@ -2999,9 +3044,11 @@ class Agent:
                 if getattr(self, "on_result", None): self.on_result({"text": "I couldn't answer your text: " + str(error)[:200]})
 
     def answer_owner_text(self, message):
-        """The owner texted Luma's number from their phone: answer like at home, reply by text."""
+        """The owner texted Luma's number (or Luma's WhatsApp) from their phone: answer like at home, reply the same way.
+        Approvals work like texts on both: "YES 1234" with the code, so someone holding the phone can't just say yes."""
         body = " ".join(str(message.get("body", "")).split())[:1600]
         if not body: return None
+        whatsapp = str(message.get("from", "")).startswith("whatsapp:")
         if self.mode == "kids":
             result = {"text": "Luma's in kids mode at home right now, so I can't help by text. Switch modes on the Mac."}
         else:
@@ -3010,10 +3057,11 @@ class Agent:
             except ValueError as error:
                 result = {"text": str(error)}
         code = result.get("approval_code") or (self.awaiting or {}).get("code") if result.get("state") == "pending" else None
-        reply = texting.for_sms(result, code)
-        sent = self.cloud.send(self.cloud.owner_phone, reply, client_ref="ans-" + str(message.get("id", ""))[:40], to_owner=True)
+        reply = texting.for_sms(result, code, limit=1500 if whatsapp else 600)
+        ref = "ans-" + str(message.get("id", ""))[:40]
+        sent = self.cloud.whatsapp_send(reply, ref) if whatsapp else self.cloud.send(self.cloud.owner_phone, reply, client_ref=ref, to_owner=True)
         if getattr(self, "on_result", None):
-            self.on_result({**result, "you": body, "channel": "sms", "text": reply})
+            self.on_result({**result, "you": body, "channel": "whatsapp" if whatsapp else "sms", "text": reply})
         return {"result": result, "reply": reply, "sent": sent}
 
     def message_status(self, action_id):
@@ -3832,6 +3880,27 @@ class Agent:
             return {"text": f"{first} {rest if first.endswith(',') else rest[:1].upper() + rest[1:]}"}
         return {"text": f"Which {what} do you mean? Tell me and I'll give you my honest take."}
 
+    def _look_first(self, text, lowered, cancel_event=None):
+        """A question about one specific record, phone, dish or book: answered from the web, or Luma says it couldn't check. Never from
+        memory, where a small brain fills the gap with a track list or a menu that doesn't exist."""
+        if self.mode == "kids" or not GROUND.search(lowered) or wants_message(text) or LIVE_INFO.search(lowered) \
+                or not re.search(r"\?|\b(?:what|how|thoughts|opinion|think|take|heard|seen|good|worth|tell me about)\b", lowered) \
+                or re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell (?!me about))\b", lowered):
+            return None
+        if self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block":
+            try:
+                found = self.look_it_up(text, cancel_event)
+                if found.get("results"):
+                    return found
+            except (ValueError, ProviderError):
+                pass
+        import random
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
+        if casual:
+            return {"text": random.choice(["Ngl I couldn't look that up just now, and I'm not tryna guess on it. What've you heard?",
+                                           "I couldn't check on that one just now, so I won't make stuff up lol. What's the word on it?"])}
+        return {"text": "I couldn't look that up just now, and I'd rather not guess. What have you heard about it?"}
+
     def _have_you(self, lowered):
         """'you seen the new spiderman?': if it's new, it may be newer than what Luma knows, so it says so and lets them lead instead of a
         small brain making it up. A popular song or show it can talk about from what it knows (the brain takes those when it's on).
@@ -4215,6 +4284,8 @@ class Agent:
                     and self.rules.for_tool("web.search")[1] != "block" and not wants_message(text)):
                 talked = self._talk_lyrics(text, cancel_event)
                 if talked is not None: return talked
+            grounded = self._look_first(text, lowered, cancel_event)  # one specific thing it may not know: the web first, never a guess
+            if grounded is not None: return grounded
             if (self.mode != "kids" and LIVE_INFO.search(lowered) and not wants_message(text)
                     and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):

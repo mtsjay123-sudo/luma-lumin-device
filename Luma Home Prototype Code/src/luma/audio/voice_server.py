@@ -25,7 +25,22 @@ ENGINES = {
                    "tags": True},
     # Qwen3-TTS 0.6B (Alibaba Qwen, Apache-2.0): a bigger model with very natural rhythm, clones a voice from 3 seconds.
     "studio": {"repos": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16", "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"], "tags": False},
+    # Dia 1.6B (Nari Labs, Apache-2.0): made for conversation, says "(laughs)" and "(sighs)" for real, continues a voice from a clip.
+    "dia": {"repos": ["mlx-community/Dia-1.6B-fp16", "mlx-community/Dia-1.6B", "mlx-community/Dia-1.6B-8bit", "mlx-community/Dia-1.6B-4bit"],
+            "tags": True, "script": True},
+    # Sesame CSM 1B (Apache-2.0): a conversational speech model that keeps a voice going from earlier audio.
+    "csm": {"repos": ["mlx-community/csm-1b", "mlx-community/csm-1b-fp16", "mlx-community/csm-1b-8bit"], "tags": False},
 }
+
+
+def _script(engine, text):
+    """Dia reads a script: who's talking ([S1]) and sounds in brackets as it writes them ("(laughs)")."""
+    if not ENGINES.get(engine, {}).get("script"):
+        return text
+    import re
+    text = re.sub(r"\[(?:laugh|chuckle)\]", "(laughs)", text)
+    text = text.replace("[sigh]", "(sighs)").replace("[cough]", "(coughs)")
+    return text if text.lstrip().startswith("[S1]") else "[S1] " + text
 
 state = {"model": None, "engine": None, "repo": None, "ref": None, "ref_text": None, "rate": 24000, "conds": False}
 
@@ -103,11 +118,11 @@ def say(text):
     model = state["model"]
     if model is None:
         raise RuntimeError("No voice loaded yet.")
-    kwargs = {"text": text}
+    kwargs = {"text": _script(state["engine"], text)}
     if state["ref"] and os.path.exists(state["ref"]) and not state.get("conds"):
         kwargs["ref_audio"] = state["ref"]
-        if state["engine"] == "studio" and state["ref_text"]:
-            kwargs["ref_text"] = state["ref_text"]
+        if state["engine"] in ("studio", "dia", "csm") and state["ref_text"]:
+            kwargs["ref_text"] = _script(state["engine"], state["ref_text"])
     started = time.time()
     tried = []
     for _ in range(3):  # these models sample, and now and then stop before saying anything: try again

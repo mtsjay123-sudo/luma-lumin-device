@@ -17,10 +17,14 @@ WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", 
 # Durable facts worth keeping, said in passing. Each pattern captures a whole fact.
 DATE = r"(?:on\s+)?(?i:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-zA-Z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?\b"
 I = re.I
+PEOPLE = (r"(?:girlfriend|boyfriend|gf|bf|wife|husband|partner|fianc[eé]e?|mom|mother|dad|father|sister|brother|son|daughter|kid|baby|best friend|bestie|"
+          r"boss|roommate|grandma|grandmother|grandpa|grandfather|aunt|uncle|cousin|niece|nephew|dog|cat|puppy)")
 FACT_PATTERNS = [
     (r"\b(?:my|our)\s+(?:[a-z']+\s+){0,2}(?:birthday|bday|anniversary)\s+is\s+" + DATE, I),
     (r"\b[A-Z][a-z]+(?:'s|’s)\s+(?:birthday|bday)\s+is\s+" + DATE, 0),
-    (r"\b(?:[Mm]y|[Oo]ur)\s+(?:girlfriend|boyfriend|wife|husband|partner|mom|mother|dad|father|sister|brother|son|daughter|best friend|boss|dog|cat)(?:'s)?\s+(?:name\s+)?is\s+(?:named\s+|called\s+)?[A-Z][a-z]+\b", 0),
+    (r"\b(?:[Mm]y|[Oo]ur)\s+" + PEOPLE + r"(?:'s)?\s+(?:name\s+)?is\s+(?:named\s+|called\s+)?[A-Z][a-z]+\b", 0),
+    # typed in lowercase ("my sister's name is dana"): only with "name is", "named" or "called", so "my mom is tired" isn't a name
+    (r"\b(?:my|our)\s+" + PEOPLE + r"(?:(?:'s|’s)\s+name\s+is|\s+is\s+(?:named|called))\s+(?!(?:like|um|uh|so|really|not|kinda|literally)\b)[a-z][a-z'-]+\b", I),
     (r"\bI(?:'m| am)\s+allergic\s+to\s+[a-z]+(?:(?:,\s*|\s+and\s+|\s+or\s+)[a-z]+){0,3}", I),
     (r"\bI(?:'m| am)\s+(?:vegetarian|vegan|pescatarian|gluten[- ]free|lactose intolerant|diabetic|pregnant)\b", I),
     (r"\bI\s+(?:work|go to school)\s+(?:at|for)\s+[A-Z][\w&']*(?:\s+[A-Z][\w&']*){0,4}", 0),
@@ -104,6 +108,7 @@ def notice_facts(text):
         for pattern, flags in FACT_PATTERNS:
             for match in re.finditer(pattern, clause, flags):
                 fact = " ".join(match.group(0).split()).strip(" ,.")
+                fact = re.sub(r"\b(name\s+is|named|called)\s+([a-z])", lambda m: f"{m[1]} {m[2].upper()}", fact)  # "dana" is "Dana"
                 if fact and fact.lower() not in {f.lower() for f in found}:
                     found.append(fact[0].upper() + fact[1:])
         for obj, at in location_facts(clause):

@@ -56,6 +56,10 @@ class SlangTalkTests(unittest.TestCase):
         self.assertEqual(self.agent.chat("when is my moms bday?")["text"], "Your mom's birthday is June 3.")
         self.assertIn("don't know your dads birthday yet", self.agent.chat("whats my dads birthday")["text"])  # never Mom's by mistake
         self.assertNotIn("don't know", self.agent.chat("what's my schedule today")["text"])  # a lookup, not a memory
+        self.assertEqual(self.agent.chat("my sister's name is dana")["text"], "Got it. Your sister's name is Dana.")  # typed in lowercase
+        self.assertEqual(self.agent.chat("whats my sisters name")["text"], "Your sister's name is Dana.")
+        from luma.agent.presence import notice_facts
+        self.assertEqual(notice_facts("my mom is tired"), [])  # not a name
 
     def test_jokes_are_told_as_written_and_not_repeated(self):
         from luma.agent import jokes
@@ -183,6 +187,30 @@ class SlangTalkTests(unittest.TestCase):
         self.agent.history = self.agent.threads["main"] = []  # a fresh conversation, with someone who writes in full sentences
         self.store.set_setting("their_style", None)
         self.assertEqual(self.agent.chat("That album is a bit overrated.")["text"], "Which album do you mean? Tell me and I'll give you my honest take.")
+
+    def test_one_specific_thing_it_may_not_know_gets_looked_up(self):
+        from luma.agent.runtime import ProviderError
+        asked = []
+        found = {"text": "Couldn't find anything on a band called Glass Pelican.", "results": [{"title": "x", "url": "https://a.com", "snippet": ""}]}
+        self.agent.look_it_up = lambda text, ev=None: asked.append(text) or found
+        for question in ["what do you think of glass pelican's new record?", "is the zentrix pro 9 phone worth it?", "what's the plot of the movie silver lanterns?",
+                         "what's the best dish at marlowe's kitchen on 5th street?", "have you read the copper orchard by mira tannenbaum?"]:
+            self.assertIs(self.agent.chat(question), found, question)  # the web, never a track list from memory
+        self.assertEqual(len(asked), 5)
+        for talk in ["my new phone is broken", "is it worth it to wake up early?", "have you read my message?", "i have beef with my roommate"]:
+            self.assertIsNone(self.agent._look_first(talk, talk), talk)
+        self.agent.look_it_up = lambda text, ev=None: {"text": "", "results": []}  # nothing came back: it says so instead of guessing
+        reply = self.agent.chat("what do you think of glass pelican's new record?")["text"]
+        self.assertRegex(reply, r"couldn't (?:look|check)")
+        self.assertTrue(reply.endswith("?"))
+        def offline(text, ev=None):
+            raise ProviderError("no internet")
+        self.agent.look_it_up = offline
+        self.store.set_setting("their_style", None)  # someone who writes in full sentences
+        self.assertIn("rather not guess", self.agent.chat("Is the Zentrix Pro 9 worth it?")["text"])
+        self.agent.enable("web_search", False)
+        self.agent.look_it_up = lambda *a: self.fail("web is off")
+        self.assertRegex(self.agent.chat("thoughts on the new hyperion app?")["text"], r"couldn't (?:look|check)")
 
     def test_slang_is_conversation_not_a_command(self):
         before = self.agent.store.setting("hush_until", 0)

@@ -37,12 +37,13 @@ def _save_wav(audio, path):
         wf.writeframes(audio.astype(np.int16).tobytes())
 
 
-def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False):
+def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None):
     """Capture local utterances; barge-in requires explicitly isolated playback.
 
     There is no acoustic echo cancellation. Keep allow_barge_in False on ordinary
     speakers. A caller using headphones may opt in and dispatch callback work to
     a worker so this loop can capture an interruption during speech generation.
+    on_pause, if given, is called at a short pause inside a long turn (where a listener says "mm-hm"); it must return quickly.
     """
     if not isinstance(allow_barge_in, bool):
         raise ValueError("Barge-in must be an explicit true or false value.")
@@ -54,6 +55,10 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
     utterance, pre = [], deque(maxlen=6)
     in_speech = False
     suppress_until = 0.0
+    watch = None
+    if on_pause is not None:
+        from luma.audio.backchannel import PauseWatch
+        watch = PauseWatch(rate=SAMPLE_RATE, chunk=_CHUNK)
 
     def audio_callback(indata, frames, timing, status):
         if (_speaking.is_set() and not allow_barge_in) or should_stop() or time.monotonic() < suppress_until: return
@@ -73,7 +78,11 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
             if result and "start" in result:
                 in_speech = True
                 utterance = list(pre)
+                if watch is not None: watch.start()
             if in_speech: utterance.append(chunk)
+            if in_speech and watch is not None and watch.feed(chunk) and not _speaking.is_set():
+                try: on_pause()
+                except Exception: pass  # a missed "mm-hm" never stops listening
             pre.append(chunk)
             ended = result and "end" in result
             if in_speech and (ended or len(utterance) >= int(30*SAMPLE_RATE/_CHUNK)):

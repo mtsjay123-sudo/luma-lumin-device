@@ -78,7 +78,7 @@ class ComputerTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_nothing_is_shared_until_the_person_here_turns_it_on(self):
-        self.assertEqual(self.computer.settings(), {"folders": [], "apps": False, "screen": False, "paused": False})
+        self.assertEqual(self.computer.settings(), {"folders": [], "apps": False, "screen": False, "control": False, "paused": False})
         self.assertIn("No folders are shared", self.computer.do({"kind": "files.find", "query": "resume"})["error"])
         self.assertIn("Opening apps is off", self.computer.do({"kind": "app.open", "name": "Spotify"})["error"])
         self.assertIn("Looking at the screen is off", self.computer.do({"kind": "screen.look"})["error"])
@@ -140,6 +140,75 @@ class ComputerTests(unittest.TestCase):
         self.assertFalse(agent.computer_ready())
         with self.assertRaises(ValueError):
             agent.propose("computer.find", {"query": "resume"})
+
+    def test_clicking_and_typing_in_apps_is_off_until_turned_on_and_mac_only(self):
+        ran = []
+        run = lambda *a, **k: ran.append(a) or self.fail("nothing runs while it's off")
+        with self.assertRaisesRegex(ValueError, "Clicking and typing in apps is off"):
+            self.computer._ui({"kind": "ui.read", "app": "Notes"}, run=run)
+        self.computer.allow("control", True)
+        with mock.patch("luma.control.computer.sys.platform", "linux"), self.assertRaisesRegex(ValueError, "works on a Mac"):
+            self.computer._ui({"kind": "ui.read", "app": "Notes"}, run=run)
+        self.assertEqual(ran, [])
+
+    def test_it_reads_an_app_window_and_acts_only_on_what_it_saw(self):
+        from luma.control.computer import UI_SCRIPT
+        self.computer.allow("control", True)
+        calls = []
+        replies = [{"app": "Notes", "window": "Groceries", "elements": [{"ref": 12, "role": "Button", "label": "New Note"}, {"ref": 30, "role": "TextArea", "label": "Note", "value": "eggs"}]},
+                   {"app": "Notes", "pressed": "New Note"}, {"error": "changed", "app": "Notes"}, {"error": "password", "app": "Notes"}]
+        def run(argv, **kw):
+            calls.append(argv)
+            return mock.Mock(returncode=0, stdout=json.dumps(replies[len(calls) - 1]), stderr="")
+        with mock.patch("luma.control.computer.sys.platform", "darwin"):
+            seen = self.computer._ui({"kind": "ui.read", "app": "Notes"}, run=run)
+            self.assertEqual(seen["elements"][0]["label"], "New Note")
+            self.assertEqual(calls[0][:5], ["osascript", "-l", "JavaScript", "-e", UI_SCRIPT])
+            job = json.loads(calls[0][5])  # the request travels as data, never spliced into the script
+            self.assertEqual((job["kind"], job["app"]), ("ui.read", "Notes"))
+            self.assertEqual(self.computer._ui({"kind": "ui.press", "app": "Notes", "ref": 12, "role": "Button", "label": "New Note"}, run=run)["pressed"], "New Note")
+            self.assertEqual({k: json.loads(calls[1][5])[k] for k in ("ref", "role", "label")}, {"ref": 12, "role": "Button", "label": "New Note"})
+            with self.assertRaisesRegex(ValueError, "changed since I looked"):
+                self.computer._ui({"kind": "ui.press", "app": "Notes", "ref": 12, "role": "Button", "label": "New Note"}, run=run)
+            with self.assertRaisesRegex(ValueError, "never type into password fields"):
+                self.computer._ui({"kind": "ui.type", "app": "Notes", "ref": 3, "role": "TextField", "label": "Password", "text": "x"}, run=run)
+            for app in ["Terminal", "iTerm2", "1Password 7", "Keychain Access", "System Settings", "Luma"]:
+                with self.assertRaisesRegex(ValueError, "don't click or type in that app"):
+                    self.computer._ui({"kind": "ui.read", "app": app}, run=run)
+            with self.assertRaisesRegex(ValueError, "Look at the window first"):
+                self.computer._ui({"kind": "ui.press", "app": "Notes", "ref": "12", "role": "Button", "label": "New Note"}, run=run)
+            with self.assertRaisesRegex(ValueError, "app's name"):
+                self.computer._ui({"kind": "ui.read", "app": "Notes; rm -rf ~"}, run=run)
+            denied = lambda argv, **kw: mock.Mock(returncode=1, stdout="", stderr="execution error: osascript is not allowed assistive access. (-25211)")
+            with self.assertRaisesRegex(ValueError, "Accessibility"):
+                self.computer._ui({"kind": "ui.read", "app": "Notes"}, run=denied)
+        self.assertEqual(len(calls), 4)
+
+    def test_every_click_and_keystroke_waits_for_a_yes(self):
+        agent = Agent(store=self.store, use_model=False)
+        agent.link.computer.allow("control", True)
+        self.assertIn("computer.ui_press", agent.available_tools("in notes click new note"))
+        self.assertNotIn("computer.ui_press", agent.available_tools("what's the weather"))
+        did = []
+        agent.link.computer.do = lambda job: did.append(job) or {"app": "Notes", "pressed": job.get("label"), "typed": job.get("label")}
+        pending = agent.propose("computer.ui_press", {"app": "Notes", "ref": 12, "role": "Button", "label": "New Note"})
+        self.assertEqual(pending["state"], "pending")
+        self.assertEqual(pending["text"], "Want me to press “New Note” in Notes?")
+        self.assertEqual(pending["review"], {"app": "Notes", "does": "press “New Note”"})
+        self.assertEqual(did, [], "nothing happens before the yes")
+        done = agent.confirm(pending["action"], pending["confirm_token"])
+        self.assertEqual(did[0], {"kind": "ui.press", "app": "Notes", "ref": 12, "role": "Button", "label": "New Note"})
+        self.assertIn("Pressed “New Note” in Notes", json.dumps(done, ensure_ascii=False))
+        typed = agent.propose("computer.ui_type", {"app": "Notes", "ref": 30, "role": "TextArea", "label": "Note", "text": "milk"})
+        self.assertEqual(typed["text"], "Want me to type “milk” into “Note” in Notes?")
+        self.assertEqual(len(did), 1)
+        agent.rules.set("computer_act", "block")
+        with self.assertRaises(ValueError):
+            agent.propose("computer.ui_press", {"app": "Notes", "ref": 12, "role": "Button", "label": "New Note"})
+        with self.assertRaises(ValueError):
+            agent.rules.set("computer_act", "allow")  # never skips the yes
+        agent.store.set_setting("mode", "kids")
+        self.assertFalse(agent.computer_ready())
 
     def test_a_bad_request_is_logged_as_failed_not_lost(self):
         agent = Agent(store=self.store, use_model=False)

@@ -7,6 +7,8 @@ Writes one WAV per line per voice:
   classic-*.wav     Luma's classic voice (Kokoro) with the new pauses, laughs-as-beats and slang said right
   expressive-*.wav  Chatterbox-Turbo, learning Luma's classic voice from one short line, with real laughs
   studio-*.wav      Qwen3-TTS 0.6B, learning the same voice
+  dia-*.wav         Dia 1.6B (Nari Labs), made for conversation, with real laughs, continuing the same voice
+  csm-*.wav         Sesame CSM 1B, a conversational model, continuing the same voice
   design-*.wav      Qwen3-TTS VoiceDesign: candidate voices for Luma's own identity, from a description
 and summary.json with which model loaded, how fast it ran (real-time factor: under 1 is faster than real time),
 and the words each file should say, for scripts/voice_check.py to check by ear.
@@ -81,7 +83,7 @@ def main(out):
     # 2 and 3. The new open voices, each learning Luma's classic voice from one paragraph. Each one on its own, and
     # rendered even when this runner is too slow for a live conversation, so they can be heard (the speed is reported).
     natural.MAX_RTF = float("inf")
-    for engine in ("expressive", "studio"):
+    for engine in ("expressive", "studio", "dia", "csm"):
         natural.ENGINES = (engine,)
         v = natural.NaturalVoice()
         natural._voice = v

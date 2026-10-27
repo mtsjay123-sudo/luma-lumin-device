@@ -240,6 +240,13 @@ class LumaCloud:
                 "from": result.get("from"), "texts_left": left, "plan": result.get("plan"),
                 "summary": "Sent from Luma's number." + (f" {left} texts left this month." if isinstance(left, int) and left <= 5 else "")}
 
+    def whatsapp_send(self, body, client_ref):
+        """Luma answering its owner on WhatsApp: free, only to them, and only within a day of their last message there."""
+        status, result = self._call("POST", "/api/luma/whatsapp-send", {"body": body, "client_ref": client_ref}, side_effect=True)
+        if status == 202 or result.get("status") == "unknown":
+            raise OutcomeUnknown("I'm not sure that WhatsApp message went out.")
+        return {"provider": "whatsapp", "message_id": result.get("message_id"), "status": result.get("status", "sent"), "summary": "Answered on WhatsApp."}
+
     def inbox(self):
         cursor = self.store.setting("luma_cloud_inbox_cursor")
         query = "?after=" + urllib.parse.quote(cursor) if cursor else ""

@@ -3155,13 +3155,14 @@
   // Computer mode: what Luma may do on this computer when your Luma device (or Luma right here) asks.
   // It's set on this computer only, never from the phone, and Pause stops all of it at once.
   const DID = { "files.find": "Looked for files", "files.read": "Read a file", "app.open": "Opened an app", "screen.look": "Looked at the screen",
+    "ui.read": "Looked at an app", "ui.press": "Pressed", "ui.type": "Typed into",
     open: "Opened a page", play: "Played music", read: "Read the page", tabs: "Checked your tabs", pause: "Paused", resume: "Resumed" };
   function computerItem() {
     const item = el("div", "item link-item computer-item");
     const g = el("div", "grow");
     const body = el("div", "link-body");
     g.append(el("div", "title", "What Luma can do on this computer"),
-      el("div", "sub", "Opening web pages and playing music always work. Folders, apps and the screen stay off until you turn them on here. Luma never changes or deletes your files."), body);
+      el("div", "sub", "Opening web pages and playing music always work. Folders, apps, the screen and clicking stay off until you turn them on here. Luma never changes or deletes your files."), body);
     item.append(g);
     const change = async (data) => draw(await api("/api/computer", data));
     const draw = (st) => {
@@ -3192,7 +3193,8 @@
       add.addEventListener("submit", (e) => { e.preventDefault(); if (path.value.trim()) change({ action: "grant", folder: path.value.trim() }).catch((err) => toast(err.message)); });
       body.append(top, el("div", "sub", "Folders Luma can look in (find files by name, read text files):"), folders, add,
         toggleRow("Open apps", "Like \u201copen Spotify\u201d or \u201copen Notes\u201d.", st.apps, (on) => change({ action: "allow", what: "apps", on })),
-        toggleRow("Look at my screen", "Only when you ask, like \u201cwhat's on my screen?\u201d", st.screen, (on) => change({ action: "allow", what: "screen", on })));
+        toggleRow("Look at my screen", "Only when you ask, like \u201cwhat's on my screen?\u201d", st.screen, (on) => change({ action: "allow", what: "screen", on })),
+        toggleRow("Click and type in apps", "Like \u201cin Notes, make a new note.\u201d Luma asks you before every click and every bit of typing, never types passwords, and stays out of Terminal, password managers and System Settings. Works on a Mac; macOS will ask you to allow Luma under Accessibility.", st.control, (on) => change({ action: "allow", what: "control", on })));
       const log = (st.log || []).slice(-5).reverse();
       if (log.length) {
         const list = el("ul", "computer-log");
@@ -3503,6 +3505,7 @@
     box.append(toggleRow("Talk back out loud", "When you talk to Luma with the mic, it answers out loud and keeps listening, back and forth.", speakAloud, (on) => { speakAloud = on; try { localStorage.setItem("luma-speak", on ? "1" : "0"); } catch (_) { /* private */ } if (on) speak("Hey, this is how I sound."); }));
     box.append(naturalVoiceRow());
     box.append(toggleRow("Stay in conversation", "Once you start talking, Luma keeps listening between replies, however long it takes, until you say “bye” or “that's all”. With this on it's listening as soon as you bring it up, no tapping.", voice.stay, (on) => setStay(on)));
+    box.append(toggleRow("Say “mm-hm” while I talk", "When you talk for a while, Luma says a quiet “mm-hm” at your pauses so you know it's with you, like a friend listening. It never counts as something you said.", voice.mm, (on) => setMm(on)));
     box.append(toggleRow("Start with “Hey Luma”", "While Luma is open, just say “Hey Luma” to start talking. It listens for its name on this computer; nothing is kept or sent anywhere.", voice.wake, (on) => setWake(on)));
     if (!document.documentElement.classList.contains("in-app")) box.append(toggleRow("Listen for “Hey Luma”", "On the Luma device: talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
     box.append(toggleRow("Remember things I mention", "Small facts (your sister's birthday, your coffee order), encrypted on this computer.", s.presence?.learn_from_chat !== false, (on) => api("/api/setting", { key: "learn_from_chat", value: on })));
@@ -4032,6 +4035,7 @@
     settle: 150, settleWake: 600, // after Luma talks, let the room go quiet before listening
     progressAfter: 8000, progressEvery: 22000, // a word on how a long job is going
     wakeLongest: 3500,
+    mmAfter: 4000, mmPause: 350, mmGap: 7000, mmVolume: 0.4, // a soft "mm-hm" at a pause, once you've been talking a while
   };
   const voice = {
     on: false, stay: false, wake: false, opening: null,
@@ -4040,12 +4044,14 @@
     partial: "", partialBusy: false, partialAt: 0, shown: false, typed: false,
     held: "", pending: 0, chain: Promise.resolve(), queued: "", expect: false, fails: 0,
     said: "", left: "", talking: false, talkAt: 0, quietAt: 0, idleSince: 0, busy: false, progress: 0, progressN: 0,
+    mm: true, mmAt: 0, mmSounds: [],
   };
   let speakAloud = true;
   try {
     speakAloud = localStorage.getItem("luma-speak") !== "0";
     voice.stay = localStorage.getItem("luma-stay") === "1";
     voice.wake = localStorage.getItem("luma-wake") === "1";
+    voice.mm = localStorage.getItem("luma-mm") !== "0";
   } catch (_) { /* private window */ }
   // Luma speaks only in its own natural voice (Kokoro, on this computer). Never a robotic system voice:
   // if the voice isn't ready, Luma shows its words and says so once.
@@ -4262,9 +4268,26 @@
     } else if (!voice.heard) voice.loudMs = Math.max(0, voice.loudMs - dt);
     if (voice.heard) {
       if (now - voice.quietSince > hangFor(t) || now - t.at > (t.wake ? VOICE.wakeLongest : VOICE.longest)) { finishTake(); return; }
+      const quiet = now - voice.quietSince;
+      if (voice.on && !t.wake && voice.loudMs >= VOICE.mmAfter && quiet >= VOICE.mmPause && quiet < VOICE.mmPause + dt + 1) mmHm(now);
       if (voice.on && !voice.partialBusy && now - voice.partialAt > VOICE.partialEvery) partial(t);
     } else if (now - t.at > VOICE.fresh) startTake();
     if (voice.on && !voice.stay && !voice.heard && !state.busy && !voice.pending && !voice.held && now - voice.idleSince > VOICE.idle) endConversation("quiet");
+  }
+  // A friend listening says "mm-hm" at your pauses. Quietly, in Luma's voice, and never into your words: the browser's echo
+  // cancelling keeps it out of the recording, and Luma's ears drop any "mm-hm" that still gets through.
+  const MM = ["Mm-hm.", "Mhm.", "Uh-huh.", "Mm-hm."];
+  function mmReady() {
+    if (!voice.mm || !speakAloud || voice.mmSounds.length) return;
+    voice.mmSounds = MM.map((w) => { const a = new Audio(); a.preload = "auto"; a.src = "/api/tts?text=" + encodeURIComponent(w); a.volume = VOICE.mmVolume; a.load(); return a; });
+  }
+  function mmHm(now) {
+    if (!voice.mm || !speakAloud || voice.talking || speak.unready || now - voice.mmAt < VOICE.mmGap) return;
+    mmReady();
+    const a = voice.mmSounds[Math.floor(Math.random() * voice.mmSounds.length)];
+    if (!a || a.readyState < 2) return; // still loading: skip this pause rather than say it late
+    voice.mmAt = now;
+    try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) { /* a missed "mm-hm" is fine */ }
   }
   // How long a pause means you're done.
   function hangFor(t) {
@@ -4592,6 +4615,7 @@
     if (!(await openMic())) { voice.on = false; paintVoice(); return; }
     if (!voice.on) { if (!voice.wake) closeMic(); return; } // ended while the mic was opening
     voice.busy = !state.busy; // the ear picks up a job that's already running
+    mmReady();
     try { if (!localStorage.getItem("luma-talked")) { localStorage.setItem("luma-talked", "1"); toast("I'm listening. Just talk, and say “bye” when you're done."); } } catch (_) { /* private */ }
     if (opts.text && !state.busy) send(opts.text, { voice: true });
     else if (opts.greet && speakAloud) speak("Yeah?", listenNow);
@@ -4615,6 +4639,11 @@
   function setStay(on) {
     voice.stay = on;
     try { localStorage.setItem("luma-stay", on ? "1" : "0"); } catch (_) { /* private */ }
+  }
+  function setMm(on) {
+    voice.mm = on;
+    try { localStorage.setItem("luma-mm", on ? "1" : "0"); } catch (_) { /* private */ }
+    if (on && voice.on) mmReady();
   }
   async function setWake(on) {
     voice.wake = on;

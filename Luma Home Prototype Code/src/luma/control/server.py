@@ -179,7 +179,7 @@ def home_payload(agent, owner=True):
             'mail': agent.mail.status(),
             'calendar': agent.calendar.status(),
             'browser': {'on': agent.integration_on('browser'), 'available': agent._browser_available()},
-            'texting': {'route': agent.message_route, 'enabled': agent.store.setting('integration:sms', False)},
+            'texting': {'route': agent.message_route, 'enabled': agent.texting_on()},
             'phone_app': None,
             'apps': agent.connectors.list() if owner else [],
             'app_presets': agent.connectors.presets(),
@@ -577,7 +577,8 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     from luma.audio.stt import transcribe_clip
                 except ImportError:
                     return self.send({'error':"Luma's ears aren't installed yet. Restart Luma to finish setting up voice."},503)
-                try: return self.send({'text':transcribe_clip(clip,kinds[kind],quick=purpose in {'partial','wake'},keep=('bye',))})
+                from luma.audio.backchannel import clean
+                try: return self.send({'text':clean(transcribe_clip(clip,kinds[kind],quick=purpose in {'partial','wake'},keep=('bye',)))})
                 except Exception as error: return self.send({'error':"I couldn't make out that recording. "+str(error)[:160]},500)
             if self.headers.get('Content-Type','').split(';')[0]!='application/json': return self.send({'error':'JSON required'},415)
             try:
@@ -668,6 +669,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif key=='muted' and type(value) is bool: agent.set_muted(value)
                     elif key=='hush': agent.hush()
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
+                    elif key=='backchannels' and type(value) is bool: agent.store.set_setting('backchannels',value)
                     elif key=='lock_touchid' and type(value) is bool: agent.store.set_setting('lock_touchid',value)
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)

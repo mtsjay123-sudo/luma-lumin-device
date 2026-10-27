@@ -35,6 +35,8 @@ class FakeCloud:
             return 200, {"area_code": area, "numbers": [{"number": f"+1{area}5552000", "locality": "Raleigh", "region": "NC"}]}
         if path == "billing-checkout":
             return 200, {"url": "https://checkout.stripe.com/c/pay/x" + ("?n=" + payload["number"] if payload.get("number") else "")}
+        if path == "whatsapp-send":
+            return 200, {"message_id": "w1", "status": "sent", "channel": "whatsapp"}
         if path.startswith("sms-inbox"):
             replies, self.replies = self.replies, []
             return 200, {"replies": replies, "cursor": "2026-10-03T12:00:00Z"}
@@ -205,6 +207,26 @@ class TextingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.agent.cloud.upgrade_link("not a number")
 
+    @patch("luma.agent.runtime.MacMessages")
+    def test_on_a_mac_texts_go_out_free_from_your_imessage(self, mac):
+        mac.return_value.readiness.return_value = {"available": True, "configured": False, "transport": None, "setup": ""}
+        mac.return_value.send.return_value = {"provider": "mac_messages", "status": "accepted", "summary": "accepted"}
+        self.assertEqual(self.agent.message_route, "mac_imessage")
+        self.assertTrue(self.agent.texting_status()["enabled"])
+        self.agent.contacts.save({"name": "Maya", "phone": "+19195550123"})
+        pending = self.agent.chat("text Maya that I'm outside")
+        self.assertEqual(pending["state"], "pending")  # still waits for a yes
+        mac.return_value.send.assert_not_called()
+        self.agent.chat("send it")
+        mac.return_value.send.assert_called_once_with({"to": "+19195550123", "body": "I'm outside"})
+        self.agent.set_message_route("phone_draft")  # their choice wins
+        self.assertEqual(self.agent.message_route, "phone_draft")
+        self.assertEqual(self.agent.chat("text Maya that never mind")["state"], "draft")
+
+    def test_off_a_mac_texts_are_drafts_until_set_up(self):
+        self.assertEqual(self.agent.message_route, "phone_draft")
+        self.assertFalse(self.agent.texting_status()["enabled"])
+
     def test_kids_mode_cannot_text(self):
         self.agent.contacts.save({"name": "Maya", "phone": "+19195550123"})
         self.agent.set_mode("kids")
@@ -273,3 +295,25 @@ class OwnerTextTests(unittest.TestCase):
         self.agent._owner_worker.join(10)
         self.assertEqual(self.last_send()["to"], "+19195550100")
         self.assertFalse(self.store.all("sms_reply"), "the owner's own texts aren't 'replies from people'")
+
+    def test_a_whatsapp_message_gets_answered_on_whatsapp_free(self):
+        self.cloud.replies = [{"id": "w9", "from": "whatsapp:+19195550100", "body": "remind me in 20 minutes to grab flowers", "kind": "owner",
+                               "received_at": "2026-10-03T12:00:00Z"}]
+        self.agent._poll_replies()
+        self.agent._owner_worker.join(10)
+        answer = [c[3] for c in self.cloud.calls if c[1] == "whatsapp-send"]
+        self.assertEqual(len(answer), 1)
+        self.assertIn("grab flowers", answer[0]["body"])
+        self.assertEqual(answer[0]["client_ref"], "ans-w9")
+        self.assertNotIn("to", answer[0], "the cloud only ever sends it to the owner")
+        self.assertFalse([c for c in self.cloud.calls if c[1] == "sms-send"], "no paid text for a WhatsApp chat")
+
+    def test_sending_from_whatsapp_still_needs_the_code(self):
+        def wa(body, n):
+            return self.agent.answer_owner_text({"id": f"wa{n}", "from": "whatsapp:+19195550100", "body": body, "kind": "owner"})
+        draft = wa("text my sister that I'll be late to mom's", 1)
+        code = self.agent.awaiting["code"]
+        self.assertIn(f"Reply YES {code} to send", draft["reply"])
+        self.assertIn(f"reply YES {code}", wa("yes", 2)["reply"])
+        self.assertFalse([c for c in self.cloud.calls if c[1] == "sms-send" and c[3]["to"] == "+19195550177"])
+        self.assertIn("Sent to Dana", wa(f"yes {code}", 3)["reply"])

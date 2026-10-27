@@ -6,7 +6,8 @@ sample from scripts/voice_samples.py with Whisper and compares it to the words i
     python scripts/voice_check.py out/        (needs faster-whisper; CI installs it in its own venv)
 
 Writes out/check.json and prints a table: word error rate per file (0 is perfect) and what was heard.
-Only the standard library, faster-whisper and the numpy it brings are used, so this runs in any Python.
+Then UTMOSv2 predicts how natural each voice sounds to people (1 to 5) and ranks the voices, among the ones that
+say their words right. Only the standard library, faster-whisper, numpy and (if installed) utmosv2 are used.
 """
 import json
 import re
@@ -80,6 +81,34 @@ def samples(path):
     return pcm
 
 
+def naturalness(out, results):
+    """How natural each voice sounds to people, predicted by UTMOSv2 (MIT; first place in 7 of 16 metrics at the VoiceMOS
+    Challenge 2024): a score from 1 to 5 per file, averaged per voice. A voice that gets its words wrong can't win."""
+    try:
+        import utmosv2
+        model = utmosv2.create_model(pretrained=True)
+    except Exception as error:  # not installed here: the word check still stands on its own
+        return {"naturalness_error": str(error)[:300]}
+    voices = {}
+    for name, r in results.items():
+        if name == "reference.wav":
+            continue
+        try:
+            mos = float(model.predict(input_path=str(out / name)))
+        except Exception as error:
+            r["mos_error"] = str(error)[:200]
+            continue
+        r["mos"] = round(mos, 3)
+        voices.setdefault(name.split("-")[0].replace(".wav", ""), []).append((mos, r["wer"]))
+    ranking = []
+    for voice, rows in voices.items():
+        mos = sum(m for m, _ in rows) / len(rows)
+        wer = sum(w for _, w in rows) / len(rows)
+        ranking.append({"voice": voice, "mos": round(mos, 3), "wer": round(wer, 3), "files": len(rows), "says_it_right": wer <= GOOD})
+    ranking.sort(key=lambda r: (not r["says_it_right"], -r["mos"]))
+    return {"ranking": ranking, "most_human": ranking[0]["voice"] if ranking and ranking[0]["says_it_right"] else None}
+
+
 def main(out, size="small.en"):
     out = Path(out)
     summary = json.loads((out / "summary.json").read_text())
@@ -98,11 +127,16 @@ def main(out, size="small.en"):
     for name, r in results.items():
         voices.setdefault(name.split("-")[0].replace(".wav", ""), []).append(r["wer"])
     report = {"model": f"faster-whisper {size}", "by_voice": {v: round(sum(w) / len(w), 3) for v, w in voices.items()}, "files": results}
+    report.update(naturalness(out, results))
     (out / "check.json").write_text(json.dumps(report, indent=2))
     print(f"{'file':28} {'WER':>6}  {'sec':>5}  heard")
     for name, r in results.items():
         print(f"{name:28} {r['wer']:6.3f}  {r['seconds']:5.1f}  {'' if r['ok'] else '!! '}{r['heard']}")
     print("average word error rate by voice:", json.dumps(report["by_voice"]))
+    if report.get("ranking"):
+        print("how human each voice sounds (UTMOSv2, 1 to 5), among the ones that say their words right:")
+        for row in report["ranking"]:
+            print(f"  {row['voice']:12} {row['mos']:.2f}  (word error {row['wer']:.3f}){'  <- most human' if row is report['ranking'][0] else ''}")
 
 
 if __name__ == "__main__":

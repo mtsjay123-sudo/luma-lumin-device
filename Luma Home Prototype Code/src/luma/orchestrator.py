@@ -141,7 +141,7 @@ def ask_voice(agent=None):
 def start_hands_free(agent=None, stop_event=None, ambient=False):
     agent = agent or get_agent()
     stop_event = stop_event or threading.Event()
-    from luma.audio import vad
+    from luma.audio import backchannel, vad
     from luma.audio.stt import transcribe
     from luma.agent.conversation import interruption_intent
     followup_until = 0.0
@@ -154,7 +154,7 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                 if capture_blocked(agent) or stop_event.is_set(): return
                 # A bounded single transcription worker avoids accumulating recordings.
                 if not transcribing.acquire(blocking=False): return
-                try: text = transcribe(path).strip()
+                try: text = backchannel.clean(transcribe(path).strip())  # Luma's own "mm-hm" isn't part of what they said
                 finally: transcribing.release()
                 if not text or capture_blocked(agent) or stop_event.is_set(): return
                 named = re.search(r'\b(?:luma|luna)\b', text, re.I)
@@ -180,16 +180,24 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                 except FileNotFoundError: pass
         threading.Thread(target=process, daemon=True).start()
 
+    def listening():
+        # In a conversation with Luma, a long turn gets a soft "mm-hm" at its pauses. Never to people just talking in the room.
+        if (time.monotonic() < followup_until and agent.store.setting('backchannels', True) and not agent.speaking and not agent.busy
+                and not capture_blocked(agent)):
+            backchannel.say_softly((agent.voice_preferences or {}).get('voice', 'luma'))
+
     while not stop_event.is_set():
         agent.device.set_indicator(muted=capture_blocked(agent))
         if capture_blocked(agent):
             stop_event.wait(.1)
             continue
         try:
-            barge_in = agent.store.setting('barge_in', False)
+            # Talking over Luma works when its mic can't hear its own voice: headphones, or a mic that cancels echo. The owner's choice wins.
+            chosen = agent.store.setting('barge_in', None)
+            barge_in = chosen if isinstance(chosen, bool) else backchannel.safe_to_talk_over(*backchannel.device_names())
             vad.start_listening(received, stop_event,
-                                should_stop=lambda: capture_blocked(agent) or agent.store.setting('barge_in',False) != barge_in,
-                                allow_barge_in=barge_in)
+                                should_stop=lambda: capture_blocked(agent) or agent.store.setting('barge_in', None) != chosen,
+                                allow_barge_in=barge_in, on_pause=listening)
         except Exception as error:
             agent.set_muted(True)
             if getattr(agent, 'on_result', None): agent.on_result({'text':'Microphone stopped: ' + str(error)[:250]})

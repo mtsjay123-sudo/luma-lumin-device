@@ -9,6 +9,7 @@ on:
     paths:
       - "desktop/**"
       - "Luma Home Prototype Code/src/**"
+      - "Luma Home Prototype Code/scripts/**"
       - ".github/workflows/luma-desktop.yml"
   workflow_dispatch:
 
@@ -80,7 +81,7 @@ jobs:
   # designs for Luma's own voice. Download "Luma-voice-samples" from the run to listen. Never blocks a release.
   voice:
     runs-on: macos-14
-    timeout-minutes: 60
+    timeout-minutes: 120
     continue-on-error: true
     defaults:
       run:
@@ -108,17 +109,74 @@ jobs:
       - name: Voice log
         if: always()
         run: tail -n 80 "$RUNNER_TEMP/natural/voice.log" || true
-      - name: Check by ear (Whisper hears each sample)
+      - name: Check by ear (Whisper hears each sample) and rank how human each voice sounds (UTMOSv2)
         if: always()
         run: |
           python -m venv "$RUNNER_TEMP/stt"
           "$RUNNER_TEMP/stt/bin/python" -m pip install -q "faster-whisper==1.2.1"
-          "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples"
+          "$RUNNER_TEMP/stt/bin/python" -m pip install -q "git+https://github.com/sarulab-speech/UTMOSv2.git" || echo "UTMOSv2 didn't install; words only"
+          "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Luma-voice-samples
           path: ${{ runner.temp }}/voice-samples
+          if-no-files-found: warn
+
+  # Luma's lab on a real Apple Silicon Mac with real internet: how fast each brain size talks, 50 conversations built
+  # to tempt it into making things up, and the 10 everyday jobs run again and again. Doesn't hold up the release.
+  brain-lab:
+    runs-on: macos-14
+    timeout-minutes: 170
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    env:
+      TQDM_DISABLE: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The packages Luma Desktop installs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" "playwright>=1.56,<2" numpy python-dotenv tzdata "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
+          python -m pip install --prefer-binary --only-binary llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal "llama-cpp-python>=0.3.9" \
+            || CMAKE_ARGS="-DGGML_METAL=on" python -m pip install --no-binary llama-cpp-python "llama-cpp-python>=0.3.9"
+          python -m playwright install chromium
+      - name: Speed by brain size (small, the one Luma ships, bigger)
+        run: |
+          mkdir -p "$RUNNER_TEMP/brains" "$RUNNER_TEMP/lab"
+          get() { curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/$1" "$2" || echo "couldn't download $1"; }
+          get small.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
+          get luma.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          args=""; for b in small luma; do [ -f "$RUNNER_TEMP/brains/$b.gguf" ] && args="$args --model $RUNNER_TEMP/brains/$b.gguf"; done
+          python scripts/luma_lab.py speed $args --save "$RUNNER_TEMP/lab/speed.json"
+          rm -f "$RUNNER_TEMP/brains/small.gguf"
+          get big.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf"
+          [ -f "$RUNNER_TEMP/brains/big.gguf" ] && python scripts/luma_lab.py speed --model "$RUNNER_TEMP/brains/big.gguf" --save "$RUNNER_TEMP/lab/speed-big.json" || true
+          rm -f "$RUNNER_TEMP/brains/big.gguf"
+      - name: Honesty, 50 conversations
+        if: always()
+        env:
+          LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
+        run: python scripts/luma_lab.py honesty --save "$RUNNER_TEMP/lab/honesty.json"
+      - name: The 10 everyday jobs, with real internet
+        if: always()
+        env:
+          LUMA_MODEL_PATH: ${{ runner.temp }}/brains/luma.gguf
+        run: python scripts/luma_lab.py jobs --repeats 10 --slow-repeats 2 --save "$RUNNER_TEMP/lab/jobs.json"
+      - name: Summary
+        if: always()
+        run: python scripts/luma_lab.py summary "$RUNNER_TEMP"/lab/*.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Luma-lab
+          path: ${{ runner.temp }}/lab
           if-no-files-found: warn
 
   windows:
