@@ -2616,7 +2616,10 @@ class Agent:
                 with self.lock:
                     note = self.call_planner([{"role": "user", "content": mind.reflect_prompt(text, summary, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
                 note = note.get("text") if isinstance(note, dict) else None
-                if isinstance(note, str) and note.strip(): out.append({"thought": True, "text": note.strip()[:700]})
+                if isinstance(note, str) and _garbled(note):
+                    from luma.llm import inference
+                    inference.garbled_seen()  # the first thought came out as symbols: the reply itself runs on the processor
+                elif isinstance(note, str) and note.strip(): out.append({"thought": True, "text": note.strip()[:700]})
             except Exception:
                 pass
         return out
@@ -2707,7 +2710,10 @@ class Agent:
             with self.lock:
                 out = self.call_planner([{"role": "user", "content": mind.correct_prompt(draft, text, summary)}], [], {}, cancel_event or threading.Event())
             fixed = out.get("text") if isinstance(out, dict) else None
-            if isinstance(fixed, str) and fixed.strip():
+            if isinstance(fixed, str) and _garbled(fixed):
+                from luma.llm import inference
+                inference.garbled_seen()  # a second look that came out as symbols keeps the first answer
+            elif isinstance(fixed, str) and fixed.strip():
                 return fixed.strip()[:2000]
         except Exception:
             pass
@@ -3754,6 +3760,7 @@ class Agent:
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
                     if garbled(result["text"]):  # the brain ran wrong: never show symbols as if they were an answer
+                        self.last_garbled = result["text"][:300]  # kept for the lab and diagnostics, never shown
                         result["text"] = "Sorry, my brain glitched on that one. Say it again?"
                         result.pop("results", None)
                         if self.use_model:
@@ -3811,6 +3818,9 @@ class Agent:
         except ValueError as error:
             if not self.use_model or cancel_event.is_set() or not re.search(r"no usable reply|invalid proposal", str(error)):
                 raise
+            if "garbled" in str(error):
+                from luma.llm import inference
+                inference.garbled_seen()  # symbols, not a cut-off: the second try runs on the processor
             return self._chat(text, cancel_event)
         if self.use_model and isinstance(result.get("text"), str) and garbled(result["text"]) and not cancel_event.is_set() \
                 and not result.get("action") and result.get("state") != "pending":

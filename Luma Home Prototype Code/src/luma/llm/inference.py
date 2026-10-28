@@ -127,6 +127,8 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
         _check_cancel(cancel_event)
         result = json.loads(raw)
     except (KeyError, TypeError, json.JSONDecodeError) as e:
+        if garbled(raw):  # not a cut-off answer: symbols, a chip running wrong (said in the message so it survives the brain's own process)
+            raise ValueError("The local model returned an invalid proposal (garbled). No action was taken.") from e
         raise ValueError("The local model returned an invalid proposal. No action was taken.") from e
     if not isinstance(result, dict):
         raise ValueError("The model proposal must be a JSON object.")
@@ -185,7 +187,7 @@ def _load_model():
     global note
     layers = _gpu_layers()
     _llm = make(layers)
-    if layers != 0 and not _sane(_llm):
+    if layers != 0 and _offloads() and not _sane(_llm):
         # Some graphics chips (a virtual Mac's, an old driver) run the model but return nonsense. The processor is
         # slower but right: think there from now on in this process.
         close = getattr(_llm, "close", None)
@@ -244,11 +246,23 @@ ONE_WORD = re.compile(r"(?:https?://|www\.)\S+|[\w.+-]+@[\w-]+\.[\w.]+|[$€£]?
                       r"[^\x00-\x7f]*[A-Za-z]+(?:['’-][A-Za-z]+)*[.!?…,]*[^\x00-\x7f]*|[#@]\w+|[^\x00-\x7f]+[.!?]*", re.UNICODE)  # "NAHHH😭😭" is a word
 
 
-def _sane(model):
-    """One tiny, fixed question right after loading: real words back, or this model is running wrong here."""
+def _offloads():
+    """This build can put the model on a graphics chip at all (Metal on a Mac): only then is there a chip to check."""
     try:
-        reply = model.create_chat_completion(messages=[{"role": "user", "content": "Say hello in a few words."}],
-                                             max_tokens=12, temperature=0)["choices"][0]["message"]["content"]
+        import llama_cpp
+        return bool(llama_cpp.llama_supports_gpu_offload())
+    except Exception:
+        return True
+
+
+def _sane(model):
+    """One tiny, fixed question right after loading, behind Luma's full instructions: real words back, or this model is running
+    wrong here. The long prompt matters: a virtual Mac's graphics chip answered a bare "say hello" fine and then turned the first
+    real, full-length reply into symbols."""
+    try:
+        setup = build_plan_prompt([], {}, "friend", normalize_profile(None), "unknown")
+        reply = model.create_chat_completion(messages=[{"role": "system", "content": setup}, {"role": "user", "content": "Say hello in a few words."}],
+                                             max_tokens=16, temperature=0)["choices"][0]["message"]["content"]
     except Exception:
         return True  # it couldn't answer at all: that's handled where it happens, not mistaken for nonsense
     if not isinstance(reply, str):

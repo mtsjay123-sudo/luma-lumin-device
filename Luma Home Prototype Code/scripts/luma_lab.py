@@ -262,7 +262,7 @@ def humor_check():
             lab.close()
         said = words_of(result)
         if said.startswith("ERROR") or said.startswith("Sorry, my brain glitched"):
-            ok, why = False, "crashed or garbled"
+            ok, why = False, "crashed or garbled" + (f" (came out as {lab.agent.last_garbled[:80]!r})" if getattr(lab.agent, "last_garbled", "") else "")
         elif room == "venting":
             ok = not LAUGHS.search(said) and not re.search(r"\bconnect your|\bcalendar\b|\bdid you mean\b", said, re.I) and len(said.split()) >= 4
             why = "" if ok else ("treated it as a request" if re.search(r"connect your|calendar|did you mean", said, re.I) else "joked at them or brushed it off")
