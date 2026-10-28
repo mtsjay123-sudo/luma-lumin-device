@@ -6,6 +6,7 @@ how many things are waiting for a yes. One request matters when the phone is rea
 """
 from __future__ import annotations
 
+import json
 import os
 import time
 import shutil
@@ -149,13 +150,27 @@ def compact(agent):
     if full.get("kids"):
         return full
     cut = lambda text, n: (str(text or "")[:n - 1] + "\u2026") if len(str(text or "")) > n else str(text or "")
-    chats_ = [{"title": cut(c.get("title"), 60), "updated": c.get("updated"), "today": c.get("today"),
+    chats_ = [{"id": c.get("id"), "title": cut(c.get("title"), 60), "updated": c.get("updated"), "today": c.get("today"),
                "last": {"role": (c.get("last") or {}).get("role"), "text": cut((c.get("last") or {}).get("text"), 120)}} for c in full["chats"][:8]]
     mem = full["memory"] or {}
     memory_ = {k: mem.get(k) for k in ("used", "limit", "plan") if k in mem}
-    memory_["recent"] = [{"text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
+    memory_["recent"] = [{"id": m.get("id"), "text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
     dev = full["device"] or {}
     device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"),
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
+    projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
     return {"name": full["name"], "now": full["now"], "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
-            "memory": memory_, "device": device_, "approvals": full["approvals"]}
+            "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"]}
+
+
+def chain(agent, thread_id, keep=30, limit=14000):
+    """One chat chain for the phone: its title and last messages, small enough for one sealed relay message."""
+    match = next((t for t in agent.thread_list() if t.get("id") == thread_id), None)
+    if not match:
+        raise ValueError("That chat isn't on your Luma anymore.")
+    log = [m for m in (agent.transcripts.get(thread_id) or []) if m.get("text")][-keep:]
+    out = {"id": thread_id, "title": str(match.get("title") or "Chat")[:80],
+           "messages": [{"role": m.get("role"), "text": str(m.get("text"))[:700], "at": m.get("at")} for m in log]}
+    while out["messages"] and len(json.dumps(out)) > limit:
+        out["messages"].pop(0)  # the oldest go first
+    return out

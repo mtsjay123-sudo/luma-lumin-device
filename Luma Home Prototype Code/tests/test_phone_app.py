@@ -246,6 +246,28 @@ class PhoneAppTests(unittest.TestCase):
         self.run_jobs()
         self.assertEqual(self.cloud.phone_reads(link)[-1]["today"], {"kids": True, "name": "", "chats": [], "memory": None, "device": None, "projects": [], "approvals": 0})
 
+    def test_a_chat_from_today_opens_on_the_phone(self):
+        link = self.pair()
+        self.agent.chat("remember my spare keys are in the blue kitchen drawer")
+        def ask(message):
+            self.cloud.phone_says(link, message)
+            self.app.poll_once()
+            self.run_jobs()
+            return self.cloud.phone_reads(link)[-1]
+        today = ask({"t": "today"})["today"]
+        chat = next(c for c in today["chats"] if c["last"]["text"])
+        self.assertTrue(chat["id"])
+        self.assertTrue(today["memory"]["recent"][0]["id"], "the deck can forget the one in front")
+        self.assertEqual(today["projects"], [])
+        got = ask({"t": "chain", "id": chat["id"]})
+        self.assertEqual(got["t"], "chain")
+        self.assertEqual(got["chain"]["id"], chat["id"])
+        self.assertEqual([m["role"] for m in got["chain"]["messages"][:1]], ["you"])
+        self.assertIn("blue kitchen drawer", got["chain"]["messages"][0]["text"])
+        self.assertIn("isn't on your Luma", ask({"t": "chain", "id": "nope"})["error"])
+        self.agent.set_mode("kids")
+        self.assertIn("adult mode", ask({"t": "chain", "id": chat["id"]})["text"])
+
     def test_the_memory_folder_and_making_room_work_from_the_phone(self):
         link = self.pair()
         keep = self.store.put("memory", {"text": "My sister's name is Dana", "source": "explicit_user_request", "created": time.time()})

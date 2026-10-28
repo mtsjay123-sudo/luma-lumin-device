@@ -277,6 +277,15 @@ class PhoneApp:
             if kind == "mute":
                 self.agent.set_muted(True)  # the phone can turn the mic off, never back on: that happens at home
             return self.send(link_id, {"t": "today", "re": n, "today": today.compact(self.agent)})
+        if kind == "chain":
+            # One of today's chats, opened on the phone: its last messages, read from the chain kept at home.
+            from luma.control import today
+            if self.agent.mode == "kids":
+                return self.send(link_id, {"t": "reply", "re": n, "text": "Switch Luma to adult mode at home to see chats."})
+            try:
+                return self.send(link_id, {"t": "chain", "re": n, "chain": today.chain(self.agent, str(message.get("id", ""))[:80])})
+            except ValueError as error:
+                return self.send(link_id, {"t": "chain", "re": n, "error": str(error)})
         if kind in {"memory", "forget", "space", "clean"}:
             # The memory folder and making room on the device, from anywhere. Kids mode keeps it closed.
             from luma.agent import memory_folder
