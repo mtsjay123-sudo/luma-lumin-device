@@ -241,7 +241,7 @@ def garbled(text):
 
 
 ONE_WORD = re.compile(r"(?:https?://|www\.)\S+|[\w.+-]+@[\w-]+\.[\w.]+|[$€£]?\d[\d,.:]*%?[.!?]*|\d{1,2}(?::\d{2})?(?:am|pm|AM|PM)[.!?]*|"
-                      r"[A-Za-z]+(?:['’-][A-Za-z]+)*[.!?…,]*|[#@]\w+|[^\x00-\x7f]+[.!?]*", re.UNICODE)
+                      r"[^\x00-\x7f]*[A-Za-z]+(?:['’-][A-Za-z]+)*[.!?…,]*[^\x00-\x7f]*|[#@]\w+|[^\x00-\x7f]+[.!?]*", re.UNICODE)  # "NAHHH😭😭" is a word
 
 
 def _sane(model):

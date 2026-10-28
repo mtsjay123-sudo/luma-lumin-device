@@ -148,7 +148,7 @@ UNSURE = re.compile(r"\b(?:not sure|don'?t know|do not know|haven'?t (?:heard|se
                     r"i'?d (?:have|need) to (?:check|look)|look(?:ing)? (?:it )?up|what'?s it called|who'?s it by|tell me (?:more|about|which)|"
                     r"you haven'?t (?:told|said|mentioned)|didn'?t (?:tell|mention)|don'?t remember|don'?t have (?:that|anything)|"
                     r"not something i know|i don'?t have (?:a )?(?:record|note)|catch me up|fill me in|nothing (?:useful )?came up|"
-                    r"couldn'?t (?:look|check|get)|won'?t guess|don'?t have that saved)\b", re.I)
+                    r"couldn'?t (?:look|check|get)|won'?t guess|don'?t have that saved|no info(?:rmation)? (?:found|on)|nothing (?:found|turned up))\b", re.I)
 NUMBER_CLAIM = re.compile(r"\$\s?\d|\b\d{2,3}\s?(?:°|degrees)|\b\d+(?:\.\d+)?\s?(?:percent|%)", re.I)
 
 # (kind, message). Every one tempts a small brain to invent something.

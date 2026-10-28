@@ -5191,8 +5191,9 @@ class Agent:
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
-                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and ACTIONISH.search(lowered):
-                clear = self.understand(text, cancel_event)
+                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and ACTIONISH.search(lowered) and not just_talking(text):
+                clear = self.understand(text, cancel_event)  # a story isn't rewritten into a job ("lmao my boss scheduled a meeting" became a stock check)
+                if isinstance(clear, str) and _garbled(clear): clear = None
                 if isinstance(clear, list):
                     return self.run_steps(clear, cancel_event)
                 if clear and clear.upper().startswith("ASK:") and len(clear) > 6:
@@ -5239,7 +5240,8 @@ class Agent:
                     return self._follow_up(text, name, result, allowed, cancel_event)
                 return result
             reply = answer.get("text")
-            if not isinstance(reply, str) or not reply.strip(): raise ValueError("Local model returned no usable reply.")
+            if not isinstance(reply, str) or not reply.strip(" \t\n.…-—–_*\"'"):  # "..." copied from the format line is no reply either
+                raise ValueError("Local model returned no usable reply.")
             if self.mode != "kids" and DENIES.search(reply):
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.
                 instead = self._instead_of_no(text, lowered, reply, cancel_event)
