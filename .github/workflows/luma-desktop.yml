@@ -139,7 +139,8 @@ jobs:
       cancel-in-progress: false
     runs-on: macos-14
     # Each step has its own limit, so one that runs long fails on its own and the summary still gets written.
-    timeout-minutes: 300
+    # Their limits add up to about 315 minutes, so the job's own limit sits above that.
+    timeout-minutes: 340
     continue-on-error: true
     defaults:
       run:
