@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,7 +9,9 @@
   <link rel="stylesheet" href="/desktop/desktop.css" />
 </head>
 <body>
-  <div class="scene" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i><div class="scene-photo" id="scene-photo" hidden></div><video id="scene-cam" muted playsinline hidden></video>
+  <div class="scene" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i>
+    <!-- The night look, same as the phone app and the website: your home's light, softly blurred, with Luma's warm glow on top -->
+    <div class="scene-night"><div class="sn-photo"></div><div class="sn-glow"></div><div class="sn-veil"></div></div><div class="scene-photo" id="scene-photo" hidden></div><video id="scene-cam" muted playsinline hidden></video>
     <!-- See-through in a plain browser: a film playing "behind" Luma, since a web page can't see your screen -->
     <div class="scene-demo" id="scene-demo" hidden><span class="d-sun"></span><span class="d-hill h1"></span><span class="d-hill h2"></span><span class="d-hill h3"></span><span class="d-player"><span class="d-time">0:42:17</span><span class="d-bar"><span></span></span></span></div>
   </div>
@@ -80,11 +82,41 @@
           <button type="submit" class="send" id="send" aria-label="Send" disabled data-icon="up"></button>
         </form>
         <div class="starters" id="starters" hidden></div>
-        <p class="fineprint">Luma S.I. runs on this computer. Nothing is sent or bought without your OK.</p>
-        <div class="si-docks" id="docks">
-          <div class="si-dock agents" id="dock-agents" aria-label="Agents"><span class="tab">Agents</span><div class="tiles"></div></div>
-          <div class="si-dock files" id="dock-files" aria-label="Files"><span class="tab">Files</span><div class="tiles"></div></div>
+        <!-- Home: your day at a glance, in the same panels as the phone app. Filled from /api/today. -->
+        <div class="home-panels" id="home-panels">
+          <section class="hp-panel hp-chats" aria-labelledby="hp-chats-h">
+            <div class="hp-head"><h2 id="hp-chats-h">Today's chats</h2><div class="hp-count" id="hp-chats-count"></div></div>
+            <ul class="hp-chains" id="hp-chains"><li class="hp-empty">Pulling up your chats…</li></ul>
+          </section>
+          <section class="hp-panel hp-memory" aria-labelledby="hp-mem-h">
+            <div class="hp-head"><h2 id="hp-mem-h">Memory</h2><div class="hp-count" id="hp-mem-count"></div></div>
+            <p class="hp-hint" id="hp-mem-hint">Everything Luma remembers about you.</p>
+            <div class="hp-deck" id="hp-deck" role="listbox" aria-label="Your memories. Use the arrow keys to flip through." tabindex="0"></div>
+            <div class="hp-deck-nav">
+              <button type="button" class="hp-round" id="hp-deck-prev" aria-label="Previous memory" data-icon="left"></button>
+              <span id="hp-deck-pos" aria-live="polite"></span>
+              <button type="button" class="hp-round" id="hp-deck-next" aria-label="Next memory" data-icon="right"></button>
+            </div>
+          </section>
+          <section class="hp-panel hp-device" aria-labelledby="hp-device-h">
+            <div class="hp-head"><h2 id="hp-device-h">Your Luma</h2><span class="hp-where" id="hp-where">On this computer</span></div>
+            <div class="hp-big" id="hp-big"></div>
+            <p class="hp-label" id="hp-storage">Checking storage…</p>
+            <div class="hp-bar" id="hp-bar" role="img" aria-label="Storage use"></div>
+            <ul class="hp-legend" id="hp-legend"></ul>
+            <div class="hp-rows">
+              <button type="button" class="hp-row toggle" id="hp-mic" role="switch" aria-checked="false"><span><b>Listening for “Hey Luma”</b><small id="hp-mic-sub">Checking…</small></span><i class="hp-switch"></i></button>
+              <button type="button" class="hp-row" id="hp-brain-row" title="Luma's brain"><span><b>Brain</b><small id="hp-brain">…</small></span></button>
+              <button type="button" class="hp-row" id="hp-link-row" title="Luma Link: your Luma device and this computer"><span><b>Luma device</b><small id="hp-link">…</small></span></button>
+            </div>
+            <button type="button" class="pill soft small hp-room" id="hp-room">Make room</button>
+          </section>
+          <section class="hp-panel hp-work" aria-labelledby="hp-work-h">
+            <div class="hp-head"><h2 id="hp-work-h">In progress</h2><div class="hp-count" id="hp-work-count"></div></div>
+            <ul class="hp-projects" id="hp-projects"></ul>
+          </section>
         </div>
+        <p class="fineprint">Luma S.I. runs on this computer. Nothing is sent or bought without your OK.</p>
       </section>
 
       <section class="view feed-view" id="view-feed" hidden>

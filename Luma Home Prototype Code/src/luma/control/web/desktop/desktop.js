@@ -282,8 +282,8 @@
     else delete document.documentElement.dataset.theme;
     $("top-theme").replaceChildren(icon(darkNow(choice) ? "sun" : "moon"));
   }
-  let theme = "system";
-  try { theme = localStorage.getItem("luma-theme") || "system"; } catch (_) { /* private window */ }
+  let theme = "dark"; // the night look by default, like the website and the phone app
+  try { theme = localStorage.getItem("luma-theme") || "dark"; } catch (_) { /* private window */ }
   applyTheme(theme);
   function setTheme(v) { theme = v; try { localStorage.setItem("luma-theme", v); } catch (_) { /* private */ } applyTheme(v); }
 
@@ -574,7 +574,6 @@
   // ------------------------------------------------------------ canvas ---
   // Home is a canvas, not a chat box: one dark stage, things Luma knows floating around it,
   // agents and files docked in the corners, the composer resting on the stage.
-  function siOrb(cls = "") { const o = el("span", "si-orb " + cls); o.setAttribute("aria-hidden", "true"); o.append(el("i"), el("i"), el("i")); return o; }
   function prefill(text) {
     if (state.view !== "chat") go("chat");
     input.value = text;
@@ -601,74 +600,240 @@
     return /keys?\b/.test(x) ? "🔑" : /birthday|anniversary/.test(x) ? "🎂" : /allerg/.test(x) ? "🥜" : /wallet|purse/.test(x) ? "👛" : /\bcar\b|park/.test(x) ? "🚗"
       : /phone|charger/.test(x) ? "📱" : /passport|flight|trip/.test(x) ? "✈️" : /\bhate|can't stand/.test(x) ? "🙅" : /\blove|like|favorite/.test(x) ? "💛" : /glasses/.test(x) ? "👓" : "🧠";
   }
-  function fileEmoji(kind) { return { deck: "📊", pptx: "📊", pdf: "📄", docx: "📝", app: "🧩", podcast: "🎙️", wav: "🎙️" }[kind] || "📁"; }
-  function floatItems() {
-    const h = state.home || {};
-    const g = h.glance || {};
-    const out = [];
-    for (const t of (h.today?.tasks || []).slice(0, 1)) out.push({ e: "⏰", t: t.title, s: "Reminder" + (t.when ? " · " + t.when : ""), tint: "peach", run: () => go("chat") });
-    for (const m of (g.memories || []).slice(0, 3)) out.push({ e: memEmoji(m.text), t: m.text, s: "Remembered" + (m.created ? " · " + ago(m.created) : ""), run: () => go("identity") });
-    const card = (h.cards || [])[0];
-    if (card) out.push({ e: "✨", t: card.title, s: "In your feed", tint: "dark", run: () => { state.feedSel = card.id; go("feed"); } });
-    const f = g.files?.recent?.[0];
-    if (f) out.push({ e: fileEmoji(f.kind), t: f.title, s: "You made this", tint: "blue", run: () => go("library") });
-    const ideas = [
-      { e: "🔑", t: "Tell me where you left your keys", s: "I'll remember", say: "I left my keys " },
-      { e: "🎧", t: "Play something chill", s: "Music", say: "play something chill", tint: "green" },
-      { e: "📰", t: "Catch me up on the news", s: "News", say: "catch me up on the news", tint: "dark" },
-      { e: "🗓️", t: "Plan my week", s: "Planning", say: "plan my week", tint: "stone" },
-      { e: "🎙️", t: "A podcast about today", s: "Made for you", say: "make me a podcast about today's news" },
-      { e: "🛍️", t: "Cheapest AirPods, five stores", s: "Shopping", say: "find the cheapest airpods", tint: "peach" },
-    ];
-    for (const i of ideas) { if (out.length >= 6) break; out.push({ ...i, run: () => (i.say.endsWith(" ") ? prefill(i.say) : send(i.say)) }); }
-    return out.slice(0, 6);
-  }
-  function floats(side) {
-    const box = el("div", "si-floats " + side);
-    const mine = floatItems().filter((_, i) => (side === "left" ? i % 2 === 0 : i % 2 === 1));
-    const spots = side === "left" ? [[6, 4, 18], [50, 36, 12], [0, 62, 24]] : [[44, 2, -18], [2, 36, -12], [48, 62, -24]];
-    mine.slice(0, 3).forEach((it, i) => {
-      const [x, y, rot] = spots[i];
-      const c = el("button", "si-float" + (it.tint ? (it.tint === "dark" ? " dark" : " tint-" + it.tint) : ""));
-      c.type = "button";
-      const t = `rotateY(${rot}deg) translateZ(${-Math.abs(rot) * 3}px)`;
-      c.style.setProperty("--t", t);
-      c.style.transform = t;
-      c.style.left = x + "%";
-      c.style.top = y + "%";
-      c.style.animationDelay = `${i * 90 + (side === "right" ? 45 : 0)}ms`;
-      c.append(el("span", "e", it.e), el("span", "t", it.t), el("span", "s", it.s));
-      c.addEventListener("click", it.run);
-      box.append(c);
-    });
-    return box;
-  }
-  function renderDocks() {
-    const a = document.querySelector("#dock-agents .tiles");
-    if (a && !a.childElementCount) {
-      for (const [k, label, say, tip] of [["green", "Researcher", "research ", "Digs into anything and reads the top sources"], ["blue", "Maker", "make me ", "Decks, docs, apps, podcasts"],
-                                         ["stone", "Planner", "plan my ", "Your day, your week, a trip"], ["peach", "Writer", "write ", "Emails, texts, captions, posts"]]) {
-        const b = btn(label, "si-agent " + k, () => prefill(say));
-        b.title = tip;
-        a.append(b);
-      }
+  // ------------------------------------------------------------- home ---
+  // The night look, same as the phone app and the website: a big hello, the ask box, then today's chats,
+  // memory you can flip through, this Luma (room left, listening, brain, the device) and what's in progress.
+  // One call fills it: /api/today.
+  const homeDay = { data: null, at: 0, loading: false, deckAt: 0 };
+  // LED dot numbers, like the device's own display: a 5x7 grid per digit, lit dots and faint ones.
+  const LED = {
+    0: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"], 1: ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    2: ["01110", "10001", "00001", "00010", "00100", "01000", "11111"], 3: ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
+    4: ["00010", "00110", "01010", "10010", "11111", "00010", "00010"], 5: ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    6: ["00110", "01000", "10000", "11110", "10001", "10001", "01110"], 7: ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    8: ["01110", "10001", "10001", "01110", "10001", "10001", "01110"], 9: ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+    ".": ["00", "00", "00", "00", "00", "11", "11"],
+  };
+  function led(text) {
+    const wrap = el("span", "led");
+    wrap.setAttribute("aria-hidden", "true");
+    for (const ch of String(text)) {
+      const rows = LED[ch];
+      if (!rows) continue;
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `0 0 ${rows[0].length * 10} 70`);
+      rows.forEach((row, y) => [...row].forEach((bit, x) => {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", x * 10 + 5); c.setAttribute("cy", y * 10 + 5); c.setAttribute("r", 3.6);
+        if (bit !== "1") c.setAttribute("class", "off");
+        svg.append(c);
+      }));
+      wrap.append(svg);
     }
-    const f = document.querySelector("#dock-files .tiles");
-    if (!f) return;
-    const g = state.home?.glance?.files || { count: 0, docs: 0, recent: [] };
-    f.replaceChildren();
-    const docs = el("button", "si-folder docs");
-    docs.title = "Your documents, decks and PDFs";
-    docs.type = "button";
-    docs.append(el("span", "paper"), el("span", "paper"), el("span", "paper"), el("b", null, "Documents"), el("small", null, `${g.docs} file${g.docs === 1 ? "" : "s"}`));
-    docs.addEventListener("click", () => go("library"));
-    const recent = el("button", "si-folder recent");
-    recent.title = g.recent?.[0] ? "Latest: " + g.recent[0].title : "What Luma makes for you lands here";
-    recent.type = "button";
-    recent.append(el("span", "thumb", g.recent?.[0] ? fileEmoji(g.recent[0].kind) : "✨"), el("b", null, "Recent"), el("small", null, `${g.count} file${g.count === 1 ? "" : "s"}`));
-    recent.addEventListener("click", () => go("library"));
-    f.append(docs, recent);
+    return wrap;
   }
+  function ledCount(id, n, label) { const box = $(id); box.replaceChildren(led(n)); box.title = label; }
+  const gb = (n) => (n >= 10 ? `${Math.round(n)} GB` : n >= 1 ? `${n.toFixed(1)} GB` : n * 1024 >= 1 ? `${Math.round(n * 1024)} MB` : "under 1 MB");
+  function dayTime(ts) {
+    if (!ts) return "";
+    const d = new Date(ts * 1000), now = new Date(), y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === y.toDateString()) return "Yesterday";
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+  function greeting() {
+    const hour = new Date().getHours();
+    const name = (state.home?.profile?.name || homeDay.data?.name || "").trim().split(/\s+/)[0];
+    const part = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    return name ? `${part}, ${name}.` : `${part}.`;
+  }
+  function daySub(d) {
+    if (!d || d.kids) return "What should we take on today?";
+    const n = d.chats.filter((c) => c.today).length;
+    return (n ? `${n} chat${n === 1 ? "" : "s"} today` : "A quiet day so far") + (d.approvals ? `, and ${d.approvals} thing${d.approvals === 1 ? "" : "s"} waiting for your OK.` : ".");
+  }
+  function emptyChat() {
+    const e = el("div", "empty nl-home");
+    const sub = el("p", "nl-sub", daySub(homeDay.data));
+    sub.id = "nl-sub";
+    e.append(el("h1", "nl-hello", greeting()), sub);
+    renderPanels();
+    if (Date.now() - homeDay.at > 15000) refreshToday();
+    return e;
+  }
+  async function refreshToday() {
+    if (homeDay.loading) return;
+    homeDay.loading = true;
+    try { homeDay.data = await api("/api/today"); homeDay.at = Date.now(); }
+    catch (_) { return; } // Luma isn't answering: the panels keep what they last showed
+    finally { homeDay.loading = false; }
+    renderPanels();
+  }
+  function renderPanels() {
+    const d = homeDay.data;
+    if ($("nl-sub")) $("nl-sub").textContent = daySub(d);
+    if (!d || d.kids) return;
+    renderChains(d.chats || []);
+    renderDeck(d.memory);
+    renderThisLuma(d.device);
+    renderInProgress(d.projects || []);
+  }
+  function renderChains(all) {
+    const list = $("hp-chains");
+    const chats = all.filter((c) => c.messages || c.last); // an empty new chat isn't a chat yet
+    const todays = chats.filter((c) => c.today).length;
+    ledCount("hp-chats-count", todays, `${todays} today`);
+    list.replaceChildren();
+    if (!chats.length) { list.append(el("li", "hp-empty", "No chats yet. Ask Luma something up top, or press Talk and just say it.")); return; }
+    for (const c of chats.slice(0, 4)) {
+      const b = el("button", "hp-chain" + (c.today ? "" : " older"));
+      b.type = "button";
+      b.append(el("b", null, c.title || "Chat"), el("time", null, dayTime(c.updated)),
+        el("span", null, c.last ? (c.last.role === "you" ? "You: " : "") + c.last.text : `${c.messages} messages`));
+      b.addEventListener("click", async () => { state.thread = c.id; await loadThread(c.id); go("chat"); });
+      const li = el("li");
+      li.append(b);
+      list.append(li);
+    }
+    if (chats.length > 4) { const li = el("li"); li.append(btn(`All chats (${chats.length})`, "hp-more", () => openPalette(""))); list.append(li); }
+  }
+  // Memory: cards fanned in depth, the one in front lit green. Tap it to fix or forget it.
+  function renderDeck(mem) {
+    const deck = $("hp-deck");
+    deck.replaceChildren();
+    if (!mem) return;
+    ledCount("hp-mem-count", mem.used, `${mem.used} memories`);
+    $("hp-mem-hint").textContent = mem.limit ? `${mem.used} of ${mem.limit} on the free plan. Flip through them, tap one to fix or forget it.`
+      : "Everything Luma remembers about you. Flip through it, tap one to fix or forget it.";
+    const cards = mem.recent || [];
+    if (!cards.length) { deck.append(el("div", "hp-deck-empty", "Nothing yet. Tell Luma something worth keeping, like “my mom's birthday is June 3”.")); $("hp-deck-pos").textContent = ""; return; }
+    homeDay.deckAt = Math.min(homeDay.deckAt, cards.length - 1);
+    cards.forEach((m, i) => {
+      const c = el("button", "hp-card");
+      c.type = "button";
+      c.setAttribute("role", "option");
+      c.setAttribute("aria-label", `${m.kind || "Note"}: ${m.text}`);
+      c.append(el("span", "tag", m.kind || "Notes"), el("p", null, m.text), el("small", null, m.when ? dayTime(m.when) : "Remembered"));
+      c.addEventListener("click", () => (i === homeDay.deckAt ? editMemory(m) : (homeDay.deckAt = i, layoutDeck())));
+      deck.append(c);
+    });
+    layoutDeck();
+  }
+  function layoutDeck() {
+    const cards = [...$("hp-deck").querySelectorAll(".hp-card")];
+    cards.forEach((c, i) => {
+      const off = i - homeDay.deckAt, a = Math.abs(off);
+      c.classList.toggle("front", off === 0);
+      c.setAttribute("aria-selected", String(off === 0));
+      c.tabIndex = off === 0 ? 0 : -1;
+      // the front card faces you; the rest fan away like folders on a shelf, each a little further back
+      c.style.transform = off === 0 ? "translateZ(40px)" : `translateX(${Math.sign(off) * (110 + (a - 1) * 28)}px) translateZ(${-a * 34}px) rotateY(${Math.sign(off) * -62}deg)`;
+      c.style.opacity = a > 6 ? "0" : String(1 - a * 0.1);
+      c.style.zIndex = String(100 - a);
+      c.style.pointerEvents = a > 6 ? "none" : "";
+    });
+    $("hp-deck-pos").textContent = cards.length ? `${homeDay.deckAt + 1} of ${cards.length}` : "";
+  }
+  function stepDeck(n) {
+    const total = $("hp-deck").querySelectorAll(".hp-card").length;
+    if (!total) return;
+    homeDay.deckAt = Math.max(0, Math.min(total - 1, homeDay.deckAt + n));
+    layoutDeck();
+  }
+  function editMemory(m) {
+    const body = el("div", "hp-mem-sheet");
+    const area = el("textarea");
+    area.value = m.text;
+    area.maxLength = 2000;
+    area.setAttribute("aria-label", "This memory");
+    const actions = el("div", "actions");
+    const save = btn("Save", "pill primary small", async () => {
+      try { await api("/api/memory/save", { id: m.id, text: area.value.trim() }); closeSheet(); toast("Saved. Luma will remember it that way."); refreshToday(); }
+      catch (e) { toast(e.message); }
+    });
+    const forget = btn("Forget it", "pill soft small danger", () => {
+      // confirm in place: say what happens, and label the buttons with what they do
+      actions.replaceChildren(el("p", "sub", "Forget this? Luma won't know it anymore, and you can't undo it."));
+      actions.append(btn("Keep it", "pill soft small", () => actions.replaceChildren(save, forget)), btn("Forget it", "pill primary small", async () => {
+        try { await api("/api/memory/delete", { id: m.id }); closeSheet(); toast("Forgotten."); refreshToday(); }
+        catch (e) { toast(e.message); }
+      }));
+    });
+    actions.append(save, forget);
+    body.append(area, actions);
+    openSheet(m.kind || "Memory", body);
+    area.focus();
+  }
+  // This Luma: room left on this computer and what Luma takes of it, listening for its name, the brain, the device.
+  function renderThisLuma(dev) {
+    const big = $("hp-big"), label = $("hp-storage"), bar = $("hp-bar"), legend = $("hp-legend");
+    big.replaceChildren(); bar.replaceChildren(); legend.replaceChildren();
+    if (!dev) { label.textContent = "Luma isn't answering right now."; return; }
+    const s = dev.storage;
+    if (s) {
+      big.append(led(s.free >= 10 ? Math.round(s.free) : s.free.toFixed(1)), el("span", "unit", "GB left"));
+      big.title = `${s.free} GB left`;
+      const lumaGB = (s.luma.models || 0) + (s.luma.data || 0) + (s.luma.files || 0);
+      label.textContent = `Out of ${Math.round(s.total)} GB on this computer. Luma itself uses ${gb(lumaGB)}.` + (s.low ? " Running low: Make room clears out what Luma doesn't need." : "");
+      bar.setAttribute("aria-label", `${s.free} of ${s.total} GB free`);
+      const n = 40, luma = Math.max(lumaGB > 0 ? 1 : 0, Math.round((lumaGB / s.total) * n)), other = Math.max(0, Math.round(((s.used - lumaGB) / s.total) * n));
+      for (let i = 0; i < n; i++) bar.append(el("i", i < luma ? "luma" : i < luma + other ? "other" : ""));
+      for (const [cls, text] of [["luma", `Luma ${gb(lumaGB)}`], ["other", `Everything else ${gb(Math.max(0, s.used - lumaGB))}`], ["free", `Free ${gb(s.free)}`]]) {
+        const li = el("li");
+        li.append(el("i", cls), document.createTextNode(text));
+        legend.append(li);
+      }
+    } else {
+      label.textContent = "Storage isn't available here.";
+    }
+    const on = dev.mic === "on";
+    $("hp-mic").setAttribute("aria-checked", String(on));
+    $("hp-mic-sub").textContent = on ? "On. Say “Hey Luma” from across the room." : "Off. Luma only hears you when you press Talk.";
+    $("hp-brain").textContent = dev.brain || "Not ready yet. Tap to fix it in Settings.";
+    $("hp-link").textContent = dev.device ? `Paired with ${dev.device.name || "your Luma device"}. Same memory on both.` : "None yet. This computer runs Luma on its own. Pair a device in Settings.";
+  }
+  function renderInProgress(projects) {
+    const list = $("hp-projects");
+    list.replaceChildren();
+    const going = projects.filter((p) => p.state === "running").length;
+    ledCount("hp-work-count", going, `${going} running`);
+    if (!projects.length) {
+      list.append(el("li", "hp-empty", "Nothing yet. Ask for something big, like a deck, a website or a plan, and watch it come together here."));
+      const row = el("li", "hp-starts");
+      for (const [label, say] of [["Research", "research "], ["Make", "make me "], ["Plan", "plan my "], ["Write", "write "]]) row.append(btn(label, "pill soft small", () => prefill(say)));
+      list.append(row);
+      return;
+    }
+    for (const p of projects) {
+      const word = { running: "Working on it", done: "Done", attention: "Needs a look", waiting: "Waiting for your OK", stopped: "Paused", new: "Not started" }[p.state] || p.state;
+      const b = el("button", "hp-project");
+      b.type = "button";
+      b.append(el("b", null, p.name), el("small", null, p.steps ? `${word} · ${p.done} of ${p.steps} steps` : word));
+      const dots = el("span", "steps");
+      for (let i = 0; i < p.steps; i++) dots.append(el("i", i < p.done ? "done" : ""));
+      b.append(dots);
+      b.addEventListener("click", () => { proj.open = p.id; go("projects"); });
+      const li = el("li");
+      li.append(b);
+      list.append(li);
+    }
+  }
+  $("hp-deck-prev").addEventListener("click", () => stepDeck(-1));
+  $("hp-deck-next").addEventListener("click", () => stepDeck(1));
+  $("hp-deck").addEventListener("keydown", (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { stepDeck(e.key === "ArrowLeft" ? -1 : 1); e.preventDefault(); } });
+  let swipeX = null;
+  $("hp-deck").addEventListener("pointerdown", (e) => { swipeX = e.clientX; });
+  $("hp-deck").addEventListener("pointerup", (e) => { if (swipeX == null) return; const dx = e.clientX - swipeX; swipeX = null; if (Math.abs(dx) > 30) stepDeck(dx < 0 ? 1 : -1); });
+  $("hp-mic").addEventListener("click", async () => {
+    const on = $("hp-mic").getAttribute("aria-checked") === "true";
+    try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma only hears you when you press Talk." : "Listening for “Hey Luma”."); refreshToday(); }
+    catch (e) { toast(e.message); }
+  });
+  $("hp-brain-row").addEventListener("click", () => go("settings"));
+  $("hp-link-row").addEventListener("click", () => go("settings"));
+  $("hp-room").addEventListener("click", () => openRoom());
+
   function renderTopPills() {
     const box = $("top-pills");
     if (!box) return;
@@ -690,45 +855,6 @@
       pill("Memory", q ? `${q.used} saved` : "Yours", "right", () => go("identity"), "Everything Luma remembers"),
       pill("Thinking", h.brain?.cloud?.on ? "Super Intelligence" : "Private, on this Mac", "right", () => go("settings"), "Luma's brain"));
   }
-  function emptyChat() {
-    const e = el("div", "empty si-home");
-    const hour = new Date().getHours();
-    const name = (state.home?.profile?.name || "").trim().split(/\s+/)[0];
-    const tools = el("div", "si-tools");
-    const tool = (label, ic, fill) => btn(label, "si-tool", () => prefill(fill), ic);
-    const talk = el("button", "si-tool orb-btn");
-    talk.type = "button";
-    talk.title = "Talk to Luma";
-    talk.setAttribute("aria-label", "Talk to Luma");
-    talk.append(siOrb());
-    talk.addEventListener("click", () => startConversation({ greet: true }));
-    tools.append(tool("Remember", "spark", "remember "), tool("Make", "deck", "make me "), talk, tool("Find", "search", "find "), tool("Plan", "calendar", "plan my "));
-    const stage = el("div", "si-stage");
-    const aurora = el("div", "si-aurora");
-    for (let i = 0; i < 5; i++) aurora.append(el("i"));
-    const top = el("div", "si-stage-top");
-    const left = btn("", "si-stage-link", () => go("work"));
-    left.title = "See what Luma has done for you and everything it can do";
-    left.append(el("b", null, "LUMA S.I."), document.createTextNode("Super Intelligence"));
-    const right = btn("", "si-stage-link end", () => go("rules"));
-    right.title = "Your rules: what Luma does on its own and what waits for your OK";
-    right.append(el("b", null, "PRIVATE"), document.createTextNode("Nothing leaves without your OK"));
-    top.append(left, right);
-    const hello = el("h2");
-    hello.append(hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
-    if (name) hello.append(", ", el("em", null, name));
-    hello.append(".");
-    const sub = el("p");
-    const takeOn = btn("take on", "hl", () => go("ideas"));
-    takeOn.title = "Ideas: things Luma could take off your plate";
-    sub.append("What should we ", takeOn, " today?");
-    stage.append(aurora, top, hello, sub);
-    stage.addEventListener("click", (ev) => { if (!ev.target.closest("button")) $("input").focus(); });
-    e.append(tools, stage, floats("left"), floats("right"));
-    renderDocks();
-    return e;
-  }
-
   // When the brain can't think: what fixes it, one tap away.
   function brainHelp() {
     const a = el("div", "actions brain-help");
@@ -4038,6 +4164,7 @@
       renderThreads();
       renderWidgets();
       renderTopPills();
+      if (state.view === "chat" && $("view-chat").classList.contains("is-empty") && Date.now() - homeDay.at > 15000) refreshToday();
       const sig = JSON.stringify([h.glance, (h.today?.tasks || []).length, h.cards?.[0]?.id, h.profile?.name]);
       if (sig !== state.homeSig) {
         state.homeSig = sig;
@@ -4857,7 +4984,7 @@
   }
   function suAuraLoop() {
     const c = $("su-aura");
-    if (!c || $("welcome").hidden) { signup.raf = 0; return; }
+    if (!c || $("welcome").hidden || !c.offsetWidth) { signup.raf = 0; return; } // hidden in the night look: nothing to paint
     paintAura(c, "listening", 0.12 + 0.08 * Math.sin(performance.now() / 900), signup.aura, signup.palette);
     signup.raf = requestAnimationFrame(suAuraLoop);
   }

@@ -7,7 +7,7 @@
 // Closing the window doesn't stop Luma: it stays in the menu bar (or the system
 // tray on Windows) and starts at login, so your Goals keep running.
 "use strict";
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, nativeTheme, Notification, session, powerSaveBlocker, net, systemPreferences } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog, globalShortcut, ipcMain, Notification, session, powerSaveBlocker, net, systemPreferences } = require("electron");
 const { spawn, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -387,7 +387,7 @@ function createWindow({ bounds, url } = {}) {
     title: "Luma",
     show: false,
     // A transparent window lets See-through show what's behind Luma (the page paints the glass).
-    ...(winTransparent ? { transparent: true, backgroundColor: "#00000000" } : { backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#eef0f6" }),
+    ...(winTransparent ? { transparent: true, backgroundColor: "#00000000" } : { backgroundColor: "#0b0a0c" }),
     ...(process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 28, y: 28 },

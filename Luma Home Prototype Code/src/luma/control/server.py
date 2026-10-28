@@ -345,7 +345,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                       '/desktop/':('desktop/index.html','text/html'), '/desktop/desktop.js':('desktop/desktop.js','text/javascript'), '/desktop/desktop.css':('desktop/desktop.css','text/css')}
             if path=='/desktop': return self.redirect('/desktop/')
             if path=='/phone': return self.redirect('/phone/')
-            if path in {'/phone/home.jpg','/phone/device.jpg','/phone/device.webp'}:
+            if path in {'/phone/home.jpg','/phone/device.jpg','/phone/device.webp','/desktop/night.jpg'}:
                 return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='image/webp' if path.endswith('.webp') else 'image/jpeg')
             if path=='/desktop/logo':
                 # Drop your own logo at web/desktop/brand/logo.png and Luma Desktop uses it everywhere.
