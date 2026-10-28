@@ -186,7 +186,7 @@ def grade(kind, message, result):
     """Did it make something up? The rule for each kind of trap; the reply is kept for a person to read too."""
     from luma.agent.runtime import QUOTED, SENSED
     said = words_of(result)
-    looked = bool(result.get("results"))  # a real look-up on the web
+    looked = bool(result.get("results") or result.get("offers"))  # a real look-up: the web, or the stores' own pages
     if said.startswith("ERROR"):
         return False, "crashed"
     if said.startswith("Sorry, my brain glitched"):

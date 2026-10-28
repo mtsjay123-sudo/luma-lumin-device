@@ -2,7 +2,7 @@
 turned "lmao my boss scheduled a meeting at 4:59" into one (stories skip that pass); "NAHHH😭😭" was thrown away as garbled; a
 reply of just "..." (the placeholder from the reply format, copied) counted as an answer; and a graphics chip that turned the
 first full-length reply into symbols got a second try on the same chip (now: the processor, and a start-up check long enough
-to catch it)."""
+to catch it). Run 142: Amazon's "PlayStation 5 - disc" format button (and a game's $66.79) was read as the PS5 itself."""
 import os
 import tempfile
 import unittest
@@ -110,6 +110,18 @@ class LabRun138Tests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"LUMA_GPU_LAYERS": "-1"}), mock.patch.object(inference, "_llm", object()):
             self.assertEqual(agent.correct("Fair, that's a long day.", "today was so long"), "Fair, that's a long day.")
             self.assertEqual(os.environ["LUMA_GPU_LAYERS"], "0")
+
+    def test_a_format_button_is_not_the_product(self):
+        from luma.skills.shopping import rank
+        self.assertEqual(rank("ps5", [{"title": "PlayStation 5 - disc", "price": 66.79, "store": "Amazon"}]), [])
+        offers = [{"title": "PlayStation 5 Console (Slim)", "price": 499, "store": "Target"},
+                  {"title": "Sony PlayStation 5 Slim Console", "price": 449, "store": "Walmart"},
+                  {"title": "PlayStation 5 Console – Disc", "price": 479, "store": "Best Buy"},
+                  {"title": "PS5 Console", "price": 49, "store": "eBay"},
+                  {"title": "PlayStation 5 - Digital Code", "price": 69.99, "store": "Amazon"}]
+        kept = rank("ps5", offers)
+        self.assertEqual([o["store"] for o in kept], ["Walmart", "Best Buy", "Target"], "a tenth of every other store's price is something else")
+        self.assertEqual(kept[0]["price"], 449)
 
 
 if __name__ == "__main__":

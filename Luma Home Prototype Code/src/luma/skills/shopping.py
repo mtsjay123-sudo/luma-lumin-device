@@ -159,6 +159,9 @@ def tokens(text):
     return [t for t in words if t not in STOPWORDS and (len(t) > 1 or t.isdigit())]
 
 
+# A store's format button read as if it were a product's name: Amazon puts "PlayStation 5 - disc" and its price under every game.
+FORMAT_LABEL = re.compile(r"^(?:platform\s*:\s*)?(?:play ?station ?\d|ps\d|xbox(?: series [xs]| one)?|(?:nintendo )?switch(?: 2| oled| lite)?|pc|mac|steam)"
+                          r"\s*[-–|:]\s*(?:disc|digital(?: code| download)?|download|physical|online code|key ?card)\s*$", re.I)
 BUNDLED = re.compile(r"\b(?:with|w/|includes?|including|plus|and)\b[^,;|]*\b(?:" + "|".join(sorted(ACCESSORY)) + r")\b")
 FOR_SOMETHING = re.compile(r"\b(?:for|compatible with|fits|works with)\b")
 
@@ -209,7 +212,7 @@ def rank(query, offers, max_price=None, min_relevance=0.6):
     kept, seen = [], set()
     for offer in offers:
         price = parse_price(offer.get("price"))
-        if not price or (max_price and price > max_price):
+        if not price or (max_price and price > max_price) or FORMAT_LABEL.match(" ".join(str(offer.get("title", "")).split())):
             continue
         score = relevance(query, offer.get("title", ""))
         if score < min_relevance:
@@ -219,6 +222,9 @@ def rank(query, offers, max_price=None, min_relevance=0.6):
             continue
         seen.add(key)
         kept.append({**offer, "price": round(price, 2), "relevance": score})
+    if len(kept) >= 3:  # one "match" at a fraction of what every other store charges is a different thing, read wrong
+        middle = sorted(o["price"] for o in kept)[len(kept) // 2]
+        kept = [o for o in kept if o["price"] >= 0.3 * middle]
     kept.sort(key=lambda o: (o["price"], -o["relevance"]))
     return kept
 
