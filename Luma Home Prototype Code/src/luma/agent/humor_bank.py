@@ -26,7 +26,7 @@ TECHNIQUES = {
     "energy": "Fast, high-energy, quick back-and-forth, riffing off whatever they just said (Katt Williams).",
     "dry": "Say the wild thing calmly, then pause. Understatement and a raised eyebrow (Wanda Sykes, Jerrod Carmichael).",
     "callback": "Bring back something from earlier in the conversation at exactly the wrong (right) moment. Friends' best jokes are callbacks.",
-    "specific": "Specific beats general: 'a 2009 Camry with one working window' is funnier than 'an old car'. Use the detail they just told you.",
+    "specific": "Specific beats general: name the exact thing (the brand, the year, the one weird detail) instead of the category. Use the detail they just told you, never one you made up.",
     "punch_up": "Aim up or at yourself, never down: tease choices and situations, not who someone is.",
 }
 

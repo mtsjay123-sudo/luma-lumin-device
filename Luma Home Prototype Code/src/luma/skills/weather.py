@@ -1,4 +1,4 @@
-"""The weather, read live from Open-Meteo: free, no account, no API key.
+"""The weather, read live from Open-Meteo (wttr.in when it's down): free, no account, no API key.
 
 The place comes from what they said ("weather in Raleigh") or the last city they asked about. The forecast is read right
 then, never remembered, and one that can't be read is said to be missing, never guessed.
@@ -19,6 +19,7 @@ ASKS = re.compile(r"\b(?:weather|forecast|temperature outside|how (?:hot|cold|wa
                   r"need an? (?:umbrella|jacket|coat))\b", re.I)
 PLACE = re.compile(r"\b(?:in|for|at|near|around|out in)\s+(?P<place>(?!the (?:morning|afternoon|evening|week)|here\b|my area\b)[a-z][a-z .'-]{1,40}?)"
                    r"(?:\s+(?:today|tonight|tomorrow|this (?:week|weekend|morning|afternoon|evening)|right now|now|rn|later))?\s*\??\s*$", re.I)
+WTTR = "https://wttr.in/{q}?format=j1"
 WHEN_TOMORROW = re.compile(r"\btomorrow|tmrw|tmr\b", re.I)
 
 # WMO weather codes, as a person would say them.
@@ -59,18 +60,44 @@ def forecast(spot, fetch=None):
     return {"now": now, "daily": daily}
 
 
+def from_wttr(spot, place, fetch=None):
+    """The same forecast from wttr.in, for when Open-Meteo can't be read: (spot, cast), or (spot, None)."""
+    where = f"{spot['lat']},{spot['lon']}" if spot else urllib.parse.quote(" ".join(place.split()).replace(" ", "+"), safe="+")
+    data = _get(WTTR.format(q=where), fetch)
+    now, days = (data.get("current_condition") or [{}])[0], data.get("weather") or []
+    if "temp_F" not in now or not days:
+        return spot, None
+    def sky(desc):
+        return " ".join(str(((desc or [{}])[0]).get("value") or "").split()).lower()
+    def rain(day):
+        chances = [int(h.get("chanceofrain") or 0) for h in day.get("hourly") or []]
+        return max(chances) if chances else None
+    def noon(day):
+        hours = day.get("hourly") or []
+        return sky(hours[len(hours) // 2].get("weatherDesc")) if hours else ""
+    if not spot:
+        area = (data.get("nearest_area") or [{}])[0]
+        region = ((area.get("region") or [{}])[0]).get("value") or ""
+        spot = {"name": place.title(), "region": region, "lat": None, "lon": None}
+    cast = {"now": {"temperature_2m": float(now["temp_F"]), "apparent_temperature": float(now.get("FeelsLikeF") or now["temp_F"]), "sky": sky(now.get("weatherDesc"))},
+            "daily": {"temperature_2m_max": [float(d["maxtempF"]) for d in days], "temperature_2m_min": [float(d["mintempF"]) for d in days],
+                      "precipitation_probability_max": [rain(d) for d in days], "sky": [noon(d) for d in days]},
+            "source": "wttr.in"}
+    return spot, cast
+
+
 def say(spot, cast, tomorrow=False):
     """'Right now in Raleigh it's 64° and partly cloudy (feels like 62°). Today: high of 71°, low of 52°, 10% chance of rain.'"""
     daily, i = cast["daily"], 1 if tomorrow else 0
     high, low = round(daily["temperature_2m_max"][i]), round(daily["temperature_2m_min"][i])
     rain = (daily.get("precipitation_probability_max") or [None, None])[i]
-    sky = CODES.get((daily.get("weather_code") or [None, None])[i], "")
+    sky = (daily.get("sky") or [None, None])[i] or CODES.get((daily.get("weather_code") or [None, None])[i], "")
     day = (f"Tomorrow in {spot['name']}: " if tomorrow else "Today: ") + (f"{sky}, " if sky and tomorrow else "") + f"high of {high}°, low of {low}°"
     day += f", {rain}% chance of rain." if rain is not None else "."
     if tomorrow:
         return day
     now = cast["now"]
     temp, feels = round(now["temperature_2m"]), round(now.get("apparent_temperature", now["temperature_2m"]))
-    sky_now = CODES.get(now.get("weather_code"), "")
+    sky_now = now.get("sky") or CODES.get(now.get("weather_code"), "")
     lead = f"Right now in {spot['name']} it's {temp}°" + (f" and {sky_now}" if sky_now else "") + (f" (feels like {feels}°)" if abs(feels - temp) >= 3 else "") + ". "
     return lead + day

@@ -263,6 +263,32 @@ def _garbled(text):
     return garbled(text)
 
 
+CHATTER = re.compile(r"^(?:(?:ugh+|man|bro|yo|ok(?:ay)?|lol+|lmao+|lmfao|bruh|sis|hey|luma|please|pls|omg|dude|ngl|wait|nah|deadass|fr|lowkey|"
+                     r"on god|listen|ayo|uh+|um+|(?:ha)+h?|he(?:he)+|so|anyway|bro+|dead|i'?m dead|crying)\W+)+")
+ASKING = re.compile(r"^(?:what|when|where|who|how|why|which|can|could|will|would|should|is|are|do|does|did)\b|"
+                    r"\b(?:can|could|would|will|cn) (?:you|u)\b|\b(?:please|pls|plz)\b|"
+                    r"\b(?:i'?d like|i need|i want|i wanna|lemme|let me)\s+(?:you |u )?to\b|\bwhere'?s\b|\bwhere (?:is|are|were|was|did)\b|"
+                    r"\bhow (?:long|much|many)\b|\bwhat'?s (?:on|in|the|my)\b|"
+                    r"(?:^|[,.;!]\s*|\b(?:and|so|but) )(?:remind|text|send|tell|set|add|book|schedule|email|call|check|look up|find|put|make|show|give)\s+(?:me|him|her|them|my|a|an|the|it)\b|"
+                    r"[,.;!]\s*(?:what|when|where|who|how|why|which|is|are|do|does|did|can|could|should)\b")
+# Someone in it, or something that happened: what makes it a story rather than a slangy request ("deadass where's the deck").
+STORY = re.compile(r"\b(?:my|our) (?:\w+ ){0,2}?(?:boss|manager|mom|mama|mother|dad|father|sister|brother|cousin|aunt(?:ie)?|uncle|grand(?:ma|pa|mother|father)|"
+                   r"friend|homie|bestie|roommate|co-?worker|wife|husband|girlfriend|boyfriend|ex|kids?|son|daughter|baby|dog|cat|neighbou?r|teacher|"
+                   r"landlord|team|job|date)\b|\b(?:he|she|they|this (?:guy|girl|dude|lady|man|woman)|somebody|someone|nobody)\b|"
+                   r"\b(?:died|passed away|yesterday|last (?:night|week|month|year)|at work|this morning)\b", re.I)
+
+
+def just_talking(text):
+    """Laughing, venting or grieving about something and not asking for anything: a friend just talks back. "lmao my boss
+    scheduled a meeting at 4:59 on a friday" is a story, not a calendar question, and nobody needs a stock price in it."""
+    from luma.agent import humor
+    from luma.agent.scenarios import IMPERATIVE
+    said = str(text or "")
+    if humor.read_tone(said)["mood"] not in ("laughing", "playful", "venting", "grief", "upset") or not STORY.search(said):
+        return False
+    plain = CHATTER.sub("", understanding.normalize(said))
+    return not (IMPERATIVE.match(plain) or "?" in said or ASKING.search(plain) or ASKING.search(said.lower()))
+
 class Agent:
     def __init__(self, store=None, providers=None, planner=None, use_model=True, now=None):
         self.store = store or Store(STATE_DB_PATH, STATE_KEY_PATH)
@@ -457,6 +483,8 @@ class Agent:
                    and (self.mode != "kids" or v.kids)
                    and (not v.service or self.integration_on(v.service))}
         if not agent_mode and re.match(r"^(?:(?:can|could|would) you )?(?:explain|describe|tell me about)\b", lowered): allowed = {}
+        if not agent_mode and just_talking(text):  # a story, not a job: nothing to look up or open, just what they've told me before
+            allowed = {k: v for k, v in allowed.items() if k in {"memory.recall", "memory.remember"}}
         relevant = set()
         groups = [
             (r"\b(?:remember|recall|memory|memories)\b", {"memory.remember", "memory.recall", "household.find"}),
@@ -2986,7 +3014,7 @@ class Agent:
 
     def use_markets(self, lowered):
         from luma.skills import markets
-        return markets.wants(lowered) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
+        return markets.wants(lowered) and not just_talking(lowered) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
 
     market_fetch = None  # tests hand in their own quotes
     weather_fetch = None  # and their own forecasts
@@ -2997,7 +3025,8 @@ class Agent:
 
     def weather_reply(self, text, lowered):
         """"What's the weather in Raleigh?", "is it gonna rain tomorrow?": read right then from Open-Meteo (free, no key), for the city
-        they named or the last one they asked about. A forecast that can't be read is said to be missing; a temperature is never guessed."""
+        they named or the last one they asked about, with wttr.in behind it. A forecast that can't be read is said to be missing; a
+        temperature is never guessed."""
         from luma.skills import weather
         named = weather.place_in(text)
         place = named or self.store.setting("weather_city")
@@ -3005,28 +3034,32 @@ class Agent:
             return {"text": "Which city? Say something like “weather in Raleigh” and I'll remember it for next time."}
         self.activity.start("weather", f"Checking the weather in {place.title()}")
         spot = cast = None
+        missing = False
         try:
-            spot = weather.find(place, self.weather_fetch)
-            cast = weather.forecast(spot, self.weather_fetch) if spot else None
-        except Exception:
-            pass
+            try:
+                spot = weather.find(place, self.weather_fetch)
+                missing = spot is None
+                cast = weather.forecast(spot, self.weather_fetch) if spot else None
+            except Exception:
+                pass
+            if not cast and not missing:  # Open-Meteo is down or slow: the same forecast from wttr.in, still free and keyless
+                try:
+                    spot, cast = weather.from_wttr(spot, place, self.weather_fetch)
+                except Exception:
+                    pass
         finally:
             self.activity.finish("Checked.")
-        if spot is None and cast is None and named:
-            try:
-                missing = weather.find(place, self.weather_fetch) is None
-            except Exception:
-                missing = False
-            if missing:
-                return {"text": f"I couldn't find a place called {place.title()}. Which city did you mean?"}
+        if missing and named:
+            return {"text": f"I couldn't find a place called {place.title()}. Which city did you mean?"}
         if not cast:
             return {"text": f"I couldn't get the weather for {(spot or {}).get('name') or place.title()} just now, so I won't guess. Try me again in a minute.",
                     "section": "news"}
         self.store.set_setting("weather_city", place)
         said = weather.say(spot, cast, tomorrow=bool(weather.WHEN_TOMORROW.search(lowered)))
         where = ", ".join(p for p in (spot["name"], spot["region"]) if p)
+        source = ("wttr.in", "https://wttr.in/") if cast.get("source") == "wttr.in" else ("Open-Meteo", "https://open-meteo.com/")
         return {"text": said, "section": "news",
-                "results": [{"title": f"Forecast for {where}", "url": "https://open-meteo.com/", "snippet": said, "source": "Open-Meteo"}]}
+                "results": [{"title": f"Forecast for {where}", "url": source[1], "snippet": said, "source": source[0]}]}
 
     def market_reply(self, text, lowered, cancel_event=None):
         """"How's Tesla stock?", "what's bitcoin at?", "how's the market?": the price read right now from free public quotes, plus a couple
@@ -3711,7 +3744,7 @@ class Agent:
                     self.store.set_setting("humor_taste", humor.learn(self.store.setting("humor_taste"), sign, getattr(self, "last_bit", None)))
                     self.last_bit = None
             try:
-                result = self.workflows.run(text, event, resume_id=resume_id) if agent_mode else self._chat(text, event)
+                result = self.workflows.run(text, event, resume_id=resume_id) if agent_mode else self._chat_steady(text, event)
                 if isinstance(result.get("text"), str):
                     from luma.agent import slang as lexicon
                     from luma.llm.inference import garbled
@@ -3768,6 +3801,23 @@ class Agent:
             finally:
                 self.busy = False
                 self._on_text = None
+
+    def _chat_steady(self, text, cancel_event):
+        """The brain came back with symbols or nothing: think once more before answering. A friend who blanks starts the
+        sentence again; they don't ask you to repeat yourself."""
+        from luma.llm.inference import garbled
+        try:
+            result = self._chat(text, cancel_event)
+        except ValueError as error:
+            if not self.use_model or cancel_event.is_set() or not re.search(r"no usable reply|invalid proposal", str(error)):
+                raise
+            return self._chat(text, cancel_event)
+        if self.use_model and isinstance(result.get("text"), str) and garbled(result["text"]) and not cancel_event.is_set() \
+                and not result.get("action") and result.get("state") != "pending":
+            from luma.llm import inference
+            inference.garbled_seen()  # on the processor from here on, starting with this answer
+            return self._chat(text, cancel_event)
+        return result
 
     def _follow_up(self, question, tool, result, allowed, cancel_event, steps=2):
         """After a look-up, let the model answer or take one more step with what it found.
@@ -4083,13 +4133,11 @@ class Agent:
         if not top or top[0][0] == "chat":
             return None
         intent, p = top[0]
-        from luma.agent.scenarios import INTENTS, IMPERATIVE
+        from luma.agent.scenarios import INTENTS
         from luma.agent import humor
         mood = humor.read_tone(text)["mood"]
-        if mood in ("venting", "grief", "upset"):
-            plain = re.sub(r"^(?:(?:ugh+|man|bro|yo|ok(?:ay)?|lol|lmao+|bruh|sis|hey|luma|please|pls)\W+)+", "", understanding.normalize(text))
-            if not (IMPERATIVE.match(plain) or "?" in text or re.match(r"(?:what|when|where|who|how|can|could|will|would|is|are|do|does|did)\b", plain)):
-                return None  # "ugh my boss keeps scheduling meetings at 5" is venting, not a calendar question
+        if just_talking(text):
+            return None  # "ugh my boss keeps scheduling meetings at 5" is venting, not a calendar question, however sure the guess
         spec = INTENTS[intent]
         if intent == "check_email" and self.use_model and self._hub_gmail():
             return None  # Gmail is connected through the apps hub: the brain reads it there
@@ -4373,6 +4421,14 @@ class Agent:
             return None
         if self.use_model and re.search(r"\broast (?:my|the|this|me)\b", lowered) and len(lowered.split()) > 3:
             return None  # "roast my outfit, I'm wearing crocs with socks": the brain roasts the detail they gave, with the humor note
+        if self.mode != "kids":
+            told = list(self.store.setting("bits_told") or [])
+            line = humor.roast(text, told)
+            if line:  # no brain: still their crocs, not a joke about something else
+                self.last_joke_at = self.clock()
+                self.store.set_setting("bits_told", (told + [line])[-400:])
+                self.last_joke_kind, self.last_bit = "roast", None
+                return {"text": line}
         corny = re.search(r"\b(?:dad|corny|pun|puns|cheesy|clean)\b", lowered) or (again and getattr(self, "last_joke_kind", "") == "pun")
         self.last_joke_at = self.clock()
         if corny:

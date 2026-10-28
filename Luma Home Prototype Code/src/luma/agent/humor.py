@@ -258,3 +258,38 @@ def dial_request(text):
                  r"turn (?:down|off) the (?:jokes|humor|comedy)|be serious)\b", lowered):
         return -1
     return None
+
+
+ROAST_ASK = re.compile(r"\broast (?:my|me)\b(?: (?P<thing>outfit|fit|clothes|shoes|look|drip|car|room|apartment|place|kitchen|haircut|playlist|cooking|setup|desk))?", re.I)
+ROAST_DETAIL = re.compile(r"\b(?:i'?m wearing|i am wearing|wearing|i(?:'ve| have) (?:got )?on|i got on|i'?m rocking|i'?m in|it'?s|i drive|i have)\s+"
+                          r"(?P<detail>[^.!?\n;]{3,60})", re.I)
+NOT_ROASTED = re.compile(r"\b(?:fat|skinny|weight|body|face|skin|nose|teeth|height|short|tall|bald|acne|ugly|scar\w*|disab\w*|wheelchair|race|religion|"
+                         r"accent|pregnan\w*)\b", re.I)
+ROASTS_WORN = ["{D}. Bold. Confident. Wrong. I respect it.",
+               "{D}? You didn't get dressed, you lost a bet.",
+               "{D}. The fashion police are on the way, and they're bringing backup.",
+               "I'm looking at {d} and I'm choosing peace. Barely."]
+ROASTS = ["{D}. Bold. Confident. Wrong. I respect it.",
+          "{D}? That's not a choice, that's a plot twist.",
+          "I'm looking at {d} and I'm choosing peace. Barely.",
+          "{D}. Somebody had a vision and nobody stopped them."]
+
+
+def roast(text, told=()):
+    """"roast my outfit, i'm wearing crocs with socks": a roast built on the detail they gave, aimed at the choice, never at who
+    they are. Asks for the detail when there isn't one; None when it isn't a roast of their stuff."""
+    ask = ROAST_ASK.search(str(text or ""))
+    if not ask:
+        return None
+    m = ROAST_DETAIL.search(text[ask.end():]) or ROAST_DETAIL.search(text)
+    if not m:
+        return f"Describe the {ask['thing']} first. I don't roast without evidence." if ask["thing"] else None
+    detail = " ".join(m["detail"].split()).strip(" ,'\"")
+    if NOT_ROASTED.search(detail):
+        return "I'll roast your choices all day. Not you, though. Give me the outfit, the car, the playlist."
+    flip = {"my": "your", "i'm": "you're", "im": "you're", "me": "you", "mine": "yours", "i": "you"}
+    detail = re.sub(r"\b(?:my|i'?m|im|me|mine|i)\b", lambda w: flip.get(w.group(0).lower(), w.group(0)), detail, flags=re.I)
+    worn = bool(re.search(r"\b(?:wearing|got on|have on|rocking)\b", m.group(0), re.I)) or ask["thing"] in ("outfit", "fit", "clothes", "shoes", "look", "drip")
+    pool = ROASTS_WORN if worn else ROASTS
+    line = next((t for t in pool if t.format(D=detail[0].upper() + detail[1:], d=detail) not in told), pool[0])
+    return line.format(D=detail[0].upper() + detail[1:], d=detail)
