@@ -77,5 +77,35 @@ class LabRun127Tests(unittest.TestCase):
         self.assertFalse(news.JUNK_TITLE.search("Drake / J. Cole collab confirmed"))
 
 
+class LabRun129Tests(unittest.TestCase):
+    """Run 129: the virtual graphics chip went bad partway through and "BBEC&7%.G" reached a person; thumbstick grips "for
+    PlayStation 5" were the cheapest PS5; Wikipedia's list wasn't out yet late in the day; a person's name alone read as a story."""
+
+    def test_one_word_garbage_is_caught_and_real_one_word_answers_arent(self):
+        self.assertTrue(inference.garbled("BBEC&7%.G"))
+        for fine in ["R&B", "AT&T", "#tbt", "4:59pm", "lol!!", "Bet.", "self-care", "$5", "https://example.com/a"]:
+            self.assertFalse(inference.garbled(fine), fine)
+
+    def test_made_for_a_ps5_isnt_a_ps5(self):
+        self.assertLess(shopping.relevance("ps5", "KontrolFreekFPS Freek Galaxy Black for PlayStation 4 (PS4) and PlayStation 5 (PS5)"), 0.6)
+        self.assertEqual(shopping.relevance("ps5", "Sony PS5 Pro 2TB"), 1.0)
+
+    def test_wikipedia_today_and_yesterday(self):
+        urls = [u for name, u, kind in news.extras(1793116800.0) if kind == "lookedup"]
+        self.assertEqual([u[-10:] for u in urls], ["2026/10/27", "2026/10/26"])
+
+    def test_a_name_alone_isnt_a_story(self):
+        rss = (b'<rss><channel><item><title>Brandon Garrett - HotNewHipHop</title><link>https://news.google.com/a</link></item>'
+               b'<item><title>Drake lawsuit over Janice STFU dismissed - HotNewHipHop</title><link>https://news.google.com/b</link></item></channel></rss>')
+        store = Store(Path(tempfile.mkdtemp()) / "s.db", Path(tempfile.mkdtemp()) / "k")
+        try:
+            from unittest import mock
+            with mock.patch.object(news, "feeds", lambda: [("Google News", "https://news.google.com/rss/search?q=site:hotnewhiphop.com", "culture")]):
+                got = news.refresh(store, lambda: 1793116800.0, fetch=lambda url: rss)
+            self.assertEqual([i["title"] for i in got["items"]], ["Drake lawsuit over Janice STFU dismissed"])
+        finally:
+            store.close()
+
+
 if __name__ == "__main__":
     unittest.main()

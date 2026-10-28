@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import contextlib
 import json
 import threading
@@ -226,13 +227,21 @@ READABLE = set(".,!?'\"%$:;()-/€£")
 def garbled(text):
     """Symbols where words should be ('+A57', '#8++&B+,#$C8'): a model running wrong, not one that's just terse. Numbers are
     words here ("the S&P 500 is at 7,727.85, up 0.67%", "7:30"), emoji are fine ("😭😭" is an answer), and so is code."""
-    text = text or ""
+    text = re.sub(r"(?<=[A-Za-z])&(?=[A-Za-z])|(?:(?<=\s)|^)#(?=[A-Za-z])", "", text or "")  # "R&B", "AT&T", "#tbt" are words
     compact = "".join(text.split())
     if len(compact) < 3 or "```" in text:
         return False
     odd = sum(ch in ODD for ch in compact)
     readable = sum(ch.isalnum() or ord(ch) > 0x2000 or ch in READABLE for ch in compact)
-    return odd / len(compact) > 0.15 or readable / len(compact) < 0.6
+    if odd / len(compact) > 0.15 or readable / len(compact) < 0.6:
+        return True
+    # One "word" mixing letters with digits and symbols ("BBEC&7%.G") is never a reply; a link, a price, a time or a word is.
+    return len(text.split()) == 1 and len(compact) >= 5 and not ONE_WORD.fullmatch(compact) \
+        and bool(re.search(r"[A-Za-z]", compact)) and bool(re.search(r"[\d\W_]", compact))
+
+
+ONE_WORD = re.compile(r"(?:https?://|www\.)\S+|[\w.+-]+@[\w-]+\.[\w.]+|[$€£]?\d[\d,.:]*%?[.!?]*|\d{1,2}(?::\d{2})?(?:am|pm|AM|PM)[.!?]*|"
+                      r"[A-Za-z]+(?:['’-][A-Za-z]+)*[.!?…,]*|[#@]\w+|[^\x00-\x7f]+[.!?]*", re.UNICODE)
 
 
 def _sane(model):

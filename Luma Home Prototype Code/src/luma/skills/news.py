@@ -373,7 +373,8 @@ PARSERS = {"trending": parse_trends, "lookedup": parse_mostread}
 def extras(now):
     """Luma's own trend sources, with today's date where the address needs it."""
     import time as _time
-    return SOCIAL + [("Wikipedia", WIKI_TOP.format(day=_time.strftime("%Y/%m/%d", _time.gmtime(now))), "lookedup")]
+    days = [_time.strftime("%Y/%m/%d", _time.gmtime(now)), _time.strftime("%Y/%m/%d", _time.gmtime(now - 86400))]  # late in the day, today's may not be out yet
+    return SOCIAL + [("Wikipedia", WIKI_TOP.format(day=day), "lookedup") for day in days]
 
 
 def parse(data, source):
@@ -579,7 +580,8 @@ def refresh(store, clock, allow_local=False, fetch=None):
                 items = youtube_page_items(_fetch_page(f"https://www.youtube.com/channel/{channel}/videos", allow_local=allow_local), name, now)
             except Exception:
                 items = None
-        items = [i for i in items or [] if not JUNK_TITLE.search(i.get("title") or "")]  # anywhere in the title: "Zeus Archives - The Shade Room"
+        items = [i for i in items or [] if not JUNK_TITLE.search(i.get("title") or "")  # anywhere in the title: "Zeus Archives - The Shade Room"
+                 and (kind in ("trending", "lookedup", "youtube", "viral") or len((i.get("title") or "").split()) >= 4)]  # "Brandon Garrett": a tag page
         for item in items or []:
             item["topic"] = kind
             item["seen"] = now  # when Luma first saw it: the age for a story with no date

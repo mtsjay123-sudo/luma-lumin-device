@@ -177,6 +177,14 @@ def relevance(query, title):
     just_the_device = all(w in DEVICE or w.isdigit() for w in want)
     if just_the_device and any(w in CONTENT_FOR for w in words) and not ({"console", "bundle"} & set(words)):
         score *= 0.35  # "Ghost of Yotei PS5 ESRB Rating: Mature" is a game, not the PS5
+    elif just_the_device and not ({"console", "bundle"} & set(words)):
+        named = str(title).lower()
+        for pattern, short in ALIASES:
+            named = pattern.sub(short, named)
+        first = min((m.start() for w in want for m in [re.search(rf"\b{re.escape(w)}\b", named)] if m), default=None)
+        made_for = FOR_SOMETHING.search(named)
+        if first is not None and made_for and made_for.start() < first:
+            score *= 0.35  # "KontrolFreek grips for PlayStation 4 and PlayStation 5": made for it, not it
     extra = [i for i, w in enumerate(words) if w in ACCESSORY and w not in want]
     if extra:
         lowered = str(title).lower()
