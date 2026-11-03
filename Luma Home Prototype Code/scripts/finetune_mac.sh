@@ -4,10 +4,11 @@
 #
 #   bash scripts/finetune_mac.sh
 #
-# 1. writes the training conversations (scripts/finetune_data.py: Luma's own jokes, hard-moment replies, honest "I don't know"s)
+# 1. writes the training conversations (scripts/finetune_data.py: Luma's own jokes, hard-moment replies, honest "I don't know"s,
+#    talking back in 32 communities' registers, real slang meanings, and answers whose every number comes from what was found)
 # 2. trains a small add-on (LoRA) on Qwen3 4B Instruct with mlx-lm
 # 3. merges it and converts it to one GGUF file Luma can load
-# 4. runs the lab's honesty and humor checks on it, so it only replaces the stock brain if it's at least as honest
+# 4. runs the lab's honesty, humor and voice checks on it, so it only replaces the stock brain if it's at least as honest
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${OUT:-out/finetune}"
@@ -29,9 +30,10 @@ python3 -m venv "$OUT/venv"
 [ -d "$OUT/llama.cpp" ] || git clone --depth 1 https://github.com/ggml-org/llama.cpp "$OUT/llama.cpp"
 "$OUT/venv/bin/python" "$OUT/llama.cpp/convert_hf_to_gguf.py" "$OUT/fused" --outfile "$OUT/luma-friend-q8_0.gguf" --outtype q8_0
 
-echo "Checking the new brain against the stock one (honesty and humor)..."
+echo "Checking the new brain against the stock one (honesty, humor and voice)..."
 LUMA_MODEL_PATH="$PWD/$OUT/luma-friend-q8_0.gguf" python3 scripts/luma_lab.py honesty --save "$OUT/honesty.json" || true
 LUMA_MODEL_PATH="$PWD/$OUT/luma-friend-q8_0.gguf" python3 scripts/luma_lab.py humor --save "$OUT/humor.json" || true
-python3 scripts/luma_lab.py summary "$OUT"/honesty.json "$OUT"/humor.json
+LUMA_MODEL_PATH="$PWD/$OUT/luma-friend-q8_0.gguf" python3 scripts/luma_lab.py voice --save "$OUT/voice.json" || true
+python3 scripts/luma_lab.py summary "$OUT"/honesty.json "$OUT"/humor.json "$OUT"/voice.json
 echo
 echo "If those look right, point Luma at it: LUMA_MODEL_PATH=$PWD/$OUT/luma-friend-q8_0.gguf (base model: $HF_BASE)."

@@ -222,5 +222,23 @@ class EvalHarnessTests(unittest.TestCase):
         self.assertLess(fell_through / n, 0.12)
 
 
+
+class CommunityTalkTests(unittest.TestCase):
+    """How 32 communities talk is talk, not a command, even in sentence patterns the model never trained on; and a request
+    said with their words is still the request."""
+    def test_community_chatter_is_heard_as_talk(self):
+        import zlib
+        from luma.agent import phrasebank
+        held = phrasebank.sample(1500, seed=55, keep=lambda f: zlib.crc32(f.encode()) % 5 == 0)
+        guesses = [understanding.guess(ph["text"], 1)[0] for ph in held]
+        self.assertGreaterEqual(sum(g[0] == "chat" for g in guesses) / len(held), 0.95)
+        self.assertLessEqual(sum(g[0] != "chat" and g[1] >= 0.5 for g in guesses) / len(held), 0.03)
+
+    def test_requests_in_their_words_are_still_requests(self):
+        for text, intent in [("set a timer for 10 mins bro", "timer"), ("remind me to call mom at 5 innit", "remind"),
+                             ("wagwan bredda, what's the weather", "weather"), ("86 soup, we're out", "chat"), ("why do cats purr", "chat")]:
+            self.assertEqual(understanding.guess(text, 1)[0][0], intent, text)
+
+
 if __name__ == "__main__":
     unittest.main()

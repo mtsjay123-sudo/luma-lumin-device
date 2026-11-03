@@ -415,16 +415,17 @@ def phrase(i):
     topic_only = {e.term for slot in slots if _is_topic(community, slot) for _, e in slang.find(picked[slot])}
     chosen = {e.term for slot in slots if not _is_topic(community, slot) for _, e in slang.find(picked[slot])}
     terms = [(said, e.meaning, e.origins) for said, e in slang.find(text) if e.term not in topic_only or e.term in chosen]
-    return {"text": text, "community": community, "intent": intent, "terms": terms}
+    return {"text": text, "community": community, "intent": intent, "terms": terms, "frame": frame, "slots": picked}
 
 
-def sample(n, seed=0, community=None):
-    """n phrases at random (the same for the same seed), from every community or just one."""
+def sample(n, seed=0, community=None, keep=None):
+    """n phrases at random (the same for the same seed), from every community or just one. keep(frame) -> bool picks frames
+    (a training set and a held-out set that never share a sentence pattern)."""
     rows, total = _table()
     rng = random.Random(seed)
-    if community is None:
+    if community is None and keep is None:
         return [phrase(rng.randrange(total)) for _ in range(n)]
-    spans = [(start, cnt) for c, _, _, _, _, start, cnt in rows if c == community]
+    spans = [(start, cnt) for c, frame, _, _, _, start, cnt in rows if (community is None or c == community) and (keep is None or keep(frame))]
     out = []
     for _ in range(n):
         start, cnt = rng.choice(spans)

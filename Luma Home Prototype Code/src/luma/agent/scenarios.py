@@ -20,6 +20,11 @@ import re
 # What fills the blanks
 # ---------------------------------------------------------------------------
 SLOTS = {
+    # Everyday curiosity: a question for the brain to answer, never a request for a feature ("why do cats purr", "how do planes stay up").
+    "curious": ["cats purr", "dogs bark", "bees buzz", "birds fly south", "cats meow", "leaves change color", "onions make you cry", "magnets stick",
+                "volcanoes erupt", "planes stay up", "stars twinkle", "we dream", "we yawn", "cats knead", "dogs wag their tails", "fireflies glow",
+                "owls hoot", "whales sing", "knuckles crack", "ice cubes float", "tides change", "zebras have stripes", "flamingos stand on one leg",
+                "cats land on their feet", "rainbows form", "people sneeze", "bread rise", "popcorn pop", "chameleons change color", "geese honk"],
     "task": ["call mom", "call my mom", "call the dentist", "pick up the kids", "take my meds", "take out the trash", "pay rent", "pay the electric bill",
              "grab milk", "buy eggs", "water the plants", "feed the dog", "walk the dog", "send the invoice", "email sam back", "text jay back",
              "book a haircut", "renew my license", "cancel netflix", "go to the gym", "stretch", "drink water", "start dinner", "move the car",
@@ -295,6 +300,7 @@ INTENTS = {
         "today {adj}", "ugh today {adj}", "my day {adj}", "this week {adj}", "worst day ever", "best day ever", "help me think of {doc} ideas", "gift ideas for {person}", "help me pick a gift for {person}", "what should i get {person} for their birthday", "help me think of something to do tonight", "{person} keeps texting me", "{person} never texts me back", "should i text {person}", "i forgot my {thing} at home lol", "i hate reminders", "the news is so depressing", "my calendar is insane this week", "email is the worst", "i love this song", "music is life", "i lost my {thing} last week but found it", "my {thing} broke", "what do you think i should do about {person}", "is it rude to not reply to {person}", "i can never find my {thing} lol", "tell me about yourself", "who are you", "what are you thinking about", "do you remember when we met", "you remember everything huh", "what does {topic} mean", "teach me about {topic}", "quiz me on {topic}", "i want to learn {topic}", "how does {topic} work", "today's been {adj}",
         "how are you", "how's it going", "what's up", "good morning", "good night", "hey", "hi", "hello", "yo", "thanks", "thank you", "ty", "lol", "lmao",
         "haha", "that's funny", "you're funny", "you're the best", "i love you", "i hate you", "ok", "okay", "cool", "nice", "bet", "word", "facts",
+        "why do {curious}", "what makes {curious}", "how come {curious}", "how do {curious}", "do you know why {curious}", "ok but why do {curious}",
         "tell me a joke", "tell me a story", "why is the sky blue", "how tall is mount everest", "what's the meaning of life", "are you alive",
         "do you have feelings", "are you real", "who made you", "what do you think about {topic}", "tell me about {topic}", "explain {topic} to me",
         "i'm so tired", "today was rough", "i'm stressed", "i'm bored", "i'm sad", "i'm happy", "i got the job", "i'm nervous about tomorrow",

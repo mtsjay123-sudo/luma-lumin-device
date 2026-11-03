@@ -7,12 +7,23 @@ training messages from luma.agent.scenarios (every feature, said every which way
 trains a softmax layer over hashed n-grams with AdaGrad, calibrates a temperature on
 deliberately messy held-out messages, and reports accuracy on held-out scenarios and
 on hand-written real talk (tests/real_talk.py) that the generator never saw.
+
+It also learns how 32 communities talk (luma.agent.phrasebank): their chatter is just talk ("forget the cookout,
+the rooftop bar is gonna be nang" is not "forget that memory"), and a request said with their words ("wagwan bredda,
+set a timer for ten minutes") is still the request. One sentence pattern in five is never trained on, so the
+community score is measured on ways of talking the model has never seen.
+
+    PYTHONPATH=src python3 scripts/train_understanding.py --compare old.npz   # the same scorecard for the old model and the new
 """
 from __future__ import annotations
 
 import argparse
+import random
+import shutil
 import sys
+import tempfile
 import time
+import zlib
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -21,7 +32,63 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 
-from luma.agent import scenarios, understanding  # noqa: E402
+from luma.agent import phrasebank, scenarios, understanding  # noqa: E402
+
+FLAVOR_ROLES = ("friend", "greet", "truth", "tag", "ok", "agree", "wow", "dear", "you", "part")
+
+
+def held_frame(frame):
+    """One sentence pattern in five is kept out of training, so the community score is on talk the model never saw."""
+    return zlib.crc32(frame.encode()) % 5 == 0
+
+
+def community_chat(n, seed, held):
+    return [(ph["text"], "chat") for ph in phrasebank.sample(n, seed=seed, keep=held_frame if held else (lambda f: not held_frame(f)))]
+
+
+def flavor(text, rng):
+    """A request said with one community's words around it: "bet bro, set a timer for 10", "remind me at 5 innit"."""
+    pack = rng.choice(list(phrasebank.PACKS.values()))
+    roles = [r for r in FLAVOR_ROLES if r in pack["roles"]]
+    if not roles:
+        return text
+    word = rng.choice(pack["roles"][rng.choice(roles)])
+    return f"{word}, {text}" if rng.random() < 0.5 else f"{text} {word}"
+
+
+def flavored_requests(n, seed):
+    rng = random.Random(seed)
+    names = [k for k in scenarios.INTENTS if k != "chat"]
+    out = []
+    for _ in range(n):
+        intent = rng.choice(names)
+        out.append((flavor(scenarios.say(intent, rng, 0.3), rng), intent))
+    return out
+
+
+def scorecard(path):
+    """The same tests for any saved model: scenarios, messy ones, real talk, community chatter and community-flavored requests."""
+    m = understanding.Model(path)
+    intents = list(scenarios.INTENTS)
+    rng = random.Random(33)
+    sets = {
+        "held-out scenarios": list(scenarios.generate(6_000, seed=22)),
+        "very messy": [(scenarios.say(i, rng, 0.95), i) for i in rng.choices(intents, k=4_000)],
+        "community chatter (unseen patterns) heard as talk": community_chat(6_000, 55, held=True),
+        "requests in community slang": flavored_requests(4_000, 66),
+    }
+    try:
+        from real_talk import REAL_TALK
+        sets["hand-written real talk"] = [(t, i) for t, i in REAL_TALK if i in intents]
+    except ImportError:
+        pass
+    out = {}
+    for name, pairs in sets.items():
+        out[name] = sum(m.predict(t, 1)[0][0] == i for t, i in pairs) / len(pairs)
+    chatter = sets["community chatter (unseen patterns) heard as talk"]
+    out["community chatter acted on as a request (lower is better)"] = sum(
+        1 for t, _ in chatter if (lambda g: g[0] != "chat" and g[1] >= 0.5)(m.predict(t, 1)[0])) / len(chatter)
+    return out
 
 
 def featurize(texts):
@@ -97,8 +164,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", type=int, default=800_000)
     ap.add_argument("--epochs", type=int, default=3)
+    ap.add_argument("--community", type=int, default=160_000, help="community chatter examples (as talk)")
+    ap.add_argument("--flavored", type=int, default=80_000, help="requests said with community words")
     ap.add_argument("--out", default=str(understanding.MODEL_PATH))
+    ap.add_argument("--compare", help="a saved model to score next to the new one (default: the one being replaced)")
+    ap.add_argument("--score", help="only print the scorecard for this saved model")
     args = ap.parse_args()
+    if args.score:
+        for name, value in scorecard(args.score).items():
+            print(f"  {name:<58} {value:6.1%}")
+        return
+    before = args.compare
+    if not before and Path(args.out).exists():
+        before = str(Path(tempfile.mkdtemp()) / "before.npz")
+        shutil.copy(args.out, before)
     intents = list(scenarios.INTENTS)
     k = len(intents)
     base, slang = scenarios.count()
@@ -106,6 +185,8 @@ def main():
 
     t0 = time.time()
     train_pairs = list(scenarios.generate(args.samples, seed=11))
+    train_pairs += community_chat(args.community, 44, held=False) + flavored_requests(args.flavored, 77)
+    random.Random(12).shuffle(train_pairs)
     held = list(scenarios.generate(20_000, seed=22))
     rng = __import__("random").Random(33)
     hard = [(scenarios.say(i, rng, 0.95), i) for i in rng.choices(intents, k=10_000)]
@@ -152,6 +233,11 @@ def main():
     np.savez_compressed(args.out, intents=np.array(intents), rows=used.astype(np.int32), q=q, scale=scale.astype(np.float32),
                         bias=b.astype(np.float32), temperature=np.float32(best_t))
     print(f"saved {args.out} ({Path(args.out).stat().st_size / 1e6:.1f} MB, {len(used):,} feature rows)")
+    new = scorecard(args.out)
+    old = scorecard(before) if before else {}
+    print("\nscorecard" + ("                                                      before    after" if old else ""))
+    for name, value in new.items():
+        print(f"  {name:<58} " + (f"{old[name]:6.1%}  " if name in old else "") + f"{value:6.1%}")
 
 
 if __name__ == "__main__":

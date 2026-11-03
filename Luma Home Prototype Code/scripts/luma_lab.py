@@ -2,6 +2,7 @@
 
     python scripts/luma_lab.py speed --model brain.gguf [--model other.gguf]   # first word and words per second, per brain
     python scripts/luma_lab.py honesty                                          # 50 conversations built to tempt it into making things up
+    python scripts/luma_lab.py voice                                            # talking back in 12 communities' registers, nothing borrowed
     python scripts/luma_lab.py jobs --repeats 10                                # the 10 everyday jobs, each run again and again
     python scripts/luma_lab.py all --save lab.json
 
@@ -279,6 +280,50 @@ def humor_check():
     return {"passed": passed, "total": len(rows), "conversations": rows}
 
 
+VOICE_CIRCLES = ["aave", "uk", "aus", "south", "jam", "mexican", "desi", "filipino", "safrica", "singlish", "kitchen", "nurse"]
+
+
+def voice_check(per_circle=4):
+    """Does Luma talk back in their register without borrowing slang from somewhere else? A few messages from each
+    community (sentence patterns the understanding model never trained on), one conversation per community, so Luma
+    has a chance to pick up how they talk. Each reply must be short and natural, and any slang in it must be from
+    their own circle, everyday slang anyone uses, or words they used themselves."""
+    import zlib
+    from luma.agent import phrasebank, slang
+    rows = []
+    for circle in VOICE_CIRCLES:
+        lab = Profile()
+        said = ""
+        try:
+            for ph in phrasebank.sample(per_circle, seed=91, community=circle, keep=lambda f: zlib.crc32(f.encode()) % 5 == 0):
+                said += " " + ph["text"]
+                result = lab.say(ph["text"])
+                reply = words_of(result)
+                theirs = {e.term for _, e in slang.find(said)}
+                borrowed = sorted({e.term for _, e in slang.find(reply) if e.register == "c" and e.term not in theirs
+                                   and slang._key(e.term) not in slang.AMBIGUOUS
+                                   and not set(e.origins) & {circle, "general", "internet", "subculture"}})
+                if reply.startswith("ERROR") or reply.startswith("Sorry, my brain glitched"):
+                    ok, why = False, "crashed or garbled"
+                elif re.search(r"\bdid you mean\b", reply, re.I):
+                    ok, why = False, "treated their talk as a request"
+                elif borrowed:
+                    ok, why = False, "slang from somewhere else: " + ", ".join(borrowed[:4])
+                elif STIFF.search(reply):
+                    ok, why = False, "sounded like a robot"
+                elif len(reply.split()) > 60:
+                    ok, why = False, "too long for a text back"
+                else:
+                    ok, why = True, ""
+                rows.append({"circle": circle, "message": ph["text"], "ok": ok, "why": why, "reply": reply[:300], "seconds": result["_seconds"]})
+                print(f"{'ok ' if ok else 'XX '} {circle:8} {ph['text'][:44]:44} {result['_seconds']:6.1f}s  {why}  {reply[:70]!r}", flush=True)
+        finally:
+            lab.close()
+    passed = sum(r["ok"] for r in rows)
+    print(f"voice: {passed}/{len(rows)} talked back in their register, with nothing borrowed", flush=True)
+    return {"passed": passed, "total": len(rows), "conversations": rows}
+
+
 class SlipCounter:
     """Counts the small language slips the brain made before Luma fixed them, across every reply in a lab run."""
     def __init__(self):
@@ -539,6 +584,12 @@ def summary(paths):
             lines += ["", f"## Humor and tone: {hu['passed']}/{hu['total']} read the room right", ""]
             for c in hu["conversations"]:
                 lines.append(f"- {'✅' if c['ok'] else '❌'} ({c['room']}) **{c['message']}**: {c['reply'][:200]}" + (f" _({c['why']})_" if c["why"] else ""))
+        if "voice" in report:
+            vo = report["voice"]
+            lines += ["", f"## Voice: {vo['passed']}/{vo['total']} talked back in their register, nothing borrowed", ""]
+            for c in vo["conversations"]:
+                if not c["ok"]:
+                    lines.append(f"- ({c['circle']}) **{c['message']}** ({c['why']}): {c['reply'][:200]}")
         if "language" in report:
             la = report["language"]
             lines += ["", f"## Language: {la['slips']} small slips caught and fixed in {la['replies']} replies"] + [f"- {e}" for e in la["examples"]]
@@ -578,7 +629,7 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "humor", "jobs", "pulse", "all", "summary"])
+    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary"])
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -597,13 +648,16 @@ def main():
         if args.save:
             Path(args.save).parent.mkdir(parents=True, exist_ok=True)
             Path(args.save).write_text(json.dumps(report, indent=2, ensure_ascii=False))
-    slips = SlipCounter() if args.what in ("honesty", "humor", "jobs", "all") else None
+    slips = SlipCounter() if args.what in ("honesty", "humor", "voice", "jobs", "all") else None
     if args.what in ("speed", "all"):
         report["speed"] = speed(args.model or [os.environ["LUMA_MODEL_PATH"]])
     if args.what in ("honesty", "all"):
         report["honesty"] = honesty(args.only, progress=lambda part: save("honesty", part))
     if args.what in ("humor", "all"):
         report["humor"] = humor_check()
+        save()
+    if args.what in ("voice", "all"):
+        report["voice"] = voice_check()
         save()
     if args.what in ("jobs", "all"):
         report["jobs"] = jobs(args.repeats, args.slow_repeats, args.only, progress=lambda part: save("jobs", part))

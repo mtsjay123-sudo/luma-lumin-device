@@ -3966,7 +3966,11 @@ class Agent:
             if not answer: break
             if answer.get("type") != "tool":
                 text = answer.get("text")
-                return {**result, "text": text.strip()[:1200]} if isinstance(text, str) and text.strip() else result
+                if not (isinstance(text, str) and text.strip()):
+                    return result
+                again = lambda note: self._plain_answer(self._observation_prompt(question, tool, result)  # noqa: E731
+                                                        + "Answer me naturally in a sentence or two using only that." + note, cancel_event)
+                return {**result, "text": self._grounded(question, result, text.strip()[:1200], again)}
             name, arguments = answer.get("name"), answer.get("arguments")
             if name not in remaining: break
             try:
@@ -3996,14 +4000,40 @@ class Agent:
             return None
 
     def _answer_from(self, question, tool, result, cancel_event):
-        """Turn what a look-up found into a normal answer. Data only, no tools."""
+        """Turn what a look-up found into a normal answer. Data only, no tools. Every number in it has to be in what was found."""
         prompt = self._observation_prompt(question, tool, result) + "Answer me naturally in a sentence or two using only that. If it didn't find anything useful, just say so."
+        text = self._plain_answer(prompt, cancel_event)
+        return self._grounded(question, result, text, lambda note: self._plain_answer(prompt + note, cancel_event)) if text else None
+
+    def _plain_answer(self, prompt, cancel_event):
         try:
             answer = self.call_planner(self.history[-5:-1] + [{"role": "user", "content": prompt}], [], {}, cancel_event)
         except Exception:
             return None
         text = answer.get("text") if isinstance(answer, dict) and answer.get("type", "reply") == "reply" else None
         return text.strip()[:1200] if isinstance(text, str) and text.strip() else None
+
+    def _grounded(self, question, result, text, ask_again=None):
+        """Numbers come from what Luma read. A price, score, temperature or date in the answer that isn't in what was found
+        (or in what the owner said, or simple math on those) gets one more try, told which number wasn't there; if it's still
+        not backed up, that sentence comes out. Nothing left means saying so, not guessing."""
+        from datetime import datetime
+        from luma.agent import grounding
+        said = " ".join([question] + [m["content"] for m in self.history[-6:] if m.get("role") == "user" and isinstance(m.get("content"), str)])
+        year = datetime.fromtimestamp(self.clock()).year
+        check = lambda reply: grounding.unbacked(reply, result, said, result, extra=(year - 1, year, year + 1))  # noqa: E731
+        figs = check(text)
+        if not figs:
+            return text
+        self.grounding_log = (getattr(self, "grounding_log", []) + [{"question": question[:200], "unbacked": figs[:5], "at": self.clock()}])[-50:]
+        again = ask_again(grounding.retry_note(figs)) if ask_again else None
+        if again:
+            figs_again = check(again)
+            if not figs_again:
+                return again
+            text, figs = again, figs_again
+        kept = grounding.without(text, figs)
+        return kept or "I found it, but I couldn't pin down that exact number from what came up. Want me to dig a little more?"
 
     @property
     def presence_settings(self):
