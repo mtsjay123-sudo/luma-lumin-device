@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 
-SOUNDS = ["Mm-hm.", "Mhm.", "Uh-huh.", "Mm-hm."]
+SOUNDS = ["Mm-hm.", "Mhm.", "Uh-huh.", "Mm-hm.", "Mm.", "Mhm."]
 # The listening sounds, wherever they ended up in the transcript (the mic hears Luma's own "mm-hm" on speakers).
 CLEAN = re.compile(r"(?<![\w'-])(?:m+-?h+m+|m+h+m+|uh-? ?huh|mm+)(?![\w'-])[,.!?]*", re.I)
 HEADPHONES = re.compile(r"airpods|headphone|headset|earbud|earphone|\bbuds\b|beats|bose qc|qc ?(?:35|45|ultra)|wh-1000|wf-1000|jabra elite|"
@@ -95,14 +95,14 @@ def say_softly(voice="luma", volume=0.45):
         if not _lock.acquire(blocking=False):
             return  # one at a time
         try:
-            import sounddevice as sd
             from luma.audio import tts
+            from luma.audio.io import play_chunks
             word = random.choice(SOUNDS)
             if word not in _cache:
                 pcm, rate = tts._samples(word, voice, None)
-                _cache[word] = (np.asarray(pcm, dtype=np.float32) / 32767.0 * volume, rate)
+                _cache[word] = ((np.asarray(pcm, dtype=np.float32) * volume).astype(np.int16), rate)
             audio, rate = _cache[word]
-            sd.play(audio, rate, blocking=True)
+            play_chunks([(audio, rate)])  # through the same path as Luma's voice, so the echo canceller takes it back out
         except Exception:
             pass  # a missed "mm-hm" is fine
         finally:

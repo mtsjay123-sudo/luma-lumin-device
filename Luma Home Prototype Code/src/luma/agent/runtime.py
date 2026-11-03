@@ -2623,8 +2623,8 @@ class Agent:
         style = self.store.setting("their_style")
         if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:1600]})
         if self.mode != "kids":
-            from luma.agent import banter, slang as lexicon
-            for note in (banter.character_note(self.store.setting("character")), lexicon.turn_note(text),
+            from luma.agent import banter, slang as lexicon, turntaking
+            for note in (banter.character_note(self.store.setting("character")), lexicon.turn_note(text), turntaking.turn_note(text),
                          banter.bits_note(self.store.setting("bits"), self.clock())):
                 if note: out.append({"mind": True, "text": note})
             from luma.agent import humor

@@ -26,6 +26,15 @@ SAME = [(r"\bok\b", "okay"), (r"\bgotcha\b|\bgot ya\b|\bgot you\b|\bgotchya\b", 
         (r"\bnah+\b", "nah"), (r"\byeah\b", "yeah")]
 
 
+def voice_of(name):
+    """"classic-news.wav" -> "classic", "classic-breath-news.wav" -> "classic-breath", "reference.wav" -> "reference"."""
+    stem = name[:-4] if name.endswith(".wav") else name
+    for variant in ("classic-breath",):  # a voice whose own name has a dash
+        if stem.startswith(variant + "-"):
+            return variant
+    return stem.split("-")[0]
+
+
 def number_words(n):
     if n < 20:
         return ONES[n]
@@ -105,7 +114,7 @@ def naturalness(out, results):
             r["mos_error"] = f"{type(error).__name__}: {error}"[:300]
             continue
         r["mos"] = round(mos, 3)
-        voices.setdefault(name.split("-")[0].replace(".wav", ""), []).append((mos, r["wer"]))
+        voices.setdefault(voice_of(name), []).append((mos, r["wer"]))
     ranking = []
     for voice, rows in voices.items():
         mos = sum(m for m, _ in rows) / len(rows)
@@ -131,7 +140,7 @@ def main(out, size="small.en"):
         results[name] = {"wer": wer, "ok": wer <= GOOD, "seconds": round(seconds(path), 2), "expected": expected, "heard": heard}
     voices = {}
     for name, r in results.items():
-        voices.setdefault(name.split("-")[0].replace(".wav", ""), []).append(r["wer"])
+        voices.setdefault(voice_of(name), []).append(r["wer"])
     report = {"model": f"faster-whisper {size}", "by_voice": {v: round(sum(w) / len(w), 3) for v, w in voices.items()}, "files": results}
     report.update(naturalness(out, results))
     (out / "check.json").write_text(json.dumps(report, indent=2))

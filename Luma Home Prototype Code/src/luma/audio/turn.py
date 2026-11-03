@@ -150,6 +150,7 @@ def finished(audio):
 PAUSE_MS = 300     # with the model, a pause this long gets the question "is that the end?"
 PLAIN_MS = 900     # without it, the plain silence timer
 HOLD_S = 1.6       # "not done yet" waits this much longer for the rest before giving up
+MMHM_AFTER_S = 3.0 # a "mm-hm" at a mid-thought pause, once they've been talking this long
 
 
 class Ending:

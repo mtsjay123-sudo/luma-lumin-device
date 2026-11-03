@@ -60,11 +60,18 @@ def words(plan):
     return " ".join(chunk for chunk, _ in plan if not chunk.startswith("["))
 
 
-def render(text, expressive):
+def render(text, expressive, breaths=False):
+    """A line the way Luma says it out loud. breaths=True adds the soft inhales live speech has before long sentences,
+    so the contest can hear whether they make Luma sound more human (classic-breath-*.wav)."""
     plan = tts.speech_plan(text, expressive=expressive)
     pieces, rate = [], None
-    for chunk, pause in plan:
-        pcm, r = tts._with_pause(tts._samples(chunk, "luma", None), pause)
+    last_pause, since = 0, 99
+    for index, (chunk, pause) in enumerate(plan):
+        pcm, r = tts._samples(chunk, "luma", None)
+        if breaths:
+            pcm, since = tts._breathe(chunk, pcm, r, last_pause, since, first=index == 0)
+        pcm, r = tts._with_pause((pcm, r), pause)
+        last_pause = pause
         rate = rate or r
         pieces.append(tts._resample(pcm, r, rate))
     return np.concatenate(pieces), rate, plan
@@ -112,6 +119,12 @@ def main(out):
         write(out / f"classic-{name}.wav", pcm, rate)
         summary["files"][f"classic-{name}.wav"] = words(plan)
     summary["voices"]["classic"] = {"model": "Kokoro-82M", "seconds": round(time.time() - started, 1)}
+    # The same voice, breathing the way people do before a long sentence: does it sound more human or less?
+    for name, text in LINES:
+        pcm, rate, plan = render(text, expressive=False, breaths=True)
+        write(out / f"classic-breath-{name}.wav", pcm, rate)
+        summary["files"][f"classic-breath-{name}.wav"] = words(plan)
+    summary["voices"]["classic-breath"] = {"model": "Kokoro-82M with breaths"}
 
     # 2 and 3. The new open voices, each learning Luma's classic voice from one paragraph. Each one on its own, and
     # rendered even when this runner is too slow for a live conversation, so they can be heard (the speed is reported).

@@ -36,6 +36,7 @@ def speak(text, agent, cancel_event=None, allow_muted=False):
     try:
         if should_stop(): return False
         agent.speaking = True
+        agent.speaking_since = time.monotonic()  # when Luma started talking: talking over it this early means it jumped in too soon
         vad.set_speaking(True)
         preferences = agent.voice_preferences
         if isinstance(text, str):
@@ -144,8 +145,17 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
     from luma.audio import backchannel, echo, vad
     from luma.audio.stt import transcribe
     from luma.agent.conversation import interruption_intent
+    from luma.agent import turntaking
     followup_until = 0.0
     transcribing = threading.Lock()
+    heard = {"text": None}           # what they said that Luma's answering now
+    barge = {"spoke_for": None}      # how long Luma had been talking when they started talking over it
+
+    def talked_over():
+        # They started talking while Luma talks: go quiet now, like a friend, and remember how early it was.
+        if agent.speaking:
+            barge["spoke_for"] = time.monotonic() - (getattr(agent, "speaking_since", None) or time.monotonic())
+            agent.interrupt()
 
     def received(path):
         def process():
@@ -171,6 +181,12 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                     return
                 event = agent.new_turn()
                 followup_until = time.monotonic() + 45
+                spoke_for, barge["spoke_for"] = barge["spoke_for"], None
+                if turntaking.cut_them_off(spoke_for, heard["text"], text):
+                    # Luma jumped in before they were done: say sorry while it thinks, then answer the whole thought.
+                    text = turntaking.together(heard["text"], text)
+                    threading.Thread(target=speak, args=(turntaking.sorry(text), agent), kwargs={"cancel_event": event}, daemon=True).start()
+                heard["text"] = text
                 ask_typed(text, agent, voice=True, cancel_event=event)
                 followup_until = time.monotonic() + 45
             except Exception as error:
@@ -198,7 +214,7 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
             barge_in = chosen if isinstance(chosen, bool) else (backchannel.safe_to_talk_over(*backchannel.device_names()) or echo.ready())
             vad.start_listening(received, stop_event,
                                 should_stop=lambda: capture_blocked(agent) or agent.store.setting('barge_in', None) != chosen,
-                                allow_barge_in=barge_in, on_pause=listening)
+                                allow_barge_in=barge_in, on_pause=listening, on_barge_in=talked_over if barge_in else None)
         except Exception as error:
             agent.set_muted(True)
             if getattr(agent, 'on_result', None): agent.on_result({'text':'Microphone stopped: ' + str(error)[:250]})

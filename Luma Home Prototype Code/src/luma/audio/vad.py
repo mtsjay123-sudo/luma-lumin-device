@@ -37,7 +37,7 @@ def _save_wav(audio, path):
         wf.writeframes(audio.astype(np.int16).tobytes())
 
 
-def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None):
+def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None, on_barge_in=None):
     """Capture local utterances; barge-in requires playback the mic can't hear, or echo cancellation.
 
     With the echo canceller (luma.audio.echo, WebRTC AEC3), every chunk of mic audio has Luma's own voice taken out
@@ -45,6 +45,7 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
     left of its echo can start a turn. Without it, keep allow_barge_in False unless there are headphones. A caller
     that opts in should dispatch callback work to a worker so this loop can capture an interruption during speech.
     on_pause, if given, is called at a short pause inside a long turn (where a listener says "mm-hm"); it must return quickly.
+    on_barge_in, if given, is called the moment someone starts talking while Luma is talking (a friend goes quiet then).
     """
     if not isinstance(allow_barge_in, bool):
         raise ValueError("Barge-in must be an explicit true or false value.")
@@ -88,6 +89,9 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
                     continue
             result = vad(torch.from_numpy(chunk.astype(np.float32) / 32768.0))
             if result and "start" in result:
+                if _speaking.is_set() and on_barge_in is not None:
+                    try: on_barge_in()
+                    except Exception: pass
                 if ending.holding is not None:
                     ending.resumed()  # they kept going after the pause: the same turn
                 else:
@@ -103,6 +107,12 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
             too_long = len(utterance) >= int(30*SAMPLE_RATE/_CHUNK)
             if in_speech and ended and smart and not too_long:
                 ended = ending.paused(np.concatenate(utterance))  # mid-thought ("call... um... my sister"): hold on for the rest
+                # That's exactly when a friend says "mm-hm": they paused, they're not done, and they've been talking a while.
+                if (not ended and watch is not None and on_pause is not None and not _speaking.is_set()
+                        and len(utterance) * _CHUNK / SAMPLE_RATE >= turn.MMHM_AFTER_S and watch.clock() - watch.last >= watch.gap):
+                    watch.last = watch.clock()
+                    try: on_pause()
+                    except Exception: pass
             if in_speech and ending.timed_out():
                 ended = True
             if in_speech and (ended or too_long):

@@ -147,6 +147,15 @@ def speech_plan(text, expressive=False, natural=True):
     return plan
 
 
+def _breathe(words, pcm, rate, pause_before, since_breath, first=False):
+    """A soft inhale before a long sentence after a real pause (never the very first words, so nothing waits for it).
+    The expressive voices breathe on their own, so only the classic voice gets one. Returns (pcm, phrases since a breath)."""
+    from luma.audio import breath
+    if not first and not expressive_now() and breath.wanted(words, pause_before, since_breath):
+        return breath.before(pcm, rate, words), 0
+    return pcm, since_breath + 1
+
+
 def _with_pause(pcm_rate, ms):
     """Append a pause (silence) to a phrase, so the next one starts when a person would."""
     pcm, rate = pcm_rate
@@ -320,10 +329,14 @@ def _play_phrases(chunks, should_stop, voice, speed):
 
     def produce():
         try:
+            last_pause, since_breath, first = 0, 99, True
             for item in chunks:
                 _check_stop(should_cancel)
                 chunk, pause = item if isinstance(item, tuple) else (item, 0)
-                publish(_with_pause(_samples(chunk, voice, should_cancel, speed), pause))
+                pcm, rate = _samples(chunk, voice, should_cancel, speed)
+                pcm, since_breath = _breathe(chunk, pcm, rate, last_pause, since_breath, first)
+                publish(_with_pause((pcm, rate), pause))
+                last_pause, first = pause, False
             publish(None)
         except Exception as error:
             publish(error)
