@@ -253,7 +253,7 @@ class PhoneApp:
         if kind == "hello":
             me = self.agent.store.setting("assistant_name") or "Luma"  # the owner's name is theirs, not Luma's
             owner = str(self.agent.profile.get("name") or "").strip()
-            text = f"Hey{', ' + owner if owner else ''}, it's {me}. I'm on your phone now too, so you can reach me from anywhere. Ask me anything, or tell me who to text."
+            text = f"Hey{' ' + owner if owner else ''}, it's {me}. I'm on your phone now too, so you can reach me from anywhere. Ask me anything, or tell me who to text."
             return self.send(link_id, {"t": "reply", "re": n, "text": text})
         if kind == "text":
             text = " ".join(str(message.get("text", "")).split())[:4000]
