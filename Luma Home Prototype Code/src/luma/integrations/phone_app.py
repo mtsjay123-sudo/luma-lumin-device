@@ -6,7 +6,8 @@ credential; the 32-byte key never leaves the link's #fragment, so Luma Cloud onl
 ever relays AES-GCM ciphertext it can't read.
 
 Messages (JSON, version 1), sealed with additional data "luma1|<pair id>|<up|down>":
-  phone → Luma: hello, text, confirm (action + the one-time token Luma sent), cancel
+  phone → Luma: hello, text, confirm (action + the one-time token Luma sent), cancel,
+                see (a small camera picture of right now, and maybe a question), see_stop
   Luma → phone: reply (text, optional card), notice, done (an approval's outcome)
 
 Approvals stay plain rules: "Send it" on the phone carries the action's one-time
@@ -273,6 +274,28 @@ class PhoneApp:
             if getattr(self.agent, "on_result", None):
                 self.agent.on_result({**result, "you": text, "channel": "app"})
             return self.send(link_id, reply)
+        if kind in {"see", "see_stop"}:
+            # Live view from the phone: the camera picture is sealed like every message, kept in memory for a moment.
+            if kind == "see_stop":
+                return self.send(link_id, {"t": "see", "re": n, **self.agent.live_stop()})
+            try:
+                frame = base64.b64decode(str(message.get("img", "")), validate=True)
+            except (ValueError, TypeError):
+                return self.send(link_id, {"t": "see", "re": n, "error": "Send the camera picture again."})
+            question = " ".join(str(message.get("q", "")).split())[:500]
+            try:
+                result = self.agent.live_frame(frame, question, thread="main")
+            except ValueError as error:
+                return self.send(link_id, {"t": "see", "re": n, "error": str(error)})
+            out = {"t": "see", "re": n, "live": bool(result.get("live")), "watching": result.get("watching")}
+            if result.get("text"):
+                out["text"] = result["text"]
+            if result.get("alert"):
+                out["alert"] = result["alert"]
+            card = card_for(result)
+            if card:
+                out["card"] = card
+            return self.send(link_id, out, notify=bool(result.get("alert")))
         if kind in {"today", "mute"}:
             # The phone's Today panels (chats, memory, storage left), sealed for this phone like everything else.
             from luma.control import today

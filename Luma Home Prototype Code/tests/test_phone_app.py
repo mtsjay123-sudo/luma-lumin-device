@@ -132,6 +132,29 @@ class PhoneAppTests(unittest.TestCase):
         self.assertIn("remind you", replies[1]["text"])
         self.assertTrue(any("check the oven" in t["title"] for t in self.agent._run("tasks.list", {})["tasks"]))
 
+    def test_the_phone_shows_luma_its_camera_live(self):
+        import base64
+        from unittest import mock
+        link = self.pair()
+        frame = base64.b64encode(b"\xff\xd8\xff\xe0" + b"\x00" * 3000).decode()
+        with mock.patch.object(self.agent, "_look", return_value="A bike chain that's slipped off the back gear."):
+            n = self.cloud.phone_says(link, {"t": "see", "img": frame, "q": "what's wrong with this?"})
+            self.app.poll_once()
+            self.run_jobs()
+        reply = self.cloud.phone_reads(link)[-1]
+        self.assertEqual((reply["t"], reply["re"], reply["text"]), ("see", n, "A bike chain that's slipped off the back gear."))
+        self.assertTrue(self.agent.live.frames, "kept in memory for the follow-up")
+        bad = self.cloud.phone_says(link, {"t": "see", "img": base64.b64encode(b"GIF89a").decode()})
+        self.cloud.phone_says(link, {"t": "see_stop"})
+        self.app.poll_once()
+        self.run_jobs()
+        replies = self.cloud.phone_reads(link)
+        self.assertIn("JPEG", next(r for r in replies if r.get("re") == bad)["error"])
+        self.assertEqual(replies[-1]["live"], False)
+        self.assertFalse(self.agent.live.frames, "the camera's off: forgotten")
+        self.assertNotIn("assistant_name", str(replies))
+        self.assertIn("Hey, it's Luma", self.app.agent.store.setting("assistant_name") or "Hey, it's Luma")
+
     def test_a_text_waits_for_send_it_on_the_phone_and_uses_the_one_time_token(self):
         self.agent.cloud.start_signup("Marvin", "+19195550100")
         link = self.pair()

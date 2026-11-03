@@ -27,6 +27,7 @@ LOOKING = re.compile(r"\b(?:what(?:'s| is| are)? (?:this|that|these|those|it|her
                      r"how (?:does|do) (?:this|that|these|it|i|my) look|which (?:one|of these)|is (?:this|that|it) (?:ok|okay|right|good|ripe|done|broken|safe)|"
                      r"read (?:this|that|it|the)|what does (?:this|that|it) say|identify|recogni[sz]e (?:this|that)|"
                      r"(?:this|that) (?:plant|thing|bug|mushroom|rash|stain|part|cable|plug|dish|bottle|label|sign|screen|error|outfit)|"
+                     r"(?:wrong|going on|up|the matter) with (?:this|that|it|these|those|my)\b|\b(?:this|that|these|those|here)\s*[?!.]*\s*$|"
                      r"(?:now|again)\?*$|what about now|what changed|anything (?:there|here|wrong))", re.I)
 # "tell me when the pasta boils over", "let me know if someone's at the door", "watch the oven", "keep an eye on the baby"
 WATCH = re.compile(r"^\s*(?:hey luma,?\s*)?(?:(?:can you |could you |please )?(?:tell|let) me (?:know )?(?:when|if|once|as soon as)\s+(?P<when>.+?)|"

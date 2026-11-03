@@ -46,6 +46,7 @@
     right: '<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/>',
     popout: '<rect x="3.5" y="5.5" width="13" height="13" rx="3"/><path d="M13 3.5h7.5V11M20.5 3.5 12 12"/>',
     image: '<rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/>',
+    live: '<rect x="3" y="6.5" width="12.5" height="11" rx="3"/><path d="m15.5 10.5 5-3v9l-5-3"/><circle cx="7" cy="10" r=".9"/>',
     wave: '<path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/>',
     trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
@@ -1733,6 +1734,97 @@
     }
   }
   $("photo-btn").addEventListener("click", () => $("photo-input").click());
+
+  // ---------------------------------------------------------- live view ---
+  // Show Luma what you see. While the camera is on, each thing you say goes with a small picture of right now, and when
+  // you ask Luma to watch for something ("tell me when the pasta boils over") a picture goes every couple of seconds,
+  // only when something changed. Luma keeps them in memory for a moment; turning the camera off forgets them.
+  const live = { on: false, stream: null, timer: 0, watching: null, sending: false, print: null, lastSent: 0 };
+  const liveCanvas = document.createElement("canvas");
+  async function liveStart() {
+    if (live.on) return;
+    try {
+      live.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (_) { toast("Luma couldn't use the camera. Check camera access in your computer's settings."); return; }
+    const video = $("live-video");
+    video.srcObject = live.stream;
+    await video.play().catch(() => {});
+    live.on = true;
+    $("live-pip").hidden = false;
+    $("live-btn").setAttribute("aria-pressed", "true");
+    document.body.classList.add("live-on");
+    toast("Luma can see your camera now. Ask what it sees, or say “tell me when…”.");
+  }
+  async function liveStop(quiet) {
+    clearInterval(live.timer); live.timer = 0;
+    live.stream?.getTracks().forEach((t) => t.stop());
+    live.stream = null; live.on = false; live.watching = null; live.print = null;
+    $("live-video").srcObject = null;
+    $("live-pip").hidden = true;
+    $("live-watch").hidden = true;
+    $("live-btn").setAttribute("aria-pressed", "false");
+    document.body.classList.remove("live-on");
+    try { await api("/api/live/stop", {}); } catch (_) { /* Luma forgets on its own after half a minute */ }
+    if (!quiet) toast("Camera off. Luma forgot what it saw.");
+  }
+  // A small JPEG of right now (longest side 768px), and a 16x16 grey fingerprint to tell whether anything changed.
+  async function liveGrab() {
+    const video = $("live-video");
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    const scale = Math.min(1, 768 / Math.max(w, h));
+    liveCanvas.width = Math.round(w * scale); liveCanvas.height = Math.round(h * scale);
+    const g = liveCanvas.getContext("2d", { willReadFrequently: true });
+    g.drawImage(video, 0, 0, liveCanvas.width, liveCanvas.height);
+    const tiny = document.createElement("canvas"); tiny.width = 16; tiny.height = 16;
+    const t = tiny.getContext("2d", { willReadFrequently: true });
+    t.drawImage(liveCanvas, 0, 0, 16, 16);
+    const px = t.getImageData(0, 0, 16, 16).data, print = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) print[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
+    const blob = await new Promise((ok) => liveCanvas.toBlob(ok, "image/jpeg", 0.72));
+    return blob ? { blob, print } : null;
+  }
+  const liveChanged = (a, b) => { if (!a || !b) return true; let d = 0; for (let i = 0; i < 256; i++) d += Math.abs(a[i] - b[i]); return d / 256 > 6; };
+  async function liveSend(question, thread) {
+    const shot = await liveGrab();
+    if (!shot) throw new Error("The camera isn't showing anything yet. Give it a second.");
+    live.print = shot.print; live.lastSent = Date.now();
+    const q = question ? "q=" + encodeURIComponent(question) + "&" : "";
+    const r = await fetch("/api/live/frame?" + q + "thread=" + encodeURIComponent(thread || state.thread), { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: shot.blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(d.error || "Luma couldn't look just now."); e.status = r.status; throw e; }
+    liveWatching(d.watching || null);
+    return d;
+  }
+  async function liveAsk(text, thread) { return liveSend(text, thread); }
+  function liveWatching(what) {
+    live.watching = what;
+    const tag = $("live-watch");
+    tag.hidden = !what;
+    if (what) tag.textContent = "Watching: " + String(what).replace(/ needs attention \(.*$/, "");
+    clearInterval(live.timer); live.timer = 0;
+    if (what) live.timer = setInterval(liveTick, 2000);
+  }
+  async function liveTick() {
+    if (!live.on || !live.watching || live.sending) return;
+    const shot = await liveGrab();
+    if (!shot) return;
+    if (!liveChanged(live.print, shot.print) && Date.now() - live.lastSent < 5000) return;  // nothing new: look less often
+    live.sending = true;
+    try {
+      const d = await liveSend("", state.thread);
+      if (d.alert) {
+        toast(d.alert);
+        mood("happy", "Heads up", 5000);
+        if (typeof speak === "function") speak(d.alert, voice.on ? listenNow : undefined);
+        await loadThread(state.thread); renderChat();
+      }
+    } catch (_) { /* one missed look is fine: the next one is two seconds away */ }
+    finally { live.sending = false; }
+  }
+  $("live-btn").addEventListener("click", () => (live.on ? liveStop() : liveStart()));
+  $("live-close").addEventListener("click", () => liveStop());
+  addEventListener("pagehide", () => { if (live.on) liveStop(true); });
   $("photo-input").addEventListener("change", () => { const f = $("photo-input").files?.[0]; if (f) see(f, $("input").value.trim()); $("input").value = ""; $("photo-input").value = ""; resize(); });
   // Paste a screenshot straight into the composer.
   $("input").addEventListener("paste", (e) => {
@@ -1760,7 +1852,7 @@
     paintDock();
     watchActivity(true);
     try {
-      const r = await api("/api/chat", { text, thread });
+      const r = live.on ? await liveAsk(text, thread) : await api("/api/chat", { text, thread });
       remember(r);
       settle(r);
       if (r.event_id) state.seen.add(r.event_id);

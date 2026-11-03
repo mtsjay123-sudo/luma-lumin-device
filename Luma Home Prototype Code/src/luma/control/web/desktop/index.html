@@ -74,6 +74,7 @@
         <form class="composer" id="composer" autocomplete="off">
           <button type="button" class="round-btn ghost" id="add" aria-label="Ideas" title="Ideas" data-icon="plus"></button>
           <button type="button" class="c-pill" id="photo-btn" aria-label="Show Luma a photo" title="Show Luma a photo" data-icon="image">Image</button>
+          <button type="button" class="c-pill" id="live-btn" aria-label="Show Luma your camera, live" aria-pressed="false" title="Show Luma what you see, live. Ask about it, or say “tell me when…”" data-icon="live">Live</button>
           <button type="button" class="c-pill" id="c-make" title="Make a deck, a doc, an app or a podcast" data-icon="spark">Make</button>
           <button type="button" class="c-pill" id="c-find" title="Find, compare, look it up" data-icon="search">Find</button>
           <input type="file" id="photo-input" accept="image/*,.heic,.heif" hidden />
@@ -343,6 +344,13 @@
       </div>
       <div class="rd-body" id="rd-body"></div>
     </article>
+  </div>
+  <!-- Live view: what Luma sees through the camera, right now. Only while this is showing. -->
+  <div class="live-pip" id="live-pip" hidden aria-live="polite">
+    <video id="live-video" playsinline muted aria-label="Your camera, live"></video>
+    <div class="live-tag"><i aria-hidden="true"></i>Luma can see</div>
+    <div class="live-watch" id="live-watch" hidden></div>
+    <button class="live-close" id="live-close" type="button" aria-label="Turn the camera off" title="Turn the camera off" data-icon="x"></button>
   </div>
   <script src="/desktop/desktop.js"></script>
 </body>

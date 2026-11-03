@@ -551,13 +551,31 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if not pairing and not self.authenticated(): return self.send({'error':'Unauthorized device request'},403)
             # Driving the browser by hand is many small requests, so it has its own, larger allowance.
             driving = path=='/api/browser/drive'
-            bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('request',90)
+            live = path in {'/api/live/frame','/api/live/stop'}  # the camera sends a picture every couple of seconds while Luma watches
+            bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('live',150) if live else ('request',90)
             if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
             if path.startswith('/api/work/'):
                 # Projects: the window and a paired phone. Uploads are bigger than other requests.
                 try: data = self.read_json(36_000_000)
                 except Exception: return self.send({'error':'Bad request'},400)
                 return work_api.post(agent, path, data, self.send, viewer='phone' if companion else 'owner')
+            if path=='/api/live/frame':
+                # Live view: one small picture from the camera, now. Kept in memory for a moment, never saved.
+                if companion: return self.send({'error':'Show Luma your camera in the Luma app.'},403)
+                if self.headers.get('Content-Type','').split(';')[0].strip()!='image/jpeg': return self.send({'error':'Send the camera picture as a JPEG.'},415)
+                try: size=int(self.headers.get('Content-Length','0') or 0)
+                except ValueError: return self.send({'error':'Send the picture again.'},411)
+                if not 0<size<=600_000: return self.send({'error':'That camera picture is too big.'},413)
+                frame=self.rfile.read(size)
+                query=parse_qs(urlsplit(self.path).query)
+                question=query.get('q',[''])[0][:500]
+                thread=query.get('thread',['main'])[0]
+                try: result=agent.live_frame(frame,question,thread=thread if thread in agent.threads else 'main')
+                except ValueError as error: return self.send({'error':str(error)[:200]},400)
+                if result.get('alert') or question: ctx.publish(dict(result))  # other windows (and the speaker) hear it too
+                return self.send(result)
+            if path=='/api/live/stop':
+                return self.send(agent.live_stop())
             if path=='/api/see':
                 # A photo the owner shared, looked at locally. Big, so raw bytes like a recording.
                 if companion: return self.send({'error':'Share photos with Luma on the Mac.'},403)

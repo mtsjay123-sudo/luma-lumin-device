@@ -142,6 +142,20 @@ class ControlTests(unittest.TestCase):
         bad=urllib.request.Request(self.base+'/api/see',data=b'hello',headers={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'text/plain'})
         with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(bad)
         self.assertEqual(e.exception.code,415)
+    def test_live_view_frames_go_to_the_agent_and_stop_forgets_them(self):
+        seen=[]
+        self.agent.live_frame=lambda frame,question='',thread='main': seen.append((len(frame),question,thread)) or {'live':True,'text':'A mug of tea.','section':'vision'}
+        h={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'image/jpeg'}
+        req=urllib.request.Request(self.base+'/api/live/frame?q=what%20am%20I%20holding&thread=main',data=b'\xff\xd8\xff'+b'0'*900,headers=h)
+        with urllib.request.urlopen(req) as r:self.assertEqual(json.load(r)['text'],'A mug of tea.')
+        self.assertEqual(seen,[(903,'what am I holding','main')])
+        big=urllib.request.Request(self.base+'/api/live/frame',data=b'\xff\xd8\xff'+b'0'*700_000,headers=h)
+        with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(big)
+        self.assertEqual(e.exception.code,413)
+        png=urllib.request.Request(self.base+'/api/live/frame',data=b'\x89PNG'+b'0'*10,headers={**h,'Content-Type':'image/png'})
+        with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(png)
+        self.assertEqual(e.exception.code,415)
+        with self.request('/api/live/stop',{}) as r:self.assertEqual(json.load(r),{'live':False})
     def test_control_persists_memory_and_blocks_cross_origin(self):
         with self.request('/api/chat',{'text':'remember I like tea'}) as r:self.assertEqual(r.status,200)
         with self.request('/api/state') as r:self.assertEqual(json.load(r)['memories'][0]['text'],'I like tea')
