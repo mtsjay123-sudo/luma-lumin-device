@@ -56,6 +56,13 @@ class LiveViewTests(unittest.TestCase):
         said = [m["text"] for m in self.agent.transcripts["main"]]
         self.assertEqual(said[-2:], ["what about now?", "Now it's boiling hard."], "it's all in the chat")
 
+    def test_with_the_camera_on_a_question_is_about_what_it_sees(self):
+        from luma.agent.live_view import about_the_view
+        for q in ("how much did I tip?", "what's this", "is it ripe", "who made this?", "how do I fix this", "what does the label say"):
+            self.assertTrue(about_the_view(q), q)
+        for q in ("what's the weather like tomorrow?", "set a timer for 10 minutes", "remind me to call mom", "text Sam I'm late", "what's on my calendar?"):
+            self.assertFalse(about_the_view(q), q)
+
     def test_other_requests_with_the_camera_on_are_ordinary_replies(self):
         with mock.patch.object(self.agent, "chat", return_value={"text": "Timer's set for 10 minutes."}) as chat:
             out = self.agent.live_frame(FRAME, "set a timer for 10 minutes")

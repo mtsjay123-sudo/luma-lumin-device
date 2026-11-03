@@ -2707,7 +2707,7 @@ class Agent:
         """A picture from the owner's camera, now. With a question: the answer, about what's in front of the camera (or an
         ordinary reply when the question isn't about it). Without one: if Luma is watching for something, a look for it.
         Returns {"live": True, ...} plus "text" when there's something to say and "alert" when what they asked about happened."""
-        from luma.agent.live_view import LOOKING, STOP_WATCH, heads_up
+        from luma.agent.live_view import STOP_WATCH, about_the_view, heads_up
         if self.mode == "kids":
             self.live.stop()
             return {"live": False, "text": "Ask a grown-up to turn on the camera with Luma."}
@@ -2724,7 +2724,7 @@ class Agent:
                 say = self._yours(wanted["say"])
                 text = f"Okay, I'm watching. I'll speak up the moment {say[:1].lower() + say[1:]}." + (f" Right now: {said}" if said else "")
                 return self._live_said(question, text, thread)
-            if not LOOKING.search(question):
+            if not about_the_view(question):
                 return {**self.chat(question, thread=thread), "live": True}  # "set a timer for 10 minutes" with the camera on
             said = self._live_look(question)
             if not said:

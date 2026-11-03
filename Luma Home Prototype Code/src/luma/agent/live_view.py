@@ -29,6 +29,18 @@ LOOKING = re.compile(r"\b(?:what(?:'s| is| are)? (?:this|that|these|those|it|her
                      r"(?:this|that) (?:plant|thing|bug|mushroom|rash|stain|part|cable|plug|dish|bottle|label|sign|screen|error|outfit)|"
                      r"(?:wrong|going on|up|the matter) with (?:this|that|it|these|those|my)\b|\b(?:this|that|these|those|here)\s*[?!.]*\s*$|"
                      r"(?:now|again)\?*$|what about now|what changed|anything (?:there|here|wrong))", re.I)
+# With the camera on, a question is about what it sees, unless it's plainly a job for Luma ("set a timer", "what's the weather").
+QUESTION = re.compile(r"\?\s*$|^\s*(?:what|what's|whats|how|how's|is|are|was|were|does|do|did|can|could|should|would|will|which|who|where|why|when|tell me (?:what|if|how))\b", re.I)
+TASK = re.compile(r"^\s*(?:hey luma,?\s*)?(?:set|start|remind|text|message|call|email|send|play|turn|open|book|buy|order|add|schedule|cancel|stop|pause|"
+                  r"translate|search|look up|find me|show me my)\b|\b(?:timers?|alarms?|reminders?|weather|forecast|news|calendar|schedule|meetings?|"
+                  r"traffic|score|stocks?|my (?:texts|emails|messages|day|week))\b", re.I)
+
+
+def about_the_view(question):
+    """Is this question about what the camera sees right now?"""
+    return bool(LOOKING.search(question) or (QUESTION.search(question) and not TASK.search(question)))
+
+
 # "tell me when the pasta boils over", "let me know if someone's at the door", "watch the oven", "keep an eye on the baby"
 WATCH = re.compile(r"^\s*(?:hey luma,?\s*)?(?:(?:can you |could you |please )?(?:tell|let) me (?:know )?(?:when|if|once|as soon as)\s+(?P<when>.+?)|"
                    r"(?:can you |could you |please )?(?:watch|keep an eye on|keep watching|monitor)\s+(?P<what>.+?))\s*[.!?]*\s*$", re.I)
