@@ -3399,6 +3399,7 @@
   // It's set on this computer only, never from the phone, and Pause stops all of it at once.
   const DID = { "files.find": "Looked for files", "files.read": "Read a file", "app.open": "Opened an app", "screen.look": "Looked at the screen",
     "ui.read": "Looked at an app", "ui.press": "Pressed", "ui.type": "Typed into", "shell.run": "Ran",
+    "shortcuts.list": "Listed your shortcuts", "shortcuts.run": "Ran a shortcut",
     open: "Opened a page", play: "Played music", read: "Read the page", tabs: "Checked your tabs", pause: "Paused", resume: "Resumed" };
   // The Luma device's Wi-Fi: which network, and switching networks. Only shows where Luma can manage Wi-Fi (on the device).
   function wifiItem() {
@@ -3491,6 +3492,7 @@
         toggleRow("Open apps", "Like \u201copen Spotify\u201d or \u201copen Notes\u201d.", st.apps, (on) => change({ action: "allow", what: "apps", on })),
         toggleRow("Look at my screen", "Only when you ask, like \u201cwhat's on my screen?\u201d", st.screen, (on) => change({ action: "allow", what: "screen", on })),
         toggleRow("Run commands in Terminal", "Like \u201ccheck my git status\u201d or \u201chow much disk space is left?\u201d Luma shows you the exact command and waits for your yes every time. It never runs anything that needs your admin password.", st.terminal, (on) => change({ action: "allow", what: "terminal", on })),
+        toggleRow("Run my Shortcuts", "Like \u201cadd milk to my Groceries shortcut.\u201d Your Shortcuts reach almost any app: Reminders, Notes, Home, Things and more. Luma shows you which shortcut and what it will send, and waits for your yes every time. Mac only.", st.shortcuts, (on) => change({ action: "allow", what: "shortcuts", on })),
         toggleRow("Keep this computer awake for my Luma", "While it's paired with your Luma device, this computer won't go to sleep, so Luma can always reach it. The screen can still turn off.", st.awake, (on) => change({ action: "allow", what: "awake", on })),
         toggleRow("Click and type in apps", "Like \u201cin Notes, make a new note.\u201d Luma asks you before every click and every bit of typing, never types passwords, and stays out of Terminal, password managers and System Settings. Works on a Mac; macOS will ask you to allow Luma under Accessibility.", st.control, (on) => change({ action: "allow", what: "control", on })));
       const log = (st.log || []).slice(-5).reverse();

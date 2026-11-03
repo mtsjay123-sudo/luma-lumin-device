@@ -23,7 +23,7 @@ CATEGORIES = {
     "apps_read": {"label": "Look things up in your connected apps", "default": "allow", "choices": ("allow", "block")},
     "apps_act": {"label": "Make changes in your connected apps", "default": "ask", "choices": ("ask", "block")},
     "computer": {"label": "Use your paired computer: shared folders, apps, the screen if you allow it", "default": "allow", "choices": ("allow", "block")},
-    "computer_act": {"label": "Click, type and run commands on your computer", "default": "ask", "choices": ("ask", "block")},
+    "computer_act": {"label": "Click, type, run commands and run Shortcuts on your computer", "default": "ask", "choices": ("ask", "block")},
     "spend": {"label": "Place orders after your yes (you see the exact total, card and address first)", "default": "block", "choices": ("block", "ask")},
 }
 
@@ -44,6 +44,7 @@ TOOL_CATEGORY = {
     "computer.find": "computer", "computer.read": "computer", "computer.open_app": "computer", "computer.look": "computer",
     "shop.checkout": "spend",
     "computer.ui_read": "computer", "computer.ui_press": "computer_act", "computer.ui_type": "computer_act", "computer.run": "computer_act",
+    "computer.shortcuts": "computer", "computer.shortcut": "computer_act",
 }
 
 VERBS = {
@@ -52,7 +53,7 @@ VERBS = {
     "bookings": "book appointments", "home": "control devices", "spend": "check out or pay",
     "apps_read": "look things up in your connected apps", "apps_act": "make changes in your connected apps",
     "computer": "use your computer",
-    "computer_act": "click, type or run commands on your computer",
+    "computer_act": "click, type, run commands or run Shortcuts on your computer",
 }
 
 

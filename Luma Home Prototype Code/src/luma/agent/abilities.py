@@ -91,6 +91,8 @@ def overview(state):
         f"• Photos: drop one in and ask me about it{eyes}.",
         "• Voice: tap the mic and just talk. I answer out loud and keep listening.",
         "• Your Chrome: add Luma for Chrome (Connectors) and I open tabs, play music in a tab in the back, and read the page you're on.",
+        "• Your apps: sign in once under Connectors and I can work in Gmail, Calendar, Slack, Notion and 1,500+ more; on a Mac I can also run "
+        "your Shortcuts (Reminders, Notes, Home, Things...) and open, read and click in any app, each change after your OK.",
         "• Make things: slide decks, Word documents, PDFs, little apps (trackers, checklists, flashcards, countdowns) and podcast episodes in my own voice.",
         "• Get to know you: say “grill me” and I'll interview you, and you can see and edit everything I remember under Identity.",
         "• Thinking through big decisions with you.",

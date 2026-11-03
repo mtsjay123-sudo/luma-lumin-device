@@ -9,7 +9,9 @@ this computer turns it on, here, and only here:
   * look at the screen (off unless they switch it on),
   * click and type in apps (on a Mac, through its accessibility system; off unless they switch it on, and the device asks
     the owner before every click and every bit of typing),
-  * run commands in the Terminal (off unless they switch it on; the device shows the exact command and asks first, every time).
+  * run commands in the Terminal (off unless they switch it on; the device shows the exact command and asks first, every time),
+  * run their Apple Shortcuts on a Mac, which reach almost any app (Reminders, Notes, Home, Things, Todoist...); off unless
+    they switch it on, and the device shows which shortcut and what it will send, and asks first, every time.
 
 Some things are never done from here at all: anything under a folder that holds
 keys, passwords or wallets, any file outside the picked folders (symlinks
@@ -29,7 +31,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-KINDS = {"files.find", "files.read", "app.open", "screen.look", "ui.read", "ui.press", "ui.type", "shell.run"}
+KINDS = {"files.find", "files.read", "app.open", "screen.look", "ui.read", "ui.press", "ui.type", "shell.run", "shortcuts.list", "shortcuts.run"}
 # never read from, or even list, anything that looks like keys, passwords or wallets
 SECRET = re.compile(r"(?:^|[/\\])(?:\.ssh|\.gnupg|\.aws|\.azure|\.kube|\.docker|\.netrc|\.npmrc|\.pypirc|\.env(?:\.[\w-]+)?|keychains?|"
                     r"id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|[^/\\]*\.(?:pem|key|p12|pfx|kdbx|keychain-db)|[^/\\]*(?:password|passwd|secret|wallet|credential)[^/\\]*)(?:$|[/\\])", re.I)
@@ -51,6 +53,8 @@ NEVER_RUN = re.compile(r"(?:^|[;&|]\s*|\$\(\s*|`\s*)(?:sudo|su|doas|passwd|mkfs\
                        r"launchctl\s+(?:unload|bootout)|csrutil|nvram)\b|\brm\s+-[a-z]*r[a-z]*f?\s+(?:/|~|\$HOME)(?:\s|$|/\*)|:\(\)\s*\{|"
                        r"\bsecurity\s+(?:find|dump|export)|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:ba|z|fi)?sh\b|\bchmod\s+-R\s+777\s+/|>\s*/dev/(?:disk|sd)", re.I)
 RUN_TIMEOUT = 60
+SHORTCUT_TIMEOUT = 120
+SHORTCUT_INPUT = 4000
 OUTPUT_LIMIT = 8000
 # The accessibility tree of one window, read and acted on through System Events. The job comes in as JSON in argv; nothing
 # from it is ever spliced into the script. Password fields are never read or typed into. Refs are positions in the window's
@@ -126,6 +130,7 @@ class Computer:
         saved = self.store.setting("computer_mode") or {}
         return {"folders": [f for f in saved.get("folders", []) if isinstance(f, str)], "apps": bool(saved.get("apps", False)),
                 "screen": bool(saved.get("screen", False)), "control": bool(saved.get("control", False)), "terminal": bool(saved.get("terminal", False)),
+                "shortcuts": bool(saved.get("shortcuts", False)),
                 "awake": bool(saved.get("awake", True)), "paused": bool(saved.get("paused", False))}
 
     def _save(self, **changes):
@@ -153,8 +158,8 @@ class Computer:
         return self._save(folders=[f for f in self.settings()["folders"] if f != str(folder)])
 
     def allow(self, what, on):
-        if what not in {"apps", "screen", "control", "terminal", "awake"}:
-            raise ValueError("Choose apps, screen, control, terminal or awake.")
+        if what not in {"apps", "screen", "control", "terminal", "shortcuts", "awake"}:
+            raise ValueError("Choose apps, screen, control, terminal, shortcuts or awake.")
         return self._save(**{what: bool(on)})
 
     def pause(self, on=True):
@@ -180,7 +185,8 @@ class Computer:
         if self.settings()["paused"]:
             return {"error": "Luma is paused on this computer. Resume it there to keep going."}
         handler = {"files.find": self._find, "files.read": self._read, "app.open": self._open_app, "screen.look": self._look,
-                   "ui.read": self._ui, "ui.press": self._ui, "ui.type": self._ui, "shell.run": self._run}.get(kind)
+                   "ui.read": self._ui, "ui.press": self._ui, "ui.type": self._ui, "shell.run": self._run,
+                   "shortcuts.list": self._shortcuts, "shortcuts.run": self._shortcut}.get(kind)
         if not handler:
             return {"error": "This computer can't do that one."}
         try:
@@ -352,3 +358,55 @@ class Computer:
         out = ((done.stdout or "") + (("\n" + done.stderr) if done.stderr else "")).strip()
         cut = len(out) > OUTPUT_LIMIT
         return {"command": command, "exit": done.returncode, "output": out[-OUTPUT_LIMIT:], "cut": cut}
+
+    # Apple Shortcuts: the owner's own automations, each of which can reach an app (Reminders, Notes, Home, Things...)
+    def _shortcuts_on(self):
+        if sys.platform != "darwin":
+            raise ValueError("Shortcuts is a Mac app, and this computer isn't a Mac. I can still open apps here if that's on.")
+        if not self.settings()["shortcuts"]:
+            raise ValueError("Running Shortcuts is off on this computer. Turn it on in Luma Desktop: Settings, then What Luma can do on this computer.")
+
+    def _shortcuts(self, job, run=None):
+        """The names of their shortcuts, as the Shortcuts app lists them."""
+        self._shortcuts_on()
+        run = run or subprocess.run
+        try:
+            done = run(["shortcuts", "list"], capture_output=True, text=True, timeout=20, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            raise ValueError("I couldn't reach the Shortcuts app on this computer.")
+        names = [n.strip() for n in (done.stdout or "").splitlines() if n.strip()]
+        return {"shortcuts": names[:300], "count": len(names)}
+
+    def _shortcut(self, job, run=None):
+        """One shortcut the owner approved, by its exact name, with the text they saw as its input. What it hands back comes back."""
+        self._shortcuts_on()
+        run = run or subprocess.run
+        name = " ".join(str(job.get("name") or "").split())
+        text = str(job.get("input") or "")
+        if not name or len(name) > 120 or "\x00" in name + text:
+            raise ValueError("Tell me which shortcut to run, by its name.")
+        if len(text) > SHORTCUT_INPUT:
+            raise ValueError("That's too much to hand a shortcut at once. Try a shorter input.")
+        known = self._shortcuts({}, run=run)["shortcuts"]
+        match = next((n for n in known if n == name), None) or next((n for n in known if n.casefold() == name.casefold()), None)
+        if not match:
+            raise ValueError(f"There's no shortcut called “{name}” on this computer. Ask me to list them, or make it in the Shortcuts app.")
+        with tempfile.TemporaryDirectory(prefix="luma-shortcut-") as folder:
+            argv = ["shortcuts", "run", match, "--output-path", os.path.join(folder, "out.txt"), "--output-type", "public.plain-text"]
+            if text:
+                Path(folder, "in.txt").write_text(text, encoding="utf-8")
+                argv[3:3] = ["--input-path", os.path.join(folder, "in.txt")]
+            try:
+                done = run(argv, capture_output=True, text=True, timeout=SHORTCUT_TIMEOUT, stdin=subprocess.DEVNULL)
+            except subprocess.TimeoutExpired:
+                raise ValueError(f"“{match}” ran longer than {SHORTCUT_TIMEOUT // 60} minutes, so I stopped waiting for it.")
+            except OSError:
+                raise ValueError("I couldn't reach the Shortcuts app on this computer.")
+            if done.returncode != 0:
+                why = (done.stderr or "").strip().splitlines()
+                raise ValueError(f"“{match}” didn't finish" + (f": {why[-1][:160]}" if why else ".") + " It may need you to answer something on the Mac.")
+            out = Path(folder, "out.txt")
+            said = out.read_text(encoding="utf-8", errors="replace").strip() if out.is_file() else ""
+        cut = len(said) > OUTPUT_LIMIT
+        return {"shortcut": match, "output": said[:OUTPUT_LIMIT], "cut": cut}
+

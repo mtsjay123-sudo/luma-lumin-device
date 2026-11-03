@@ -89,6 +89,9 @@ PRESETS = [
     {"id": "atlassian", "name": "Jira & Confluence", "about": "Atlassian's Jira and Confluence. Press Connect and sign in.", "url": "https://mcp.atlassian.com/v1/sse", "needs": "signin"},
     {"id": "asana", "name": "Asana", "about": "Your tasks and projects. Press Connect and sign in to Asana.", "url": "https://mcp.asana.com/sse", "needs": "signin"},
     {"id": "stripe", "name": "Stripe", "about": "Payments, customers and invoices. Press Connect and sign in to Stripe.", "url": "https://mcp.stripe.com", "needs": "signin"},
+    {"id": "paypal", "name": "PayPal", "about": "Invoices, orders and transactions. Press Connect and sign in to PayPal. I always ask before anything that moves money.",
+     "url": "https://mcp.paypal.com/http", "needs": "signin"},
+    {"id": "sentry", "name": "Sentry", "about": "Errors and issues in your apps. Press Connect and sign in to Sentry.", "url": "https://mcp.sentry.dev/mcp", "needs": "signin"},
     # One sign-in, then Gmail, Calendar, Slack, Notion and 1,500+ more, each with one Allow on the app's own page.
     {"id": "apps", "name": "Gmail & 1,500+ apps", "about": "Gmail, Google Calendar, Drive, Slack, Notion, Outlook and 1,500+ more, through Composio. "
      "Press Connect and sign in once (it's free). Then say “connect my Gmail” and press Allow on Google's page. I read on my own and always ask before I send anything.",

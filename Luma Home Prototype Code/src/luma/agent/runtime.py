@@ -102,6 +102,8 @@ TOOLS = {
     "computer.ui_read": Tool("See the buttons, fields and text in an app's window on the owner's computer, each with a ref. app is the app's name, or empty for the one in front", {"app": "text"}),
     "computer.ui_press": Tool("Press a button, tab, link or menu item from computer.ui_read: its ref, role and label exactly as read", {"app": "string", "ref": "integer", "role": "string", "label": "string"}, confirm=True),
     "computer.run": Tool("Run one command in the Terminal on the owner's computer and read what it prints (git status, ls, df -h, npm test...). Only when they ask for something on their computer that needs it; why says what it's for in a few words", {"command": "string", "why": "text"}, confirm=True),
+    "computer.shortcuts": Tool("List the owner's Apple Shortcuts on their Mac. Each one can reach an app (Reminders, Notes, Home, Things, Todoist...). Use it to find the exact name before computer.shortcut", {}),
+    "computer.shortcut": Tool("Run one of the owner's Apple Shortcuts on their Mac by its exact name from computer.shortcuts. input is the text it gets (like the reminder to add), or empty; why says what it's for in a few words", {"name": "string", "input": "text", "why": "text"}, confirm=True),
     "computer.ui_type": Tool("Type text into a field from computer.ui_read: its ref, role and label exactly as read, and the text", {"app": "string", "ref": "integer", "role": "string", "label": "string", "text": "string"}, confirm=True),
     "skills.install": Tool("Add a SKILL.md skill the owner gave (written instructions Luma follows as guidance)", {"content": "skill"}, confirm=True),
     "helpers.create": Tool("Set up something Luma keeps doing on its own. kind: price_watch (detail is the product, target_price in dollars or 0), inbox_digest, feed_digest (detail is the site), agenda, or goal (detail is the goal). every: hourly, every_6h, daily or weekly", {"kind": "string", "detail": "text", "target_price": "integer", "every": "string"}),
@@ -533,6 +535,9 @@ class Agent:
             (r"\b(?:terminal|command line|shell|run (?:the |a |this )?(?:command|script|tests?|build)|git (?:status|pull|log|diff|push|branch)|npm|pip|brew|python3? |"
              r"disk space|how much (?:space|storage) (?:is left |do i have )?on my (?:computer|mac|laptop)|what'?s (?:running|using) (?:my )?(?:cpu|memory|ram))\b",
              {"computer.run", "computer.ui_read"}),
+            (r"\bshortcuts?\b|\b(?:add|put|save|log)\b.{0,60}\b(?:to|in|on|into) (?:my )?(?:reminders|things|todoist|omnifocus|notes app|bear|drafts|day one)\b"
+             r"|\b(?:in|with|using) (?:my )?(?:reminders|things|todoist|omnifocus|day one) app\b",
+             {"computer.shortcuts", "computer.shortcut"}),
         ]
         for pattern, names in groups:
             if re.search(pattern, lowered): relevant.update(names)
@@ -540,7 +545,7 @@ class Agent:
         # Conversational requests to 'talk to me' aren't preference changes.
         if not re.search(r"\b(?:more|less|style|tone|shorter|longer|slang|brief|detailed|playful|direct|classic|modern)\b",lowered): relevant.discard("personality.set_style")
         relevant.update(self._connector_tools_for(lowered))
-        if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type", "computer.run"}
+        if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type", "computer.run", "computer.shortcuts", "computer.shortcut"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
         if not wants_message(text): allowed.pop("messages.prepare", None)
         if "messages.prepare" in allowed:
@@ -704,6 +709,9 @@ class Agent:
             review = self.connectors.describe(name, args)
         elif name == "computer.run":
             review = {"app": "Terminal", "does": "run a command", "command": args["command"], **({"why": args["why"]} if args["why"] else {})}
+        elif name == "computer.shortcut":
+            review = {"app": "Shortcuts", "does": f"run your “{args['name']}” shortcut", **({"input": args["input"]} if args.get("input") else {}),
+                      **({"why": args["why"]} if args.get("why") else {})}
         elif name in {"computer.ui_press", "computer.ui_type"}:
             pressing = name == "computer.ui_press"
             review = {"app": args["app"], "does": f"press “{args['label']}”" if pressing else f"type into “{args['label']}”", **({} if pressing else {"text": args["text"]})}
@@ -719,6 +727,7 @@ class Agent:
             self.approval_tokens = {k: v for k, v in self.approval_tokens.items() if v[1] > self.clock()}
             self.approval_tokens[row["id"]] = (token, row["expires"])
             asked = (f"Want me to run `{args['command'][:300]}` in Terminal on your computer?" + (f" ({args['why'][:120]})" if args.get("why") else "") if name == "computer.run"
+                     else f"Want me to run your “{args['name'][:120]}” shortcut" + (f" with “{args['input'][:200]}”" if args.get("input") else "") + " on your Mac?" if name == "computer.shortcut"
                      else f"Want me to press “{args['label']}” in {args['app']}?" if name == "computer.ui_press"
                      else f"Want me to type “{args['text'][:200]}” into “{args['label']}” in {args['app']}?" if name == "computer.ui_type" else None)
             return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered.",
@@ -1200,7 +1209,8 @@ class Agent:
 
     # computer mode: the paired computer (or this one, when Luma runs right here) as Luma's hands
     COMPUTER_KINDS = {"computer.find": "files.find", "computer.read": "files.read", "computer.open_app": "app.open", "computer.look": "screen.look",
-                      "computer.ui_read": "ui.read", "computer.ui_press": "ui.press", "computer.ui_type": "ui.type", "computer.run": "shell.run"}
+                      "computer.ui_read": "ui.read", "computer.ui_press": "ui.press", "computer.ui_type": "ui.type", "computer.run": "shell.run",
+                      "computer.shortcuts": "shortcuts.list", "computer.shortcut": "shortcuts.run"}
 
     def computer_ready(self):
         """On the device: a paired computer is connected. On a computer running Luma itself: always, its own settings decide."""
@@ -1239,6 +1249,15 @@ class Agent:
             return {"pressed": got.get("pressed"), "summary": f"Pressed “{got.get('pressed')}” in {got.get('app')}."}
         if kind == "ui.type":
             return {"typed": got.get("typed"), "summary": f"Typed into “{got.get('typed')}” in {got.get('app')}."}
+        if kind == "shortcuts.list":
+            names = got.get("shortcuts") or []
+            if not names:
+                return {"shortcuts": [], "summary": "There are no shortcuts on your Mac yet. Make one in the Shortcuts app (like “Add to Groceries”) and I can run it."}
+            return {"shortcuts": names, "summary": f"Your shortcuts ({len(names)}): " + ", ".join(f"“{n}”" for n in names[:40]) + (" and more." if len(names) > 40 else ".")}
+        if kind == "shortcuts.run":
+            said = str(got.get("output") or "")
+            return {"shortcut": got.get("shortcut"), "output": said,
+                    "summary": f"Ran your “{got.get('shortcut')}” shortcut." + (f" It said: {said[:1500]}" if said else "")}
         if kind == "shell.run":
             output = str(got.get("output") or "")
             status = "it worked" if got.get("exit") == 0 else f"it exited with code {got.get('exit')}"
