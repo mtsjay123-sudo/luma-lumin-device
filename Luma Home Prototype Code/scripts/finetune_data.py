@@ -168,10 +168,11 @@ def mirror_examples(rng, n=360, with_community=False):
 
 
 # ---- what slang means, and slang that doesn't exist --------------------------------------------------------------
-MEANING_ASKS = ["what does {t} mean", "what's {t} mean?", "wait what does \"{t}\" mean", "what is {t}", "{t}? what's that mean lol"]
+MEANING_ASKS = ["what does {t} mean", "what's {t} mean?", "wait what does \"{t}\" mean", "what is {t}", "{t}? what's that mean lol",
+                "what's {t} slang for", "is {t} a slang word?", "my cousin keeps saying {t}, what does it mean"]
 
 
-def meaning_examples(rng, n=400):
+def meaning_examples(rng, n=280):
     by_term = {}  # the word, as the lexicon names it -> a real phrase that uses it
     for ph in phrasebank.sample(40_000, seed=5):
         for said, entry in slang.find(ph["text"]):
@@ -188,7 +189,8 @@ def meaning_examples(rng, n=400):
 
 
 def nonsense_words(rng, n):
-    start, mid, end = ["bl", "zr", "fl", "gr", "squ", "thr", "pl", "kr", "vr", "sn", "dw", "skr"], ["o", "i", "u", "a", "oo", "ee", "y"], ["mbix", "nty", "zzle", "rft", "xel", "mpt", "dge", "gz", "rnk", "ftl"]
+    start = ["bl", "zr", "fl", "gr", "squ", "thr", "pl", "kr", "vr", "sn", "dw", "skr", "gl", "tw", "shm"]
+    mid, end = ["o", "i", "u", "a", "oo", "ee", "y"], ["mbix", "nty", "zzle", "rft", "xel", "mpt", "dge", "gz", "rnk", "ftl", "bbo", "rv"]
     from luma.agent import understanding
     common = set(understanding.COMMON) | set(understanding._vocab())
     out = set()
@@ -199,9 +201,13 @@ def nonsense_words(rng, n):
     return sorted(out)
 
 
-def unknown_examples(rng, n=80):
+# As many honest "I don't know"s as real meanings, near enough: a brain trained mostly on "it means..." learns to always
+# have a meaning ready, and a made-up meaning is the one thing this data must never teach (the first 4B run did, twice).
+def unknown_examples(rng, n=320):
     replies = ["I don't know that one, and I'd rather not guess. Where'd you hear it?", "Never heard \"{t}\" before, so I won't make up a meaning. What's it mean where you heard it?",
-               "That one's new to me. Is it from a show, a game, or your group chat? Tell me and I'll remember it."]
+               "That one's new to me. Is it from a show, a game, or your group chat? Tell me and I'll remember it.",
+               "Honestly, no idea. I don't want to guess and get it wrong. What's the vibe when people say it?",
+               "I don't know \"{t}\". Could be brand new, or local to your circle. Fill me in?"]
     return [[{"role": "user", "content": rng.choice(MEANING_ASKS).format(t=w)}, {"role": "assistant", "content": rng.choice(replies).format(t=w)}]
             for w in nonsense_words(rng, n)]
 

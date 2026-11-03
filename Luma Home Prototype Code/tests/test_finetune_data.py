@@ -31,7 +31,10 @@ class FinetuneDataTests(unittest.TestCase):
         rows = finetune_data.meaning_examples(random.Random(1), n=150)
         self.assertGreater(len(rows), 100)
         for user, luma in rows:
-            term = re.sub(r"^(?:what does |what's |wait what does |what is )|(?: mean\??| mean lol|\? what's that mean lol)$", "", user["content"]).strip(' "?')
+            ask = user["content"]
+            term = (re.match(r"^my cousin keeps saying (.+), what does it mean$", ask) or re.match(r"^is (.+) a slang word\?$", ask)
+                    or re.match(r"^what's (.+) slang for$", ask))
+            term = term.group(1) if term else re.sub(r"^(?:what does |what's |wait what does |what is )|(?: mean\??| mean lol|\? what's that mean lol)$", "", ask).strip(' "?')
             entry = slang.lexicon()[0][slang._key(term)]
             self.assertTrue(luma["content"].startswith(f"It means {entry.meaning}"), (term, luma["content"]))
             example = luma["content"].split("Like: “")[1].rstrip("”")
@@ -41,7 +44,7 @@ class FinetuneDataTests(unittest.TestCase):
         for user, luma in finetune_data.unknown_examples(random.Random(2), n=40):
             word = re.findall(r"[a-z]+", user["content"])
             self.assertTrue(any(not slang.find(w) for w in word))
-            self.assertRegex(luma["content"], r"don't know|Never heard|new to me")
+            self.assertRegex(luma["content"], r"don't know|Never heard|new to me|no idea")
             self.assertNotIn("It means", luma["content"])
 
     def test_register_replies_borrow_no_slang_from_another_circle(self):
