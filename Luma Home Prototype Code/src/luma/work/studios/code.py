@@ -45,6 +45,11 @@ class Code(Studio):
                     compiled[rel] = ""
                 except SyntaxError as error:
                     compiled[rel] = f"line {error.lineno}: {error.msg}"
+        # A security review before anything runs: high findings go back to the coding agent like a failing test.
+        from luma.work import security_audit
+        findings = security_audit.audit_folder(ctx.path(folder))
+        ctx.write(f"{folder}/SECURITY.md", security_audit.report(findings, f"Security review: {folder.split('/', 1)[-1]}"))
+        files.append(f"{folder}/SECURITY.md")
         runs = {}
         commands = [("tests", text(args.get("test_command"), 300)), ("run", text(args.get("run_command"), 300))]
         js = [rel for rel in files if rel.endswith((".js", ".mjs"))]
@@ -62,8 +67,10 @@ class Code(Studio):
                 runs[label] = {"ok": False, "code": None, "stdout": "", "stderr": str(error), "timed_out": False, "contained": "refused"}
         tests = runs.get("tests")
         status = ("tests pass" if tests and tests["ok"] else "tests fail" if tests else "no tests")
-        return Result(files=files, summary=f"{folder}: {len(files)} files, {status}.",
-                      data={"folder": folder, "compiled": compiled, "runs": {k: {kk: v.get(kk) for kk in ("ok", "code", "stdout", "stderr", "timed_out", "contained")} for k, v in runs.items()}})
+        worry = security_audit.blocking(findings)
+        secure = f", {len(worry)} security problem{'s' if len(worry) != 1 else ''} to fix" if worry else ", security review clean" if not findings else f", {len(findings)} security note{'s' if len(findings) != 1 else ''}"
+        return Result(files=files, summary=f"{folder}: {len(files) - 1} files, {status}{secure}.",
+                      data={"folder": folder, "compiled": compiled, "security": findings, "runs": {k: {kk: v.get(kk) for kk in ("ok", "code", "stdout", "stderr", "timed_out", "contained")} for k, v in runs.items()}})
 
     def check(self, ctx, result):
         d = result.data
@@ -73,4 +80,10 @@ class Code(Studio):
             out.append(check({"tests": "tests pass", "run": "it runs", "syntax": "JavaScript parses"}[label], run.get("ok"), detail, limit=1500, tail=True))
         if "tests" not in d["runs"]:
             out.append(check("has tests", False, "There's no test command, so nothing proves it works.", blocking=False))
+        from luma.work import security_audit
+        findings = d.get("security") or []
+        out.append(check("no security holes", not security_audit.blocking(findings), security_audit.for_the_coder(findings), limit=1500))
+        lesser = [f for f in findings if f["severity"] != "high"]
+        if lesser:
+            out.append(check("security notes", False, "; ".join(f"{f['path']}:{f['line']} {f['what']}" for f in lesser[:6]), blocking=False))
         return out
