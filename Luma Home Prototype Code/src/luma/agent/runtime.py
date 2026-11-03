@@ -1333,6 +1333,11 @@ class Agent:
             return {"text": f"You have {len(tabs)} tab{'s' if len(tabs) != 1 else ''} open: " + "; ".join(t["title"][:60] for t in tabs[:8]) + ("…" if len(tabs) > 8 else ".")}
         got = hands.send("read", wait=8) or {}
         page = str(got.get("text") or "").strip()
+        if got.get("html"):
+            from luma.work.knowledge import page_text
+            article = page_text(str(got["html"]))
+            if len(article) >= 300:
+                page = article  # the article itself, not the menus, banners and footers around it
         if got.get("error") or not page:
             return {"text": "I couldn't read that tab. Chrome doesn't let extensions read its own pages (like settings or the new tab page), so click into the page you mean and ask again."}
         result = {"text": f"That's {got.get('title') or 'the page'}: " + re.sub(r"\s+", " ", page)[:500] + "…", "url": got.get("url"), "title": got.get("title")}
@@ -3986,6 +3991,8 @@ class Agent:
 
     def _observation_prompt(self, question, tool, result):
         keep = {k: result[k] for k in ("summary", "text", "text_from_app", "memories", "tasks", "records", "results", "slots", "timers", "page", "contacts", "messages", "email", "events") if k in result}
+        if len(str(result.get("article") or "")) >= 300:
+            keep["text"] = result["article"]  # a page Luma read: its main text, not everything on the screen
         for key in ("memories", "tasks", "records"):
             if key in keep: keep[key] = [{f: r.get(f) for f in ("title", "text", "details", "due") if r.get(f) is not None} for r in keep[key][:6]]
         found = json.dumps(keep, ensure_ascii=False, default=str)[:4200 if tool == "web.search" else 1800]

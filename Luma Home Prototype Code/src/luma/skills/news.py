@@ -508,8 +508,18 @@ def read_article(url, fetch=None, allow_local=False):
     except Exception:
         pass
     image = reader.meta.get("og:image") or reader.meta.get("twitter:image") or ""
+    found = reader.paragraphs
+    try:  # Trafilatura (Apache-2.0) finds the story on pages that don't use <p> tags or bury it in widgets
+        import trafilatura
+        main = trafilatura.extract(page[:3_000_000], include_comments=False, include_tables=False, favor_precision=True) or ""
+        better = [" ".join(line.split())[:1500] for line in main.splitlines() if len(line.strip()) >= 40
+                  and not re.search(r"(?i)cookies|subscribe|sign up for|newsletter|all rights reserved|advertisement", line[:120])]
+        if sum(map(len, better)) > sum(map(len, found)):
+            found = better
+    except Exception:
+        pass
     seen, paragraphs = set(), []
-    for p in reader.paragraphs:
+    for p in found:
         if p not in seen:
             seen.add(p)
             paragraphs.append(p)

@@ -19,6 +19,8 @@ dependencies = [
     "silero-vad",
     "kokoro-onnx",
     "livekit>=1.0",  # WebRTC echo cancellation, so the owner can talk over Luma on a plain speaker
+    "markitdown[docx,pptx,xlsx]>=0.1",  # Office files as Markdown: tables stay tables
+    "trafilatura>=2.0",  # a web page down to its article
     "httpx",
     "feedparser",
     "wikipedia-api",
@@ -29,6 +31,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+# PDFs read with their layout and tables (IBM's Docling, MIT). Large: it brings PyTorch and downloads its layout models once.
+documents = ["docling>=2"]
 # Pitch decks and Luma's browser. Run `python -m playwright install chromium` once after installing.
 agent = ["python-pptx>=1.0,<2", "playwright>=1.56,<2"]
 

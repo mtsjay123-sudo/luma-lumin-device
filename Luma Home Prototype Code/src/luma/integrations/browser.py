@@ -246,7 +246,13 @@ class BrowserSession:
         text = data["text"]
         if len(text) > 7000:
             text = text[:7000] + "\n…(more below; scroll to keep reading)"
-        return {"title": data["title"][:200], "url": data["url"], "text": text,
+        article = ""
+        try:
+            from luma.work.knowledge import page_text
+            article = page_text(page.content())[:7000]
+        except Exception:
+            pass
+        return {"title": data["title"][:200], "url": data["url"], "text": text, "article": article if len(article) >= 300 else "",
                 "images": data["images"], "elements": data["items"], "scroll": data["scroll"]}
 
     def _do_open(self, page, url):

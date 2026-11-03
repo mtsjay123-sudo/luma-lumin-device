@@ -81,8 +81,10 @@ async function run(cmd) {
   if (cmd.kind === "read") {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab || !/^https?:/.test(tab.url || "")) return { title: tab?.title || "", url: tab?.url || "", text: "" };
-    const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.body.innerText.slice(0, 8000) });
-    return { title: tab.title, url: tab.url, text: result || "" };
+    // The visible text, plus the page itself so Luma can pull out just the article (no menus, banners or footers).
+    const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: tab.id },
+      func: () => ({ text: document.body.innerText.slice(0, 8000), html: document.documentElement.outerHTML.slice(0, 1500000) }) });
+    return { title: tab.title, url: tab.url, text: result?.text || "", html: result?.html || "" };
   }
   if (cmd.kind === "tabs") {
     const tabs = await chrome.tabs.query({});
