@@ -111,7 +111,8 @@ LEAD_GOOD = ("ok", "agree", "yes", "go")
 LEAD_BAD = ("ugh", "wow")
 TAIL = ("friend", "dear")
 REPLIES = {
-    "praise": ["Love that. What was the best part of {topic}?", "Okay, now I need details. What made {topic} so good?",
+    "praise": ["Love that. What was the best part of {topic}?", "Wait, better than {topic}? Now I need to hear about {topic2}.",
+               "Okay, {topic} and {topic2} both hit? That's a whole good week.", "Okay, now I need details. What made {topic} so good?",
                "That's a win. Who'd you go with?", "Ha, I believe it. Would you do {topic} again?", "Okay, that's a good day. Got pics?",
                "Nice, {topic} came through. Anything you'd change?"],
     "complain": ["Ugh, that's rough. What happened with {topic}?", "That's not it. Want help with {topic}, or do you just need to vent?",
@@ -124,10 +125,14 @@ REPLIES = {
     "feel": ["I hear you. What's got you feeling that way about {topic}?", "That's a whole mood. Want to talk about it?",
              "Fair. How long have you felt like that?"],
     "tease": ["Ha, that's cold. Did they deserve it?", "Not you calling them out like that. What happened?"],
-    "compare": ["So one hit and one missed. What made the difference?", "Okay, so you'd do the first one again but not the second?",
-                "Ha, one for two. What went wrong with the second one?", "Makes sense. Was {topic} the highlight then?",
+    "compare": ["Wait, {topic} hit but {topic2} flopped? What happened with {topic2}?", "Okay so {topic} carried. Was {topic2} that bad?",
+                "Ha, {topic} for the win. What went wrong with {topic2}?", "So you'd do {topic} again, but {topic2}? Never?",
+                "Not {topic2} letting you down. Was it the people or the thing itself?", "Love that {topic} came through. Who picked {topic2}?",
+                "{Topic} over {topic2}, got it. What made {topic} so good?", "Okay, {topic2} sounds rough. At least {topic} saved it, right?",
+                "One for two. Would you give {topic2} another shot?", "Makes sense. Was {topic} the highlight then?",
                 "Fair split. Which one would you pick if you could only redo one?"],
-    "advise": ["Good call. What's so good about the other one?", "Noted. Want me to remember you'd pick that?"],
+    "advise": ["Good call. What's so good about {topic2}?", "Noted. Want me to remember you'd pick {topic2} over {topic}?",
+               "Skip {topic}, got it. What's happening at {topic2}?", "Ha, okay. What's wrong with {topic}?", "Okay. Want me to remind you before {topic2}?"],
     "laugh": ["Ha, what happened? I need the whole story.", "I'm glad something made you laugh. Tell me!"],
     "thanks": ["Anytime. Glad it hit.", "Of course! Anything else?"],
     "call": ["Got it.", "Heard. Want me to keep track?"],
@@ -147,13 +152,28 @@ def _word(pack, roles, rng):
 MARKER = re.compile(r"^(?:Okay|Ha|Ugh|Nah|Oof|Love that|Right\?|Exactly|Same|Got it|Heard|Noted|Nice|Fair|Of course|Anytime)[,.!?]?\s+")
 
 
+def _spread(phrases, n):
+    """n phrases with every kind of moment in them. Most of the phrase bank compares two things ("X was fire but Y was
+    mid"), and a brain trained on that mostly learns one reply ("So one hit and one missed"), so no kind gets more
+    than about a quarter of the rows."""
+    by_kind = {}
+    for ph in phrases:
+        by_kind.setdefault(ph["intent"], []).append(ph)
+    cap = max(1, n // 4)
+    picked = [ph for kind in by_kind.values() for ph in kind[:cap]]
+    return picked[:n]
+
+
 def mirror_examples(rng, n=360, with_community=False):
     rows = []
-    for ph in phrasebank.sample(n, seed=rng.randrange(10 ** 6)):
+    for ph in _spread(phrasebank.sample(n * 8, seed=rng.randrange(10 ** 6)), n):
         pack = phrasebank.PACKS[ph["community"]]
         topic = next((v for k, v in ph["slots"].items() if phrasebank._is_topic(ph["community"], k) and not k.endswith("2")), None)
-        options = [t for t in REPLIES.get(ph["intent"], REPLIES["feel"]) if topic or "{topic}" not in t]
-        reply = rng.choice(options).format(topic=topic or "")
+        topic2 = next((v for k, v in ph["slots"].items() if phrasebank._is_topic(ph["community"], k) and k.endswith("2")), None)
+        topic, topic2 = (re.sub(r"^my\b", "your", t) if t else t for t in (topic, topic2))  # their "my weekend" is Luma's "your weekend"
+        options = [t for t in REPLIES.get(ph["intent"], REPLIES["feel"])
+                   if (topic or "{topic}" not in t.lower()) and (topic2 or "{topic2}" not in t)]
+        reply = rng.choice(options).format(topic=topic or "", topic2=topic2 or "", Topic=(topic or "")[:1].upper() + (topic or "")[1:])
         lead = _word(pack, LEAD_BAD if ph["intent"] == "complain" else LEAD_GOOD, rng) if rng.random() < 0.55 else None
         tail = _word(pack, TAIL, rng) if rng.random() < 0.45 else None
         if lead:  # the lead takes the place of an "okay"/"ugh", it doesn't stack on it
@@ -276,7 +296,15 @@ def examples(rng):
         typed = message[:1].upper() + message[1:].replace(" i ", " I ").replace(" i'm ", " I'm ").replace(" i've ", " I've ")
         rows.append([{"role": "user", "content": typed}, {"role": "assistant", "content": reply.replace(" lol", "").replace(" 😭", "")}])
     rows += mirror_examples(rng) + meaning_examples(rng) + unknown_examples(rng) + grounded_examples(rng)
-    return [{"messages": [{"role": "system", "content": SYSTEM}] + r} for r in rows]
+    return [{"messages": [{"role": "system", "content": SYSTEM + _noted(r[0]["content"])}] + r} for r in rows]
+
+
+def _noted(said):
+    """The dictionary note Luma's brain gets live (slang.meanings_note), the same way here: the brain learns to take a
+    meaning from the note when there is one, and to say it doesn't know when there isn't, instead of remembering
+    thousands of meanings (a 4B brain can't: it told the first tester "chope" means a good meal)."""
+    note = slang.meanings_note(said.split("\n\n[What your web search found", 1)[0])
+    return "\n\n" + note if note else ""
 
 
 def main(out="out/finetune", seed=7):

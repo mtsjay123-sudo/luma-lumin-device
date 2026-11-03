@@ -60,6 +60,44 @@ class FinetuneDataTests(unittest.TestCase):
                 self.assertTrue(set(e.origins) & {community, "general", "internet", "subculture"}, (community, luma["content"], e.term))
             self.assertLessEqual(len(luma["content"].split()), 30, "a text back, not a speech")
 
+    def test_the_brain_learns_meanings_from_the_dictionary_note_not_from_memory(self):
+        for row in self.rows:
+            said, reply = row["messages"][1]["content"], row["messages"][2]["content"]
+            system = row["messages"][0]["content"]
+            if reply.startswith("It means "):
+                meaning = reply[len("It means "):].split(". ")[0]
+                self.assertIn(meaning, system, "every real meaning it learns to say is in the note it was given")
+            if re.search(r"don't know|Never heard|new to me|no idea", reply) and re.search(r"\bmean\b|slang", said):
+                note = system.split("Luma's dictionary", 1)[1] if "Luma's dictionary" in system else ""
+                for word in re.findall(r"[a-z]+", said.lower()):
+                    if not slang.find(word):
+                        self.assertNotIn(f"“{word}”", note, "a made-up word is never in the note")
+
+    def test_chat_practice_is_spread_over_every_kind_of_moment(self):
+        import collections
+        rows = finetune_data.mirror_examples(random.Random(5), n=360)
+        replies = collections.Counter(luma["content"] for _, luma in rows)
+        self.assertLess(replies.most_common(1)[0][1], 12, "no one reply learned by heart")
+        kinds = collections.Counter(user["content"].count(" but ") > 0 for user, _ in rows)
+        self.assertLess(kinds[True], len(rows) * 0.5, "not mostly 'X was fire but Y was mid'")
+        self.assertFalse(any(re.search(r"\bmy \w+ (?:sounds|carried|for the win|over)", luma["content"]) for _, luma in rows),
+                         "their 'my weekend' comes back as 'your weekend'")
+
+    def test_the_release_check_catches_wrong_meanings_and_loops(self):
+        spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
+        train = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(train)
+        row = {"messages": [{"role": "system", "content": ""}, {"role": "user", "content": "what's chope mean?"},
+                            {"role": "assistant", "content": "It means reserve a seat (often with a tissue packet). It's slang from Singlish. Like: “x”"}]}
+        self.assertTrue(train.judge(row, "It means a good meal. It's slang from Filipino and Taglish.")["wrong_meaning"])
+        self.assertFalse(train.judge(row, "It means reserving a seat, usually with a tissue packet.")["wrong_meaning"])
+        self.assertTrue(train.judge(row, "It's slang from the internet and Gen Z. It's slang from the internet and Gen Z. It's sl")["loop"])
+        fine = {"replies": 24, "unbacked_numbers": 0, "made_up_slang_meanings": 0, "wrong_slang_meanings": 0, "loops": 0, "same_reply": 3}
+        self.assertTrue(train.honest_enough(fine, fine))
+        self.assertFalse(train.honest_enough(fine, {**fine, "loops": 1}))
+        self.assertFalse(train.honest_enough(fine, {**fine, "wrong_slang_meanings": 1}))
+        self.assertFalse(train.honest_enough(fine, {**fine, "same_reply": 9}), "the same reply to most questions")
+
     def test_every_number_in_a_lookup_answer_is_in_what_was_found(self):
         rows = finetune_data.grounded_examples(random.Random(4), n=150)
         for user, luma in rows:

@@ -2632,6 +2632,8 @@ class Agent:
             earlier = [h["content"] for h in self.history[-8:-1] if h.get("role") == "user"][-3:]
             funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown, recent=earlier)
             if funny: out.append({"humor": True, "text": funny})
+            known = lexicon.meanings_note(text)
+            if known: out.append({"slang": True, "text": known})
             taught = self.store.setting("taught_words") or {}
             if taught:
                 out.append({"mind": True, "text": "Words they taught you (use them right): " + "; ".join(f"“{w}” means {m}" for w, m in list(taught.items())[-12:])})
@@ -4364,6 +4366,15 @@ class Agent:
 
     SLANG_ASK = re.compile(r"^\W*(?:what(?:'s| is| does)|wtf (?:is|does)|whats|wdym|what do you mean)(?: the word| it mean when (?:someone|people|they|you) says?)? [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']?(?: mean| means| stand for)?\W*$", re.I)
     TEACH = re.compile(r"^\W*[\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? (?:means|is when|is like|=) (?P<m>.{3,120}?)\W*$", re.I)
+    # The other ways people ask what a word means. Every one is answered from the dictionary, never from the brain's
+    # memory: a 4B brain doesn't know what "chope" means (it said "a good meal"; it's Singlish for saving a seat).
+    SLANG_ASK_MORE = [re.compile(p, re.I) for p in (
+        r"^\W*(?:my |his |her |their )?(?:cousin|friend|brother|sister|kid|son|daughter|mom|dad|bf|gf|boyfriend|girlfriend|coworker|teacher|people|everyone|they)(?: \w+)? (?:keeps?|kept) saying [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']?,? (?:what does (?:it|that) mean|what's that|what is that|what's it mean)\W*$",
+        r"^\W*is [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? (?:a )?(?:slang|slang word|real word|word)\W*$",
+        r"^\W*what(?:'s| is) [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? slang for\W*$",
+        r"^\W*[\"“']?(?P<w>[\w' -]{2,30}?)[\"”']?\?+ what(?:'s| does) (?:that|it) mean\W*(?:lol|lmao|haha)?\W*$",
+        r"^\W*what does [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? mean\W*(?:lol|lmao|haha|tho|though)\W*$",
+    )]
 
     def _banter_request(self, text, lowered):
         """Characters, unhinged mode, and what a slang word means (or what they just taught Luma it means)."""
@@ -4409,6 +4420,8 @@ class Agent:
         m = self.SLANG_ASK.match(text.strip())
         if m and m.group("w").strip().lower().startswith("the ") and not re.search(r"\b(?:mean|means|stand for)\b", text, re.I):
             m = None  # "what's the tea?" wants the tea, "what's the move?" wants a plan: neither wants a definition
+        if not m or (m.group("w").strip().lower().endswith(" slang for") or not lexicon.explain(m.group("w").strip())):
+            m = next((x for x in (r.match(text.strip()) for r in self.SLANG_ASK_MORE) if x), None) or m
         if m:
             word = m.group("w").strip()
             taught = (self.store.setting("taught_words") or {}).get(word.lower())

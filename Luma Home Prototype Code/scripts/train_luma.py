@@ -10,12 +10,13 @@ Runs on an NVIDIA GPU, an Apple Silicon GPU, or plain CPUs (slowly: GitHub's fre
 Only the assistant's words are learned (the question is context, not a target). The add-on is saved every few
 minutes, so a run that's stopped still leaves what it learned. Then:
   - eval.json: the stock brain and the trained one on held-out conversations, judged by Luma's own checks
-    (numbers that aren't in what was found, made-up slang meanings, length);
+    (numbers that aren't in what was found, made-up or wrong slang meanings, a sentence said over and over, length);
   - adapter/: the LoRA, which scripts convert to one small GGUF file Luma loads on top of the brain it already has.
 """
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import math
 import os
@@ -35,8 +36,8 @@ SHORT_SYSTEM = ("You are Luma, a warm, funny friend who lives in a small speaker
 def conversations(seed=7):
     import finetune_data
     rows = finetune_data.examples(random.Random(seed))
-    for row in rows:  # the short system line: the same instructions, a fraction of the tokens to train through
-        row["messages"][0]["content"] = SHORT_SYSTEM
+    for row in rows:  # the short system line: the same instructions, a fraction of the tokens to train through, plus the dictionary note
+        row["messages"][0]["content"] = SHORT_SYSTEM + row["messages"][0]["content"][len(finetune_data.SYSTEM):]
     random.Random(seed).shuffle(rows)
     return rows
 
@@ -69,11 +70,25 @@ def generate(model, tokenizer, messages, torch, max_new_tokens=60):
     return tokenizer.decode(out[0][ids["input_ids"].shape[1]:], skip_special_tokens=True).strip()
 
 
+STOP = {"the", "a", "an", "of", "to", "or", "and", "in", "on", "for", "with", "by", "is", "it", "its", "as", "at", "be", "that", "this", "your", "you"}
+
+
+def _content(text):
+    return {w for w in re.findall(r"[a-z']+", text.lower()) if len(w) > 2 and w not in STOP}
+
+
+def repeats(reply):
+    """A sentence said twice or more in one reply: the brain stuck in a loop ("It's slang from the internet. It's slang from...")."""
+    said = [re.sub(r"\W+", " ", x).strip().lower() for x in re.split(r"(?<=[.!?])\s+", reply)]
+    said = [x for x in said if len(x.split()) >= 3]
+    return len(said) != len(set(said))
+
+
 def judge(row, reply):
-    """Luma's own checks on one reply: numbers not in what was found, a made-up slang meaning, how long it ran."""
+    """Luma's own checks on one reply: numbers not in what was found, a made-up slang meaning, a wrong one, a loop, how long it ran."""
     from luma.agent import grounding
     user = row["messages"][1]["content"]
-    out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False}
+    out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply)}
     if "[What your web search found" in user:
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
@@ -81,6 +96,10 @@ def judge(row, reply):
     if re.search(r"don't know|Never heard|new to me|no idea", expected) and re.search(r"\bit means\b|\bmeans\b", reply, re.I) \
             and not re.search(r"don't know|not sure|never heard|haven't heard|new to me|no idea", reply, re.I):
         out["made_up_meaning"] = True
+    meaning = re.match(r"^It means (.+?)(?:\. It's slang from |\. Like: )", expected)
+    if meaning:  # a real word: the reply has to carry the dictionary's meaning, not one of its own
+        want = _content(meaning.group(1))
+        out["wrong_meaning"] = bool(want) and len(want & _content(reply)) < max(1, len(want) // 2)
     return out
 
 
@@ -93,17 +112,32 @@ def evaluate(model, tokenizer, rows, torch, label):
     summary = {"label": label, "replies": len(scores),
                "unbacked_numbers": sum(len(s["unbacked"]) for s in scores),
                "made_up_slang_meanings": sum(s["made_up_meaning"] for s in scores),
+               "wrong_slang_meanings": sum(s["wrong_meaning"] for s in scores),
+               "loops": sum(s["loop"] for s in scores),
+               "same_reply": max(collections.Counter(s["reply"] for s in scores).values(), default=0),
                "avg_words": round(sum(s["words"] for s in scores) / n, 1)}
     print(json.dumps(summary), flush=True)
     return summary, scores
 
 
 def held_out(rows, n):
-    """Held-out conversations for the before-and-after check: the kinds where a wrong answer is easy to spot."""
-    picks = [r for r in rows if "[What your web search found" in r["messages"][1]["content"]][: n // 2]
-    picks += [r for r in rows if re.search(r"don't know|Never heard|new to me|no idea", r["messages"][2]["content"])][: n // 4]
+    """Held-out conversations for the before-and-after check: the kinds where a wrong answer is easy to spot (look-ups,
+    slang that doesn't exist, slang that does) and everyday chat."""
+    picks = [r for r in rows if "[What your web search found" in r["messages"][1]["content"]][: n // 3]
+    picks += [r for r in rows if re.search(r"don't know|Never heard|new to me|no idea", r["messages"][2]["content"])][: n // 6]
+    picks += [r for r in rows if r["messages"][2]["content"].startswith("It means ")][: n // 6]
     picks += [r for r in rows if r not in picks][: n - len(picks)]
     return picks
+
+
+def honest_enough(before, after):
+    """Published only if it's at least as honest as the stock brain on every check, never loops, and doesn't give the
+    same reply to more than a quarter of different questions."""
+    return (after["unbacked_numbers"] <= before["unbacked_numbers"]
+            and after["made_up_slang_meanings"] <= before["made_up_slang_meanings"]
+            and after.get("wrong_slang_meanings", 0) <= before.get("wrong_slang_meanings", 0)
+            and after.get("loops", 0) == 0
+            and after.get("same_reply", 0) <= max(2, after["replies"] // 4))
 
 
 def main(argv=None):
@@ -207,8 +241,7 @@ def main(argv=None):
         model.config.use_cache = True
         report["after"], report["after_replies"] = evaluate(model, tokenizer, held, torch, "Luma brain")
         before, after = report["before"], report["after"]
-        report["as_honest"] = (after["unbacked_numbers"] <= before["unbacked_numbers"]
-                               and after["made_up_slang_meanings"] <= before["made_up_slang_meanings"])
+        report["as_honest"] = honest_enough(before, after)
     (out / "eval.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
     print(json.dumps({k: v for k, v in report.items() if not k.endswith("_replies")}, indent=2), flush=True)
     return 0

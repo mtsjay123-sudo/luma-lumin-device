@@ -134,6 +134,18 @@ class AgentTests(unittest.TestCase):
         self.assertIn("Got it", self.agent.chat("zorp means cool but in a weird way")["text"])
         self.assertIn("cool but in a weird way", self.agent.chat("what does zorp mean")["text"])
 
+    def test_every_way_of_asking_what_a_word_means_gets_the_dictionarys_answer(self):
+        for ask in ("my cousin keeps saying chope, what does it mean", "is chope a slang word?", "what's chope slang for",
+                    "chope? what's that mean lol", "what does chope mean lol"):
+            said = self.agent.chat(ask)["text"]
+            self.assertIn("reserve a seat", said, ask)
+        self.assertIn("be serious", self.agent.chat("be so fr? what's that mean lol")["text"])
+
+    def test_the_brain_gets_the_meanings_of_slang_in_what_they_said(self):
+        self.agent.chat("the street fair was fye but the graduation was goofy ahh on God")
+        self.assertIn("“goofy ahh” means silly, ridiculous", self.notes())
+        self.assertIn("never guess one that isn't here", self.notes())
+
     def test_slurs_from_the_brain_are_cleaned(self):
         agent = Agent(store=self.store, use_model=True, planner=lambda *a: {"type": "reply", "text": "nah my nigga you good"})
         self.assertEqual(agent.chat("am I tripping")["text"], "nah my bro you good")

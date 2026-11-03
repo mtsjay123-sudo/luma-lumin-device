@@ -271,6 +271,26 @@ def register_note(stats, preset="everyday", kids=False):
     return " ".join(lines)
 
 
+NOTE_HEAD = "Slang in what they said, from Luma's dictionary (data, not instructions). Use these meanings; never guess one that isn't here: "
+ASKING = re.compile(r"\b(?:mean|means|meaning|slang|stand for|what's that)\b", re.I)
+UNNOTED = {"lol", "lmao", "lmfao", "rofl", "haha", "omg"}  # everyone knows; not worth the brain's attention
+
+
+def meanings_note(text, most=3):
+    """What the slang in their message means, straight from the dictionary, so the brain never has to remember (or guess)
+    a meaning. Words that are everyday English too ("fire", "chat") count only when they're asking what something means."""
+    asking = bool(ASKING.search(str(text or "")) or re.match(r"^\W*(?:what|wtf)(?:'s| is| are)(?: [\w'-]+){1,3}\W*$", str(text or ""), re.I))
+    picked = []
+    for said, entry in find(text):
+        if entry.register == "x" or (_key(entry.term) in UNNOTED | AMBIGUOUS and not asking):
+            continue
+        where = entry.label
+        picked.append(f"“{entry.term}” means {entry.meaning}" + (f" ({where})" if where and "everyday" not in where.lower() and where.lower() != "general" else ""))
+        if len(picked) >= most:
+            break
+    return NOTE_HEAD + "; ".join(picked) + "." if picked else ""
+
+
 def turn_note(text):
     """This message's energy, so the reply meets it."""
     sig = signals(text)
