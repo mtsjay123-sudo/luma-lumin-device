@@ -123,6 +123,19 @@ jobs:
           "$RUNNER_TEMP/stt/bin/python" -m pip install -q "git+https://github.com/sarulab-speech/UTMOSv2.git" || echo "UTMOSv2 didn't install; words only"
           printf 'verbose = off\n' > "$RUNNER_TEMP/wgetrc"  # the ranking model's weights download quietly, so the results stay readable
           WGETRC="$RUNNER_TEMP/wgetrc" "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: An explainer video in Luma's voice (download "Luma-explainer-sample")
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m pip install -q "imageio-ffmpeg>=0.5,<1" pillow
+          python scripts/explainer_sample.py "$RUNNER_TEMP/explainer" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: Luma-explainer-sample
+          path: ${{ runner.temp }}/explainer
+          if-no-files-found: warn
       - name: Speech to text, Moonshine against Whisper (speed and words on the same clips)
         if: always()
         continue-on-error: true

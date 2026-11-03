@@ -2429,3 +2429,5 @@ html[data-glass="clear"] .scene-night { display: none; }
 @media (prefers-reduced-motion: reduce) { .live-tag i { animation: none; } }
 body.live-on .chat-view .thread { padding-right: 296px; }  /* the conversation stays clear of the camera window */
 @media (max-width: 720px) { .live-pip { width: 150px; right: 12px; top: 72px; } body.live-on .chat-view .thread { padding-right: 168px; } }
+
+.proj-video { display: block; width: 100%; max-height: 70vh; border-radius: 16px; background: #000; }

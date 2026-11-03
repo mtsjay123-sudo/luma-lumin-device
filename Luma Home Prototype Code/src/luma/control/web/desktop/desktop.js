@@ -2729,6 +2729,18 @@
     Object.assign(up, { type: "file", multiple: true, hidden: true });
     up.addEventListener("change", async () => {
       for (const f of up.files) {
+        if ((f.type || "").startsWith("video/")) {
+          // Videos go up as they are, streamed to disk at home: phones film big.
+          if (f.size > 1024 * 1024 * 1024) { toast(`${f.name} is over 1 GB.`); continue; }
+          toast(`Adding ${f.name}…`);
+          try {
+            const r = await fetch(`/api/work/upload_video?id=${encodeURIComponent(id)}&name=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type }, body: f });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || "That video didn't upload. Try again?");
+            toast(`${f.name} is in. Ask me to make it vertical, add captions or take out the dead air.`);
+          } catch (e) { toast(e.message); }
+          continue;
+        }
         if (f.size > 25 * 1024 * 1024) { toast(`${f.name} is over 25 MB.`); continue; }
         const data = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.readAsDataURL(f); });
         try { await api("/api/work/upload", { id, name: f.name, data }); } catch (e) { toast(e.message); }
@@ -2819,12 +2831,20 @@
       frame.src = proj.view[id] ? proj.view[id] + path.split("/").map(encodeURIComponent).join("/") : fileUrl(id, path, true);
       frame.title = path;
       body.append(frame);
+    } else if (["mp4", "m4v", "mov", "webm"].includes(ext)) {
+      const player = el("video", "proj-video");
+      Object.assign(player, { controls: true, playsInline: true, preload: "metadata", src: fileUrl(id, path, true) });
+      body.append(player);
+    } else if (["m4a", "wav"].includes(ext)) {
+      const player = el("audio");
+      Object.assign(player, { controls: true, preload: "metadata", src: fileUrl(id, path, true) });
+      body.append(player);
     } else if (["png", "jpg", "jpeg"].includes(ext)) {
       const img = el("img");
       img.src = fileUrl(id, path, true);
       img.alt = path;
       body.append(img);
-    } else if (["md", "txt", "csv", "py", "js", "css", "json", "gd", "scad", "obj"].includes(ext)) {
+    } else if (["md", "txt", "csv", "py", "js", "css", "json", "gd", "scad", "obj", "srt"].includes(ext)) {
       const pre = el("pre", null, "Loading…");
       body.append(pre);
       fetch(fileUrl(id, path, true)).then((r) => r.text()).then((t) => { pre.textContent = t.slice(0, 60000); });
@@ -2833,7 +2853,7 @@
         ext === "docx" ? "A Word document. Download it to open in Word or Pages." : ext === "stl" ? "A 3D mesh for printing. Open the viewer.html next to it to spin it around." : "Download it to open it."));
     }
     body.append(open);
-    openSheet(path.split("/").pop(), body, ["html", "svg", "png", "jpg", "jpeg"].includes(ext));
+    openSheet(path.split("/").pop(), body, ["html", "svg", "png", "jpg", "jpeg", "mp4", "m4v", "mov", "webm"].includes(ext));
   }
 
   async function renderLibrary() {

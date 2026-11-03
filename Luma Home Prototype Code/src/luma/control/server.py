@@ -554,6 +554,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             live = path in {'/api/live/frame','/api/live/stop'}  # the camera sends a picture every couple of seconds while Luma watches
             bucket, allowance = ('pair',10) if pairing else ('drive',900) if driving else ('live',150) if live else ('request',90)
             if not ctx.allowed((bucket, self.client_address[0]), allowance): return self.send({'error':'Too many requests. Wait one minute.'},429)
+            if path=='/api/work/upload_video':
+                # A video for a project, streamed straight to disk (phones film big). The window only.
+                if companion or agent.mode=='kids': return self.send({'error':'Add videos on the Mac.'},403)
+                if not self.headers.get('Content-Type','').split(';')[0].strip().startswith('video/'): return self.send({'error':'Send a video.'},415)
+                try: size=int(self.headers.get('Content-Length','0') or 0)
+                except ValueError: return self.send({'error':'Send the video again.'},411)
+                query=parse_qs(urlsplit(self.path).query)
+                name=re.sub(r'[^\w .()-]','_',query.get('name',['video.mp4'])[0]).strip()[:120] or 'video.mp4'
+                try:
+                    eng=work_api.engine(agent); pid=query.get('id',[''])[0]
+                    eng.projects.write_stream(pid,f'uploads/{name}',self.rfile,size)
+                    return self.send({'project':work_api.view(eng,eng.projects.get(pid),detail=True,agent=agent)})
+                except ValueError as error: return self.send({'error':str(error)[:200]},400)
             if path.startswith('/api/work/'):
                 # Projects: the window and a paired phone. Uploads are bigger than other requests.
                 try: data = self.read_json(36_000_000)

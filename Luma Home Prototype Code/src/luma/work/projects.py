@@ -21,7 +21,9 @@ KINDS = {
     ".pptx": "deck", ".docx": "document", ".pdf": "pdf", ".xlsx": "spreadsheet", ".csv": "table", ".md": "text", ".txt": "text",
     ".html": "page", ".css": "code", ".js": "code", ".py": "code", ".gd": "code", ".json": "data", ".svg": "image", ".png": "image",
     ".jpg": "image", ".jpeg": "image", ".scad": "cad", ".stl": "model", ".obj": "model", ".zip": "package", ".godot": "game", ".tscn": "game",
+    ".mp4": "video", ".mov": "video", ".m4v": "video", ".webm": "video", ".mkv": "video", ".srt": "captions", ".m4a": "audio", ".wav": "audio",
 }
+MAX_VIDEO = 2 ** 30               # a video the owner adds (phones film big)
 
 
 def slug(text, fallback="project"):
@@ -116,6 +118,30 @@ class Projects:
         target.parent.mkdir(parents=True, exist_ok=True)
         partial = target.with_name(target.name + ".partial")
         partial.write_bytes(raw)
+        partial.replace(target)
+        self.save(self.get(ident))
+        return target
+
+    def write_stream(self, ident, rel, stream, size, chunk=1 << 20):
+        """A big upload (a video), written straight to disk as it arrives instead of held in memory."""
+        if not 0 < size <= MAX_VIDEO:
+            raise ValueError("Videos up to 1 GB can be added to a project.")
+        if self.size(ident) + size > MAX_PROJECT:
+            raise ValueError("This project is full (2 GB). Export it and start a fresh one.")
+        target = self.path(ident, rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(target.name + ".partial")
+        left = size
+        with open(partial, "wb") as out:
+            while left > 0:
+                piece = stream.read(min(chunk, left))
+                if not piece:
+                    break
+                out.write(piece)
+                left -= len(piece)
+        if left:
+            partial.unlink(missing_ok=True)
+            raise ValueError("The upload stopped partway. Try adding the video again.")
         partial.replace(target)
         self.save(self.get(ident))
         return target

@@ -133,8 +133,9 @@ def get(agent, path, query, send, send_bytes, viewer="owner"):
                 return send({"error": "File not found"}, 404)
             suffix = target.suffix.lower()
             kind = TYPES.get(suffix) or mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-            inline = one("view") == "1" and suffix in {".html", ".svg", ".png", ".jpg", ".jpeg", ".md", ".txt", ".csv", ".py", ".js", ".css", ".json", ".gd", ".scad"}
-            if suffix in {".md", ".txt", ".py", ".js", ".css", ".json", ".gd", ".scad", ".csv"} and inline:
+            inline = one("view") == "1" and suffix in {".html", ".svg", ".png", ".jpg", ".jpeg", ".md", ".txt", ".csv", ".py", ".js", ".css", ".json", ".gd", ".scad",
+                                                       ".mp4", ".m4v", ".mov", ".webm", ".srt", ".m4a", ".wav"}
+            if suffix in {".md", ".txt", ".py", ".js", ".css", ".json", ".gd", ".scad", ".csv", ".srt"} and inline:
                 kind = "text/plain; charset=utf-8"
             return send_bytes(target.read_bytes(), kind, target.name, inline, PREVIEW_CSP if inline and suffix in {".html", ".svg"} else None)
         if path == "/api/work/export":

@@ -32,9 +32,10 @@ ROLES = {
     "design": "You are Luma's design agent. Clean, modern and on-brand: use the brand name and colors decided earlier and real words from the research, never generic filler.",
     "coding": "You are Luma's coding agent. Write complete, working, tested files. When something failed, fix the cause shown in the error; never hide or skip the error.",
     "qa": "You are Luma's QA agent. Make sure every deliverable opens and does what was asked.",
+    "video": "You are Luma's video agent. Write for the ear: short, plain sentences a friend would say out loud, true to the research, with one clear idea on screen at a time.",
 }
 AGENT_FOR = {"research": "research", "analyze_data": "data", "financial_model": "data", "document": "document", "deck": "document", "website": "design",
-             "graphics": "design", "model3d": "design", "code": "coding", "game": "coding", "package": "qa"}
+             "graphics": "design", "model3d": "design", "code": "coding", "game": "coding", "package": "qa", "video": "video", "video_edit": "video"}
 DETECT = [
     ("research", r"\bresearch|\bcompetitors?\b|\bcompetition\b|\bmarket\b|\blook into\b|\bfind out\b|\bsources?\b|\banaly[sz]e (?:the |this |my )?(?:idea|business|market|industry)", "Research the idea and the competition"),
     ("analyze_data", r"\b(?:analy[sz]e|summari[sz]e|crunch|dig into)\b.{0,40}\b(?:spreadsheet|csv|excel|xlsx|data|table|sales|numbers)\b|\.(?:csv|xlsx)\b", "Analyze the data"),
@@ -46,12 +47,18 @@ DETECT = [
     ("code", r"\bscript\b|\bprogram\b|\bpython\b|\bjavascript\b|\bapi\b|\bcli\b|\bbot\b|\bautomation\b|\bbackend\b|\b(?:write|build|code) (?:me )?(?:an? )?(?:app|tool|calculator|converter)\b", "Write and test the code"),
     ("game", r"\bgame\b|\bplatformer\b|\bgodot\b|\bunity\b|\bunreal\b|\bplayable\b", "Build the game"),
     ("model3d", r"\b3d\b|\b3-d\b|\bcad\b|\bblender\b|\bopenscad\b|\bstl\b|\bprintable\b|\benclosure\b|\bbracket\b", "Design the 3D model"),
+    ("video_edit", r"\b(?:edit|cut|trim|caption|subtitle|reframe|shorten|tighten|clean up)\b[^.]{0,40}\b(?:video|clip|footage|recording|vlog)\b|"
+                   r"\b(?:video|clip|footage|recording)\b[^.]{0,30}\b(?:vertical|9 ?: ?16|captions?|subtitles?|shorter|trim(?:med)?|for (?:tiktok|reels|shorts))\b", "Edit the video"),
+    ("video", r"\bexplainer\b|\b(?:make|create|generate|produce|build|do) (?:me |us )?(?:an? |the |my )?(?:short |quick |little |\d+[- ]minute )?"
+              r"(?:narrated |animated |youtube |tiktok )?video (?:about|explaining|on|that explains|of how)\b|\bvideo (?:explaining|that explains)\b|"
+              r"\bexplain\b[^.]{2,60}\b(?:in|as|with) a video\b|\bvoice ?over video\b", "Make the explainer video"),
     ("package", r"\bpackage\b|\bzip\b|\bbundle\b|all (?:the |of the )?files|deliver (?:it|them|everything)", "Package everything"),
 ]
 ORDER = [tool for tool, _, _ in DETECT]
 NEEDS = {"research": [], "analyze_data": [], "financial_model": ["research", "analyze_data"], "graphics": ["research"],
          "document": ["research", "analyze_data", "financial_model"], "deck": ["research", "analyze_data", "financial_model", "graphics"],
-         "website": ["research", "graphics", "financial_model"], "code": ["research"], "game": [], "model3d": [], "package": None}
+         "website": ["research", "graphics", "financial_model"], "code": ["research"], "game": [], "model3d": [], "video_edit": [], "video": ["research"],
+         "package": None}
 STATES = ("pending", "running", "done", "attention", "waiting", "skipped", "stopped")
 
 
@@ -61,6 +68,8 @@ def detect(request):
     found = [tool for tool, pattern, _ in DETECT if re.search(pattern, lowered)]
     if "code" in found and ("website" in found or "game" in found) and not re.search(r"\b(?:script|program|python|api|cli|bot|backend)\b", lowered):
         found.remove("code")
+    if "video" in found and "video_edit" in found and not re.search(r"\b(?:my|this|the attached|our) (?:video|clip|footage|recording)\b", lowered):
+        found.remove("video_edit")  # "make an explainer video and make it vertical": the explainer makes both shapes itself
     if "research" in found and found == ["research"] and re.search(r"\breport\b|\bwrite\b", lowered):
         found.append("document")
     return found

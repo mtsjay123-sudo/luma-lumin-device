@@ -156,6 +156,20 @@ class ControlTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(png)
         self.assertEqual(e.exception.code,415)
         with self.request('/api/live/stop',{}) as r:self.assertEqual(json.load(r),{'live':False})
+    def test_a_big_video_streams_into_a_project_and_plays_back(self):
+        from luma.control import work_api
+        eng=work_api.engine(self.agent);project=eng.projects.create('Vlog','')
+        clip=b'\x00\x00\x00\x18ftypmp42'+b'v'*(3*1024*1024)
+        h={'Cookie':self.cookie,'Origin':self.base,'Content-Type':'video/mp4'}
+        req=urllib.request.Request(self.base+f'/api/work/upload_video?id={project["id"]}&name=my%20vlog.mp4',data=clip,headers=h)
+        with urllib.request.urlopen(req) as r:files={f['path']:f for f in json.load(r)['project']['files']}
+        self.assertEqual(files['uploads/my vlog.mp4']['kind'],'video')
+        self.assertEqual((eng.projects.folder(project['id'])/'uploads'/'my vlog.mp4').read_bytes(),clip)
+        with self.request(f'/api/work/file?id={project["id"]}&path=uploads/my%20vlog.mp4&view=1') as r:
+            self.assertEqual(r.headers['Content-Type'].split(';')[0],'video/mp4');self.assertEqual(len(r.read()),len(clip))
+        bad=urllib.request.Request(self.base+f'/api/work/upload_video?id={project["id"]}&name=x.txt',data=b'hi',headers={**h,'Content-Type':'text/plain'})
+        with self.assertRaises(urllib.error.HTTPError) as e:urllib.request.urlopen(bad)
+        self.assertEqual(e.exception.code,415)
     def test_control_persists_memory_and_blocks_cross_origin(self):
         with self.request('/api/chat',{'text':'remember I like tea'}) as r:self.assertEqual(r.status,200)
         with self.request('/api/state') as r:self.assertEqual(json.load(r)['memories'][0]['text'],'I like tea')
