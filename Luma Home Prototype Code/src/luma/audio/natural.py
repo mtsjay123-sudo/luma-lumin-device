@@ -1,7 +1,7 @@
 """Luma's expressive voice: open-source speech that sounds like a person, with real laughs.
 
 On a Mac with Apple Silicon, Luma can talk with a newer open model running on the Mac itself:
-Chatterbox-Turbo (Resemble AI, MIT) or Qwen3-TTS (Alibaba Qwen, Apache-2.0), through mlx-audio.
+Chatterbox-Turbo (Resemble AI, MIT), Qwen3-TTS (Alibaba Qwen, Apache-2.0) or VoxCPM2 (OpenBMB, Apache-2.0), through mlx-audio.
 Both clone a voice from a few seconds of audio, so Luma keeps the voice people already know: the
 classic voice reads one short paragraph once, and the new model learns that voice from it. No real
 person's voice is copied.
@@ -41,11 +41,12 @@ RETRIES = 3                # times it comes back on its own in one run, so a bro
 SPEED_LINE = "Alright, so tell me everything that happened today, I'm listening."
 MAX_RTF = 0.9              # it has to make speech faster than it talks, or the conversation stalls between phrases
 SLOW_FOR = 7 * 86400       # an engine that was too slow on this Mac isn't tried again for a week
-ENGINES = ("expressive", "studio")
+ENGINES = ("expressive", "studio", "lifelike")
 DEFAULT_MODE = "off"  # the classic voice, until a new one beats it in the contest (scripts/voice_check.py)
 # Smaller (quantized) builds of each model: a little less detail, a lot faster. Tried when the full one can't keep up.
 FASTER = {"expressive": ["mlx-community/chatterbox-turbo-8bit", "mlx-community/chatterbox-turbo-4bit"],
-          "studio": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"]}
+          "studio": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"],
+          "lifelike": ["mlx-community/VoxCPM2-8bit", "mlx-community/VoxCPM2-4bit"]}
 TAGS = re.compile(r"\[(?:laugh|chuckle|sigh|cough)\]")
 
 

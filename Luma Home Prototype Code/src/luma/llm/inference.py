@@ -5,6 +5,7 @@ import re
 import contextlib
 import json
 import threading
+from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional
@@ -15,7 +16,29 @@ from luma.llm.prompts import SYSTEM_PROMPT, build_plan_prompt, normalize_profile
 _llm = None
 _llm_path = None
 _override = None  # a bigger model, once it's downloaded and verified (see luma.llm.brain)
+_adapter = None   # Luma's own brain: a LoRA add-on trained for Qwen3 4B Instruct 2507, applied on top of it (see luma.llm.brain)
+ADAPTER_BASE = "Qwen3-4B-Instruct-2507"
 _inference_lock = threading.RLock()
+
+
+def use_adapter(path):
+    """Think with Luma's own add-on on top of the brain from the next message on (None: the stock brain)."""
+    global _adapter, _llm
+    from luma.llm import worker
+    if worker.enabled():
+        worker.brain().use_adapter(path)
+    with _inference_lock:
+        if (path or None) != _adapter:
+            _adapter = path or None
+            _llm = None  # loaded fresh on the next call
+
+
+def adapter_for(model_path):
+    """The add-on to load with this model: only on the brain it was trained for (a LoRA on any other model is noise)."""
+    chosen = _adapter or (Path(os.environ["LUMA_LORA_PATH"]) if os.environ.get("LUMA_LORA_PATH") else None)
+    if chosen and Path(chosen).is_file() and ADAPTER_BASE in Path(model_path).name:
+        return Path(chosen)
+    return None
 
 
 def use_model_path(path):
@@ -172,17 +195,18 @@ def _load_model():
             f"Model not found at {model_path}. Check LUMA_MODEL_PATH or run scripts/download_models.sh for the original model."
         )
 
+    adapter = adapter_for(model_path)
+
     def make(layers):
+        settings = dict(model_path=str(model_path), n_ctx=LLAMA_CONTEXT_SIZE, n_gpu_layers=layers, n_threads=LLAMA_THREADS,
+                        n_batch=min(LLAMA_BATCH_SIZE, LLAMA_CONTEXT_SIZE), chat_format=LLAMA_CHAT_FORMAT, verbose=False)
         with _silence_stderr():
-            return Llama(
-                model_path=str(model_path),
-                n_ctx=LLAMA_CONTEXT_SIZE,
-                n_gpu_layers=layers,
-                n_threads=LLAMA_THREADS,
-                n_batch=min(LLAMA_BATCH_SIZE, LLAMA_CONTEXT_SIZE),
-                chat_format=LLAMA_CHAT_FORMAT,
-                verbose=False,
-            )
+            if adapter:
+                try:
+                    return Llama(**settings, lora_path=str(adapter))
+                except Exception:
+                    pass  # an add-on that won't load never costs Luma its brain: the stock one answers
+            return Llama(**settings)
 
     global note
     layers = _gpu_layers()

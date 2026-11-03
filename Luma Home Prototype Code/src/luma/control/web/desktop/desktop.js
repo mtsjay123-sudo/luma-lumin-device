@@ -3722,7 +3722,29 @@
         hugeRow.append(ht, btn("Get the huge brain", "pill primary small", () => redo({ action: "huge_get" }, "Setting it up in the background. Luma keeps working meanwhile.")));
       }
     }
-    g.append(...[local, hugeRow, cloud].filter(Boolean));
+    // Luma's own brain: a small add-on trained on Luma's conversations, on top of the brain that's already here.
+    const O = b.own || {};
+    const ownRow = el("div", "brain-row");
+    const ot = el("div", "grow");
+    ot.append(el("div", "t", "Luma's own brain"));
+    if (O.fetching) {
+      ot.append(el("div", "sub", "Downloading it…"));
+      clearTimeout(brainCard.ownTimer);
+      brainCard.ownTimer = setTimeout(() => state.view === "settings" && refreshHome().then(renderSettings), 4000);
+      ownRow.append(ot);
+    } else if (O.ready) {
+      ot.append(el("div", "sub", O.on
+        ? `On. Luma thinks with an add-on trained on its own conversations${O.release ? ` (${O.release})` : ""}: its voice, real slang, and never a number it didn't read.`
+        : "Downloaded. Turn it on to think with Luma's own training."));
+      if (O.error) ot.append(el("div", "sub warn", O.error));
+      ownRow.append(ot, O.on ? btn("Turn it off", "pill quiet small", () => redo({ action: "own_off" }, "Back to the stock brain."))
+        : btn("Use it", "pill primary small", () => redo({ action: "own_on" }, "Luma thinks with its own brain now.")));
+    } else {
+      ot.append(el("div", "sub", "A small add-on trained on Luma's own conversations, published only when it's at least as honest as the stock brain."));
+      if (O.error) ot.append(el("div", "sub warn", O.error));
+      ownRow.append(ot, btn("Get it", "pill primary small", () => redo({ action: "own_get" }, "Downloading Luma's own brain.")));
+    }
+    g.append(...[local, ownRow, hugeRow, cloud].filter(Boolean));
     item.append(g);
     return item;
   }

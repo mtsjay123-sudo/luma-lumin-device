@@ -920,6 +920,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         elif action=='huge_get': brain.install_huge(); result=brain.status()
                         elif action=='huge_on': brain.set_huge(True,chat=data.get('chat')); result=brain.status()
                         elif action=='huge_off': brain.set_huge(False); result=brain.status()
+                        # Luma's own brain: the add-on trained on Luma's conversations, published when it's at least as honest as the stock one.
+                        elif action=='own_get': result=brain.fetch_own()
+                        elif action in {'own_on','own_off'}: result=brain.set_own(action=='own_on')
                         elif action=='huge_start':
                             from luma.llm import colibri
                             threading.Thread(target=colibri.start,daemon=True,name='colibri-start').start(); result=brain.status()

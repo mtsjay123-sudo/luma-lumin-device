@@ -94,6 +94,7 @@ class Brain:
         self.gpu = os.environ.get("LUMA_GPU_LAYERS", "-1") != "0"
         from luma.llm import inference
         self.override = inference._override  # the bigger brain's file, when chosen
+        self.adapter = inference._adapter    # Luma's own add-on, when chosen
         self.crashes = []  # (time, what it was doing, exit code, settings)
         self.resting_until = 0.0
         self.note = ""
@@ -106,6 +107,8 @@ class Brain:
             env["LUMA_GPU_LAYERS"] = "0"
         if self.override:
             env["LUMA_BRAIN_OVERRIDE"] = str(self.override)
+        if self.adapter:
+            env["LUMA_LORA_PATH"] = str(self.adapter)
         return env
 
     def _start(self):
@@ -134,6 +137,13 @@ class Brain:
         with self.lock:
             if (path or None) != self.override:
                 self.override = path or None
+                self.stop()
+
+    def use_adapter(self, path):
+        """Luma's own add-on (or None for the stock brain): the next thought loads it fresh."""
+        with self.lock:
+            if (path or None) != self.adapter:
+                self.adapter = path or None
                 self.stop()
 
     # -- a thought ----------------------------------------------------------

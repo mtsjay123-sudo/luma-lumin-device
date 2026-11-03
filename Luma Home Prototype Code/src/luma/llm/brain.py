@@ -85,11 +85,84 @@ def pick_parts(files, gb, quants=STUDIO_QUANTS, share=0.7):
     return None
 
 
+# -- Luma's own brain: a LoRA add-on trained on Luma's conversations (scripts/train_luma.py, the "Train Luma's brain" workflow)
+OWN_FILE = "luma-brain-lora.gguf"
+RELEASES = "https://api.github.com/repos/mtsjay123-sudo/luma-lumin-device/releases?per_page=20"
+own_fetching = {"running": False, "error": None}
+
+
+def own_path():
+    """The add-on file, if it's here."""
+    path = models_dir() / "luma-brain" / OWN_FILE
+    return path if path.is_file() else None
+
+
+def own_on():
+    return bool(_store is not None and _store.setting("brain_own", False) and own_path())
+
+
+def _apply_own():
+    from luma.llm import inference
+    inference.use_adapter(own_path() if own_on() else None)
+
+
+def set_own(on):
+    _store.set_setting("brain_own", bool(on))
+    _apply_own()
+    return status()
+
+
+def own_status():
+    return {"on": own_on(), "ready": bool(own_path()), "release": (_store.setting("brain_own_release") if _store else None),
+            "fetching": own_fetching["running"], "error": own_fetching["error"]}
+
+
+def fetch_own(opener=None):
+    """Download the newest published Luma brain (it's only published when it's at least as honest as the stock brain),
+    then think with it. Small: tens of megabytes, on top of the brain that's already here."""
+    if own_fetching["running"]:
+        return status()
+    own_fetching.update(running=True, error=None)
+    get = opener or (lambda url, timeout: urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout))
+
+    def run():
+        try:
+            with get(RELEASES, 30) as response:
+                releases = json.loads(response.read(2_000_000))
+            pick = next(((r, a) for r in releases if str(r.get("tag_name", "")).startswith("luma-brain-") and not r.get("draft")
+                         for a in r.get("assets", []) if a.get("name") == OWN_FILE), None)
+            if not pick:
+                own_fetching["error"] = "There's no trained Luma brain published yet."
+                return
+            release, asset = pick
+            with get(asset["browser_download_url"], 120) as response:
+                data = response.read(1_200_000_000)
+            if data[:4] != b"GGUF" or not 1_000_000 <= len(data) <= 1_100_000_000:
+                own_fetching["error"] = "That download didn't look like a Luma brain, so I didn't use it."
+                return
+            folder = models_dir() / "luma-brain"
+            folder.mkdir(parents=True, exist_ok=True)
+            part = folder / (OWN_FILE + ".part")
+            part.write_bytes(data)
+            part.replace(folder / OWN_FILE)
+            _store.set_setting("brain_own_release", release.get("tag_name"))
+            _store.set_setting("brain_own", True)
+            _apply_own()
+        except Exception as error:
+            own_fetching["error"] = _plain_error(error)
+        finally:
+            own_fetching["running"] = False
+
+    threading.Thread(target=run, daemon=True, name="luma-brain-fetch").start()
+    return status()
+
+
 def init(store):
     """At startup: remember the settings, and think with the bigger model if it's here and wanted."""
     global _store
     _store = store
     _apply_local()
+    _apply_own()
     from luma.llm import worker
     if worker.enabled():
         # If the bigger brain crashes for lack of memory, the brain process falls back on its own; remember that choice.
@@ -225,6 +298,7 @@ def status():
                   "speed": measured, "keeps_up": (measured.get("big" if using_big else "fast", KEEPS_UP) >= KEEPS_UP),
                   "note": (_store.setting("brain_note") if _store else None)},
         "huge": huge_status(),
+        "own": own_status(),
         "health": health(),
         "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
     }

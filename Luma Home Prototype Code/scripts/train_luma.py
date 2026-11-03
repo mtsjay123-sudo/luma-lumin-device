@@ -181,6 +181,11 @@ def main(argv=None):
             optimizer.zero_grad(set_to_none=True)
             step += 1
             spent = time.time() - started
+            if step == 5 and budget != float("inf"):
+                # Fit the learning-rate schedule to the steps that will really happen in the time there is, so it
+                # warms up and settles properly instead of being cut off halfway down.
+                total = max(step + 1, min(total, int(step * budget / max(spent, 1.0))))
+                print(f"about {total} steps fit in {args.minutes:.0f} minutes", flush=True)
             if step % 5 == 0 or step == 1:
                 print(f"step {step}/{total}  loss {running:.3f}  {seen} conversations  {tokens / spent:.1f} tokens/s  "
                       f"{spent / 60:.1f} min", flush=True)

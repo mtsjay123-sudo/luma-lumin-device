@@ -7,6 +7,7 @@ Writes one WAV per line per voice:
   classic-*.wav     Luma's classic voice (Kokoro) with the new pauses, laughs-as-beats and slang said right
   expressive-*.wav  Chatterbox-Turbo, learning Luma's classic voice from one short line, with real laughs
   studio-*.wav      Qwen3-TTS 0.6B, learning the same voice
+  lifelike-*.wav    VoxCPM2 (OpenBMB, Apache-2.0), true-to-life cloning, 48 kHz, learning Luma's voice
   dia-*.wav         Dia 1.6B (Nari Labs), made for conversation, with real laughs, continuing the same voice
   csm-*.wav         Sesame CSM 1B, a conversational model, continuing the same voice
   design-*.wav      Qwen3-TTS VoiceDesign: candidate voices for Luma's own identity, from a description
@@ -115,7 +116,7 @@ def main(out):
     # 2 and 3. The new open voices, each learning Luma's classic voice from one paragraph. Each one on its own, and
     # rendered even when this runner is too slow for a live conversation, so they can be heard (the speed is reported).
     natural.MAX_RTF = float("inf")
-    for engine in ("expressive", "studio", "dia", "csm"):
+    for engine in ("expressive", "lifelike", "studio", "dia", "csm"):  # the strongest contenders first, while there's time
         natural.ENGINES = (engine,)
         v = natural.NaturalVoice()
         natural._voice = None  # nothing here may fall back to the classic voice: render_with talks to this engine only

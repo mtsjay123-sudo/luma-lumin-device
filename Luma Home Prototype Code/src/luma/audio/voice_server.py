@@ -30,6 +30,9 @@ ENGINES = {
             "tags": True, "script": True},
     # Sesame CSM 1B (Apache-2.0): a conversational speech model that keeps a voice going from earlier audio.
     "csm": {"repos": ["mlx-community/csm-1b", "mlx-community/csm-1b-fp16", "mlx-community/csm-1b-8bit"], "tags": False},
+    # VoxCPM2 (OpenBMB, Apache-2.0): no audio tokenizer in the way, trained on over 2 million hours of speech, true-to-life
+    # cloning from a short clip, 48 kHz out. The newest contender for the most human voice.
+    "lifelike": {"repos": ["mlx-community/VoxCPM2-bf16", "mlx-community/VoxCPM2-8bit", "mlx-community/VoxCPM2-4bit"], "tags": False},
 }
 
 
@@ -130,6 +133,19 @@ def load(engine, ref=None, ref_text=None, repos=None):
     raise RuntimeError("None of the voice models would load: " + " | ".join(errors)[:900])
 
 
+def _accepted(model, kwargs):
+    """Only what this model's generate() takes: a newer model with different names for things (or none for a voice
+    reference) gets the text and what it understands, instead of failing on a setting it doesn't know."""
+    import inspect
+    try:
+        params = inspect.signature(model.generate).parameters
+    except (TypeError, ValueError):
+        return kwargs
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return kwargs
+    return {k: v for k, v in kwargs.items() if k in params}
+
+
 def _generate(model, kwargs):
     import numpy as np
     pieces = []
@@ -161,8 +177,9 @@ def say(text):
     kwargs = _limit(state["engine"], model, text, {"text": _script(state["engine"], text)})
     if state["ref"] and os.path.exists(state["ref"]) and not state.get("conds"):
         kwargs["ref_audio"] = state["ref"]
-        if state["engine"] in ("studio", "dia", "csm") and state["ref_text"]:
+        if state["engine"] in ("studio", "dia", "csm", "lifelike") and state["ref_text"]:
             kwargs["ref_text"] = _script(state["engine"], state["ref_text"])
+    kwargs = _accepted(model, kwargs)
     started = time.time()
     tried = []
     for _ in range(3):  # these models sample, and now and then stop before saying anything: try again
