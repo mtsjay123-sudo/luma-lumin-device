@@ -1,0 +1,82 @@
+# Train Luma's own brain in the cloud: a LoRA add-on for Qwen3 4B Instruct (the brain Luma already runs), learned from
+# Luma's verified conversations. Runs on GitHub's free machines (no GPU, so it trains within a time budget and keeps
+# what it learned). The add-on is published as a release only when the trained brain is at least as honest as the
+# stock one on held-out conversations (no numbers that weren't in what was found, no made-up slang meanings).
+name: Train Luma's brain
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base model (Luma's brain is Qwen/Qwen3-4B-Instruct-2507; Qwen/Qwen3-0.6B checks the pipeline quickly)"
+        default: "Qwen/Qwen3-4B-Instruct-2507"
+      minutes:
+        description: "Minutes of training"
+        default: "270"
+      eval:
+        description: "Held-out conversations judged before and after"
+        default: "16"
+      runner:
+        description: "Machine"
+        type: choice
+        options: [ubuntu-24.04-arm, ubuntu-latest]
+        default: ubuntu-24.04-arm
+      publish:
+        description: "Publish the add-on as a release when it passes"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 355
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the trainer
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q "transformers>=4.51,<6" "peft>=0.13" "accelerate>=1.0" sentencepiece safetensors numpy huggingface_hub gguf
+          python -c "import torch, transformers, peft; print('torch', torch.__version__, 'transformers', transformers.__version__, 'peft', peft.__version__)"
+          nproc; free -g
+      - name: Train
+        run: python scripts/train_luma.py --base "${{ inputs.base }}" --minutes "${{ inputs.minutes }}" --eval "${{ inputs.eval }}" --out out/luma-brain
+      - name: Convert to one GGUF file Luma loads on top of its brain
+        run: |
+          git clone -q --depth 1 https://github.com/ggml-org/llama.cpp "$RUNNER_TEMP/llama.cpp"
+          BASE_DIR=$(python -c "from huggingface_hub import snapshot_download; print(snapshot_download('${{ inputs.base }}'))")
+          PYTHONPATH="$RUNNER_TEMP/llama.cpp/gguf-py" python "$RUNNER_TEMP/llama.cpp/convert_lora_to_gguf.py" out/luma-brain/adapter \
+            --base "$BASE_DIR" --outtype f16 --outfile out/luma-brain/luma-brain-lora.gguf
+          ls -la out/luma-brain
+      - name: Report
+        if: always()
+        run: python scripts/train_report.py out/luma-brain/eval.json >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: luma-brain
+          path: |
+            Luma Home Prototype Code/out/luma-brain/luma-brain-lora.gguf
+            Luma Home Prototype Code/out/luma-brain/eval.json
+            Luma Home Prototype Code/out/luma-brain/adapter/adapter_config.json
+            Luma Home Prototype Code/out/luma-brain/adapter/adapter_model.safetensors
+          if-no-files-found: warn
+      - name: Publish when it's at least as honest as the stock brain
+        if: inputs.publish && inputs.base == 'Qwen/Qwen3-4B-Instruct-2507'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PASSED=$(python -c "import json; print(json.load(open('out/luma-brain/eval.json')).get('as_honest', False))")
+          if [ "$PASSED" != "True" ]; then echo "Not publishing: the trained brain wasn't at least as honest as the stock one."; exit 0; fi
+          python scripts/train_report.py out/luma-brain/eval.json > "$RUNNER_TEMP/notes.md"
+          gh release create "luma-brain-${{ github.run_number }}" out/luma-brain/luma-brain-lora.gguf out/luma-brain/eval.json \
+            --title "Luma brain ${{ github.run_number }}" --notes-file "$RUNNER_TEMP/notes.md"
