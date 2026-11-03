@@ -15,9 +15,9 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
-from luma.agent import slang_archive, slang_data
+from luma.agent import slang_archive, slang_communities, slang_data
 
-ORIGINS = {**slang_data.ORIGINS, **slang_archive.ORIGINS}
+ORIGINS = {**slang_data.ORIGINS, **slang_archive.ORIGINS, **slang_communities.ORIGINS}
 
 # Words that are slang in one sense but everyday English in another ("fire", "tea", "bag"):
 # understood and explained, but they don't count as a sign that someone talks in slang.
@@ -32,7 +32,7 @@ AMBIGUOUS = {
     "ass", "damn", "bitch", "dick", "piss", "streamer", "boss", "respawn", "emote", "camping", "op", "buff", "nerf", "cracked", "throw", "diff",
     "wicked", "reckon", "rad", "stoked", "shred", "mob", "ard", "bul", "brick", "od", "ting", "cheeky", "bloody", "arse", "bugger", "gutted",
     "aura", "chopped", "unc", "tuff", "ate", "gagged", "clock it", "wig", "werk", "realness", "kiki", "shade", "slay", "zesty", "brat",
-} | slang_archive.EVERYDAY
+} | slang_archive.EVERYDAY | slang_communities.EVERYDAY
 VULGAR_SAY = {"wtf": "what the fuck", "stfu": "shut the fuck up", "gtfo": "get the fuck out", "idgaf": "I don't give a fuck", "tf": "the fuck",
               "af": "as fuck", "fml": "fuck my life", "lmfao": "laughing my fucking ass off", "mf": "motherfucker", "pmo": "pisses me off"}
 
@@ -69,7 +69,7 @@ def _extra_lines():
 def lexicon():
     """term -> Entry, plus every spelling variant -> the same Entry. Luma's own entries win over grown ones."""
     by_term, forms = {}, {}
-    curated = slang_data.LEXICON.splitlines() + slang_archive.LEXICON.splitlines()
+    curated = slang_data.LEXICON.splitlines() + slang_archive.LEXICON.splitlines() + slang_communities.LEXICON.splitlines()
     for number, line in enumerate(curated + _extra_lines()):
         grown = number >= len(curated)
         if not line.strip() or line.lstrip().startswith("#"):
@@ -122,19 +122,33 @@ def _candidates(token):
     return seen
 
 
+def _plain(text):
+    """Accents off, for a second try: "órale" -> "orale"."""
+    import unicodedata
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
 def find(text):
-    """Every slang entry in a message, once each, in order: [(what they typed, Entry)]."""
+    """Every slang entry in a message, once each, in order: [(what they typed, Entry)]. A word inside a phrase that was
+    already found doesn't count again ("no cap" is "for real", not also "cap", a lie)."""
     _, forms = lexicon()
     low = _key(text)
-    out, taken = [], set()
-    for m in _phrases().finditer(low):
-        entry = forms.get(_key(re.sub(r"[\s-]+", " ", m.group(1))))
-        if entry and entry.term not in taken:
-            out.append((m.group(1), entry))
-            taken.add(entry.term)
-    for token in re.findall(r"[a-z0-9][a-z0-9'*.;-]*", low):
-        token = token.rstrip(".;-")
-        for c in _candidates(token):
+    out, taken, covered = [], set(), []
+    plain_low = _plain(low)
+    for source in (low, plain_low) if plain_low != low else (low,):
+        for m in _phrases().finditer(source):
+            entry = forms.get(_key(re.sub(r"[\s-]+", " ", m.group(1))))
+            if entry:
+                covered.append(m.span(1))
+                if entry.term not in taken:
+                    out.append((m.group(1), entry))
+                    taken.add(entry.term)
+    for m in re.finditer(r"[^\W_][\w'*.;-]*", low):  # letters in any language: "órale", "güey", "híjole"
+        if any(a <= m.start() and m.end() <= b for a, b in covered):
+            continue
+        token = m.group(0).rstrip(".;-")
+        plain = _plain(token)
+        for c in _candidates(token) + ([] if plain == token else _candidates(plain)):
             entry = forms.get(c)
             if entry:
                 if entry.term not in taken:
@@ -199,23 +213,52 @@ def learn(stats, text):
     return stats
 
 
-def register_note(stats, preset="everyday"):
+def leaning(stats):
+    """The one or two communities their slang comes from: seen at least twice, through at least two different words,
+    so one borrowed word doesn't make anyone a member of anything."""
+    stats = stats or {}
+    families = {f: c for f, c in (stats.get("families") or {}).items() if c >= 2}
+    distinct = {f: len({t for t in (stats.get("terms") or {}) if f in _origins_of(t)}) for f in families}
+    return [f for f, c in sorted(families.items(), key=lambda kv: -kv[1]) if distinct.get(f, 0) >= 2][:2]
+
+
+def circle_words(communities, used=(), limit=8):
+    """Real words from their circle Luma may use back (with meanings), minus the ones they already use."""
+    from luma.agent import phrasebank
+    have = {_key(t) for t in used}
+    out = []
+    for community in communities:
+        for term, meaning in phrasebank.voice(community, limit + len(have)):
+            if _key(term) not in have and all(_key(term) != _key(t) for t, _ in out):
+                out.append((term, meaning))
+    return out[:limit]
+
+
+def register_note(stats, preset="everyday", kids=False):
     """How they talk, for the brain: their words, their community's register (only theirs), and cussing to match."""
     n = max(1, int(stats.get("n", 0)))
     if n < 2:
         return ""
     used = [t for t, c in (stats.get("terms") or {}).items() if c >= 2][:10]
-    families = {f: c for f, c in (stats.get("families") or {}).items() if c >= 2}
-    distinct = {f: len({t for t in (stats.get("terms") or {}) if f in _origins_of(t)}) for f in families}
-    leaning = [f for f, c in sorted(families.items(), key=lambda kv: -kv[1]) if distinct.get(f, 0) >= 2][:2]
+    circle = leaning(stats)
     slangy = int(stats.get("slangy", 0)) / n
     lines = []
     if used:
         lines.append("Slang they use: " + ", ".join(f"“{t}”" for t in used) + ".")
-    if leaning:
-        lines.append("Their slang comes from " + " and ".join(ORIGINS.get(f, f) for f in leaning) + ". Talk back in that same register, like a friend "
+    if circle:
+        lines.append("Their slang comes from " + " and ".join(ORIGINS.get(f, f) for f in circle) + ". Talk back in that same register, like a friend "
                      "from their circle: their words and the slang around them, sprinkled in naturally, not in every sentence. Everyday internet slang "
                      "(bet, lowkey, fr, no cap, it's giving) is always fair game. Just never put on an accent or fake a dialect.")
+        words = circle_words(circle, list(stats.get("terms") or {}))
+        if words:
+            lines.append("Other real words from their circle you can use (only these, and only the way they're meant; never make slang up): "
+                         + "; ".join(f"“{t}” ({m})" for t, m in words) + ".")
+        if not kids:
+            from luma.agent import phrasebank
+            bit = phrasebank.joke(circle[0], n)
+            if bit:
+                lines.append("The kind of joke people in their circle make (about shared situations, never about who someone is; riff in that "
+                             f"spirit only when it fits, don't repeat it): “{bit}”")
     elif slangy > 0.2:
         lines.append("They talk casual with slang. Talk back the same way: their words plus everyday slang, naturally, like a friend texting back.")
     elif slangy < 0.1 and n >= 6:

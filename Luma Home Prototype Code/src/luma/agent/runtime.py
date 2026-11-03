@@ -2577,7 +2577,7 @@ class Agent:
             if stats["emoji"] / n > 0.3: bits.append("uses emoji")
             used = [w for w, c in stats["slang"].items() if c >= 2][:6]
             casual = bool(used) or stats["lower"] / n > 0.6
-            register = lexicon.register_note(stats, self.profile.get("preset", "everyday"))
+            register = lexicon.register_note(stats, self.profile.get("preset", "everyday"), kids=self.mode == "kids")
             casual = casual or "register" in register or "casual" in register
             line = ("How they talk: " + ", ".join(bits) + ". " + (register + " " if register else
                     ("Slang they use: " + ", ".join(f"“{w}”" for w in used) + ". " if used else ""))
@@ -2597,7 +2597,7 @@ class Agent:
         soul = self.store.setting("soul")
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
         style = self.store.setting("their_style")
-        if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:700]})
+        if style and self.mode != "kids": out.append({"mind": True, "text": str(style)[:1600]})
         if self.mode != "kids":
             from luma.agent import banter, slang as lexicon
             for note in (banter.character_note(self.store.setting("character")), lexicon.turn_note(text),
