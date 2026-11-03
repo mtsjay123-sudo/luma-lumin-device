@@ -4304,7 +4304,7 @@ class Agent:
     PROJECT_ASK = re.compile(r"^(?:(?:hey|yo|ok(?:ay)?|so)[, ]+)?(?:luma[, ]+)?(?:please\s+|can you\s+|could you\s+|would you\s+|i need (?:you to\s+)?|i want (?:you to\s+)?|"
                              r"go ahead and\s+|help me\s+|let'?s\s+)?(?:research|analy[sz]e|prepare|create|make|build|design|write|generate|draft|develop|code|put together|package|plan out)\b", re.I)
     PROJECT_STATUS = re.compile(r"\b(?:how'?s|how is|status of|progress on|where are (?:we|you) (?:at )?(?:with|on)|update on) (?:my |the |our )?(?:latest )?project\b", re.I)
-    WORK_ONLY = {"website", "game", "model3d", "financial_model", "analyze_data", "code", "research", "video", "video_edit"}
+    WORK_ONLY = {"website", "game", "model3d", "financial_model", "analyze_data", "code", "research", "video", "video_edit", "extract"}
 
     SLANG_ASK = re.compile(r"^\W*(?:what(?:'s| is| does)|wtf (?:is|does)|whats|wdym|what do you mean)(?: the word| it mean when (?:someone|people|they|you) says?)? [\"“']?(?P<w>[\w' -]{2,30}?)[\"”']?(?: mean| means| stand for)?\W*$", re.I)
     TEACH = re.compile(r"^\W*[\"“']?(?P<w>[\w' -]{2,30}?)[\"”']? (?:means|is when|is like|=) (?P<m>.{3,120}?)\W*$", re.I)

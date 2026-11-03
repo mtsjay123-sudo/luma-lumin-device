@@ -578,7 +578,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 if self.headers.get('Content-Type','').split(';')[0].strip()!='image/jpeg': return self.send({'error':'Send the camera picture as a JPEG.'},415)
                 try: size=int(self.headers.get('Content-Length','0') or 0)
                 except ValueError: return self.send({'error':'Send the picture again.'},411)
-                if not 0<size<=600_000: return self.send({'error':'That camera picture is too big.'},413)
+                if not 0<size<=600_000:
+                    if 0<size<=4_000_000: self.rfile.read(size)  # read it first, so the app hears "too big" instead of a dropped connection
+                    return self.send({'error':'That camera picture is too big.'},413)
                 frame=self.rfile.read(size)
                 query=parse_qs(urlsplit(self.path).query)
                 question=query.get('q',[''])[0][:500]

@@ -32,11 +32,15 @@ ROLES = {
     "design": "You are Luma's design agent. Clean, modern and on-brand: use the brand name and colors decided earlier and real words from the research, never generic filler.",
     "coding": "You are Luma's coding agent. Write complete, working, tested files. When something failed, fix the cause shown in the error; never hide or skip the error.",
     "qa": "You are Luma's QA agent. Make sure every deliverable opens and does what was asked.",
+    "extract": "You are Luma's data agent, reading documents. Copy what each document says exactly; leave a blank rather than guess.",
     "video": "You are Luma's video agent. Write for the ear: short, plain sentences a friend would say out loud, true to the research, with one clear idea on screen at a time.",
 }
 AGENT_FOR = {"research": "research", "analyze_data": "data", "financial_model": "data", "document": "document", "deck": "document", "website": "design",
-             "graphics": "design", "model3d": "design", "code": "coding", "game": "coding", "package": "qa", "video": "video", "video_edit": "video"}
+             "graphics": "design", "model3d": "design", "code": "coding", "game": "coding", "package": "qa", "video": "video", "video_edit": "video", "extract": "data"}
 DETECT = [
+    ("extract", r"\b(?:pull|extract|grab|copy|collect)\b[^.]{0,80}\b(?:from|out of|in)\b[^.]{0,30}\b(?:invoices?|receipts?|pdfs?|documents?|docs|files|"
+                r"statements?|bills?|forms?|contracts?|resumes?|cvs|reviews|scans?|paperwork)\b|\b(?:invoices?|receipts?|statements?|bills?|resumes?|"
+                r"contracts?|pdfs?|documents?|paperwork)\b[^.]{0,40}\b(?:into|to|in) (?:a |an |one )?(?:spreadsheet|sheet|excel|table|csv)\b", "Pull it into a spreadsheet"),
     ("research", r"\bresearch|\bcompetitors?\b|\bcompetition\b|\bmarket\b|\blook into\b|\bfind out\b|\bsources?\b|\banaly[sz]e (?:the |this |my )?(?:idea|business|market|industry)", "Research the idea and the competition"),
     ("analyze_data", r"\b(?:analy[sz]e|summari[sz]e|crunch|dig into)\b.{0,40}\b(?:spreadsheet|csv|excel|xlsx|data|table|sales|numbers)\b|\.(?:csv|xlsx)\b", "Analyze the data"),
     ("financial_model", r"\bfinancials?\b|\bprojections?\b|\bforecast|\bp&l\b|profit and loss|revenue model|unit economics|break.?even|budget model", "Build the financial model"),
@@ -57,7 +61,7 @@ DETECT = [
 ORDER = [tool for tool, _, _ in DETECT]
 NEEDS = {"research": [], "analyze_data": [], "financial_model": ["research", "analyze_data"], "graphics": ["research"],
          "document": ["research", "analyze_data", "financial_model"], "deck": ["research", "analyze_data", "financial_model", "graphics"],
-         "website": ["research", "graphics", "financial_model"], "code": ["research"], "game": [], "model3d": [], "video_edit": [], "video": ["research"],
+         "website": ["research", "graphics", "financial_model"], "code": ["research"], "game": [], "model3d": [], "video_edit": [], "video": ["research"], "extract": [],
          "package": None}
 STATES = ("pending", "running", "done", "attention", "waiting", "skipped", "stopped")
 
