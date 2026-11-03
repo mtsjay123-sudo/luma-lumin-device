@@ -38,11 +38,12 @@ def _save_wav(audio, path):
 
 
 def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None):
-    """Capture local utterances; barge-in requires explicitly isolated playback.
+    """Capture local utterances; barge-in requires playback the mic can't hear, or echo cancellation.
 
-    There is no acoustic echo cancellation. Keep allow_barge_in False on ordinary
-    speakers. A caller using headphones may opt in and dispatch callback work to
-    a worker so this loop can capture an interruption during speech generation.
+    With the echo canceller (luma.audio.echo, WebRTC AEC3), every chunk of mic audio has Luma's own voice taken out
+    before listening, so allow_barge_in is safe on ordinary speakers: while Luma talks, only sound well above what's
+    left of its echo can start a turn. Without it, keep allow_barge_in False unless there are headphones. A caller
+    that opts in should dispatch callback work to a worker so this loop can capture an interruption during speech.
     on_pause, if given, is called at a short pause inside a long turn (where a listener says "mm-hm"); it must return quickly.
     """
     if not isinstance(allow_barge_in, bool):
@@ -51,6 +52,8 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
     should_stop = should_stop or (lambda: False)
     if should_stop() or stop_event.is_set(): return
     vad = _get_vad_iterator()
+    from luma.audio import echo
+    aec = echo.canceller()
     q = queue.Queue(maxsize=32)
     utterance, pre = [], deque(maxlen=6)
     in_speech = False
@@ -74,6 +77,11 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
                 utterance, in_speech = [], False
                 vad.reset_states(); pre.clear()
                 continue
+            if aec is not None:
+                chunk = aec.clean(chunk)  # Luma's own voice out, the room and the owner left
+                if _speaking.is_set() and not in_speech and echo.level_db(chunk) < echo.TALK_OVER_FLOOR_DB:
+                    pre.append(chunk)  # only what's left of Luma's echo: not someone talking over it
+                    continue
             result = vad(torch.from_numpy(chunk.astype(np.float32) / 32768.0))
             if result and "start" in result:
                 in_speech = True

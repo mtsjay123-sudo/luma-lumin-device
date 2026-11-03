@@ -4,6 +4,7 @@ import threading
 import wave
 import numpy as np
 import sounddevice as sd
+from luma.audio import echo
 from luma.config import SAMPLE_RATE
 from luma.hardware.device import resolve_audio_device
 
@@ -30,6 +31,7 @@ def play_chunks(chunks, should_stop=None) -> bool:
                 for start in range(0, len(audio), block):
                     if should_stop(): stream.abort(); return False
                     stream.write(audio[start:start+block].reshape(-1,1))
+                    echo.played(audio[start:start+block], rate)  # what the mic is about to hear, so it can be taken back out
             if should_stop(): stream.abort(); return False
         except BaseException:
             stream.abort()

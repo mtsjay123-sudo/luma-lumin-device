@@ -141,7 +141,7 @@ def ask_voice(agent=None):
 def start_hands_free(agent=None, stop_event=None, ambient=False):
     agent = agent or get_agent()
     stop_event = stop_event or threading.Event()
-    from luma.audio import backchannel, vad
+    from luma.audio import backchannel, echo, vad
     from luma.audio.stt import transcribe
     from luma.agent.conversation import interruption_intent
     followup_until = 0.0
@@ -192,9 +192,10 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
             stop_event.wait(.1)
             continue
         try:
-            # Talking over Luma works when its mic can't hear its own voice: headphones, or a mic that cancels echo. The owner's choice wins.
+            # Talking over Luma works when its mic can't hear its own voice: headphones, a mic that cancels echo, or Luma's own
+            # echo canceller (WebRTC AEC3). The owner's choice wins.
             chosen = agent.store.setting('barge_in', None)
-            barge_in = chosen if isinstance(chosen, bool) else backchannel.safe_to_talk_over(*backchannel.device_names())
+            barge_in = chosen if isinstance(chosen, bool) else (backchannel.safe_to_talk_over(*backchannel.device_names()) or echo.ready())
             vad.start_listening(received, stop_event,
                                 should_stop=lambda: capture_blocked(agent) or agent.store.setting('barge_in', None) != chosen,
                                 allow_barge_in=barge_in, on_pause=listening)
