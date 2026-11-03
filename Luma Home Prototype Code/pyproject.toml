@@ -21,6 +21,7 @@ dependencies = [
     "livekit>=1.0",  # WebRTC echo cancellation, so the owner can talk over Luma on a plain speaker
     "markitdown[docx,pptx,xlsx]>=0.1",  # Office files as Markdown: tables stay tables
     "trafilatura>=2.0",  # a web page down to its article
+    "onnxruntime",  # Smart Turn (and Kokoro): small models that run on the CPU
     "httpx",
     "feedparser",
     "wikipedia-api",

@@ -83,15 +83,20 @@ class PlaybackFeedsTheCancellerTests(unittest.TestCase):
             def write(self, block): written.append(len(block))
             def abort(self): pass
 
+        import luma.audio as package
         fake = mock.Mock(OutputStream=Stream, query_devices=lambda *a, **k: [])
-        with mock.patch.dict(sys.modules, {"sounddevice": fake}):
-            sys.modules.pop("luma.audio.io", None)
-            io = importlib.import_module("luma.audio.io")
-            handed = []
-            with mock.patch.object(io.echo, "played", side_effect=lambda pcm, rate: handed.append((len(pcm), rate))), \
-                 mock.patch.object(io, "resolve_audio_device", return_value=None):
-                self.assertTrue(io.play_chunks([(np.zeros(2400, dtype=np.int16), 24_000)]))
-        sys.modules.pop("luma.audio.io", None)
+        before = package.__dict__.get("io")
+        try:
+            with mock.patch.dict(sys.modules, {"sounddevice": fake}):  # everything in sys.modules is put back afterwards
+                sys.modules.pop("luma.audio.io", None)
+                io = importlib.import_module("luma.audio.io")
+                handed = []
+                with mock.patch.object(io.echo, "played", side_effect=lambda pcm, rate: handed.append((len(pcm), rate))), \
+                     mock.patch.object(io, "resolve_audio_device", return_value=None):
+                    self.assertTrue(io.play_chunks([(np.zeros(2400, dtype=np.int16), 24_000)]))
+        finally:
+            if before is None: package.__dict__.pop("io", None)
+            else: package.io = before
         self.assertEqual(handed, [(480, 24_000)] * 5, "the same 20 ms blocks the speaker got, in order")
         self.assertEqual(written, [480] * 5)
 

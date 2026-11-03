@@ -24,11 +24,11 @@ def set_speaking(value):
     _speaking.set() if value else _speaking.clear()
 
 
-def _get_vad_iterator():
+def _get_vad_iterator(silence_ms=900):
     global _model
     with _model_lock:
         if _model is None: _model = load_silero_vad()
-    return VADIterator(_model, threshold=0.5, sampling_rate=SAMPLE_RATE, min_silence_duration_ms=900, speech_pad_ms=60)
+    return VADIterator(_model, threshold=0.5, sampling_rate=SAMPLE_RATE, min_silence_duration_ms=silence_ms, speech_pad_ms=60)
 
 
 def _save_wav(audio, path):
@@ -51,7 +51,11 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
     stop_event = stop_event or threading.Event()
     should_stop = should_stop or (lambda: False)
     if should_stop() or stop_event.is_set(): return
-    vad = _get_vad_iterator()
+    from luma.audio import turn
+    smart = turn.model() is not None  # Smart Turn: a short pause asks "is that the end?" instead of waiting out a long silence
+    if not smart: turn.fetch_in_background()
+    ending = turn.Ending()
+    vad = _get_vad_iterator(turn.PAUSE_MS if smart else turn.PLAIN_MS)
     from luma.audio import echo
     aec = echo.canceller()
     q = queue.Queue(maxsize=32)
@@ -84,16 +88,25 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
                     continue
             result = vad(torch.from_numpy(chunk.astype(np.float32) / 32768.0))
             if result and "start" in result:
-                in_speech = True
-                utterance = list(pre)
-                if watch is not None: watch.start()
+                if ending.holding is not None:
+                    ending.resumed()  # they kept going after the pause: the same turn
+                else:
+                    in_speech = True
+                    utterance = list(pre)
+                    if watch is not None: watch.start()
             if in_speech: utterance.append(chunk)
             if in_speech and watch is not None and watch.feed(chunk) and not _speaking.is_set():
                 try: on_pause()
                 except Exception: pass  # a missed "mm-hm" never stops listening
             pre.append(chunk)
-            ended = result and "end" in result
-            if in_speech and (ended or len(utterance) >= int(30*SAMPLE_RATE/_CHUNK)):
+            ended = bool(result and "end" in result)
+            too_long = len(utterance) >= int(30*SAMPLE_RATE/_CHUNK)
+            if in_speech and ended and smart and not too_long:
+                ended = ending.paused(np.concatenate(utterance))  # mid-thought ("call... um... my sister"): hold on for the rest
+            if in_speech and ending.timed_out():
+                ended = True
+            if in_speech and (ended or too_long):
+                ending.reset()
                 captured = utterance
                 utterance, in_speech = [], False
                 vad.reset_states(); pre.clear()
