@@ -3570,7 +3570,45 @@
       ct.append(f);
       cloud.append(ct);
     }
-    g.append(local, cloud);
+    // The huge brain: an open model of hundreds of billions of parameters, run on this Mac by colibri. Big Macs only.
+    const H = b.huge || {};
+    let hugeRow = null;
+    if (H.fits || H.installed) {
+      hugeRow = el("div", "brain-row");
+      const ht = el("div", "grow");
+      ht.append(el("div", "t", "Huge brain"));
+      const busy = H.installing || {};
+      if (busy.running) {
+        ht.append(el("div", "sub", `${busy.step || "Setting it up"}…`));
+        clearTimeout(brainCard.hugeTimer);
+        brainCard.hugeTimer = setTimeout(() => state.view === "settings" && refreshHome().then(renderSettings), 5000);
+        hugeRow.append(ht);
+      } else if (H.running) {
+        ht.append(el("div", "sub", H.on
+          ? `On. ${H.model || "The huge brain"} takes the big jobs (projects, research, hard questions) right here on this Mac. It's slow, so everyday talk stays on the fast brain${H.chat ? ", except you asked to talk with it too" : ""}.`
+          : `${H.model || "The huge brain"} is running on this Mac. Turn it on to give it the big jobs.`));
+        if (H.error) ht.append(el("div", "sub warn", H.error));
+        const a = el("div", "row-actions");
+        if (H.on) {
+          a.append(btn(H.chat ? "Only big jobs" : "Talk with it too", "pill soft small", () => redo({ action: "huge_on", chat: !H.chat }, H.chat ? "Everyday talk is back on the fast brain." : "It answers everything now. Replies take longer.")),
+            btn("Turn it off", "pill quiet small", () => redo({ action: "huge_off" }, "The huge brain is off.")));
+        } else {
+          a.append(btn("Use it", "pill primary small", () => redo({ action: "huge_on" }, "The huge brain takes the big jobs now.")));
+        }
+        hugeRow.append(ht, a);
+      } else if (H.installed) {
+        ht.append(el("div", "sub", "It's on this Mac but not running."));
+        if (busy.error) ht.append(el("div", "sub warn", busy.error));
+        hugeRow.append(ht, btn("Start it", "pill primary small", () => redo({ action: H.on ? "huge_start" : "huge_on" }, "Starting it. A huge model takes a minute to wake up.")));
+      } else {
+        ht.append(el("div", "sub", H.whole_glm
+          ? `This Mac has ${H.ram_gb} GB of memory: enough to hold GLM-5.2 (744 billion parameters) whole, free and private, with colibri. A 429 GB download, so it takes a while.`
+          : `Run an open model of hundreds of billions of parameters on this Mac with colibri, free and private. It's slow here, so it only takes the big jobs.`));
+        if (busy.error) ht.append(el("div", "sub warn", busy.error));
+        hugeRow.append(ht, btn("Get the huge brain", "pill primary small", () => redo({ action: "huge_get" }, "Setting it up in the background. Luma keeps working meanwhile.")));
+      }
+    }
+    g.append(...[local, hugeRow, cloud].filter(Boolean));
     item.append(g);
     return item;
   }

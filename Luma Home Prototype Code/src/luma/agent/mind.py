@@ -247,19 +247,26 @@ def candidate_prompt(scenario_instruction, text, about_line):
 
 
 _LABEL = re.compile(r"\s*(?:\b(?:option|take|answer|choice|scenario)\s+)?\[[A-F]\](?:\s+(?:option|take|answer))?|\b(?:option|take|scenario)\s+[A-F]\b", re.I)
+# "Go with C." / "I'd pick B because..." / "C. Your phone...": the letter is capital (so "pick a time" stays), the verb any case.
+_PICK = re.compile(r"(?i:\b(?:i'?d (?:go with|pick|choose)|i would (?:go with|pick|choose)|go with|pick|choose))\s+\[?[A-F]\]?(?![\w'])|^\(?\[?[A-F]\]?[.):](?=\s)")
+_LONE_LETTER = re.compile(r"\(?\[?[A-F]\]?[.):]?\)?")
 
 
 def without_labels(answer):
     """The judge compares lettered takes ([A], [B]...). The person never sees those letters: a sentence that was only
-    about a letter ("Go with [C].") goes, and a letter inside a real sentence is dropped."""
+    about a letter ("Go with [C].") goes, and a letter inside a real sentence is dropped ("I'd pick B because it leaves
+    room" -> "It leaves room"). "Vitamin C." is a real sentence and stays."""
     if not isinstance(answer, str):
         return answer
     kept = []
     for sentence in re.split(r"(?<=[.!?])\s+", answer.strip()):
-        if not _LABEL.search(sentence):
+        if _LONE_LETTER.fullmatch(sentence.strip()):
+            continue  # "C." on its own
+        if not (_LABEL.search(sentence) or _PICK.search(sentence)):
             kept.append(sentence)
             continue
-        rest = re.sub(r"\s+([,.!?])", r"\1", _LABEL.sub("", sentence)).strip(" ,;:-")
+        rest = re.sub(r"\s+([,.!?])", r"\1", _PICK.sub("", _LABEL.sub("", sentence))).strip(" ,;:-")
+        rest = re.sub(r"^(?:because|since|as)\s+", "", rest, flags=re.I)
         if len(re.findall(r"[A-Za-z']+", rest)) > 4:
             kept.append(rest[0].upper() + rest[1:] if rest else rest)
     return " ".join(kept).strip()

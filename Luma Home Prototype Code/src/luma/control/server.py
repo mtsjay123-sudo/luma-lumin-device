@@ -883,6 +883,13 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         elif action=='forget_key': result=brain.forget_key()
                         elif action=='get_bigger': result=brain.fetch_bigger()
                         elif action in {'use_small','use_big'}: brain.use_small(action=='use_small'); result=brain.status()
+                        # The huge brain (colibri, on a big Mac): get it, start it, turn it on or off, talk with it or not.
+                        elif action=='huge_get': brain.install_huge(); result=brain.status()
+                        elif action=='huge_on': brain.set_huge(True,chat=data.get('chat')); result=brain.status()
+                        elif action=='huge_off': brain.set_huge(False); result=brain.status()
+                        elif action=='huge_start':
+                            from luma.llm import colibri
+                            threading.Thread(target=colibri.start,daemon=True,name='colibri-start').start(); result=brain.status()
                         else: raise ValueError('Choose a brain setting.')
                         result={'brain':result}
                     elif path=='/api/rules':
@@ -1117,6 +1124,11 @@ def serve(agent,port,phone_host=None,phone_port=8096):
         print('LUMA brain: '+('ready' if h['ok'] else 'NOT READY - '+h['say']),flush=True)  # the first thing to check in the runtime log
     except Exception as error: print(f'LUMA brain check failed: {error}',flush=True)
     if ctx.phone_origin: print('LUMA phone connection: '+ctx.phone_origin,flush=True)
+    try:
+        from luma.llm import colibri as _colibri
+        if agent.store.setting('brain_huge',False) and _colibri.installed():
+            threading.Thread(target=_colibri.start,daemon=True,name='colibri-start').start()  # the huge brain comes up with Luma
+    except Exception as error: print(f'LUMA huge brain not started: {error}',flush=True)
     def hands_free():
         try:
             from luma.orchestrator import start_hands_free

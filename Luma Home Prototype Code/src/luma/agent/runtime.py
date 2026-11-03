@@ -289,6 +289,22 @@ def just_talking(text):
     plain = CHATTER.sub("", understanding.normalize(said))
     return not (IMPERATIVE.match(plain) or "?" in said or ASKING.search(plain) or ASKING.search(said.lower()))
 
+
+# Said back to them the way it's written: "june 3" -> "June 3". May and March only next to a number ("may 5", "5 march").
+CALENDAR_WORD = re.compile(r"\b(?:january|february|april|june|july|august|september|october|november|december|"
+                           r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(?:may|march)(?=\s+\d)|(?<=\d\s)(?:may|march)\b", re.I)
+# "text sam" said back as "text Sam": the word after a verb you do to a person is a name, unless it's an everyday word
+PERSON_VERB = re.compile(r"\b(text|call|email|message|ping|facetime|thank|congratulate|tell|ask)\s+([a-z][a-z'’-]*)\b")
+NOT_A_NAME = set("""me you him her them us it this that these those the a an my your his their our its everyone everybody someone somebody
+anyone anybody people back home work out up in over off about around ahead again now later tonight tomorrow today when if for to and or
+what who why how where whether which all both some any no one each every
+mom mum dad mama papa ma pa grandma grandpa granny gran nana nan auntie aunty uncle sis bro babe bae boo""".split())  # family words stay as typed
+
+
+def proper_names(text):
+    return PERSON_VERB.sub(lambda m: m.group(0) if m.group(2) in NOT_A_NAME else f"{m.group(1)} {m.group(2).capitalize()}", str(text))
+
+
 class Agent:
     def __init__(self, store=None, providers=None, planner=None, use_model=True, now=None):
         self.store = store or Store(STATE_DB_PATH, STATE_KEY_PATH)
@@ -326,6 +342,8 @@ class Agent:
         self.household = Household(self.store, now=self.clock, zone=str(self.zone))
         self.workflows = Workflows(self)
         self.activity = Activity(clock=time.time)
+        from luma.agent.live_view import LiveView
+        self.live = LiveView(clock=time.time)  # what the camera sees right now, in memory only
         self.activity.on_finish = lambda job: insights.log(self.store, self.zone, job.get("finished") or self.clock(),
                                                             (job.get("finished") or 0) - (job.get("started") or 0), tasks=1)
         self.rules = Rules(self.store)
@@ -2632,29 +2650,7 @@ class Agent:
             return {"text": "Ask a grown-up to look at photos with Luma."}
         question = " ".join(str(question or "").split())[:500]
         self.activity.start("vision", "Looking at the photo")
-        said, notes = None, []
-        from luma.llm import brain
-        if brain.cloud_on() and brain.provider() == "anthropic":  # photos go to the cloud only with Claude; Kimi's brain sees with Luma's own eyes
-            try:
-                from luma.llm import cloud
-                said = cloud.look(brain.cloud_key(), image_bytes, question, model=brain.cloud_model())
-            except Exception as error:
-                notes.append(type(error).__name__)
-        reading = bool(vision.READING.search(question))
-        if not said and vision.available() and not reading:
-            try:
-                said = vision.look(image_bytes, question)
-            except ValueError as error:
-                if str(error) != "not_ready": notes.append(str(error))
-            except Exception as error:  # the vision model wouldn't run here: keep going, don't give up
-                notes.append(type(error).__name__)
-        if not said:
-            apple = vision.apple_read(image_bytes)
-            if apple:
-                said = self._from_apple(apple, question)
-        if not said and vision.available() and reading:
-            try: said = vision.look(image_bytes, question)
-            except Exception as error: notes.append(type(error).__name__)
+        said = self._look(image_bytes, question)
         result = {"text": said, "section": "vision"} if said else None
         if not result:
             vision.fetch_in_background()  # start fetching my eyes right now, if nothing is yet
@@ -2678,6 +2674,112 @@ class Agent:
         self.history.append({"role": "user", "content": "[I showed you a photo] " + question})
         self.history.append({"role": "assistant", "content": result["text"]})
         return result
+
+    def _look(self, image_bytes, question, quick=False):
+        """Every way Luma has of seeing, best first: Claude (only if the owner turned the cloud brain on), Luma's own vision
+        model, then the Mac's built-in text and object recognition. None if nothing could look. quick: one try, for live view."""
+        from luma.skills import vision
+        from luma.llm import brain
+        said = None
+        if brain.cloud_on() and brain.provider() == "anthropic":  # photos go to the cloud only with Claude; Kimi's brain sees with Luma's own eyes
+            try:
+                from luma.llm import cloud
+                said = cloud.look(brain.cloud_key(), image_bytes, question, model=brain.cloud_model())
+            except Exception:
+                said = None
+        reading = bool(vision.READING.search(question or ""))
+        if not said and vision.available() and not reading:
+            try:
+                said = vision.look(image_bytes, question)
+            except Exception:  # the vision model wouldn't run here: keep going, don't give up
+                said = None
+        if not said and not quick:
+            apple = vision.apple_read(image_bytes)
+            if apple:
+                said = self._from_apple(apple, question)
+        if not said and vision.available() and reading:
+            try: said = vision.look(image_bytes, question)
+            except Exception: said = None
+        return said
+
+    # -- live view: the camera, right now -------------------------------------------------
+    def live_frame(self, frame, question=None, thread="main"):
+        """A picture from the owner's camera, now. With a question: the answer, about what's in front of the camera (or an
+        ordinary reply when the question isn't about it). Without one: if Luma is watching for something, a look for it.
+        Returns {"live": True, ...} plus "text" when there's something to say and "alert" when what they asked about happened."""
+        from luma.agent.live_view import LOOKING, STOP_WATCH, heads_up
+        if self.mode == "kids":
+            self.live.stop()
+            return {"live": False, "text": "Ask a grown-up to turn on the camera with Luma."}
+        self.live.add(frame)
+        question = " ".join(str(question or "").split())[:500]
+        if question:
+            if STOP_WATCH.search(question) and self.live.watch:
+                self.live.watch = None
+                return self._live_said(question, "Okay, I stopped watching.", thread)
+            wanted = self.live.watch_request(question)
+            if wanted:
+                self.live.start_watch(wanted)
+                said = self._live_look(f"Briefly, in one sentence: what do you see right now that matters for this: {wanted['for']}?")
+                say = self._yours(wanted["say"])
+                text = f"Okay, I'm watching. I'll speak up the moment {say[:1].lower() + say[1:]}." + (f" Right now: {said}" if said else "")
+                return self._live_said(question, text, thread)
+            if not LOOKING.search(question):
+                return {**self.chat(question, thread=thread), "live": True}  # "set a timer for 10 minutes" with the camera on
+            said = self._live_look(question)
+            if not said:
+                return self._live_said(question, self._vision_not_ready(), thread)
+            return self._live_said(question, said, thread)
+        watch = self.live.watch
+        if not watch or not self.live.checking.acquire(blocking=False):
+            return {"live": True, "watching": watch["for"] if watch else None}
+        try:
+            answer = self._live_look(self.live.question_for(watch["for"]), remember=False)
+            if self.live.judged(answer):
+                self.live.watch = None  # once: they asked to be told, not told again every two seconds
+                text = heads_up(self._yours(watch["say"]), answer)
+                log = self.transcripts.setdefault(thread, [])
+                log.append({"role": "luma", "text": text, "at": self.clock()})
+                self._save_chat(thread)
+                self.history.append({"role": "assistant", "content": text})
+                return {"live": True, "alert": text, "text": text, "watching": None}
+            return {"live": True, "watching": watch["for"]}
+        finally:
+            self.live.checking.release()
+
+    def _live_look(self, question, remember=True):
+        frame = self.live.latest()
+        if frame is None:
+            return None
+        before = self.live.recently_said()
+        ask = ("This is a live picture from my camera, right now, not a saved photo. " +
+               (f"A few seconds ago you saw: {before[:300]} " if before else "") + question)
+        said = self._look(frame, ask, quick=True)
+        if said and remember:
+            self.live.remember(said)
+        return said
+
+    def _live_said(self, question, text, thread):
+        log = self.transcripts.setdefault(thread, [])
+        log.append({"role": "you", "text": question, "at": self.clock(), "live": True})
+        log.append({"role": "luma", "text": text, "at": self.clock()})
+        del log[:-80]
+        self._save_chat(thread)
+        self.history.append({"role": "user", "content": "[showing you my camera, live] " + question})
+        self.history.append({"role": "assistant", "content": text})
+        return {"live": True, "text": text, "section": "vision", "watching": self.live.watch["for"] if self.live.watch else None}
+
+    def _vision_not_ready(self):
+        from luma.skills import vision
+        vision.fetch_in_background()
+        pct = vision.progress()
+        return ("I can't see through the camera yet: my eyes are downloading for the first time" + (f", {pct}% done" if pct is not None else "") +
+                ". It's a one-time download, free. Ask me again in a few minutes.")
+
+    def live_stop(self):
+        """The camera is off: everything it showed is forgotten."""
+        self.live.stop()
+        return {"live": False}
 
     def _from_apple(self, apple, question):
         """Answer from what the Mac's own recognition found: the text in the photo and what's in it."""
@@ -2846,7 +2948,8 @@ class Agent:
             # 2) Judge — weigh the takes and merge the truest into one answer.
             self.activity.step("Weighing which holds up")
             with self.lock:
-                out = self.call_planner([{"role": "user", "content": mind.judge_prompt(text, [c for _, c in explored], summary)}], [], {}, cancel_event or threading.Event())
+                out = self.call_planner([{"role": "user", "content": mind.judge_prompt(text, [c for _, c in explored], summary)}], [], {}, cancel_event or threading.Event(),
+                                        tier="heavy")  # the last word on a hard question: the strongest brain there is
             answer = out.get("text") if isinstance(out, dict) else None
             answer = answer.strip()[:1500] if isinstance(answer, str) and answer.strip() else explored[0][1]
             answer = mind.without_labels(answer) or mind.without_labels(explored[0][1]) or answer
@@ -4036,6 +4139,7 @@ class Agent:
         if not what:
             self.unfinished = {"prefix": "remind me to ", "suffix": (" " + said_when) if said_when else "", "at": now}
             return {"text": "Sure. What should I remind you about?" if due else "Remind you to what?", "asked": True}
+        what = proper_names(what)  # "text sam" -> "text Sam"
         yours = re.sub(r"\bmy\b", "your", re.sub(r"\bi\b", "you", what, flags=re.I), flags=re.I)
         joiner = "to" if what.split()[0].lower() in self.TASK_VERBS else "about"
         if due is None and self.use_model:
@@ -4661,6 +4765,7 @@ class Agent:
         """What they told Luma, said back to them: "my mom's birthday" -> "your mom's birthday"."""
         swaps = {"my": "your", "mine": "yours", "i": "you", "i'm": "you're", "im": "you're", "me": "you", "myself": "yourself", "we": "you", "our": "your", "us": "you"}
         out = re.sub(r"\b(?:my|mine|i'm|im|i|me|myself)\b", lambda m: swaps[m.group(0).lower()], str(text), flags=re.I)
+        out = proper_names(CALENDAR_WORD.sub(lambda m: m.group(0).capitalize(), out))  # "june 3" said back as "June 3"
         return out[:1].upper() + out[1:]
 
     def _memory_answer(self, text):

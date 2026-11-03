@@ -432,7 +432,7 @@ class EvolvingMindTests(unittest.TestCase):
         agent.store.set_setting("deliberate", False)  # test the fast corrector path, not the deliberation path
         agent.store.set_setting("depth_prefs", {"_always": "quick"})  # they always want the quick take
         out = agent.chat("should I quit my job?")
-        self.assertEqual(out["text"], "Honestly, I'm not sure — here's how I'd think about it.")
+        self.assertEqual(out["text"], "Honestly, I'm not sure, here's how I'd think about it.")
         self.assertTrue(any("Check your own draft" in c for c in seen))
 
     def test_the_corrector_is_skipped_on_a_trivial_turn(self):

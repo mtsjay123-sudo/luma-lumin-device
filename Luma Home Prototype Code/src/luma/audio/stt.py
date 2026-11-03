@@ -43,6 +43,33 @@ def _get_model() -> WhisperModel:
     return _model
 
 
+# -- Moonshine (moonshine-ai/moonshine, MIT for its English models): on-device speech recognition built for live
+# voice, faster than Whisper on short clips. Off until the owner (or the lab) turns it on with LUMA_STT_ENGINE=moonshine;
+# any clip it can't take goes to Whisper, so turning it on never costs a word.
+_moonshine_model = None
+
+
+def engine():
+    return "moonshine" if os.environ.get("LUMA_STT_ENGINE", "").strip().lower() == "moonshine" else "whisper"
+
+
+def _moonshine():
+    global _moonshine_model
+    if _moonshine_model is None:
+        from moonshine_voice import ModelArch, get_model_for_language
+        from moonshine_voice.transcriber import Transcriber
+        arch = getattr(ModelArch, os.environ.get("LUMA_MOONSHINE_MODEL", "SMALL_STREAMING").upper())
+        path, arch = get_model_for_language("en", arch)
+        _moonshine_model = Transcriber(path, arch)
+    return _moonshine_model
+
+
+def _moonshine_text(samples):
+    """16 kHz mono floats in, the words out."""
+    result = _moonshine().transcribe_without_streaming([float(x) for x in samples], 16000)
+    return " ".join(line.text.strip() for line in (getattr(result, "lines", None) or []) if line.text.strip()).strip()
+
+
 # What Whisper tends to "hear" in silence. Alone, these are noise, not you.
 _PHANTOMS = {"", "you", "thank you", "thanks for watching", "thank you for watching", "bye", "okay", "so"}
 
@@ -76,7 +103,16 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
         return ""
     options = dict(beam_size=1 if quick else 3, language="en", vad_filter=True, condition_on_previous_text=False)
     samples = _wav_samples(data) if suffix == ".wav" else None
-    if samples is not None:
+    text = None
+    if samples is not None and engine() == "moonshine":
+        try:
+            text = _moonshine_text(samples)
+        except Exception as error:  # not downloaded yet, or it choked on this clip: Whisper takes it
+            print(f"[stt] moonshine didn't take this clip ({error}); using whisper", flush=True)
+            text = None
+    if text is not None:
+        pass
+    elif samples is not None:
         # Plain WAV from Luma's window: straight to Whisper, no audio decoder involved at all.
         segments, _info = _get_model().transcribe(samples, **options)
         text = " ".join(seg.text.strip() for seg in segments).strip()
@@ -93,6 +129,11 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
 
 def warm_up():
     """Load (and on the desktop, fetch once) the speech model in the background."""
+    if engine() == "moonshine":
+        try:
+            _moonshine()
+        except Exception as error:
+            print(f"[stt] moonshine not ready yet: {error}", flush=True)
     try:
         _get_model()
     except Exception as error:

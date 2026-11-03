@@ -16,6 +16,8 @@ A_BEFORE_SILENT_H = re.compile(r"\b([Aa]) (h(?:our|onest|onor|onour|eir)\w*)\b")
 SPACE_BEFORE = re.compile(r"(?<=\w) +([,.;:!?])(?=\s|$)")
 DOUBLE_COMMA = re.compile(r",\s*,")
 SPACES = re.compile(r"(?<=\S) {2,}(?=\S)")
+# An em dash between words reads as written, not said: a comma. Lines that start with a dash (lists) and en-dash ranges stay.
+EM_DASH = re.compile(r"(?<=[\w)'\"’”])[ \t]*—[ \t]*(?=[\w'\"‘“(])")
 
 
 def tidy(text):
@@ -31,6 +33,7 @@ def tidy(text):
         piece = A_BEFORE_SILENT_H.sub(lambda m: m.group(1) + "n " + m.group(2), piece)
         piece = SPACE_BEFORE.sub(r"\1", piece)
         piece = DOUBLE_COMMA.sub(",", piece)
+        piece = EM_DASH.sub(", ", piece)
         piece = SPACES.sub(" ", piece)
         parts[i] = piece
     return "".join(parts)

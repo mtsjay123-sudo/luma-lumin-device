@@ -7,10 +7,13 @@ Three choices, all behind the same plan/rewrite calls the runtime already uses:
     downloaded once, checked against its published SHA-256;
   • on a computer with a lot of memory (a Mac Studio), a much bigger mixture-of-experts
     (Qwen3.5 397B-A17B, or Qwen3 235B-A22B), the same way, in as many pieces as it ships in;
+  • the huge brain, on a big Mac (a Mac Studio): an open model of hundreds of billions of parameters
+    (GLM-5.2, 744B, whole, with 512 GB of memory) run by colibri on this computer. Slow, so it gets the
+    work worth waiting for (projects, research write-ups, the last word on a hard question), not small talk;
   • the cloud brain, if they turn it on: Claude (Anthropic) or Kimi K3.1 Pro (Moonshot's open model,
     far too big for a Mac), each with the owner's own key.
-If the cloud brain can't answer (offline, out of credit), Luma falls back to the
-local one for that turn instead of failing.
+If the huge or cloud brain can't answer (stopped, offline, out of credit), the next brain answers
+that turn instead of failing.
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ import threading
 import urllib.request
 
 from luma.config import LLAMA_MODEL_PATH
+from luma.llm import colibri
 
 # Tried in order; whichever has the files answers. The quant is picked to fit this computer's memory.
 BIG_REPOS = ["bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF", "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
@@ -220,6 +224,7 @@ def status():
                   "fetching": progress(), "fetch_error": fetching["error"],
                   "speed": measured, "keeps_up": (measured.get("big" if using_big else "fast", KEEPS_UP) >= KEEPS_UP),
                   "note": (_store.setting("brain_note") if _store else None)},
+        "huge": huge_status(),
         "health": health(),
         "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
     }
@@ -294,9 +299,67 @@ def speed():
     return {which: _median(rates) for which, rates in speeds.items() if rates}
 
 
+# -- the huge brain (colibri, on this Mac) ------------------------------------------------
+def huge_on():
+    """Turned on by the owner, and colibri is answering on this computer right now."""
+    return bool(_store is not None and _store.setting("brain_huge", False) and colibri.ready())
+
+
+def use_huge(tier=None):
+    """Heavy work goes to the huge brain when it's on. Ordinary replies only if the owner wants to talk with it (and no
+    cloud brain is on); quick reads never wait on it."""
+    if not huge_on():
+        return False
+    if tier == "heavy":
+        return True
+    return tier != "light" and bool(_store.setting("brain_huge_chat", False)) and not cloud_on()
+
+
+def huge_label():
+    return f"{colibri.ready() or 'the huge brain'} (colibri, local)"
+
+
+def set_huge(on, chat=None):
+    _store.set_setting("brain_huge", bool(on))
+    if chat is not None:
+        _store.set_setting("brain_huge_chat", bool(chat))
+    if on and colibri.installed() and not colibri.ready(max_age=0):
+        threading.Thread(target=colibri.start, daemon=True, name="colibri-start").start()
+    if on:
+        _store.set_setting("brain_huge_error", None)
+    return get_huge()
+
+
+def get_huge():
+    return {"huge": huge_status()}
+
+
+def huge_status():
+    gb = ram_gb()
+    on = bool(_store is not None and _store.setting("brain_huge", False))
+    return {"on": on, "chat": bool(_store is not None and _store.setting("brain_huge_chat", False)),
+            "installed": colibri.installed(), "running": bool(colibri.ready()), "model": colibri.ready(),
+            "ram_gb": round(gb), "whole_glm": gb >= colibri.WHOLE_GLM_RAM_GB, "fits": gb >= 16,
+            "installing": dict(colibri.installing), "error": (_store.setting("brain_huge_error") if _store else None)}
+
+
+def install_huge():
+    return colibri.install(ram_gb())
+
+
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None):
     from luma.llm import inference
     sent = [messages, memories, tools]
+    if use_huge(tier):
+        try:
+            result = _metered(huge_label(), tier, colibri.plan, (messages, memories, tools, mode),
+                              {"profile": profile, "cancel_event": cancel_event, "on_text": on_text}, sent)
+            if _store.setting("brain_huge_error"): _store.set_setting("brain_huge_error", None)
+            return result
+        except inference.GenerationCancelled:
+            raise
+        except Exception as error:  # stopped, out of memory, an empty answer: the next brain answers this turn
+            _store.set_setting("brain_huge_error", f"The huge brain couldn't answer ({type(error).__name__}), so another one did.")
     if use_cloud(tier):
         try:
             result = _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).plan,
@@ -314,6 +377,13 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
 
 def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light"):
     from luma.llm import inference
+    if use_huge(tier):
+        try:
+            return _metered(huge_label(), tier, colibri.rewrite, (prompt,), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt)
+        except inference.GenerationCancelled:
+            raise
+        except Exception as error:
+            _store.set_setting("brain_huge_error", f"The huge brain couldn't answer ({type(error).__name__}), so another one did.")
     if use_cloud(tier):
         try:
             return _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).rewrite,

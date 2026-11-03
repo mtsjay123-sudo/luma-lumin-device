@@ -123,6 +123,12 @@ jobs:
           "$RUNNER_TEMP/stt/bin/python" -m pip install -q "git+https://github.com/sarulab-speech/UTMOSv2.git" || echo "UTMOSv2 didn't install; words only"
           printf 'verbose = off\n' > "$RUNNER_TEMP/wgetrc"  # the ranking model's weights download quietly, so the results stay readable
           WGETRC="$RUNNER_TEMP/wgetrc" "$RUNNER_TEMP/stt/bin/python" -I scripts/voice_check.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Speech to text, Moonshine against Whisper (speed and words on the same clips)
+        if: always()
+        continue-on-error: true
+        run: |
+          "$RUNNER_TEMP/stt/bin/python" -m pip install -q "moonshine-voice>=0.1.5" || echo "Moonshine didn't install"
+          "$RUNNER_TEMP/stt/bin/python" scripts/stt_bench.py "$RUNNER_TEMP/voice-samples" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
