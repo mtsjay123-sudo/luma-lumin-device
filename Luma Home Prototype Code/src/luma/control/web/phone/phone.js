@@ -400,6 +400,93 @@
   }, { rootMargin: "-45% 0px -50% 0px" });
   ["today", "chats", "memory", "device"].forEach((id) => watch.observe($(id)));
 
+  // ---------------------------------------------------------------- the tour ---
+  // The first time the app opens: six short scenes that show how it works, each with its own light and a small
+  // moving picture. Swipe, tap Next or the dots, or use the arrow keys; Escape skips. "How Luma works" replays it.
+  const SEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const TOUR = [
+    { color: "var(--warm)", title: "Hi. I'm <em>Luma.</em>", say: "Talk to me out loud at home, or type to me here from anywhere. Same me, same memory.",
+      art: () => { const a = el("div"); a.innerHTML = '<div class="t-orb"><i></i><i></i><i></i><b></b></div><div class="t-wave"><i></i><i></i><i></i><i></i><i></i></div>'; return a; } },
+    { color: "var(--chat)", title: "Every talk, <em>kept as a chain.</em>", say: "Today's chats has each conversation from today. Tap one to read it back and keep going.",
+      art: () => { const a = el("div", "t-chat"); a.append(el("p", "me", "what's on today?"), el("p", "lu", "Dentist at 3, then dinner with Sam at 7."), el("p", "me", "remind me at 2:30")); return a; } },
+    { color: "var(--mem)", title: "I remember <em>what matters.</em>", say: "Swipe through what I know about you. Tap a card to fix it or forget it. It's all yours.",
+      art: () => { const a = el("div", "t-deck"); const c1 = el("div", "c c1"); c1.append(el("span", null, "🎂"), el("b", null, "Your mom's birthday is June 3")); a.append(el("div", "c c3"), el("div", "c c2"), c1); return a; } },
+    { color: "var(--warm)", title: "Your Luma, <em>at a glance.</em>", say: "See how much room is left, turn the mic off from anywhere, and see which brain I'm thinking with.",
+      art: () => { const a = el("div", "t-device"); const mic = el("div", "t-mic"); mic.append(el("i"), el("span", null, "Microphone")); a.append(dots("20"), el("div", "unit", "GB left"), mic); return a; } },
+    { color: "var(--violet)", title: "I ask <em>before I act.</em>", say: "When something would send, buy or change things on your computer, I show you first and wait for your OK.",
+      art: () => { const a = el("div", "t-approve"); const b = el("div", "b"); b.append(el("span", "no", "Not now"), el("span", "ok", "Send it")); a.append(el("p", "k", "Waiting for your OK"), el("p", "q", "Text Mom?"), el("p", "m", "“Happy birthday! Lunch on Sunday?”"), b, el("div", "done", "Sent ✓")); return a; } },
+    { color: "var(--chat)", title: "Ready <em>when you are.</em>", say: "Ask me anything up top, or just say “hey Luma” at home.", last: true,
+      art: () => { const a = el("div", "t-bar"); const send = el("b", "t-send"); send.innerHTML = SEND; a.append(el("span", "t-type", "what's on today?"), el("i", "t-caret"), send); return a; } },
+  ];
+  const tour = { at: 0, scenes: [], seenKey: "luma-phone-tour" };
+  const tourSeen = () => { try { return localStorage.getItem(tour.seenKey) === "1"; } catch (_) { return false; } };
+  function tourGo(n) {
+    const next = Math.max(0, Math.min(TOUR.length - 1, n));
+    const dir = next >= tour.at ? 1 : -1;
+    tour.scenes.forEach((sc, i) => {
+      sc.style.setProperty("--dir", dir);
+      sc.classList.toggle("on", i === next);
+      sc.classList.toggle("out", i < next);
+      sc.classList.toggle("wait", i > next);
+      sc.setAttribute("aria-hidden", String(i !== next));
+      if (i === next) { sc.querySelector("h2").id = "tour-title"; void sc.offsetWidth; }
+      else sc.querySelector("h2").removeAttribute("id");
+    });
+    tour.at = next;
+    $("tour").style.setProperty("--tc", TOUR[next].color);
+    [...$("tour-dots").children].forEach((d, i) => d.setAttribute("aria-selected", String(i === next)));
+    $("tour-next").textContent = TOUR[next].last ? "Start" : "Next";
+  }
+  function tourOpen() {
+    const stage = $("tour-stage"), dotsBox = $("tour-dots");
+    stage.replaceChildren(); dotsBox.replaceChildren();
+    tour.scenes = TOUR.map((t, i) => {
+      const sc = el("section", "tour-scene wait");
+      const art = el("div", "tour-art");
+      art.setAttribute("aria-hidden", "true");
+      art.append(t.art());
+      const h = el("h2"); h.innerHTML = t.title;
+      sc.append(art, h, el("p", "say", t.say));
+      stage.append(sc);
+      const d = el("button");
+      d.type = "button";
+      d.setAttribute("role", "tab");
+      d.setAttribute("aria-label", `Step ${i + 1} of ${TOUR.length}`);
+      d.addEventListener("click", () => tourGo(i));
+      dotsBox.append(d);
+      return sc;
+    });
+    tour.at = 0;
+    $("tour").classList.remove("leaving");
+    $("tour").hidden = false;
+    document.body.style.overflow = "hidden";
+    tourGo(0);
+    $("tour-next").focus({ preventScroll: true, focusVisible: false });
+  }
+  function tourClose() {
+    try { localStorage.setItem(tour.seenKey, "1"); } catch (_) { /* this phone forgets; it shows again next time */ }
+    $("tour").classList.add("leaving");
+    document.body.style.overflow = "";
+    setTimeout(() => { $("tour").hidden = true; $("tour-stage").replaceChildren(); $("ask-text").focus({ preventScroll: true }); }, 550);
+  }
+  $("tour-next").addEventListener("click", () => (TOUR[tour.at].last ? tourClose() : tourGo(tour.at + 1)));
+  $("tour-skip").addEventListener("click", tourClose);
+  $("tour-again").addEventListener("click", tourOpen);
+  $("tour").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { tourGo(tour.at + 1); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { tourGo(tour.at - 1); e.preventDefault(); }
+    else if (e.key === "Escape") { tourClose(); e.preventDefault(); }
+  });
+  let tourX = null;
+  $("tour-stage").addEventListener("pointerdown", (e) => { tourX = e.clientX; });
+  $("tour-stage").addEventListener("pointerup", (e) => {
+    if (tourX == null) return;
+    const dx = e.clientX - tourX;
+    tourX = null;
+    if (Math.abs(dx) > 40) tourGo(tour.at + (dx < 0 ? 1 : -1));
+  });
+  if (!tourSeen()) tourOpen();
+
   refresh();
   const tick = () => { clearInterval(timer); timer = setInterval(() => { if (!document.hidden && !sheet.open) refresh(); }, 15000); };
   tick();

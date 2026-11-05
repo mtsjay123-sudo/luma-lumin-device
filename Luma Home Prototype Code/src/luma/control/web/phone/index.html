@@ -82,7 +82,7 @@
       <ul class="project-list" id="project-list"></ul>
     </section>
 
-    <p class="foot">Your Luma keeps all of this on the device at home. <a href="/">All controls</a></p>
+    <p class="foot">Your Luma keeps all of this on the device at home. <a href="/">All controls</a> · <button type="button" class="linkish" id="tour-again">How Luma works</button></p>
   </main>
 
   <nav class="dock" aria-label="Sections">
@@ -99,6 +99,17 @@
     </div>
     <div class="sheet-body" id="sheet-body"></div>
   </dialog>
+
+  <!-- The first time: six short scenes that show how it all works. -->
+  <div class="tour" id="tour" role="dialog" aria-modal="true" aria-labelledby="tour-title" hidden>
+    <div class="tour-glow" aria-hidden="true"></div>
+    <button type="button" class="tour-skip" id="tour-skip">Skip</button>
+    <div class="tour-stage" id="tour-stage" aria-live="polite"></div>
+    <div class="tour-foot">
+      <div class="tour-dots" id="tour-dots" role="tablist" aria-label="Tour steps"></div>
+      <button type="button" class="tour-next" id="tour-next">Next</button>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="/phone/phone.js"></script>
