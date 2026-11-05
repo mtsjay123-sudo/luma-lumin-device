@@ -201,6 +201,10 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
                        r"tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 
 
+# Filler a reply opens with; said at the start of reply after reply it's a tic ("Ngl," five times in the device lab).
+TIC_OPENERS = {"ngl", "nah", "lol", "lmao", "honestly", "aight", "ayy", "bet", "yo", "so", "well", "okay", "ok", "yeah", "yea",
+               "hmm", "bruh", "fr", "tbh", "oof", "ooh", "oh", "alright", "look", "listen"}
+
 # They asked to hear it again: the same words are the right answer, not a repeat to stop.
 ASKED_AGAIN = re.compile(r"\b(?:say (?:that|it|this) again|repeat (?:that|it|yourself|what you said)|come again|what did you (?:just )?say|"
                          r"what was that|(?:can|could) you say that|say it one more time|one more time)\b", re.I)
@@ -743,8 +747,12 @@ class Agent:
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
         on_text = getattr(self, "_on_text", None)
         self._streamed = None
-        return brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
-                          on_text=self._unless_said_before(on_text) if on_text else None, tier=tier)
+        feed = self._unless_said_before(on_text) if on_text else None
+        result = brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
+                            on_text=feed, tier=tier)
+        if feed is not None:
+            feed.flush()  # the last words, unless the reply repeats an earlier one
+        return result
 
     def _earlier_replies(self, pairs=False):
         """What Luma said earlier in this conversation, as said (history keeps each reply as Luma's own JSON note). pairs=True:
@@ -777,31 +785,89 @@ class Agent:
         now = getattr(self, "_turn_text", "") or ""
         return [said for asked, said in self._earlier_replies(pairs=True)[-6:] if not (now and self._alike(asked, now))]
 
+    @staticmethod
+    def _mostly(reply, said, enough=0.85):
+        """Almost every word of this reply was in that one: a copy, even a shorter one (run 6's 1.7B gave a cut-down cooking
+        reply to "what about dessert")."""
+        x, y = set(_words(reply).split()), set(_words(said).split())
+        return len(x) >= 6 and bool(y) and len(x & y) / len(x) >= enough
+
     def _said_before(self, reply):
-        """The earlier reply this one repeats (nearly word for word), or None."""
+        """The earlier reply this one repeats (nearly word for word, or mostly it), or None."""
         if len(_words(reply).split()) < 4:
             return None
-        return next((said for said in reversed(self._repeatable()) if self._alike(reply, said)), None)
+        return next((said for said in reversed(self._repeatable()) if self._alike(reply, said) or self._mostly(reply, said)), None)
+
+    def _recent_tics(self):
+        """How Luma's last replies began and ended: the filler word the last one opened with ("Ngl,"), and the closing lines of
+        the last two ("Let me know what you think!")."""
+        if getattr(self, "_asked_again", False):
+            return None, set()  # "what did you say?": the same words, as they were
+        said = self._earlier_replies()[-2:]
+        opener = None
+        if said:
+            first = re.match(r"\s*([A-Za-z']+)[,!.…]*\s+", said[-1])
+            if first and first.group(1).lower() in TIC_OPENERS:
+                opener = first.group(1).lower()
+        closers = set()
+        for reply in said:
+            last = re.split(r"(?<=[.!?])\s+", reply.strip())[-1]
+            if 3 <= len(last.split()) <= 12:
+                closers.add(_words(last))
+        return opener, closers
+
+    @staticmethod
+    def _trim_opener(text, opener):
+        m = re.match(rf"\s*{re.escape(opener)}\b[,!.…]*\s+", text, re.I) if opener else None
+        if not m or len(text) - m.end() < 8:
+            return text
+        rest = text[m.end():]
+        return rest[:1].upper() + rest[1:]
+
+    def _without_tics(self, reply, tics=None):
+        """A friend doesn't open every reply with "Ngl," or close each one with "Let me know what you think!". Telling a small
+        brain so didn't work (the device lab's 1.7B, runs 5 and 6), so the filler the last reply opened with and a closing line
+        from the last two are left off this one."""
+        opener, closers = tics or self._recent_tics()
+        text = self._trim_opener(reply, opener)
+        parts = re.split(r"(?<=[.!?])\s+", text.strip())
+        if len(parts) > 1 and _words(parts[-1]) in closers:
+            text = " ".join(parts[:-1])
+        return text
 
     def _unless_said_before(self, on_text):
         """The voice speaks a reply as it streams. One that opens like an earlier reply waits for its first sentence; if that's
         the earlier reply's too, nothing is said, and the turn tries again (above). Everything else streams as before."""
         earlier = [] if getattr(self, "_asked_again", False) else [_words(said) for said in self._repeatable()]
-        self._streamed = state = {"held": "", "open": not earlier, "spoken": False, "blocked": False}
+        tics = self._recent_tics()
+        self._streamed = state = {"held": "", "tail": "", "open": False, "spoken": False, "blocked": False}
+
+        def say(text):
+            if str(text).strip():
+                state["spoken"] = True
+            return on_text(text)
+
+        def sentences():
+            # after the opening, whole sentences go on, but not a closing line the last replies used
+            while True:
+                end = re.search(r"[.!?…](?:\s+|$)", state["tail"])
+                if not end or (end.end() == len(state["tail"]) and not state["tail"].endswith((" ", "\n"))):
+                    return None
+                sentence, state["tail"] = state["tail"][:end.end()], state["tail"][end.end():]
+                if _words(sentence) not in tics[1]:
+                    say(sentence)
 
         def feed(piece):
-            if state["open"]:
-                state["spoken"] = state["spoken"] or bool(str(piece).strip())
-                return on_text(piece)
             if state["blocked"]:
                 return None
+            if state["open"]:
+                state["tail"] += str(piece)
+                return sentences()
             state["held"] += str(piece)
             words = _words(state["held"]).split()
             if len(words) < 3:
                 return None
-            if not any(e.split()[:3] == words[:3] for e in earlier):
-                state["open"] = True
-            else:
+            if any(e.split()[:3] == words[:3] for e in earlier):
                 end = re.search(r"[.!?…](?:\s|$)", state["held"])
                 if not end and len(state["held"]) < 160:
                     return None
@@ -809,9 +875,24 @@ class Agent:
                 if any(first and len(first & set(e.split()[:len(first) + 4])) / len(first) >= 0.8 for e in earlier):
                     state["blocked"] = True
                     return None
+            state["open"] = True
+            return say(self._trim_opener(state["held"], tics[0]))
+
+        def flush():
+            if state["blocked"]:
+                return None
+            if not state["open"]:
                 state["open"] = True
-            state["spoken"] = True
-            return on_text(state["held"])
+                rest, state["held"] = self._trim_opener(state["held"], tics[0]), ""
+                if rest.strip():
+                    say(rest)
+                return None
+            rest, state["tail"] = state["tail"], ""
+            if rest.strip() and _words(rest) not in tics[1]:
+                say(rest)
+            return None
+
+        feed.flush = flush
         return feed
 
     def enable(self, service, value):
@@ -5630,6 +5711,7 @@ class Agent:
                 # answer. One more try, told what it already said; the voice hasn't said it, so nobody hears it twice.
                 self._repeat_note = f"You already said this earlier in the talk: “{again[:160]}”. Answer their newest message, in new words."
                 raise ValueError("Local model returned no usable reply (it said an earlier reply again).")
+            reply = self._without_tics(reply)  # the same trim the voice made as it streamed
             if self.mode != "kids" and DENIES.search(reply):
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.
                 instead = self._instead_of_no(text, lowered, reply, cancel_event)

@@ -379,12 +379,44 @@ class OneTripTests(unittest.TestCase):
                 feed = agent._unless_said_before(spoken.append)
                 for piece in ["Nah, ", "something sweet. ", "Brownies?"]:
                     feed(piece)
-                self.assertEqual("".join(spoken), "Nah, something sweet. Brownies?", "same opening, new sentence: said, from the start")
+                feed.flush()
+                self.assertEqual("".join(spoken), "Something sweet. Brownies?",
+                                 "same opening, new sentence: said, without the “Nah,” the last reply opened with too")
                 spoken.clear()
                 feed = agent._unless_said_before(spoken.append)
                 feed("Brownies ")
-                feed("from a box.")
-                self.assertEqual("".join(spoken), "Brownies from a box.", "a new reply streams as soon as its first words differ")
+                feed("from a box. ")
+                self.assertEqual("".join(spoken), "Brownies from a box. ", "a new reply streams as soon as its first words differ")
+                feed("You got the ingredients?")
+                feed.flush()
+                self.assertEqual("".join(spoken), "Brownies from a box. ", "but not the closing line the last reply used")
+            finally:
+                store.close()
+
+    def test_tics_are_left_off(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.workflows import observation
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                agent = self._talk(store)
+                agent.threads["main"][:] = [{"role": "user", "content": "ngl today was long"},
+                                            {"role": "assistant", "content": observation({"text": "Ngl, yeah, work was a lot. Let me know what you think!"})},
+                                            {"role": "user", "content": "what should i cook"},
+                                            {"role": "assistant", "content": observation({"text": "Ngl, easy? A stir-fry. Let me know what you think!"})}]
+                self.assertEqual(agent._without_tics("Ngl, maybe a smoothie or some cookies? Let me know what you think!"),
+                                 "Maybe a smoothie or some cookies?", "the device lab's 1.7B, run 6")
+                self.assertEqual(agent._without_tics("Ngl."), "Ngl.", "a reply that's only the word stays")
+                self.assertEqual(agent._without_tics("Brownies. Let me know if you want a recipe!"), "Brownies. Let me know if you want a recipe!")
+                agent._asked_again = True
+                self.assertEqual(agent._without_tics("Ngl, easy? A stir-fry. Let me know what you think!"),
+                                 "Ngl, easy? A stir-fry. Let me know what you think!", "asked to say it again: as it was")
+                agent._asked_again = False
+                self.assertTrue(agent._mostly("Nah, you should cook something easy that you can eat.",
+                                              "Nah, you should cook something easy that you can eat. Like, something that takes 10 minutes or less."),
+                                "a shorter copy of an earlier reply is a copy")
             finally:
                 store.close()
 
