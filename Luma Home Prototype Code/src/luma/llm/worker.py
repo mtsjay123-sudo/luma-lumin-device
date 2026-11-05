@@ -20,7 +20,7 @@ import threading
 import time
 from pathlib import Path
 
-CALLS = ("plan", "rewrite", "generate", "look")
+CALLS = ("plan", "rewrite", "generate", "look", "warm")
 
 
 class BrainCrashed(RuntimeError):

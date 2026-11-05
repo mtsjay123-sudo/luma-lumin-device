@@ -133,13 +133,40 @@ def fit_history(messages, token_count, budget):
 
 
 def turn_layout(steady, this_turn, recent):
-    """The steady instructions first, then the conversation, then this turn's notes just before Luma answers. Turn after turn
-    the beginning stays the same (the instructions and every earlier message), so llama.cpp reads only the newest exchange
-    and this turn's notes instead of everything again."""
+    """The steady instructions first, then the conversation, with this turn's notes just before the newest message. Turn
+    after turn the beginning stays the same (the instructions and every earlier exchange), so llama.cpp reads only the last
+    exchange, the notes and the new message instead of everything again. (After the newest message, the notes made small
+    brains lose track of it: the device lab's 1.7B gave one reply to five different messages.)"""
     messages = [{"role": "system", "content": steady}] + list(recent)
     if this_turn:
-        messages.append({"role": "system", "content": this_turn})
+        at = len(messages) - 1 if recent and recent[-1].get("role") == "user" else len(messages)
+        messages.insert(at, {"role": "system", "content": this_turn})
     return messages
+
+
+def compact():
+    """A $250 device reads less every turn: its notes are cut to what matters (LUMA_DEVICE_TIER=budget)."""
+    return os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget"
+
+
+def warm(steady):
+    """Read Luma's steady instructions ahead of the first message, so the first reply doesn't wait for them. On a small
+    board that's most of a minute, paid once at start-up instead of by the first thing someone says."""
+    from luma.llm import worker
+    if worker.enabled():
+        return worker.brain().call("warm", {"steady": steady})
+    return _warm_here(steady)
+
+
+def _warm_here(steady, cancel_event=None):
+    with _model_access(cancel_event):
+        model = _load_model()
+        try:
+            model.create_chat_completion(messages=[{"role": "system", "content": steady}, {"role": "user", "content": "hi"}],
+                                         max_tokens=1, temperature=0)
+        except Exception:
+            return {"warmed": False}
+    return {"warmed": True}
 
 
 def _template_refused(error):
@@ -161,7 +188,7 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
     profile = normalize_profile(profile)
     # To the minute: a time that changes every microsecond made every turn's instructions new.
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat(timespec="minutes")
-    steady, this_turn = build_plan_parts(memories, tools, mode, profile, now)
+    steady, this_turn = build_plan_parts(memories, tools, mode, profile, now, compact=compact())
     prompt = steady + "\n\n" + this_turn
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
     if any({"slides", "sections", "cards"} & set(spec.get("fields", {}).values()) for spec in tools.values()):

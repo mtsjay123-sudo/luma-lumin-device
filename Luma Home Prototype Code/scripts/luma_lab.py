@@ -197,6 +197,9 @@ def device(threads=4, label=None):
     lab = Profile(use_model=True)
     turns = []
     try:
+        began = time.monotonic()
+        lab.agent._warm_brain()  # what a device does when it starts: read the steady instructions once
+        row["start_up_seconds"] = round(time.monotonic() - began, 1)
         for said in DEVICE_TALK:
             result = lab.say(said)
             reply = words_of(result)
@@ -231,12 +234,13 @@ def device_summary(paths):
         except Exception:
             continue
     lines = ["## Luma on a $250-$400 device (stand-in: a cloud ARM machine held to 4 cores)", "",
-             "Real conversations through Luma's full instructions. *First sound* is hearing a short sentence, then the brain's first "
-             "words, then the voice saying Luma's first sentence: what you'd wait after you stop talking.", "",
-             "| Brain | Size | Peak memory | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Verdict |",
-             "|---|---|---|---|---|---|---|---|---|---|"]
+             "Real conversations through Luma's full instructions. *Start-up* is the device reading its steady instructions once when it "
+             "turns on. *First sound* is hearing a short sentence, then the brain's first words, then the voice saying Luma's first "
+             "sentence: what you'd wait after you stop talking.", "",
+             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('first_words_first_turn')} s | "
+        lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('start_up_seconds', '-')} s | {r.get('first_words_first_turn')} s | "
                      f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
                      f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | {r.get('verdict')} |")
     fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0]

@@ -383,6 +383,8 @@ class Agent:
             threading.Thread(target=self.connectors.start_all, name="luma-connectors", daemon=True).start()
         from luma.llm import brain
         brain.init(self.store)  # a bigger local brain if it's here; the cloud brain if they turned it on
+        if os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget" and self.use_model and self.planner is None:
+            threading.Thread(target=self._warm_brain, daemon=True, name="luma-brain-warm").start()
         from luma.audio import speakable
         speakable.EXPLICIT["on"] = (self.store.setting("personality") or {}).get("preset") == "unhinged"
         self.chrome = ChromeBridge(self.store, self.clock)  # Luma for Chrome, once the owner adds the extension
@@ -647,6 +649,18 @@ class Agent:
             if named or score >= 2:
                 scored.append((score, name))
         return {name for _, name in sorted(scored, reverse=True)[:limit]}
+
+    def _warm_brain(self):
+        """A $250 device reads Luma's steady instructions once at start-up (most of a minute on a small board), so the first
+        thing someone says is answered as fast as everything after it."""
+        try:
+            from luma.llm import inference, prompts
+            soul = self.store.setting("soul")
+            memories = [{"soul": True, "text": str(soul)[:1500]}] if soul and self.mode != "kids" else []
+            steady, _ = prompts.build_plan_parts(memories, {}, self.mode, prompts.normalize_profile(self.profile), "", compact=True)
+            return inference.warm(steady)
+        except Exception:
+            return None
 
     def _extra_look(self, key):
         """Think first, weigh it out, a second look: each is another trip through the brain ("what should I cook tonight"

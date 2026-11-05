@@ -85,13 +85,48 @@ class PromptReuseTests(unittest.TestCase):
                 out = inference._plan_here([{"role": "user", "content": "hi"}], [{"text": "likes tea"}], TOOLS, "friend")
             self.assertEqual(out["text"], "hey")
             first = seen[0]
-            self.assertEqual([m["role"] for m in first], ["system", "user", "system"])
-            self.assertIn("Current local date and time", first[-1]["content"])
-            self.assertRegex(first[-1]["content"], r"T\d\d:\d\d(?:[+-]\d\d:\d\d|Z)", "to the minute, no seconds")
+            self.assertEqual([m["role"] for m in first], ["system", "system", "user"], "this turn's notes just before the newest message")
+            self.assertIn("Current local date and time", first[1]["content"])
+            self.assertRegex(first[1]["content"], r"T\d\d:\d\d(?:[+-]\d\d:\d\d|Z)", "to the minute, no seconds")
             if refuse:
                 self.assertEqual([m["role"] for m in seen[1]], ["system", "user"], "the old single prompt when the template won't take two")
                 self.assertIn("Current local date and time", seen[1][0]["content"])
 
+
+
+class SmallBoardTests(unittest.TestCase):
+    def test_the_newest_message_comes_last_so_small_brains_answer_it(self):
+        history = [{"role": "user", "content": "ngl today was long"}, {"role": "assistant", "content": "Oof. What happened?"},
+                   {"role": "user", "content": "what should i cook tonight?"}]
+        layout = inference.turn_layout("steady", "notes", history)
+        self.assertEqual(layout[-1], history[-1], "the device lab's 1.7B answered the first message five times with it otherwise")
+        self.assertEqual(layout[-2], {"role": "system", "content": "notes"})
+        self.assertEqual(layout[:3], [{"role": "system", "content": "steady"}] + history[:2])
+
+    def test_a_budget_device_reads_the_gist_of_each_note(self):
+        notes = [{"text": "fact " * 200}, {"text": "another " * 200}, {"text": "third " * 200}, {"mind": True, "text": "mood " * 300},
+                 {"humor": True, "text": "joke back " * 300}, {"guess": True, "text": "they might want " * 50}, {"skill": True, "text": "skill " * 2000}]
+        _, full = prompts.build_plan_parts(notes, {}, "friend", prompts.normalize_profile(None), "now")
+        _, small = prompts.build_plan_parts(notes, {}, "friend", prompts.normalize_profile(None), "now", compact=True)
+        self.assertLess(len(small), len(full) / 4, (len(small), len(full)))
+        self.assertIn("Current local date and time", small)
+        self.assertNotIn("third", small, "two facts, not three")
+        self.assertNotIn("they might want", small)
+
+    def test_it_reads_the_steady_part_once_at_start_up(self):
+        seen = []
+
+        class Model:
+            def tokenize(self, data, add_bos=False): return data.split()
+            def create_chat_completion(self, **kwargs):
+                seen.append(kwargs["messages"])
+                return {"choices": [{"message": {"content": json.dumps({"type": "reply", "text": "hey"})}}]}
+
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget", "LUMA_TIMEZONE": "UTC"}):
+            steady, _ = prompts.build_plan_parts([], {}, "friend", prompts.normalize_profile(None), "", compact=True)
+            self.assertEqual(inference.warm(steady), {"warmed": True})
+            inference._plan_here([{"role": "user", "content": "hi"}], [], {}, "friend")
+        self.assertEqual(seen[0][0], seen[1][0], "the first real turn begins exactly where the warm-up left off")
 
 
 class OneTripTests(unittest.TestCase):
