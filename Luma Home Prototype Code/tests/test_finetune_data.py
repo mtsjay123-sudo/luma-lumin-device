@@ -92,6 +92,16 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertTrue(train.judge(row, "It means a good meal. It's slang from Filipino and Taglish.")["wrong_meaning"])
         self.assertFalse(train.judge(row, "It means reserving a seat, usually with a tissue packet.")["wrong_meaning"])
         self.assertTrue(train.judge(row, "It's slang from the internet and Gen Z. It's slang from the internet and Gen Z. It's sl")["loop"])
+        self.assertTrue(train.judge(row, "I'm a movie critic. I'm not a movie critic. I'm a movie critic who's been watching the same show.")["loop"],
+                        "nearly the same sentence again is a loop too (luma-brain-small-6's one near-miss)")
+        self.assertFalse(train.judge(row, "Want to vent? Want to talk about it, or just sit with it for a bit?")["loop"])
+        unknown = {"messages": [{"role": "system", "content": ""}, {"role": "user", "content": "my cousin keeps saying zrizzle, what does it mean"},
+                                {"role": "assistant", "content": "Never heard that one. Where'd your cousin pick it up?"}]}
+        self.assertTrue(train.judge(unknown, "Zrizzle is something that's zipping or moving fast.")["made_up_meaning"],
+                        "a meaning made up without the word “means” (the stock 1.7B's)")
+        self.assertFalse(train.judge(unknown, "I don't know that one, and I'd rather not guess. Where'd you hear it?")["made_up_meaning"])
+        inference = (ROOT / "src" / "luma" / "llm" / "inference.py").read_text()
+        self.assertIn(f"repeat_penalty={train.REPEAT_PENALTY}", inference, "judged with the repetition penalty Luma talks with")
         fine = {"replies": 24, "unbacked_numbers": 0, "made_up_slang_meanings": 0, "wrong_slang_meanings": 0, "loops": 0, "same_reply": 3}
         self.assertTrue(train.honest_enough(fine, fine))
         self.assertFalse(train.honest_enough(fine, {**fine, "loops": 1}))

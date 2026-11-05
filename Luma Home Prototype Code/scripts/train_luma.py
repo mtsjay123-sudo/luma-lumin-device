@@ -62,11 +62,17 @@ def device_and_dtype(torch):
     return "cpu", torch.bfloat16
 
 
+REPEAT_PENALTY = 1.08  # the repetition penalty Luma's brain always talks with (luma.llm.inference)
+
+
 def generate(model, tokenizer, messages, torch, max_new_tokens=60):
+    """One held-out reply, the same every time (no sampling), with the repetition penalty Luma always uses: judged as Luma
+    really runs it, stock and trained alike. Without it, run 7's 4B was held back for one loop Luma never produces."""
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=False)
     ids = tokenizer(text, return_tensors="pt", add_special_tokens=False).to(model.device)
     with torch.no_grad():
-        out = model.generate(**ids, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        out = model.generate(**ids, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=REPEAT_PENALTY,
+                             pad_token_id=tokenizer.eos_token_id)
     return tokenizer.decode(out[0][ids["input_ids"].shape[1]:], skip_special_tokens=True).strip()
 
 
@@ -77,11 +83,19 @@ def _content(text):
     return {w for w in re.findall(r"[a-z']+", text.lower()) if len(w) > 2 and w not in STOP}
 
 
+# Saying what a word means, however it's put: "it means", and also "it's when...", "slang for...", "something that's zipping"
+# (the stock 1.7B's made-up meaning for "zrizzle", which "means" alone missed).
+CLAIMS_MEANING = re.compile(r"\b(?:it )?means\b|\bit'?s (?:when|what you say|a way|slang for|short for|like saying)\b|\brefers? to\b|"
+                            r"\bslang for\b|\bstands for\b|\bbasically\b|\bsomething (?:that'?s|that is|you say)\b|\bused to (?:say|describe)\b",
+                            re.I)
+
+
 def repeats(reply):
-    """A sentence said twice or more in one reply: the brain stuck in a loop ("It's slang from the internet. It's slang from...")."""
+    """A sentence said twice or more in one reply, or nearly ("I'm a movie critic. I'm not a movie critic."): the brain stuck in
+    a loop ("It's slang from the internet. It's slang from...")."""
     said = [re.sub(r"\W+", " ", x).strip().lower() for x in re.split(r"(?<=[.!?])\s+", reply)]
-    said = [x for x in said if len(x.split()) >= 3]
-    return len(said) != len(set(said))
+    said = [set(x.split()) for x in said if len(x.split()) >= 3]
+    return any(len(a & b) / len(a | b) >= 0.8 for i, a in enumerate(said) for b in said[i + 1:])
 
 
 def said_before(row, reply):
@@ -106,7 +120,7 @@ def judge(row, reply):
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
     expected = row["messages"][-1]["content"]
-    if re.search(r"don't know|Never heard|new to me|no idea", expected) and re.search(r"\bit means\b|\bmeans\b", reply, re.I) \
+    if re.search(r"don't know|Never heard|new to me|no idea", expected) and CLAIMS_MEANING.search(reply) \
             and not re.search(r"don't know|not sure|never heard|haven't heard|new to me|no idea", reply, re.I):
         out["made_up_meaning"] = True
     meaning = re.match(r"^It means (.+?)(?:\. It's slang from |\. Like: )", expected)

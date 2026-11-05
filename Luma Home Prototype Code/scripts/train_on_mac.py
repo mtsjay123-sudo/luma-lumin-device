@@ -73,15 +73,21 @@ def run_mlx_lora(cfg_path):
 
 
 def replies(base, rows, adapter=None, max_tokens=60):
+    """Held-out replies made the way Luma talks: no sampling, with its repetition penalty (as in scripts/train_luma.py)."""
     from mlx_lm import generate, load
     model, tokenizer = load(base, adapter_path=str(adapter)) if adapter else load(base)
+    try:
+        from mlx_lm.sample_utils import make_logits_processors
+        extra = {"logits_processors": make_logits_processors(repetition_penalty=trainer().REPEAT_PENALTY)}
+    except (ImportError, TypeError):
+        extra = {}  # an mlx-lm without it: plain replies, as before
     out = []
     for row in rows:
         try:
             prompt = tokenizer.apply_chat_template(row["messages"][:-1], tokenize=False, add_generation_prompt=True, enable_thinking=False)
         except TypeError:
             prompt = tokenizer.apply_chat_template(row["messages"][:-1], tokenize=False, add_generation_prompt=True)
-        out.append(generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens, verbose=False).strip())
+        out.append(generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens, verbose=False, **extra).strip())
     return out
 
 
