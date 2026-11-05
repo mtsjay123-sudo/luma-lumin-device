@@ -47,14 +47,21 @@ jobs:
             "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7" "faster-whisper==1.2.1" "kokoro-onnx>=0.4,<1" huggingface_hub
           CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
             python -m pip install --no-binary llama-cpp-python "llama-cpp-python==0.3.23"
-      - name: The brains that could ship on the device, Luma's own add-on, and the voice
+      - name: The brains that could ship on the device, Luma's own add-ons, and the voice
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/brains" models/kokoro-82m
           get() { curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/$1" "$2" || { echo "Couldn't download $1"; rm -f "$RUNNER_TEMP/brains/$1"; }; }
           get Qwen_Qwen3-0.6B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
           get Qwen_Qwen3-1.7B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
           get Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-          get luma-brain-lora.gguf "https://github.com/mtsjay123-sudo/luma-lumin-device/releases/download/luma-brain-4/luma-brain-lora.gguf"
+          # Luma's own add-ons: the newest one published for each brain (luma-brain-N for the 4B, luma-brain-small-N for the 1.7B)
+          newest() { gh api "repos/${{ github.repository }}/releases?per_page=50" --jq "[.[] | select(.draft | not) | select(.tag_name | test(\"^$1[0-9]+\$\"))][0].tag_name // empty" 2>/dev/null || true; }
+          own=$(newest luma-brain-); small=$(newest luma-brain-small-)
+          [ -n "$own" ] && { gh release download "$own" -p luma-brain-lora.gguf -D "$RUNNER_TEMP/brains" || echo "Couldn't download $own"; }
+          [ -n "$small" ] && { gh release download "$small" -p luma-brain-1.7b-lora.gguf -D "$RUNNER_TEMP/brains" || echo "Couldn't download $small"; }
+          echo "OWN_TAG=$own" >> "$GITHUB_ENV"; echo "SMALL_TAG=$small" >> "$GITHUB_ENV"
           K=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
           curl -fsSL -o models/kokoro-82m/kokoro-v1.0.int8.onnx "$K/kokoro-v1.0.int8.onnx"
           curl -fsSL -o models/kokoro-82m/voices-v1.0.bin "$K/voices-v1.0.bin"
@@ -68,11 +75,17 @@ jobs:
             echo "== $name"
             LUMA_MODEL_PATH="$f" timeout 30m taskset -c 0-3 python scripts/luma_lab.py device --threads 4 --save "$RUNNER_TEMP/lab/device-$name.json" || true
           done
+          f="$RUNNER_TEMP/brains/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
+          if [ -f "$f" ] && [ -f "$RUNNER_TEMP/brains/luma-brain-1.7b-lora.gguf" ]; then
+            echo "== Luma's own small brain"
+            LUMA_MODEL_PATH="$f" LUMA_LORA_PATH="$RUNNER_TEMP/brains/luma-brain-1.7b-lora.gguf" timeout 30m taskset -c 0-3 \
+              python scripts/luma_lab.py device --threads 4 --label "Luma's own small brain (Qwen3 1.7B + $SMALL_TAG)" --save "$RUNNER_TEMP/lab/device-own-small.json" || true
+          fi
           f="$RUNNER_TEMP/brains/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
           if [ -f "$f" ] && [ -f "$RUNNER_TEMP/brains/luma-brain-lora.gguf" ]; then
             echo "== Luma's own brain"
             LUMA_MODEL_PATH="$f" LUMA_LORA_PATH="$RUNNER_TEMP/brains/luma-brain-lora.gguf" timeout 30m taskset -c 0-3 \
-              python scripts/luma_lab.py device --threads 4 --label "Luma's own brain (Qwen3 4B + luma-brain-4)" --save "$RUNNER_TEMP/lab/device-own.json" || true
+              python scripts/luma_lab.py device --threads 4 --label "Luma's own brain (Qwen3 4B + $OWN_TAG)" --save "$RUNNER_TEMP/lab/device-own.json" || true
           fi
       - name: Summary
         if: always()
