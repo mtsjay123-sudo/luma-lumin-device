@@ -3812,11 +3812,16 @@
     const acct = state.home?.account || {};
     const acctRow = el("div", "item");
     const acctText = el("div", "grow");
-    acctText.append(el("div", "title", acct.signed_in ? `Signed in as ${acct.name || "you"}` : "Your Luma account"),
-      el("div", "sub", acct.signed_in ? `${acct.phone} · ${acct.plan === "plus" ? "Luma Plus" : "Free plan"}` : "Sign in with your phone number to unlock Luma Plus, your phone and texting."));
-    acctRow.append(acctText, acct.signed_in
-      ? btn("Sign out", "pill quiet small", async () => { if (!confirm("Sign out of Luma on this computer? Your memories stay here.")) return; try { await api("/api/account/signout", {}); await refreshHome(); renderSettings(); } catch (e) { toast(e.message); } })
-      : btn("Sign in", "pill primary small", () => { try { sessionStorage.removeItem("luma-welcome-skip"); } catch (_) { /* fine */ } showWelcome(); }));
+    acctText.append(el("div", "title", acct.email ? `Signed in as ${acct.email}` : "Your Luma account"),
+      el("div", "sub", acct.problem === "taken" ? "Someone else has that email on Luma Cloud. Sign out and sign in with your own account."
+        : acct.pending ? "Saved on this computer. It joins Luma Cloud by itself as soon as Luma Cloud answers."
+        : acct.email ? `${acct.plan === "plus" ? "Luma Plus" : "Free plan"}${acct.signed_in ? " · texts from " + acct.phone : ""}` : "Sign in to use Luma."));
+    acctRow.append(acctText, acct.has_account
+      ? btn("Sign out", "pill quiet small", async () => {
+          if (!confirm("Sign out of your Luma account on this computer? Your memories stay here, and Luma asks you to sign in again.")) return;
+          try { await api("/api/account/leave", {}); await refreshHome(); showWelcome("signin"); } catch (e) { toast(e.message); }
+        })
+      : btn("Sign in", "pill primary small", () => showWelcome("signin")));
     box.append(acctRow);
     desk?.canLock?.().then((can) => {
       if (!can) return;
@@ -5213,7 +5218,7 @@
   function suPaint() {
     const name = STEPS[signup.step];
     $("su-steps").replaceChildren(...STEPS.slice(1, -1).map((_, k) => el("i", k + 1 === signup.step ? "on" : k + 1 < signup.step ? "done" : "")));
-    $("su-back").hidden = signup.step === 0 || name === "done";
+    $("su-back").hidden = signup.step === 0 || name === "done" || signup.only;
     suErr("");
     const pane = $("su-pane");
     const fresh = pane.cloneNode(false);
@@ -5243,29 +5248,37 @@
       f.append(row, go("Reveal my sign →"));
     } else if (name === "contact") {
       const back = signup.mode === "signin";
-      f.append(h1(back ? "Welcome <em>back.</em>" : "How can I <em>reach you?</em>"),
-        el("p", "su-sub", back ? "Your number and email, and I'll text you a code to make sure it's you." : "Your email and mobile number. I'll text a code to make sure it's really you."));
-      f.append(suInput("su-email", "Email", d.email || "", "email", { autocomplete: "email", maxLength: 120 }), suInput("su-phone", "Mobile number", d.phoneShown || "", "tel", { autocomplete: "tel", inputMode: "tel" }));
-      if (signup.sent && !signup.verified) {
-        f.append(el("p", "su-label", "The 6-digit code I texted you"));
-        const code = el("div", "su-code");
-        for (let i = 0; i < 6; i++) {
-          const c = el("input");
-          Object.assign(c, { inputMode: "numeric", maxLength: 1, autocomplete: i === 0 ? "one-time-code" : "off" });
-          c.setAttribute("aria-label", `Digit ${i + 1}`);
-          c.addEventListener("input", () => { c.value = c.value.replace(/\D/g, "").slice(-1); if (c.value && c.nextElementSibling) c.nextElementSibling.focus(); if ([...code.children].every((x) => x.value)) f.requestSubmit(); });
-          c.addEventListener("keydown", (e) => { if (e.key === "Backspace" && !c.value && c.previousElementSibling) c.previousElementSibling.focus(); });
-          c.addEventListener("paste", (e) => { const t = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6); if (!t) return; e.preventDefault(); [...code.children].forEach((x, k) => { x.value = t[k] || ""; }); if (t.length === 6) f.requestSubmit(); });
-          code.append(c);
-        }
-        code.id = "su-code";
-        f.append(code, go("Verify →"));
-        const resend = el("button", "su-link", "Use a different number");
-        resend.type = "button";
-        resend.addEventListener("click", () => { signup.sent = false; suPaint(); });
-        f.append(resend);
-      } else f.append(go(signup.verified ? "Continue →" : "Text me a code →"));
-      f.append(el("p", "su-fine", "Your number signs you in to Luma on your phone too. I never share it, and texts only go out when you say so."));
+      if (signup.account) {
+        // Signed in (or the account is waiting here for Luma Cloud): just a number, if they want texts from Luma.
+        f.append(h1("You're <em>in.</em>"),
+          el("p", "su-sub", `Your Luma account is ${signup.account.email}.` + (signup.account.pending ? " It joins Luma Cloud by itself as soon as Luma Cloud answers." : "")));
+        f.append(suInput("su-phone", "Mobile number (optional)", d.phoneShown || "", "tel", { autocomplete: "tel", inputMode: "tel" }), go());
+        f.append(el("p", "su-fine", "Your number lets Luma text you and your people later, and only when you say so."));
+      } else {
+        f.append(h1(back ? "Welcome <em>back.</em>" : signup.only ? "One more thing: <em>your account.</em>" : "Make your <em>Luma account.</em>"),
+          el("p", "su-sub", back ? "Sign in with your Luma account's email and password."
+            : "Everyone has one. It's how your phone and your other computers find your Luma. Your password never leaves this computer."));
+        const pw = suInput("su-password", back ? "Password" : "Password, 8 or more characters", "", "password", { autocomplete: back ? "current-password" : "new-password", maxLength: 200 });
+        const eye = el("button", "su-eye", "Show");
+        eye.type = "button";
+        eye.setAttribute("aria-label", "Show the password");
+        eye.addEventListener("click", () => {
+          const shown = pw.type === "text";
+          pw.type = shown ? "password" : "text";
+          eye.textContent = shown ? "Show" : "Hide";
+          eye.setAttribute("aria-label", shown ? "Show the password" : "Hide the password");
+          pw.focus();
+        });
+        const pwRow = el("div", "su-pw");
+        pwRow.append(pw, eye);
+        f.append(suInput("su-email", "Email", d.email || "", "email", { autocomplete: "email", maxLength: 120 }), pwRow);
+        if (!back && !signup.only) f.append(suInput("su-phone", "Mobile number (optional)", d.phoneShown || "", "tel", { autocomplete: "tel", inputMode: "tel" }));
+        f.append(go(back ? "Sign in →" : "Create my account →"));
+        const swap = el("button", "su-link", back ? "I'm new: make an account" : "I already have an account");
+        swap.type = "button";
+        swap.addEventListener("click", () => { d.email = ($("su-email")?.value || d.email || "").trim(); signup.mode = back ? "signup" : "signin"; suPaint(); });
+        f.append(swap);
+      }
     } else if (name === "people") {
       f.append(h1("Is there someone <em>special?</em>"), el("p", "su-sub", "So I remember the people who matter to you, and never miss their birthday."));
       const status = d.relationship || "";
@@ -5347,6 +5360,7 @@
       f.append(go("Start talking →"));
     }
     f.addEventListener("submit", (e) => { e.preventDefault(); suNext(); });
+    f.addEventListener("input", () => { if ($("su-error").textContent) suErr(""); f.querySelectorAll(".bad").forEach((x) => x.classList.remove("bad")); });
     setTimeout(() => f.querySelector("input:not([type=hidden]), select")?.focus(), 60);
   }
   function suChipsSelect(p) {
@@ -5411,27 +5425,38 @@
         revealSign(zodiacOf(Number(m), Number(dd)));
         return;  // "That's me" moves on
       } else if (name === "contact") {
-        d.email = v("su-email").toLowerCase();
         d.phoneShown = v("su-phone");
-        d.phone = e164(d.phoneShown);
-        if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.email)) { suErr("That email doesn't look right."); $("su-email").classList.add("bad"); return; }
-        if (!d.phone) { suErr("Use your mobile number, like (919) 555-0123."); $("su-phone").classList.add("bad"); return; }
-        if (!signup.verified && !signup.sent) {
+        d.phone = d.phoneShown ? e164(d.phoneShown) : "";
+        if (d.phoneShown && !d.phone) { suErr("Use your mobile number, like (919) 555-0123, or leave it empty."); $("su-phone").classList.add("bad"); return; }
+        if (!signup.account) {
+          d.email = v("su-email").toLowerCase();
+          const password = $("su-password")?.value || "";
+          if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.email)) { suErr("That email doesn't look right."); $("su-email").classList.add("bad"); return; }
+          if (password.length < 8) { suErr(signup.mode === "signin" ? "Type your password." : "Use at least 8 characters for your password."); $("su-password").classList.add("bad"); return; }
+          const going = $("su-pane").querySelector(".su-go");
+          if (going) { going.disabled = true; going.textContent = signup.mode === "signin" ? "Signing in…" : "Making your account…"; }
           try {
-            await api("/api/account/start", { name: [d.first, d.last].filter(Boolean).join(" ") || "Luma user", phone: d.phone });
-            signup.sent = true; suPaint(); return;
+            const r = signup.mode === "signin"
+              ? await api("/api/account/signin", { email: d.email, password })
+              : await api("/api/account/create", { name: [d.first, d.last].filter(Boolean).join(" ") || "Luma owner", email: d.email, password });
+            signup.account = r.account || { email: d.email, pending: Boolean(r.pending), has_account: true };
+            if (state.home) state.home.account = signup.account;
           } catch (e) {
-            // No connection to Luma's service right now: carry on, and verify the number later in Settings.
-            if (!e.status || e.status >= 500) { signup.verified = false; toast("I couldn't text a code right now. You can verify your number later in Settings."); }
-            else { suErr(e.message); return; }
+            if (going) { going.disabled = false; going.textContent = signup.mode === "signin" ? "Sign in →" : "Create my account →"; }
+            if (e.status === 409) { signup.mode = "signin"; suPaint(); suErr("That email already has a Luma account. Sign in with its password."); return; }
+            suErr(e.message || "That didn't go through. Try again.");
+            return;
           }
-        } else if (signup.sent && !signup.verified) {
-          const code = [...($("su-code")?.children || [])].map((x) => x.value).join("");
-          if (code.length < 6) { suErr("Type all 6 digits."); return; }
-          try { await api("/api/account/finish", { code }); signup.verified = true; }
-          catch (e) { suErr(e.message || "That code didn't work. Check the text and try again."); return; }
+          if (signup.only) { await refreshHome(); hideWelcome(); toast(signup.account.pending ? "You're in. Your account joins Luma Cloud as soon as it answers." : `You're in, ${d.first || "friend"}.`); return; }
+          if (signup.mode === "signin") {
+            const [first, ...rest] = String(signup.account.name || "").split(/\s+/).filter(Boolean);
+            if (!d.first && first) { d.first = first; d.last = rest.join(" "); }
+            signup.mode = "signup";
+            signup.step = STEPS.indexOf(d.first && d.last ? "birthday" : "name");
+            suPaint();
+            return;
+          }
         }
-        if (signup.mode === "signin" && !d.first) { signup.step = STEPS.indexOf("name"); suPaint(); return; }
       } else if (name === "people") {
         if (["Dating", "Engaged", "Married"].includes(d.relationship) && !(d.partner?.name || "").trim()) { suErr("What's their name?"); return; }
       } else if (name === "world") {
@@ -5453,13 +5478,21 @@
       suPaint();
     } catch (e) { suErr(e.message || "That didn't go through. Try again."); }
   }
-  $("su-back").addEventListener("click", () => { $("su-zodiac").hidden = true; signup.step = Math.max(0, signup.step - 1); suPaint(); });
-  function showWelcome() {
+  $("su-back").addEventListener("click", () => {
+    $("su-zodiac").hidden = true;
+    if (signup.mode === "signin" && STEPS[signup.step] === "contact" && !signup.account) { signup.mode = "signup"; signup.step = 0; }
+    else signup.step = Math.max(0, signup.step - 1);
+    suPaint();
+  });
+  function showWelcome(kind) {
     document.body.classList.add("welcoming");
     $("welcome").hidden = false;
     const prof = state.home?.signup || {};
     if (prof.first && !signup.data.first) signup.data.first = prof.first;
-    signup.step = 0;
+    signup.only = kind === "account";
+    signup.account = null;
+    signup.mode = kind === "signin" ? "signin" : "signup";
+    signup.step = signup.only || kind === "signin" ? STEPS.indexOf("contact") : 0;
     suPaint();
     if (!signup.raf) signup.raf = requestAnimationFrame(suAuraLoop);
   }
@@ -5467,9 +5500,12 @@
     $("welcome").classList.add("leaving");
     setTimeout(() => { $("welcome").hidden = true; $("welcome").classList.remove("leaving"); document.body.classList.remove("welcoming"); input.focus(); }, 650);
   }
-  // Mandatory: until they've signed up, this is the only screen.
+  // Mandatory: until they've signed up and have a Luma account, this is the only screen.
   function maybeWelcome() {
-    if (state.home?.signup && !state.home.signup.done) showWelcome();
+    const s = state.home?.signup, a = state.home?.account;
+    if (!s || !$("welcome").hidden) return;
+    if (!s.done) showWelcome();
+    else if (a && a.has_account === false) showWelcome("account");
   }
 
   // Touch ID lock: on open, and after Luma's been in the background a while.

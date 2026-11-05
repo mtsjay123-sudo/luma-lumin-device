@@ -1749,6 +1749,10 @@ body.speaking .si-orb.huge > i { animation-duration: 2.2s; }
 .su-person .su-in, .su-person .su-sel { height: 48px; font-size: 14.5px; padding: 0 12px; }
 .su-person .su-sel { padding-right: 28px; background-position: right 10px center; }
 .su-code { display: flex; gap: 8px; }
+.su-pw { position: relative; }
+.su-pw .su-in { padding-right: 76px; }
+.su-eye { position: absolute; right: 8px; top: 8px; height: 38px; padding: 0 14px; border-radius: 12px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.75); background: rgba(255, 255, 255, 0.08); transition: background 0.2s, color 0.2s; }
+.su-eye:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .su-code input { width: 52px; height: 60px; text-align: center; font-size: 24px; border-radius: 14px; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); outline: none; }
 .su-code input:focus { border-color: rgba(190, 170, 255, 0.8); }
 .su-mems { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px 2px; scrollbar-width: none; }

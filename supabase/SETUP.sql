@@ -38,7 +38,9 @@ end $$;
 
 create table if not exists luma_accounts (
   id uuid primary key default gen_random_uuid(),
-  owner_phone text not null unique,
+  owner_phone text unique,
+  email text unique,
+  key_hash text,
   owner_name text not null default 'Luma owner',
   phone_verified_at timestamptz,
   plan text not null default 'free' check (plan in ('free', 'plus')),
@@ -49,6 +51,10 @@ create table if not exists luma_accounts (
   assigned_number_sid text,
   created_at timestamptz not null default now()
 );
+-- Set up before accounts had an email: bring the table up to date (safe to run again).
+alter table luma_accounts alter column owner_phone drop not null;
+alter table luma_accounts add column if not exists email text unique;
+alter table luma_accounts add column if not exists key_hash text;
 
 create table if not exists luma_devices (
   id uuid primary key default gen_random_uuid(),

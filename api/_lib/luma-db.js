@@ -36,6 +36,7 @@ export function makeSupabaseDb(env, fetchImpl) {
     insertDevice: (row) => insert("luma_devices", row),
     getAccount: (id) => one(`luma_accounts?id=eq.${enc(id)}&select=*`),
     getAccountByPhone: (phone) => one(`luma_accounts?owner_phone=eq.${enc(phone)}&select=*`),
+    getAccountByEmail: (email) => one(`luma_accounts?email=eq.${enc(email)}&select=*`),
     getAccountByCustomer: (customer) => one(`luma_accounts?stripe_customer_id=eq.${enc(customer)}&select=*`),
     getAccountByNumber: (number) => one(`luma_accounts?assigned_number=eq.${enc(number)}&select=*`),
     insertAccount: (row) => insert("luma_accounts", row),

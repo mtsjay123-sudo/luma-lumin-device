@@ -9,6 +9,7 @@ after a dropped connection can never text someone twice.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -110,7 +111,112 @@ class LumaCloud:
             raise CloudError(body.get("message") or "Luma Cloud couldn't do that right now.", body.get("error", ""), status)
         return status, body
 
-    # -- sign-up -------------------------------------------------------------
+    # -- the Luma account: everyone has one, an email and a password -------------------------
+    # The password never leaves this computer and is never kept: what's sent (and, while Luma Cloud can't be
+    # reached, kept in the encrypted store) is a key made from it and the email, which Luma Cloud hashes again.
+    @staticmethod
+    def account_key(email, password):
+        return hashlib.pbkdf2_hmac("sha256", password.encode(), ("luma-account:" + email).encode(), 200_000, 32).hex()
+
+    @staticmethod
+    def _account_input(email, password):
+        email = str(email or "").strip().lower()
+        if len(email) > 120 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", email):
+            raise ValueError("That email doesn't look right.")
+        if not isinstance(password, str) or len(password) < 8:
+            raise ValueError("Use at least 8 characters for your password.")
+        if len(password) > 200:
+            raise ValueError("That password is too long.")
+        return email, password
+
+    def has_account(self):
+        """A Luma account on this computer: signed in, or made here and waiting for Luma Cloud."""
+        return bool((self.credentials or {}).get("email") or self.store.setting("luma_account_pending"))
+
+    def pending_account(self):
+        return self.store.setting("luma_account_pending")
+
+    def create_account(self, name, email, password, device_name="Luma"):
+        email, password = self._account_input(email, password)
+        name = " ".join(str(name or "").split())[:60] or "Luma owner"
+        return self._create(name, email, self.account_key(email, password), device_name)
+
+    def _create(self, name, email, key, device_name="Luma", hold=True):
+        payload = {"name": name, "email": email, "key": key, "device_name": str(device_name)[:60]}
+        registered = self.connected()
+        try:
+            try:
+                _, body = self._call("POST", "/api/luma/account-create", payload, auth=registered)
+            except CloudError as error:
+                if not (registered and error.status == 401):
+                    raise
+                registered = False  # a credential Luma Cloud no longer knows: start this computer fresh
+                _, body = self._call("POST", "/api/luma/account-create", payload, auth=False)
+        except CloudError as error:
+            if not hold or error.status < 500:
+                raise  # 409: that email has an account (sign in instead); 400: what they typed
+            return self._hold(name, email, key)
+        except ProviderError:
+            if not hold:
+                raise
+            return self._hold(name, email, key)  # no internet, or Luma Cloud is down
+        self._keep(body, email, name, linked_ok=registered)
+        return {"account": self.store.setting("luma_cloud_account"), "summary": f"Your Luma account is {email}."}
+
+    def _hold(self, name, email, key):
+        self.store.set_setting("luma_account_pending", {"name": name, "email": email, "key": key, "since": self.clock()})
+        return {"pending": True, "email": email,
+                "summary": "Your account is saved on this computer. It joins Luma Cloud by itself as soon as Luma Cloud answers."}
+
+    def _keep(self, body, email, name, linked_ok=False):
+        token = body.get("device_token")
+        account = body.get("account") or {}
+        name = account.get("owner_name") or name
+        if linked_ok and token is None and body.get("linked") and self.credentials:
+            self.store.set_setting("luma_cloud_device", {**self.credentials, "email": email, "name": self.credentials.get("name") or name})
+        elif not isinstance(token, str) or "." not in token:
+            raise ProviderError("Luma Cloud didn't return a device credential.")
+        else:
+            # Encoded so the store's card-number guard doesn't mistake the credential's digits for a card.
+            self.store.set_setting("luma_cloud_device", {"token_b64": base64.b64encode(token.encode()).decode(), "phone": None, "name": name, "email": email})
+        self.store.set_setting("luma_account_pending", None)
+        self._cache(account)
+
+    def sign_in(self, email, password, device_name="Luma"):
+        email, password = self._account_input(email, password)
+        return self._sign_in(email, self.account_key(email, password), device_name)
+
+    def _sign_in(self, email, key, device_name="Luma"):
+        try:
+            _, body = self._call("POST", "/api/luma/account-login", {"email": email, "key": key, "device_name": str(device_name)[:60]}, auth=False)
+        except CloudError as error:
+            if error.status >= 500:
+                raise ProviderError("Luma Cloud isn't answering right now, so I can't check your password. Try again in a minute.") from None
+            raise
+        self.store.set_setting("luma_cloud_device", None)  # this computer's credential is the new one
+        self._keep(body, email, (body.get("account") or {}).get("owner_name") or "")
+        return {"account": self.store.setting("luma_cloud_account"), "summary": f"Signed in as {email}."}
+
+    def finish_pending(self):
+        """An account made while Luma Cloud couldn't be reached joins it now, if it answers. Quiet when it still can't.
+        If someone already has that email (this owner, signed up on another computer), the same password signs in."""
+        pending = self.pending_account()
+        if not pending or (self.credentials or {}).get("email"):
+            return None
+        try:
+            return self._create(pending["name"], pending["email"], pending["key"], hold=False)
+        except CloudError as error:
+            if error.status != 409:
+                return None
+            try:
+                return self._sign_in(pending["email"], pending["key"])
+            except (CloudError, ProviderError):
+                self.store.set_setting("luma_account_pending", {**pending, "problem": "taken"})
+                return None
+        except ProviderError:
+            return None
+
+    # -- texting from Luma's number: the owner verifies their phone ---------------------------
     def start_signup(self, name, phone):
         name = " ".join(str(name or "").split())[:60]
         if not name:
@@ -144,12 +250,21 @@ class LumaCloud:
         return {"account": self.store.setting("luma_cloud_account"), "summary": "You're set. Luma can text from its number now."}
 
     def sign_out(self):
-        # Texting stops; a phone paired with this Luma keeps working.
+        # Texting stops; a phone paired with this Luma keeps working. The account stays signed in: signing out of
+        # that is sign_out_account.
         creds = self.credentials
-        keep = creds and self.store.setting("phone_app_b64")
-        self.store.set_setting("luma_cloud_device", {"token_b64": creds["token_b64"], "phone": None, "name": None} if keep else None)
-        self.store.set_setting("luma_cloud_account", None)
+        keep = creds and (self.store.setting("phone_app_b64") or creds.get("email"))
+        self.store.set_setting("luma_cloud_device", {"token_b64": creds["token_b64"], "phone": None, "name": None, "email": creds.get("email")} if keep else None)
+        if not (creds or {}).get("email"):
+            self.store.set_setting("luma_cloud_account", None)
         return {"summary": "Luma's number is disconnected on this device."}
+
+    def sign_out_account(self):
+        """Sign out of the Luma account on this computer. Memories stay here; Luma asks to sign in again."""
+        self.store.set_setting("luma_cloud_device", None)
+        self.store.set_setting("luma_cloud_account", None)
+        self.store.set_setting("luma_account_pending", None)
+        return {"summary": "Signed out. Your memories stay on this computer."}
 
     def register(self, device_name="Luma"):
         """Get a Luma Cloud credential without a phone number, for the phone app."""

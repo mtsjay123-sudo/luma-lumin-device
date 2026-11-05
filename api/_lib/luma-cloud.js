@@ -87,6 +87,43 @@ function safeEqual(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
+// The Luma account. A device never sends the password itself: it sends a key made from the password and the email
+// (PBKDF2-SHA256, 200,000 rounds, on the device), so the device can keep that key while Luma Cloud is unreachable
+// and finish the account later without keeping the password. Here the key is hashed again with scrypt and a salt.
+const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+const scryptAsync = (secret, salt, length, opts) => new Promise((resolve, reject) =>
+  crypto.scrypt(secret, salt, length, opts, (error, key) => (error ? reject(error) : resolve(key))));
+
+export async function hashKey(key, random = (n) => crypto.randomBytes(n)) {
+  const salt = random(16);
+  const derived = await scryptAsync(key, salt, 32, SCRYPT);
+  return ["scrypt", SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString("base64url"), derived.toString("base64url")].join("$");
+}
+
+export async function keyMatches(key, stored) {
+  const parts = String(stored || "").split("$");
+  if (parts.length !== 6 || parts[0] !== "scrypt") return false;
+  const [, N, r, p, salt, hash] = parts;
+  const expected = Buffer.from(hash, "base64url");
+  if (!expected.length) return false;
+  const derived = await scryptAsync(key, Buffer.from(salt, "base64url"), expected.length, { N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem });
+  return crypto.timingSafeEqual(derived, expected);
+}
+
+let unknownAccountHash = null;  // checked when there's no such account, so a wrong email takes as long as a wrong password
+
+export function cleanEmail(raw) {
+  const email = String(raw || "").trim().toLowerCase();
+  if (email.length > 120 || !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(email)) throw new HttpError(400, "email", "That email doesn't look right.");
+  return email;
+}
+
+function accountKey(raw) {
+  const key = String(raw || "");
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new HttpError(400, "key", "Update Luma to sign in.");
+  return key;
+}
+
 export function checkNumber(number, countries) {
   if (typeof number !== "string" || !E164.test(number)) {
     throw new HttpError(400, "bad_number", "Use a full phone number with country code, like +19195550123.");
@@ -327,9 +364,16 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     }
   }
 
+  async function newDevice(account, name) {
+    const secret = random(32).toString("base64url");
+    const device = await db.insertDevice({ account_id: account.id, secret_hash: sha256(secret), name: String(name || "Luma").trim().slice(0, 60) || "Luma" });
+    return device.id + "." + secret;
+  }
+
   async function accountView(account) {
     const used = await db.usage(account.id, period(now()));
     return {
+      email: account.email || null,
       plan: isPlus(account) ? "plus" : "free",
       subscription_status: account.subscription_status || null,
       texts_used: used,
@@ -348,6 +392,38 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
   }
 
   const routes = {
+    // Everyone signs up with an email and a password (sent as a key made from them; see hashKey). A Luma that
+    // already registered for the phone app keeps its credential, and its account becomes this one.
+    async "account-create"({ headers, body, ip }) {
+      if (!ipAllowed("account:" + ip, 10, 3600_000, now())) throw new HttpError(429, "slow_down", "Too many new accounts from here. Try again in an hour.");
+      const email = cleanEmail(body.email);
+      const key = accountKey(body.key);
+      const name = String(body.name || "").trim().slice(0, 60) || "Luma owner";
+      if (await db.getAccountByEmail(email)) throw new HttpError(409, "email_taken", "There's already a Luma account with that email. Sign in instead.");
+      const key_hash = await hashKey(key, random);
+      const registered = headers.authorization ? await authDevice(headers).catch(() => null) : null;
+      if (registered && !registered.account.email) {
+        const account = await db.updateAccount(registered.account.id, { email, key_hash, owner_name: name });
+        return { status: 200, json: { device_token: null, linked: true, account: await accountView(account) } };
+      }
+      const account = await db.insertAccount({ email, key_hash, owner_name: name, owner_phone: null, plan: "free" });
+      return { status: 200, json: { device_token: await newDevice(account, body.device_name), account: await accountView(account) } };
+    },
+
+    // Signing in on another Mac (or again): the same email and password, a new device credential.
+    async "account-login"({ body, ip }) {
+      const email = cleanEmail(body.email);
+      if (!ipAllowed("login:" + ip, 30, 900_000, now()) || !ipAllowed("login:" + email, 10, 900_000, now())) {
+        throw new HttpError(429, "slow_down", "Too many tries. Wait a few minutes and try again.");
+      }
+      const key = accountKey(body.key);
+      const account = await db.getAccountByEmail(email);
+      unknownAccountHash = unknownAccountHash || await hashKey("0".repeat(64), () => Buffer.alloc(16));
+      const ok = await keyMatches(key, account?.key_hash || unknownAccountHash);
+      if (!account || !account.key_hash || !ok) throw new HttpError(401, "login", "That email and password don't match.");
+      return { status: 200, json: { device_token: await newDevice(account, body.device_name), account: await accountView(account) } };
+    },
+
     // Step 1 of sign-up: text a one-time code to the owner's own phone.
     async "verify-start"({ body }) {
       if (!cfg.verifyService || !twilio.configured()) throw new HttpError(503, "not_configured", "Luma Cloud texting isn't set up yet.");
@@ -663,7 +739,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
         stripe: stripe.configured(), stripe_webhook: Boolean(cfg.stripeWebhookSecret), numbers_for_plus: cfg.provisionNumbers,
       };
       // The phone app needs only the database; notifications need the VAPID keys.
-      const app = { pairing: database, notifications: vapidReady(cfg.vapid) };
+      const app = { accounts: database, pairing: database, notifications: vapidReady(cfg.vapid) };
       return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks, app } };
     },
 

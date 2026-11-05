@@ -2800,8 +2800,8 @@ class Agent:
         if age > 120: raise ValueError("That birth year doesn't look right.")
         email = clean(data.get("email"), 120).lower()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", email): raise ValueError("That email doesn't look right.")
-        phone = re.sub(r"[^\d+]", "", str(data.get("phone") or ""))
-        if not re.fullmatch(r"\+?\d{10,15}", phone): raise ValueError("That phone number doesn't look right.")
+        phone = re.sub(r"[^\d+]", "", str(data.get("phone") or ""))  # optional: for texts from Luma later
+        if phone and not re.fullmatch(r"\+?\d{10,15}", phone): raise ValueError("That phone number doesn't look right.")
         sign = self.zodiac(born.month, born.day)
         people = []
         partner = data.get("partner") if isinstance(data.get("partner"), dict) else {}

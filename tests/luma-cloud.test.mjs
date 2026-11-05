@@ -364,3 +364,66 @@ test("Supabase adapter talks PostgREST with the service key and maps conflicts",
   assert.equal(seen[0].init.headers.Authorization, "Bearer service");
   assert.ok(seen.at(-1).url.startsWith("https://x.supabase.co/rest/v1/luma_accounts?id=eq.a%20b"));
 });
+
+// What Luma on the device sends instead of the password: PBKDF2-SHA256 of it, salted with the email.
+const accountKey = (email, password) => crypto.pbkdf2Sync(password, "luma-account:" + email, 200_000, 32, "sha256").toString("hex");
+
+test("everyone gets a Luma account with an email and password; the password itself is never sent or kept", async () => {
+  const ctx = setup();
+  const key = accountKey("jay@example.com", "correct horse battery");
+  const made = await ctx.call("account-create", { body: { email: " Jay@Example.com ", key, name: "Jay", device_name: "Jay's Mac" }, ip: "10.0.0.1" });
+  assert.match(made.json.device_token, /^[0-9a-f-]{36}\.[A-Za-z0-9_-]{20,}$/);
+  assert.equal(made.json.account.email, "jay@example.com");
+  assert.equal(made.json.account.plan, "free");
+  const row = ctx.db.t.accounts[0];
+  assert.equal(row.owner_phone, null, "no phone needed to have an account");
+  assert.match(row.key_hash, /^scrypt\$16384\$8\$1\$/);
+  assert.ok(!JSON.stringify(ctx.db.t).includes(key), "not even the device's key is stored, only a salted scrypt of it");
+  const account = await ctx.call("account", { headers: { authorization: "Bearer " + made.json.device_token } });
+  assert.equal(account.json.email, "jay@example.com");
+  await rejects(ctx.call("account-create", { body: { email: "JAY@example.com", key, name: "Jay" }, ip: "10.0.0.1" }), 409, "email_taken");
+  await rejects(ctx.call("account-create", { body: { email: "not an email", key }, ip: "10.0.0.1" }), 400, "email");
+  await rejects(ctx.call("account-create", { body: { email: "a@b.co", key: "hunter2" }, ip: "10.0.0.1" }), 400, "key");
+});
+
+test("signing in on another Mac takes the same email and password, and a wrong one gets nothing", async () => {
+  const ctx = setup();
+  const key = accountKey("sam@example.com", "a long password");
+  await ctx.call("account-create", { body: { email: "sam@example.com", key, name: "Sam" }, ip: "10.0.0.2" });
+  const again = await ctx.call("account-login", { body: { email: "SAM@example.com ", key, device_name: "Office Mac" }, ip: "10.0.0.3" });
+  assert.match(again.json.device_token, /\./);
+  assert.equal(again.json.account.email, "sam@example.com");
+  assert.equal(ctx.db.t.devices.length, 2, "each Mac gets its own credential");
+  await rejects(ctx.call("account-login", { body: { email: "sam@example.com", key: accountKey("sam@example.com", "wrong password") }, ip: "10.0.0.3" }), 401, "login");
+  await rejects(ctx.call("account-login", { body: { email: "nobody@example.com", key }, ip: "10.0.0.3" }), 401, "login");
+  assert.equal(ctx.db.t.devices.length, 2, "a failed sign-in makes no credential");
+});
+
+test("guessing one account's password is slowed down after ten tries", async () => {
+  const ctx = setup();
+  await ctx.call("account-create", { body: { email: "lee@example.com", key: accountKey("lee@example.com", "the real one"), name: "Lee" }, ip: "10.0.0.4" });
+  for (let i = 0; i < 10; i++) {
+    await rejects(ctx.call("account-login", { body: { email: "lee@example.com", key: accountKey("lee@example.com", "guess " + i) }, ip: "10.0.1." + i }), 401, "login");
+  }
+  await rejects(ctx.call("account-login", { body: { email: "lee@example.com", key: accountKey("lee@example.com", "the real one") }, ip: "10.0.2.1" }), 429, "slow_down");
+});
+
+test("a Luma registered for the phone app keeps its credential when its owner signs up", async () => {
+  const ctx = setup();
+  const reg = await ctx.call("device-register", { body: { device_name: "Luma" }, ip: "10.0.0.5" });
+  const headers = { authorization: "Bearer " + reg.json.device_token };
+  const out = await ctx.call("account-create", { headers, body: { email: "kim@example.com", key: accountKey("kim@example.com", "a long password"), name: "Kim" }, ip: "10.0.0.5" });
+  assert.equal(out.json.linked, true);
+  assert.equal(out.json.device_token, null);
+  assert.equal(ctx.db.t.accounts.length, 1);
+  assert.equal((await ctx.call("account", { headers })).json.email, "kim@example.com");
+});
+
+test("the account schema lets a Luma exist before its owner adds a phone", async () => {
+  const fs = await import("node:fs");
+  const setupSql = fs.readFileSync(new URL("../supabase/SETUP.sql", import.meta.url), "utf8");
+  assert.match(setupSql, /owner_phone text unique,/);
+  assert.match(setupSql, /alter table luma_accounts alter column owner_phone drop not null;/);
+  assert.match(setupSql, /email text unique/);
+  assert.match(setupSql, /key_hash text/);
+});

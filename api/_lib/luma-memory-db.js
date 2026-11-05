@@ -17,6 +17,7 @@ export function memoryDb(clock = null) {
     insertDevice: async (row) => { const d = { id: id(), revoked_at: null, ...row }; t.devices.push(d); return d; },
     getAccount: async (x) => t.accounts.find((a) => a.id === x) || null,
     getAccountByPhone: async (p) => t.accounts.find((a) => a.owner_phone === p) || null,
+    getAccountByEmail: async (e) => t.accounts.find((a) => a.email === e) || null,
     getAccountByCustomer: async (c) => t.accounts.find((a) => a.stripe_customer_id === c) || null,
     getAccountByNumber: async (n) => t.accounts.find((a) => a.assigned_number === n) || null,
     insertAccount: async (row) => { const a = { id: id(), plan: "free", subscription_status: null, assigned_number: null, ...row }; t.accounts.push(a); return a; },

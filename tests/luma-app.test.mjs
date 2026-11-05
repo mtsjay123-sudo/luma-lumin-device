@@ -208,7 +208,7 @@ test("registration is rate limited per address", async () => {
 test("health reports what the app needs", async () => {
   const ctx = setup();
   const health = await ctx.call("health");
-  assert.deepEqual(health.json.app, { pairing: true, notifications: true });
+  assert.deepEqual(health.json.app, { accounts: true, pairing: true, notifications: true });
   const bare = setup({});
   assert.equal((await bare.call("app-config")).json.push_key, null);
 });

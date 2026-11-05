@@ -157,9 +157,26 @@ def link_status(ctx):
                      'peers': host.peers() if host else [], 'laptop_here': host.connected() if host else False, 'addresses': lan_addresses()}}
 
 
+_account_retry = {'at': 0.0, 'running': False}
+
+
+def _finish_account_later(agent):
+    """An account made while Luma Cloud couldn't be reached joins it in the background, tried every few minutes."""
+    if _account_retry['running'] or not agent.cloud.pending_account() or agent.clock() - _account_retry['at'] < 300:
+        return
+    _account_retry.update(at=agent.clock(), running=True)
+
+    def run():
+        try: agent.cloud.finish_pending()
+        except Exception: pass
+        finally: _account_retry['running'] = False
+    threading.Thread(target=run, name='luma-account-retry', daemon=True).start()
+
+
 def home_payload(agent, owner=True):
     """Everything the Luma Desktop home screen shows, in one request."""
     now = agent.clock()
+    if owner: _finish_account_later(agent)
     approvals = []
     for row in agent.store.all('action', 40):
         if row.get('state') != 'pending' or row.get('expires', 0) < now: continue
@@ -225,12 +242,16 @@ def _glance(agent):
 
 
 def _account(agent):
-    """Who's signed in to Luma here (never the credential itself)."""
+    """Who's signed in to Luma here (never the credential itself). has_account: everyone needs one to get in, made
+    with an email and a password; pending while Luma Cloud hasn't answered yet (it joins by itself)."""
     creds = agent.cloud.credentials or {}
-    account = agent.cloud.cached_account() or {}
+    account = (agent.cloud.cached_account() or agent.store.setting('luma_cloud_account') or {}) if creds.get('email') else (agent.cloud.cached_account() or {})
+    pending = agent.cloud.pending_account() or {}
     phone = str(creds.get('phone') or '')
-    return {'signed_in': agent.cloud.signed_in(), 'name': creds.get('name') or '', 'phone': ('•••• ' + phone[-4:]) if phone else '',
-            'plan': account.get('plan') or 'free', 'lock': bool(agent.store.setting('lock_touchid', False))}
+    return {'signed_in': agent.cloud.signed_in(), 'name': creds.get('name') or pending.get('name') or '', 'phone': ('•••• ' + phone[-4:]) if phone else '',
+            'plan': account.get('plan') or 'free', 'lock': bool(agent.store.setting('lock_touchid', False)),
+            'has_account': agent.cloud.has_account() or agent.mode == 'kids', 'email': creds.get('email') or pending.get('email') or '',
+            'pending': bool(pending) and not creds.get('email'), 'problem': pending.get('problem') or ''}
 
 
 def _brain_status():
@@ -1049,6 +1070,18 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         agent._check('browser.open')
                         result = agent.browser.show_for_sign_in(data.get('url') or 'https://www.instagram.com/') if path.endswith('show') else agent.browser.hide()
                         if path.endswith('show'): result = {'summary': 'Sign in in the Luma browser window, then tap Done signing in.', 'url': result.get('url')}
+                    elif path in {'/api/account/create','/api/account/signin','/api/account/leave'}:
+                        # The Luma account everyone signs up with: an email and a password (the password never leaves this computer).
+                        if companion: return self.send({'error':'Sign in on the Mac.'},403)
+                        if not ctx.allowed(('account',self.client_address[0]),8): return self.send({'error':'Too many tries. Wait a minute and try again.'},429)
+                        from luma.integrations.providers import ProviderError as _CloudTrouble
+                        try:
+                            if path.endswith('create'): result=agent.cloud.create_account(data.get('name'),data.get('email'),data.get('password'),device_name='Luma')
+                            elif path.endswith('signin'): result=agent.cloud.sign_in(data.get('email'),data.get('password'),device_name='Luma')
+                            else: result=agent.cloud.sign_out_account()
+                        except _CloudTrouble as trouble:
+                            return self.send({'error':str(trouble),'code':getattr(trouble,'code','') or 'cloud'},getattr(trouble,'status',0) if getattr(trouble,'status',0) in (400,401,409,429) else 503)
+                        result={**result,'account':_account(agent)}
                     elif path in {'/api/account/start','/api/account/finish','/api/account/signout'}:
                         # Signing in to Luma (phone number and a texted code). Doesn't change how texts are sent.
                         if companion: return self.send({'error':'Sign in on the Mac.'},403)
