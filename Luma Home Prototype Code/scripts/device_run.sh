@@ -18,7 +18,7 @@ if [ -z "${LUMA_DEVICE_TIER:-}" ] && [ "${mem_kb:-0}" -gt 0 ] && [ "$mem_kb" -le
   # The device's own brain, Qwen3 1.7B (scripts/download_models.sh fetches it on a board this size), unless one is chosen.
   # While a paired computer is on, Luma thinks with that computer's brain instead (Settings: Think on my computer).
   if [ -z "${LUMA_MODEL_PATH:-}" ]; then
-    for quant in Q4_K_M Q4_0; do
+    for quant in Q4_0 Q4_K_M; do
       if [ -f "models/qwen3-1.7b/Qwen_Qwen3-1.7B-$quant.gguf" ]; then
         export LUMA_MODEL_PATH="$LUMA_SOURCE/models/qwen3-1.7b/Qwen_Qwen3-1.7B-$quant.gguf"
         break

@@ -669,6 +669,22 @@ class Agent:
         except Exception:
             return None
 
+    def _fresh_note(self):
+        """A friend doesn't open every reply with the same word or close each one with the same line. The device lab's 1.7B
+        began five replies in a row with "Ngl," and ended three with "Let me know what you think!": when Luma's last two
+        replies started or ended the same way, this turn is told to say it differently."""
+        said = [str(m.get("content") or "") for m in self.history if m.get("role") == "assistant"][-2:]
+        if len(said) < 2:
+            return None
+        asks = []
+        opens = [re.findall(r"[A-Za-z']+", s)[:1] for s in said]
+        if opens[0] and opens[1] and opens[0][0].lower() == opens[1][0].lower():
+            asks.append(f"don't start with “{opens[1][0]}” again")
+        ends = [re.split(r"(?<=[.!?])\s+", s.strip())[-1] for s in said]
+        if len(ends[1].split()) >= 3 and _words(ends[0]) == _words(ends[1]):
+            asks.append(f"don't end with “{ends[1]}” again")
+        return ("Your last two replies sounded the same: " + " and ".join(asks) + ". Say it your own way this time.") if asks else None
+
     def _has_device(self):
         """On a computer: a Luma device is paired with it (it can lend the device its brain)."""
         try:
@@ -2711,6 +2727,8 @@ class Agent:
         if summary: out.append({"about": True, "text": summary})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
+        fresh = self._fresh_note()
+        if fresh: out.append({"mind": True, "text": fresh})
         out.append({"mind": True, "self": True, "text": mind.self_line(self.store.setting("self_model"))})  # changes when Luma reflects, not every turn
         soul = self.store.setting("soul")
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})

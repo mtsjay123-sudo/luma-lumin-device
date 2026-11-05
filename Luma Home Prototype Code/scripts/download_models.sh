@@ -9,11 +9,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # gets Llama 3.2 3B (a computer's Luma downloads its bigger brain from the app).
 mem_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
 if [ "${1:-}" = "--device" ] || { [ "${mem_kb:-0}" -gt 0 ] && [ "$mem_kb" -le $((12 * 1024 * 1024)) ]; }; then
-    QUANT="${LUMA_DEVICE_QUANT:-Q4_K_M}"
+    QUANT="${LUMA_DEVICE_QUANT:-Q4_0}"  # llama.cpp repacks Q4_0 for ARM: the device lab read prompts about 30% faster than Q4_K_M
     LLAMA_DIR="$REPO_ROOT/models/qwen3-1.7b"
     LLAMA_FILE="$LLAMA_DIR/Qwen_Qwen3-1.7B-$QUANT.gguf"
     LLAMA_URL="https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-$QUANT.gguf"
-    LLAMA_NAME="Qwen3 1.7B $QUANT, the device's own brain (~1.1 GB)"
+    LLAMA_NAME="Qwen3 1.7B $QUANT, the device's own brain (~1.2 GB)"
 else
     LLAMA_DIR="$REPO_ROOT/models/llama-3.2-3b-q4"
     LLAMA_FILE="$LLAMA_DIR/Llama-3.2-3B-Instruct-Q4_K_M.gguf"

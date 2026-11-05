@@ -166,6 +166,25 @@ def missed(reply, earlier):
     return "said an earlier reply again" if any(_same_reply(reply, e) for e in earlier) else None
 
 
+def repeats_itself(replies):
+    """What a brain keeps saying across a conversation: a sentence of four words or more in two replies or more, or the same
+    opening word on three or more ("Ngl," five times). Up to three, with how often."""
+    found = []
+    sentences = {}
+    for reply in replies:
+        for sentence in {" ".join(re.findall(r"[a-z']+", part.lower())) for part in re.split(r"(?<=[.!?])\s+", reply)}:
+            if len(sentence.split()) >= 4:
+                sentences[sentence] = sentences.get(sentence, 0) + 1
+    found += [f"“{text}” in {n} replies" for text, n in sorted(sentences.items(), key=lambda kv: -kv[1]) if n >= 2]
+    openers = {}
+    for reply in replies:
+        first = (re.findall(r"[a-z']+", reply.lower()) or [""])[0]
+        if first:
+            openers[first] = openers.get(first, 0) + 1
+    found += [f"starts {n} replies with “{word}”" for word, n in openers.items() if n >= 3]
+    return found[:3]
+
+
 def _median(values):
     values = sorted(v for v in values if v is not None)
     return round(values[len(values) // 2], 2) if values else None
@@ -233,6 +252,7 @@ def device(threads=4, label=None):
     finally:
         lab.close()
     row["turns"] = turns
+    row["repeats"] = repeats_itself(earlier)
     row["first_words_first_turn"] = turns[0]["first_words"] if turns else None
     row["first_words_later"] = _median(t["first_words"] for t in turns[1:])
     row["words_per_second"] = _median(t["words_per_second"] for t in turns)
@@ -263,18 +283,19 @@ def device_summary(paths):
              "Real conversations through Luma's full instructions. *Start-up* is the device reading its steady instructions once when it "
              "turns on. *First sound* is hearing a short sentence, then the brain's first words, then the voice saying Luma's first "
              "sentence: what you'd wait after you stop talking.", "",
-             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Verdict |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Repeats itself | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('start_up_seconds', '-')} s | {r.get('first_words_first_turn')} s | "
                      f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
                      f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | "
-                     f"{r.get('answered', '-')} of {len(r.get('turns', []))} | {r.get('verdict')} |")
+                     f"{r.get('answered', '-')} of {len(r.get('turns', []))} | {'; '.join(r.get('repeats') or []) or 'no'} | {r.get('verdict')} |")
     fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0
             and r.get("answered", len(r.get("turns", []))) == len(r.get("turns", []))]
     best = max(fits, key=lambda r: r.get("size_gb") or 0) if fits else None
-    lines += ["", f"**The device's brain:** {best['brain']}, the biggest one that answers every message within 4 seconds of you stopping (thinking out loud covers the rest)."
-              if best else "**None of these talks fast enough here.** The device sends chat to the owner's computer or the cloud brain.",
+    lines += ["", f"**Fastest to answer every message within 4 seconds of you stopping:** {best['brain']}. Read its replies before choosing it: "
+              "speed and answering aren't the whole of talking well." if best else
+              "**None of these answers every message within 4 seconds here.** The device talks through the owner's computer or the cloud brain.",
               "", "Cloud ARM cores are faster than a budget board's Cortex-A76 cores, so treat these as the best case and run the same "
               "command on the board itself before choosing."]
     for r in rows:

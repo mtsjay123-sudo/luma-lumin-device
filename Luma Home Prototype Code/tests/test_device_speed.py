@@ -208,6 +208,15 @@ class DeviceLabTests(unittest.TestCase):
                          "said an earlier reply again", "the device lab's own-brain answer to 'what about dessert'")
         self.assertIsNone(lab.missed("Brownies from a box. Ten minutes, done.", [long_day]))
 
+    def test_it_notices_a_brain_that_keeps_saying_the_same_thing(self):
+        lab = self.lab()
+        said = lab.repeats_itself(["Ngl, a gift? Maybe a nice snack. Let me know what you think!",
+                                   "Ngl, yeah. Maybe take a day off. Let me know what you think!",
+                                   "Ngl, dessert? Maybe some cookies."])
+        self.assertIn("“let me know what you think” in 2 replies", said, "the device lab's 1.7B, run 4")
+        self.assertIn("starts 3 replies with “ngl”", said)
+        self.assertEqual(lab.repeats_itself(["Spaghetti, easy and quick.", "Ice cream in a bowl, no toppings.", "A good book she'd actually read."]), [])
+
     def test_the_summary_picks_a_brain_that_answers_everything(self):
         import tempfile
         from pathlib import Path
@@ -221,7 +230,7 @@ class DeviceLabTests(unittest.TestCase):
                 paths.append(Path(root) / f"{row['brain']}.json")
                 paths[-1].write_text(json.dumps({"device": row}))
             said = lab.device_summary([str(p) for p in paths])
-        self.assertIn("**The device's brain:** middle", said)
+        self.assertIn("within 4 seconds of you stopping:** middle", said)
         self.assertIn("| 3 of 5 |", said)
         self.assertIn("**(fell back)**", said)
 
@@ -286,6 +295,28 @@ class OneTripTests(unittest.TestCase):
                     with mock.patch.object(Agent, "call_planner", fake), mock.patch.object(Agent, "understand", return_value=handed_back):
                         out = agent.chat("what should i cook tonight? something easy")
                     self.assertIn("Pasta", out["text"], "the device lab's 1.7B handed their own question back as a clarifying one")
+            finally:
+                store.close()
+
+    def test_two_replies_in_a_row_that_sound_the_same_get_a_nudge(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                agent = Agent(store=store, use_model=False)
+                agent.history = [{"role": "user", "content": "lol okay and what about dessert"},
+                                 {"role": "assistant", "content": "Ngl, dessert? Maybe some cookies. Let me know what you think!"},
+                                 {"role": "user", "content": "my sister's birthday is next week"},
+                                 {"role": "assistant", "content": "Ngl, a gift? Maybe a nice snack. Let me know what you think!"}]
+                note = agent._fresh_note()
+                self.assertIn("don't start with “Ngl” again", note, "the device lab's 1.7B, run 4")
+                self.assertIn("“Let me know what you think!”", note)
+                self.assertTrue(any(n.get("text") == note for n in agent._mind_context("honestly i think i need a vacation")))
+                agent.history[-1]["content"] = "A good book she'd actually read."
+                self.assertIsNone(agent._fresh_note())
             finally:
                 store.close()
 
