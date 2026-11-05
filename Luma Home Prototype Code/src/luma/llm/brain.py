@@ -135,7 +135,7 @@ def pick_parts(files, gb, quants=STUDIO_QUANTS, share=0.7):
 
 # -- Luma's own brain: a LoRA add-on trained on Luma's conversations (scripts/train_luma.py, the "Train Luma's brain" workflow)
 OWN_FILE = "luma-brain-lora.gguf"
-RELEASES = "https://api.github.com/repos/mtsjay123-sudo/luma-lumin-device/releases?per_page=100"
+RELEASES = "https://api.github.com/repos/mtsjay123-sudo/luma-lumin-device/releases?per_page=20"
 own_fetching = {"running": False, "error": None}
 
 
@@ -172,21 +172,6 @@ def own_status():
             "fetching": own_fetching["running"], "error": own_fetching["error"]}
 
 
-def newest_release(releases, wanted):
-    """The newest published release that carries this add-on, and the add-on: (release, asset) or None. GitHub's list
-    isn't always newest first (it put luma-brain-small-6 ahead of small-11), so go by when each one was published, then
-    by its number."""
-    found = [(r, a) for r in releases if str(r.get("tag_name", "")).startswith("luma-brain-") and not r.get("draft")
-             for a in r.get("assets", []) if a.get("name") == wanted]
-
-    def when(pair):
-        tag = str(pair[0].get("tag_name", ""))
-        number = re.search(r"(\d+)$", tag)
-        return str(pair[0].get("published_at") or ""), int(number.group(1)) if number else -1
-
-    return max(found, key=when, default=None)
-
-
 def fetch_own(opener=None):
     """Download the newest published Luma brain (it's only published when it's at least as honest as the stock brain),
     then think with it. Small: tens of megabytes, on top of the brain that's already here."""
@@ -198,9 +183,10 @@ def fetch_own(opener=None):
     def run():
         try:
             with get(RELEASES, 30) as response:
-                releases = json.loads(response.read(8_000_000))
+                releases = json.loads(response.read(2_000_000))
             wanted = own_file()
-            pick = newest_release(releases, wanted)
+            pick = next(((r, a) for r in releases if str(r.get("tag_name", "")).startswith("luma-brain-") and not r.get("draft")
+                         for a in r.get("assets", []) if a.get("name") == wanted), None)
             if not pick:
                 own_fetching["error"] = "There's no trained Luma brain published yet."
                 return

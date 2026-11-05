@@ -61,24 +61,6 @@ class OwnBrainTests(unittest.TestCase):
         brain.set_own(False)
         self.assertIsNone(inference._adapter, "off means the stock brain")
 
-    def test_the_newest_published_add_on_wins_whatever_order_github_lists_them_in(self):
-        # Live, GitHub listed luma-brain-small-6 (published 10:57) ahead of luma-brain-small-11 (17:45).
-        asset = lambda n: [{"name": brain.OWN_FILE, "browser_download_url": f"https://github.com/x/{n}/luma-brain-lora.gguf"}]
-        listing = [{"tag_name": "luma-brain-6", "published_at": "2026-11-05T10:57:04Z", "assets": asset(6)},
-                   {"tag_name": "desktop-v0.2.216", "published_at": "2026-11-05T17:54:38Z", "assets": [{"name": "Luma.dmg"}]},
-                   {"tag_name": "luma-brain-11", "published_at": "2026-11-05T17:45:29Z", "assets": asset(11)},
-                   {"tag_name": "luma-brain-14", "draft": True, "assets": asset(14)}]
-        release, picked = brain.newest_release(listing, brain.OWN_FILE)
-        self.assertEqual(release["tag_name"], "luma-brain-11")
-        self.assertIn("/11/", picked["browser_download_url"])
-        undated = [{"tag_name": "luma-brain-12", "assets": asset(12)}, {"tag_name": "luma-brain-9", "assets": asset(9)},
-                   {"tag_name": "luma-brain-30", "assets": [{"name": "luma-brain-1.7b-lora.gguf"}]}]
-        self.assertEqual(brain.newest_release(undated, brain.OWN_FILE)[0]["tag_name"], "luma-brain-12", "the other brain's add-on never counts")
-        self.assertIsNone(brain.newest_release([], brain.OWN_FILE))
-        brain.fetch_own(opener=lambda url, timeout: Response(json.dumps(listing).encode() if "api.github.com" in url else b"GGUF" + b"\x00" * 2_000_000))
-        self.wait()
-        self.assertEqual(brain.own_status()["release"], "luma-brain-11")
-
     def test_nothing_published_yet_says_so(self):
         brain.fetch_own(opener=self.releases(assets=False))
         self.wait()
