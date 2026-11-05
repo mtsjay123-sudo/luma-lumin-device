@@ -945,6 +945,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         elif action=='cloud_off': result=brain.set_cloud(False)
                         elif action=='forget_key': result=brain.forget_key()
                         elif action=='get_bigger': result=brain.fetch_bigger()
+                        elif action=='get_studio': result=brain.fetch_bigger(studio=True)
                         elif action in {'use_small','use_big'}: brain.use_small(action=='use_small'); result=brain.status()
                         # The huge brain (colibri, on a big Mac): get it, start it, turn it on or off, talk with it or not.
                         elif action=='huge_get': brain.install_huge(); result=brain.status()

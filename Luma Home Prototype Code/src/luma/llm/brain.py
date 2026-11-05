@@ -39,9 +39,14 @@ QUANTS = ["Q6_K", "Q5_K_M", "Q4_K_M", "IQ4_XS", "Q3_K_L", "Q3_K_M", "IQ3_M", "IQ
 MIN_RAM_GB = 24
 # A Mac Studio's worth of memory: the biggest open brains that still run here, best first. A repo that isn't
 # there is skipped; the quant is the best whose pieces fit in about 70% of memory (the rest is the OS and context).
-STUDIO_REPOS = [(192, "unsloth/Qwen3.5-397B-A17B-GGUF", "Qwen3.5 397B"), (128, "unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF", "Qwen3 235B")]
-STUDIO_QUANTS = ["UD-Q4_K_XL", "Q4_K_M", "Q4_K_S", "UD-Q3_K_XL", "Q3_K_M", "UD-Q2_K_XL", "Q2_K"]
-STUDIO_RAM_GB = 128
+# A 64 GB Mac holds a big brain too: Qwen3.5 122B-A10B at 2 to 3 bits (Unsloth's dynamic quants keep the parts that
+# matter most at higher precision): 44.7 GB at UD-IQ3_XXS, 39 GB at UD-IQ2_M. It only reads 10B of itself per word.
+STUDIO_REPOS = [(192, "unsloth/Qwen3.5-397B-A17B-GGUF", "Qwen3.5 397B"), (128, "unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF", "Qwen3 235B"),
+                (64, "unsloth/Qwen3.5-122B-A10B-GGUF", "Qwen3.5 122B")]
+STUDIO_QUANTS = ["UD-Q4_K_XL", "Q4_K_M", "Q4_K_S", "UD-Q3_K_XL", "Q3_K_M", "UD-IQ3_XXS", "UD-Q2_K_XL", "Q2_K", "UD-IQ2_M", "UD-IQ2_XXS"]
+STUDIO_RAM_GB = 128  # "bigger" means the studio brain from here up
+STUDIO_MIN_GB = 64   # the smallest Mac a studio brain fits (offered, not the default)
+STUDIO_NAMES = ("397B", "235B", "122B")
 UA = {"User-Agent": "LumaDesktop/1.0 (+https://github.com/mtsjay123-sudo/luma-lumin-device)"}
 
 fetching = {"running": False, "done": 0, "total": 0, "error": None, "file": None}
@@ -77,23 +82,41 @@ def bigger_name():
     return "Qwen3.6 35B" if engine() >= NEW_ENGINE else "Qwen3 30B"
 
 
-def big_model_path():
-    """The biggest verified local model here: a studio brain if there is one, else the 30B."""
+def big_model_path(skip=()):
+    """The biggest verified local model here: a studio brain if there is one, else the 35B or the 30B. skip: ones that
+    were too slow to talk with on this Mac."""
     folder = models_dir()
     if not folder.is_dir():
         return None
-    for pattern in ("*397B*.gguf", "*235B*.gguf", "*35B-A3B*.gguf", "*30B-A3B*.gguf"):
+    for pattern in ("*397B*.gguf", "*235B*.gguf", "*122B*.gguf", "*35B-A3B*.gguf", "*30B-A3B*.gguf"):
         for path in sorted(folder.glob(pattern)):
-            if (path.parent / (path.name + ".ok")).exists():
+            if path.name not in skip and (path.parent / (path.name + ".ok")).exists():
                 return path
+    return None
+
+
+def is_studio(path):
+    return bool(path) and any(n in path.name for n in STUDIO_NAMES)
+
+
+def _slow():
+    return tuple((_store.setting("brain_slow") or ()) if _store is not None else ())
+
+
+def studio_name(gb=None):
+    """The studio brain this Mac would get, or None."""
+    gb = ram_gb() if gb is None else gb
+    for need, repo, label in STUDIO_REPOS:
+        if gb >= need and (engine() >= NEW_ENGINE or "Qwen3.5" not in repo):
+            return label
     return None
 
 
 def big_label(path=None):
     path = path or big_model_path()
     name = path.name if path else ""
-    return ("Qwen3.5 397B" if "397B" in name else "Qwen3 235B" if "235B" in name else "Qwen3.6 35B" if "35B-A3B" in name
-            else "Qwen3 30B")
+    return ("Qwen3.5 397B" if "397B" in name else "Qwen3 235B" if "235B" in name else "Qwen3.5 122B" if "122B" in name
+            else "Qwen3.6 35B" if "35B-A3B" in name else "Qwen3 30B")
 
 
 def pick_parts(files, gb, quants=STUDIO_QUANTS, share=0.7):
@@ -247,7 +270,7 @@ def _local(call, *args, **kwargs):
 def _apply_local():
     from luma.llm import inference
     wanted = _store is None or _store.setting("brain_local", "auto") not in ("small", "auto_fast")  # auto_fast: too slow on this Mac
-    inference.use_model_path(big_model_path() if wanted else None)
+    inference.use_model_path(big_model_path(skip=_slow()) if wanted else None)
 
 
 def use_small(small=True):
@@ -257,6 +280,7 @@ def use_small(small=True):
         speeds.pop("big", None)
         _store.set_setting("brain_speed", speeds)
         _store.set_setting("brain_note", None)
+        _store.set_setting("brain_slow", None)
     _apply_local()
 
 
@@ -392,7 +416,8 @@ def forget_key():
 
 def status():
     from luma.llm import cloud
-    big = big_model_path()
+    big = big_model_path(skip=_slow())
+    any_studio = any(is_studio(p) for p in models_dir().glob("*.gguf") if (p.parent / (p.name + ".ok")).exists()) if models_dir().is_dir() else False
     gb = ram_gb()
     using_big = bool(big) and (_store is None or _store.setting("brain_local", "auto") not in ("small", "auto_fast"))
     local_name = f"{big_label(big)} (bigger)" if using_big else "Qwen3 4B"
@@ -403,7 +428,7 @@ def status():
                   "last_error": (_store.setting("brain_cloud_error") if _store else None)},
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb), "using_big": using_big,
                   "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else bigger_name()),
-                  "studio": gb >= STUDIO_RAM_GB and not (big and ("397B" in big.name or "235B" in big.name)),
+                  "studio": bool(studio_name(gb)) and not any_studio, "studio_name": studio_name(gb),
                   "fetching": progress(), "fetch_error": fetching["error"],
                   "speed": measured, "keeps_up": (measured.get("big" if using_big else "fast", KEEPS_UP) >= KEEPS_UP),
                   "note": (_store.setting("brain_note") if _store else None)},
@@ -466,9 +491,21 @@ def note_speed(tokens, seconds):
     speeds[which] = rates
     _store.set_setting("brain_speed", speeds)
     if which == "big" and len(rates) >= SPEED_SAMPLES and _median(rates) < KEEPS_UP and _store.setting("brain_local", "auto") == "auto":
-        _store.set_setting("brain_local", "auto_fast")
-        _store.set_setting("brain_note", f"The bigger brain answered at about {_median(rates):.0f} words a second on this Mac, too slow to talk, "
-                                         "so I switched to the fast one. You can switch back in Settings.")
+        # Too slow to talk with here: the next brain down that's on this Mac (the 122B steps down to the 35B), and the
+        # small fast one only when there's none.
+        now = big_model_path(skip=_slow())
+        slow = sorted(set(_slow()) | ({now.name} if now else set()))
+        after = big_model_path(skip=slow)
+        speeds.pop("big", None)
+        _store.set_setting("brain_speed", speeds)
+        if after:
+            _store.set_setting("brain_slow", slow)
+            _store.set_setting("brain_note", f"{big_label(now)} answered at about {_median(rates):.0f} words a second on this Mac, too slow to talk, "
+                                             f"so I switched to {big_label(after)}. You can switch back in Settings.")
+        else:
+            _store.set_setting("brain_local", "auto_fast")
+            _store.set_setting("brain_note", f"The bigger brain answered at about {_median(rates):.0f} words a second on this Mac, too slow to talk, "
+                                             "so I switched to the fast one. You can switch back in Settings.")
         _apply_local()
 
 
@@ -629,17 +666,20 @@ def pick(files, gb):
     return None
 
 
-def fetch_bigger():
+def fetch_bigger(studio=False):
+    """The bigger brain this Mac has room for. studio: the big one instead, for a 64 GB Mac (on 128 GB and up, the
+    studio brain is what "bigger" means already)."""
     have = big_model_path()
-    studio_ready = have and ("397B" in have.name or "235B" in have.name)
+    studio = bool(studio_name()) and (studio or ram_gb() >= STUDIO_RAM_GB)
+    studio_ready = is_studio(have)
     upgrade = have is not None and "30B-A3B" in have.name and engine() >= NEW_ENGINE  # the 30B, and the 35B runs here now
-    if fetching["running"] or studio_ready or (have and ram_gb() < STUDIO_RAM_GB and not upgrade):
+    if fetching["running"] or studio_ready or (have and not studio and ram_gb() < STUDIO_RAM_GB and not upgrade):
         return status()
     if ram_gb() < MIN_RAM_GB:
         raise ValueError(f"The bigger brain needs a computer with at least {MIN_RAM_GB} GB of memory; this one has {round(ram_gb())} GB. "
                          "The cloud brain (Settings) is the way to go here.")
     fetching.update(running=True, done=0, total=0, error=None, file=None)
-    threading.Thread(target=_fetch, name="luma-brain-fetch", daemon=True).start()
+    threading.Thread(target=_fetch, args=(studio,), name="luma-brain-fetch", daemon=True).start()
     return status()
 
 
@@ -671,7 +711,7 @@ def _fetch_studio():
     """The Mac Studio brain: the first that fits, every piece downloaded and checked before it's used."""
     gb = ram_gb()
     for need, repo, label in STUDIO_REPOS:
-        if gb < need:
+        if gb < need or ("Qwen3.5" in repo and engine() < NEW_ENGINE):  # Qwen3.5's design needs the newer engine
             continue
         try:
             with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true", headers=UA), timeout=30) as r:
@@ -689,9 +729,9 @@ def _fetch_studio():
     return False
 
 
-def _fetch():
+def _fetch(studio=None):
     try:
-        if ram_gb() >= STUDIO_RAM_GB and _fetch_studio():
+        if (ram_gb() >= STUDIO_RAM_GB if studio is None else studio) and _fetch_studio():
             _apply_local()
             return
         choice, repo = None, None

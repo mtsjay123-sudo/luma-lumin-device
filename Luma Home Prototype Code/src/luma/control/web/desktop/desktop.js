@@ -3661,7 +3661,7 @@
       lt.append(el("div", "sub", L.using_big ? `The bigger brain (${L.big_name}), free and private.` : "The small, fast brain. The bigger one is downloaded and ready."));
       if (L.studio) lt.append(el("div", "sub", `This computer has ${L.ram_gb} GB of memory, enough for a Mac Studio-size brain.`));
       local.append(lt, btn(L.using_big ? "Use the small one" : "Use the bigger one", "pill soft small", () => redo({ action: L.using_big ? "use_small" : "use_big" })));
-      if (L.studio) local.append(btn("Get the studio brain", "pill primary small", () => redo({ action: "get_bigger" }, "Downloading it in the background. It's big, so it takes a while. Luma keeps working meanwhile.")));
+      if (L.studio) local.append(btn(`Get ${L.studio_name || "the studio brain"}`, "pill primary small", () => redo({ action: "get_studio" }, "Downloading it in the background. It's big, so it takes a while. Luma keeps working meanwhile.")));
     } else if (L.big_fits) {
       lt.append(el("div", "sub", `${L.name} now. This computer has ${L.ram_gb} GB of memory, enough for a much bigger brain that still runs here, free and private.`));
       if (L.fetch_error) lt.append(el("div", "sub warn", L.fetch_error));

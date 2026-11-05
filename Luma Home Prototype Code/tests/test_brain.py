@@ -315,6 +315,44 @@ class BiggerLocalBrainTests(unittest.TestCase):
                 thread.assert_called_once()
             brain.fetching["running"] = False
 
+    def test_a_64_gb_mac_can_hold_a_122b_brain_at_three_bits(self):
+        files = [{"path": f"Qwen3.5-122B-A10B-{q}.gguf", "size": int(gb * 1e9)} for q, gb in
+                 [("UD-Q4_K_XL", 75.0), ("UD-Q3_K_XL", 58.0), ("UD-IQ3_XXS", 44.7), ("UD-Q2_K_XL", 47.0), ("UD-IQ2_M", 39.1), ("UD-IQ2_XXS", 36.6)]]
+        self.assertEqual([f["path"] for f in brain.pick_parts(files, 64)], ["Qwen3.5-122B-A10B-UD-IQ3_XXS.gguf"])
+        self.assertIsNone(brain.pick_parts(files, 48), "not on 48 GB: it wouldn't leave the Mac room to breathe")
+        with mock.patch.object(brain, "engine", return_value=(0, 3, 36)):
+            self.assertEqual(brain.studio_name(64), "Qwen3.5 122B")
+            self.assertEqual(brain.studio_name(128), "Qwen3 235B")
+            self.assertIsNone(brain.studio_name(48))
+        with mock.patch.object(brain, "engine", return_value=(0, 3, 16)):
+            self.assertIsNone(brain.studio_name(64), "an engine too old for Qwen3.5's design isn't offered it")
+            self.assertEqual(brain.studio_name(128), "Qwen3 235B")
+        self.assertEqual(brain.big_label(Path("/m/Qwen3.5-122B-A10B-UD-IQ3_XXS.gguf")), "Qwen3.5 122B")
+
+    def test_a_brain_too_slow_to_talk_steps_down_to_the_next_one_not_the_small_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            for name in ("Qwen3.5-122B-A10B-UD-IQ3_XXS.gguf", "Qwen3.6-35B-A3B-Q6_K.gguf"):
+                (folder / name).write_bytes(b"GGUF")
+                (folder / (name + ".ok")).write_text("x")
+            store = Store(folder / "s.db", folder / "k")
+            try:
+                with mock.patch.object(brain, "models_dir", return_value=folder), mock.patch.object(brain, "_store", store), \
+                        mock.patch.object(brain, "inference_model_is_big", return_value=True), mock.patch.object(brain, "_apply_local"):
+                    self.assertIn("122B", brain.big_model_path(skip=brain._slow()).name, "the big one first")
+                    for _ in range(brain.SPEED_SAMPLES):
+                        brain.note_speed(40, 10.0)  # 4 words a second: too slow to talk with
+                    self.assertEqual(store.setting("brain_local", "auto"), "auto")
+                    self.assertIn("35B-A3B", brain.big_model_path(skip=brain._slow()).name)
+                    self.assertIn("switched to Qwen3.6 35B", store.setting("brain_note"))
+                    for _ in range(brain.SPEED_SAMPLES):
+                        brain.note_speed(40, 10.0)
+                    self.assertEqual(store.setting("brain_local"), "auto_fast", "nothing smaller left but the fast one")
+                    brain.use_small(False)
+                    self.assertIn("122B", brain.big_model_path(skip=brain._slow()).name, "choosing the bigger brain again starts over")
+            finally:
+                store.close()
+
     def test_small_computers_are_pointed_at_the_cloud_brain(self):
         with mock.patch.object(brain, "ram_gb", return_value=16):
             with self.assertRaisesRegex(ValueError, "cloud brain"):
