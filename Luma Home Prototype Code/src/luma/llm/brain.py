@@ -496,9 +496,9 @@ def note_speed(tokens, seconds):
         now = big_model_path(skip=_slow())
         slow = sorted(set(_slow()) | ({now.name} if now else set()))
         after = big_model_path(skip=slow)
-        speeds.pop("big", None)
-        _store.set_setting("brain_speed", speeds)
         if after:
+            speeds.pop("big", None)  # the next brain down is timed afresh
+            _store.set_setting("brain_speed", speeds)
             _store.set_setting("brain_slow", slow)
             _store.set_setting("brain_note", f"{big_label(now)} answered at about {_median(rates):.0f} words a second on this Mac, too slow to talk, "
                                              f"so I switched to {big_label(after)}. You can switch back in Settings.")
