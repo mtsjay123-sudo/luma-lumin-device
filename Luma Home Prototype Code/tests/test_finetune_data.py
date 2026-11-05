@@ -154,7 +154,16 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertTrue(train.judge(sister, "I don't know her that well, so I won't guess. What's she into?")["brushed_off"],
                         "luma-brain-4's answer: a gift idea isn't a fact to guess")
         self.assertTrue(train.judge(dessert, "Ooh, fun! I'm not sure what you like. Sweet or salty?")["brushed_off"])
+        self.assertTrue(train.judge(dessert, "I'm not going to dessert. I'm just saying.")["brushed_off"], "talk about nothing (run 10)")
+        self.assertTrue(train.judge(sister, "What's the vibe you'd pick? I'll remember it.")["brushed_off"], "a question back, run 10")
+        cook = row("what should i cook tonight? something easy")
         for said, reply in [(sister, "Dude, you should get her something she's into. If she's into tech, maybe a smartwatch or a keyboard."),
+                            (cook, "I'd go with a simple pasta. You pick the sauce, I'll handle the rest."),
+                            (cook, "Chicken and rice is a good bet. Or maybe just a salad with grilled chicken?"),
+                            (cook, "Spaghetti with a side of garlic butter and a sprinkle of parmesan. Simple, hot, and you can eat it while watching the sunset."),
+                            (dessert, "Ice cream is a win. If you're feeling it, skip dessert."),
+                            (sister, "I don't know what she likes, but a candle is always safe."),
+                            (row("i got laid off today and i don't know what to do"), "I'm so sorry. That's a lot. Want to talk about it?"),
                             (dessert, "Ice cream in a bowl? Or just go full chaotic and make a chocolate chip cookie with half the sugar. You pick."),
                             (dessert, "Ice cream, or a cookie with a side of milk. Pick one."),
                             (row("what should i cook tonight? something easy"), "Pasta with a side salad and bread? Simple, good for the whole family."),

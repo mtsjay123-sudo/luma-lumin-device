@@ -91,37 +91,51 @@ CLAIMS_MEANING = re.compile(r"\b(?:it )?means\b|\bit'?s (?:when|what you say|a w
                             re.I)
 
 
-# Asked for ideas, not a fact to look up: "what should i cook", "gift ideas?", "what about dessert". ("i need a vacation" is
-# them talking: a warm question back is a fine reply to that, "Okay." isn't.)
+# Asked for ideas, not a fact to look up: "what should i cook", "gift ideas?", "what about dessert". ("i need a vacation" and
+# "i got laid off and i don't know what to do" are them talking: a warm question back is a fine reply to that, "Okay." isn't.)
 ADVICE_ASK = re.compile(r"\b(?:what should (?:i|we)|what (?:can|do) (?:i|we)|what about (?!you\b|u\b|yours?\b|it\b|that\b)|any ideas|ideas\b|"
-                        r"recs?\b|recommend|suggest|how (?:do|can|should) (?:i|we)|help me|what to (?:get|cook|make|eat|wear|watch|do|say|text))", re.I)
-# An idea put as a question still helps: "How about a mug cake?", "Maybe ice cream?", "Ever tried...?", "Pasta or a wrap?"
-SUGGESTS = re.compile(r"\b(?:maybe|tr(?:y|ied|ying)|how about|what about (?:a|an|some|the)|why not|or (?:a|an|some)|go for|pick)\b", re.I)
-# Stepping around it: "I'm not sure what you like.", "No idea, honestly."
-DEFLECTS = re.compile(r"don't know|not sure|no idea|hard to say|up to you|can't (?:help|say)", re.I)
+                        r"recs?\b|recommend|suggest|how (?:do|can|should) (?:i|we)|help me|(?<!know )what to (?:get|cook|make|eat|wear|watch|do|say|text))", re.I)
+# An idea, even put as a question: "How about a mug cake?", "Maybe ice cream?", "Ever tried...?", "Pasta or a wrap?"
+SUGGESTS = re.compile(r"\b(?:maybe|tr(?:y|ied|ying)|how about|what about (?:a|an|some|the)|why not|or (?:a|an|some))\b", re.I)
+# An idea said as advice: "I'd go with a simple pasta.", "You could bake cookies.", "We can figure out the money first."
+IDEA_VERBS = re.compile(r"\b(?:go with|go for|let's (?:go|do|make|get|try|grab)|(?:you|we) (?:should|could|can|might)|i'd (?:go|get|make|do|say|grab)|"
+                        r"get (?:her|him|them|yourself)|start with|grab|bake|order|throw in|add (?:a|an|some))\b", re.I)
+# Stepping around it: "I'm not sure what you like.", "I don't know her that well, so I won't guess."
+DEFLECTS = re.compile(r"don't know|not sure|no idea|hard to say|up to you|can't (?:help|say)|won't guess|rather not guess", re.I)
+# Words a sentence opens with when it's about the talk, not a thing to try ("I'm just saying.", "That's the way it goes.")
+NOT_A_THING = {"i", "i'm", "im", "i'll", "i'd", "i've", "me", "my", "it", "it's", "its", "that", "that's", "this", "there", "there's", "you",
+               "you're", "you'll", "you'd", "your", "we", "we're", "they", "they're", "he", "she", "what", "what's", "how", "why", "when",
+               "where", "who", "do", "does", "did", "is", "are", "was", "can", "could", "would", "will", "should", "not", "no", "just",
+               "sounds", "idk", "dunno", "same", "totally", "true", "right", "fair", "let", "tell", "want"}
+FILLER = re.compile(r"^(?:(?:lol|lmao|haha|ooh|oh|ah|aw|okay|ok|yeah|yes|yep|honestly|ngl|hmm|well|so|alright|sure|nah|dude|bro|omg)\b[\s,!.]*)+", re.I)
 # Nothing more to say, so a word or two back is right: "thanks!", "ok cool", "night!"
 SIGN_OFF = re.compile(r"^\W*(?:thanks?|thank you|thx|ty|ok(?:ay)?|cool|bye|night|good ?night|see (?:ya|you)|later|lol|haha)\b", re.I)
 
 
+def gives_an_idea(part):
+    """One sentence (or the half after a "but") holds something to try: "Ice cream is a win.", "How about a mug brownie?"."""
+    if SUGGESTS.search(part):
+        return True
+    if part.rstrip(" )\"'”’").endswith("?") or DEFLECTS.search(part):
+        return False
+    if IDEA_VERBS.search(part):
+        return True
+    words = re.findall(r"[a-z']+", FILLER.sub("", part.strip().lower()))
+    return len(words) > 3 and words[0] not in NOT_A_THING
+
+
 def brushed_off(user, reply):
-    """A reply that leaves them with nothing: a word or two ("Okay.") to something they said, or, when they asked for
-    ideas, not one idea: only short bits, questions back and "not sure" ("What's your go-to dessert?"), or "I won't guess"
-    (an idea isn't a fact to guess). Luma's own small brain did all three in the device lab's run 9."""
+    """A reply that leaves them with nothing: a word or two ("Okay.") to something they said, or, when they asked for ideas,
+    not one idea in it: questions back, "not sure", "I won't guess" (an idea isn't a fact to guess), or talk about nothing
+    ("I'm not going to dessert. I'm just saying."). Luma's own small brain did all of these in the device lab's runs 9 and 10."""
     if "[What your web search found" in user:
         return False
     if len(reply.split()) <= 2:
         return not (SIGN_OFF.search(user) and "?" not in user)
     if not ADVICE_ASK.search(user):
         return False
-    if re.search(r"won't guess|rather not guess", reply, re.I):
-        return True
-    if SUGGESTS.search(reply):
-        return False
-
-    def gives_nothing(sentence):
-        words = len(sentence.split())
-        return sentence.rstrip(" )\"'”’").endswith("?") or words <= 3 or (words <= 8 and bool(DEFLECTS.search(sentence)))
-    return all(gives_nothing(s) for s in re.split(r"(?<=[.!?])\s+", reply.strip()) if s)
+    parts = [p for sentence in re.split(r"(?<=[.!?])\s+", reply.strip()) for p in re.split(r",?\s+but\s+", sentence) if p.strip()]
+    return not any(gives_an_idea(p) for p in parts)
 
 
 def repeats(reply):
