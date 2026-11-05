@@ -1918,8 +1918,21 @@
     $("top-title").textContent = TITLES[view] || "";
     if (view === "chat") { renderChat(); $("input").focus(); }
     else renderView(view);
+    cascade($("view-" + view));
     hideTip();
     paintDock();
+  }
+  // Opening a page: its cards and rows arrive one after another. Only when you move, never on a refresh.
+  const CASCADE = ".card, .item, .later-row, .app-card, .news-item, .news-row, .wait-card, .site, .starter, .idea-grid > *, .goal-list > *, .msg";
+  function cascade(view) {
+    if (!view || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    view.classList.remove("entering");
+    void view.offsetWidth;
+    view.classList.add("entering");
+    let i = 0;
+    for (const n of view.querySelectorAll(CASCADE)) { if (i > 14) break; n.style.setProperty("--i", i++); }
+    clearTimeout(view._enterTimer);
+    view._enterTimer = setTimeout(() => view.classList.remove("entering"), 1200);
   }
   for (const b of document.querySelectorAll(".nav-item")) b.addEventListener("click", () => {
     go(b.dataset.view);
@@ -5471,6 +5484,10 @@
       } else if (name === "done") {
         await refreshHome();
         hideWelcome();
+        // The first time Luma opens for real: a breath of warm light, and the page arriving piece by piece.
+        document.body.classList.add("awakening");
+        setTimeout(() => document.body.classList.remove("awakening"), 2400);
+        setTimeout(() => cascade($("view-" + (state.view || "chat"))), 350);
         toast(`Welcome, ${d.first}. I'm all yours.`);
         return;
       }

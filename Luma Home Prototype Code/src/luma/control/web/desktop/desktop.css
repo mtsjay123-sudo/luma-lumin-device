@@ -1150,6 +1150,16 @@ body.thinking .composer { animation: luma-aura 2.6s ease-in-out infinite; }
 .view:not([hidden]) { animation: luma-view-in 0.42s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
 @keyframes luma-view-in { from { opacity: 0; transform: translateY(8px) scale(0.99); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 
+/* Opening a page: cards and rows arrive one after another (only on the way in, never on a refresh) */
+.view.entering :is(.card, .item, .later-row, .app-card, .news-item, .news-row, .wait-card, .site, .starter, .idea-grid > *, .goal-list > *, .msg) {
+  animation: luma-cascade 0.55s cubic-bezier(0.2, 0.9, 0.25, 1) both; animation-delay: calc(var(--i, 0) * 45ms + 60ms); }
+@keyframes luma-cascade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+/* The first time Luma opens for real, after sign-up: a breath of warm light */
+body.awakening::after { content: ""; position: fixed; inset: 0; z-index: 1500; pointer-events: none;
+  background: radial-gradient(42% 42% at 50% 62%, rgba(255, 190, 130, 0.34), rgba(160, 120, 255, 0.12) 55%, transparent 75%); animation: luma-awake 2.3s ease-out forwards; }
+@keyframes luma-awake { 0% { opacity: 0; transform: scale(0.6); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { .view.entering *, body.awakening::after { animation: none !important; } body.awakening::after { display: none; } }
+
 /* A droplet of light where you tap */
 .luma-drop {
   position: fixed; z-index: 9999; pointer-events: none; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
