@@ -2426,8 +2426,8 @@
     const t = String(m.text || "").toLowerCase();
     if (m.source === "grill") return "you";
     if (/^your goal|\bmy goal\b|\bi want to\b|\bi'm trying to\b/.test(t)) return "goals";
-    if (/^your .+ (?:is|are) (?:on|in|at|by|under|inside|next to|behind|near)\b/.test(t)) return "places";
-    if (/birthday|anniversary|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d/.test(t)) return "dates";
+    if (/birthday|anniversary|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d|\b(?:mon|tues|wednes|thurs|fri|satur|sun)days?\b/.test(t)) return "dates";
+    if (/^(?:your|the|my) .+ (?:is|are) (?:on|in|at|by|under|inside|next to|behind|near)\b|\b(?:left|put|keep|kept|parked|stored|hid)\b.*\b(?:in|on|at|under|behind|inside)\b/.test(t)) return "places";
     if (/\b(?:allerg\w*|vegetarian|vegan|gluten|lactose|diabetic|medication|meds|asthma|doctor|dentist)\b/.test(t)) return "health";
     if (/\b(?:love|loves|like|likes|hate|hates|favorite|favourite|prefer|can't stand)\b|^you're into\b/.test(t)) return "likes";
     if (/\b(?:mom|mother|dad|father|sister|brother|boyfriend|girlfriend|wife|husband|friend|bestie|roommate|boss|son|daughter|grandma|grandpa|aunt|uncle|cousin|partner|kids?|dating|married|engaged|seeing someone)\b/.test(t)) return "people";
@@ -2592,7 +2592,7 @@
         const bar = el("div", "brain-bar"); const fill = el("i"); fill.style.width = `${Math.min(100, Math.round(100 * q.used / q.limit))}%`; bar.append(fill);
         meter.append(el("div", "s", `${q.used} of ${q.limit} memories on the free plan`), bar);
         if (q.used >= q.limit * 0.8) meter.append(linkOut("Unlimited memory with Luma Plus", "https://lumin-holdings-site.vercel.app/luma-plus.html", "pill primary small"));
-      } else meter.append(el("div", "s", `${q.used} memories · Luma Plus: unlimited`));
+      } else meter.append(el("div", "s", `${q.used} memories · no limit, all on this device`));
       mem.append(meter);
     }
     if (id.style) mem.append(el("div", "s id-style", id.style.split(". Match")[0] + "."));

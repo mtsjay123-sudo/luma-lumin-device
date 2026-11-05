@@ -153,8 +153,10 @@ class LumaCloud:
                 registered = False  # a credential Luma Cloud no longer knows: start this computer fresh
                 _, body = self._call("POST", "/api/luma/account-create", payload, auth=False)
         except CloudError as error:
-            if not hold or error.status < 500:
-                raise  # 409: that email has an account (sign in instead); 400: what they typed
+            # 409: that email has an account (sign in instead); 400: what they typed. A Luma Cloud without accounts
+            # yet (404: an older one) counts as not answering: the account waits here and joins once it's there.
+            if not hold or (error.status < 500 and error.status not in (404, 405)):
+                raise
             return self._hold(name, email, key)
         except ProviderError:
             if not hold:
@@ -190,6 +192,8 @@ class LumaCloud:
         try:
             _, body = self._call("POST", "/api/luma/account-login", {"email": email, "key": key, "device_name": str(device_name)[:60]}, auth=False)
         except CloudError as error:
+            if error.status in (404, 405):
+                raise ProviderError("Luma Cloud can't sign anyone in yet. Make your account here instead; it joins Luma Cloud by itself once it can.") from None
             if error.status >= 500:
                 raise ProviderError("Luma Cloud isn't answering right now, so I can't check your password. Try again in a minute.") from None
             raise

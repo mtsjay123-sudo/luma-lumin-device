@@ -64,6 +64,7 @@ class Store:
         os.chmod(self.key_path, 0o600)
         self.cipher = Fernet(self.key_path.read_bytes().strip())
         self.lock = threading.RLock()
+        self._memories = (None, [])  # every memory, decrypted once, kept until one is added, changed or forgotten
         self.db = sqlite3.connect(str(self.db_path), timeout=10, check_same_thread=False)
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("PRAGMA journal_mode=DELETE")
@@ -123,12 +124,20 @@ class Store:
     def set_setting(self, key, value):
         return self.put("setting", {"value": value}, "setting:" + key)
 
+    def memories(self):
+        """Every memory, newest first. Decrypted once and kept until any memory changes (here or in another process:
+        the count and the newest change are checked each time, which is cheap)."""
+        with self.lock:
+            stamp = self.db.execute("SELECT COUNT(*), MAX(updated), TOTAL(updated) FROM records WHERE kind='memory'").fetchone()
+            if self._memories[0] != stamp:
+                rows = self.db.execute("SELECT payload FROM records WHERE kind='memory' ORDER BY created DESC").fetchall()
+                self._memories = (stamp, [self._decode(r) for r in rows])
+            return list(self._memories[1])
+
     def recall(self, query, limit=5):
-        # Deterministic lexical retrieval. No claim of embeddings/semantic search.
-        terms = set(re.findall(r"[a-z0-9]+", query.lower()))
-        memories = self.all("memory", 1000)
-        ranked = sorted(memories, key=lambda r: len(terms & set(re.findall(r"[a-z0-9]+", r["text"].lower()))), reverse=True)
-        return [r for r in ranked if terms & set(re.findall(r"[a-z0-9]+", r["text"].lower()))][:limit]
+        # Deterministic lexical retrieval over every memory, never just the newest (see luma.memory.segments).
+        from luma.memory import segments
+        return segments.recall(query, self.memories(), limit)
 
     def erase(self):
         with self.lock, self.db:

@@ -37,6 +37,8 @@ class FakeCloud:
             raise OSError("no route to host")
         if self.mode == "unset":
             return 503, {"error": "not_configured", "message": "Luma Cloud isn't set up yet."}
+        if self.mode == "old" and path.startswith("account-"):  # a Luma Cloud from before accounts: no such route
+            return 404, {"error": "not_found"}
         view = lambda email: {"email": email, "plan": "free", "owner_name": self.accounts[email]["name"]}
         if path == "account-create":
             if payload["email"] in self.accounts:
@@ -96,6 +98,19 @@ class AccountTests(unittest.TestCase):
         self.cloud.finish_pending()
         self.assertIsNone(self.cloud.pending_account())
         self.assertEqual(self.fake.accounts["jay@example.com"]["key"], key_for("jay@example.com", PASSWORD))
+        self.assertEqual(self.cloud.credentials["email"], "jay@example.com")
+
+    def test_a_luma_cloud_without_accounts_yet_never_blocks_signing_up(self):
+        # The live Luma Cloud is deployed from another repo and may not have the account routes yet (404).
+        self.fake.mode = "old"
+        out = self.cloud.create_account("Jay", "jay@example.com", PASSWORD)
+        self.assertTrue(out["pending"])
+        self.assertTrue(self.cloud.has_account())
+        with self.assertRaisesRegex(ProviderError, "Make your account here"):
+            self.cloud.sign_in("jay@example.com", PASSWORD)
+        self.assertIsNone(self.cloud.finish_pending(), "quiet until Luma Cloud has accounts")
+        self.fake.mode = "up"
+        self.cloud.finish_pending()
         self.assertEqual(self.cloud.credentials["email"], "jay@example.com")
 
     def test_a_held_account_whose_email_is_already_theirs_signs_in_with_the_same_password(self):

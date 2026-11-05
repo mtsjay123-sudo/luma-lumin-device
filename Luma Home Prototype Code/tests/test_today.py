@@ -42,7 +42,7 @@ class TodayTests(unittest.TestCase):
         self.assertEqual(kinds["You hate cilantro"], "Likes")
         self.assertEqual(kinds["Saving for Tokyo in March"], "Plans")  # a goal with a month in it is still a plan
         self.assertEqual(mem["used"], 4)
-        self.assertEqual(mem["limit"], self.agent.FREE_MEMORIES)
+        self.assertIsNone(mem["limit"], "no limit on the device")
 
     def test_device_reports_storage_left(self):
         s = today.payload(self.agent)["device"]["storage"]

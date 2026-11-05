@@ -69,7 +69,7 @@ class MemoryFolderTests(unittest.TestCase):
         self.assertEqual(kinds["Dates"], ["Mom's birthday is June 3"])
         self.assertIn("My sister's name is Dana", kinds["People"])
         self.assertIn("My spare keys are in the kitchen drawer", kinds["Places"])
-        self.assertEqual((got["used"], got["limit"], got["plan"]), (4, 200, "free"))
+        self.assertEqual((got["used"], got["limit"], got["plan"]), (4, None, "free"))
         self.assertGreater(got["bytes"], 0)
 
     def test_forget_one_a_kind_or_the_old_ones(self):
@@ -87,14 +87,13 @@ class MemoryFolderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             memory_folder.forget(self.agent, kind="Secrets")
 
-    def test_a_full_memory_frees_up_when_old_ones_go(self):
+    def test_memory_never_fills_up_and_old_ones_still_go_when_asked(self):
         for i in range(self.agent.FREE_MEMORIES):
             self.remember(f"note number {i}", days_ago=400)
         self.agent.chat("what's my cousin's name?")
-        self.assertIn("memory's full", self.agent.chat("tasha")["text"])
+        self.assertIn("Your cousin's name is Tasha", self.agent.chat("tasha")["text"], "no limit on the device: nothing is turned away")
         memory_folder.forget(self.agent, older_than_days=365)
-        self.agent.chat("what's my cousin's name?")
-        self.assertIn("Your cousin's name is Tasha", self.agent.chat("tasha")["text"])
+        self.assertFalse(any("note number" in m["text"] for m in self.store.all("memory", 1000)))
 
     def test_making_room_on_the_device(self):
         self.store.set_setting("news", {"fetched": NOW, "items": [{"title": "x" * 400, "url": "https://a.com", "source": "A"}] * 20})

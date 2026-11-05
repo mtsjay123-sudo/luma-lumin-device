@@ -4418,12 +4418,12 @@ class Agent:
     FREE_MEMORIES = 200
 
     def memory_quota(self):
-        """How much Luma can remember on this plan. Free keeps the newest 200; Luma Plus remembers everything."""
+        """How much Luma remembers here: everything, on every plan. Memory lives on the device, so the only limit is its
+        storage. (Luma Plus is the cloud: the cloud brain's own memory and usage, which is what's paid for.)"""
         account = self.cloud.cached_account() or {}
         plus = str(account.get("plan") or "").lower() in {"plus", "pro", "premium"} or bool(account.get("plus"))
-        used = len(self.store.all("memory", 100000))
-        return {"used": used, "limit": None if plus else self.FREE_MEMORIES, "plan": "plus" if plus else "free",
-                "full": (not plus) and used >= self.FREE_MEMORIES}
+        used = len(self.store.memories())
+        return {"used": used, "limit": None, "plan": "plus" if plus else "free", "full": False}
 
     def remember_fact(self, fact, source="noticed_in_conversation", **extra):
         """Keep one fact. A newer 'where my keys are' replaces the old one. Returns the row, None if already known, or 'full'."""
@@ -4439,7 +4439,8 @@ class Agent:
                     self.store.delete("memory", m["id"])  # the keys moved
         elif self.memory_quota()["full"]:
             return "full"
-        return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), **extra})
+        from luma.memory import segments
+        return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), "category": segments.category(fact, source), **extra})
 
     # ------------------------------------------------------------------
     # Understanding: however they say it, wherever the conversation is

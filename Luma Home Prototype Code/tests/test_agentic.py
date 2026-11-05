@@ -68,18 +68,16 @@ class CatchesItTests(Base):
         reply = self.agent.chat("I left my glasses by the sink")
         self.assertEqual(reply["noticed"][0]["text"], "Your glasses are by the sink")
 
-    def test_free_memory_is_limited_and_plus_is_not(self):
+    def test_memory_has_no_limit_on_the_device(self):
+        # Memory lives on the device, so every plan keeps everything; the old free-plan cap no longer applies.
         self.agent.FREE_MEMORIES = 2
         self.agent.chat("I left my keys on the counter")
         self.agent.chat("I hate cilantro")
         reply = self.agent.chat("I'm allergic to peanuts")
-        self.assertTrue(reply.get("memory_full"))
-        self.assertEqual(len(self.memories()), 2)
-        with mock.patch.object(self.agent.cloud, "cached_account", return_value={"plan": "plus"}):
-            self.assertIsNone(self.agent.memory_quota()["limit"])
-            self.agent.chat("I'm allergic to peanuts")
+        self.assertFalse(reply.get("memory_full"))
         self.assertEqual(len(self.memories()), 3)
-        # where things are always updates, even when memory's full
+        self.assertIsNone(self.agent.memory_quota()["limit"])
+        # where things are updates when they move
         self.agent.chat("I left my keys in the car")
         self.assertIn("Your keys are in the car", self.memories())
 
