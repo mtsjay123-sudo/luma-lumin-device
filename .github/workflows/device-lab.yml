@@ -56,6 +56,9 @@ jobs:
           get Qwen_Qwen3-0.6B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
           get Qwen_Qwen3-1.7B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
           get Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          # Q4_0: llama.cpp repacks it for ARM's dot-product instructions when it loads, which can read a prompt much faster
+          get Qwen_Qwen3-1.7B-Q4_0.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_0.gguf"
+          get Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf"
           # Luma's own add-ons: the newest one published for each brain (luma-brain-N for the 4B, luma-brain-small-N for the 1.7B)
           newest() { gh api "repos/${{ github.repository }}/releases?per_page=50" --jq "[.[] | select(.draft | not) | select(.tag_name | test(\"^$1[0-9]+\$\"))][0].tag_name // empty" 2>/dev/null || true; }
           own=$(newest luma-brain-); small=$(newest luma-brain-small-)
@@ -69,7 +72,7 @@ jobs:
       - name: Each brain, held to 4 cores
         run: |
           mkdir -p "$RUNNER_TEMP/lab"
-          for name in Qwen_Qwen3-0.6B-Q4_K_M Qwen_Qwen3-1.7B-Q4_K_M Qwen_Qwen3-4B-Instruct-2507-Q4_K_M; do
+          for name in Qwen_Qwen3-0.6B-Q4_K_M Qwen_Qwen3-1.7B-Q4_K_M Qwen_Qwen3-1.7B-Q4_0 Qwen_Qwen3-4B-Instruct-2507-Q4_K_M Qwen_Qwen3-4B-Instruct-2507-Q4_0; do
             f="$RUNNER_TEMP/brains/$name.gguf"
             [ -f "$f" ] || continue
             echo "== $name"

@@ -201,6 +201,11 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
                        r"tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 
 
+# When something happens, not what to do: on its own ("ngl today was long", "what should i cook tonight") it isn't a job.
+WHEN_WORDS = re.compile(r"\b(?:past \d+|last \d+|\d+ ?(?:hrs?|hours?|mins?)|tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|"
+                        r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
+
+
 def _words(text):
     return " ".join(re.findall(r"[a-z0-9']+", str(text).lower()))
 
@@ -655,12 +660,30 @@ class Agent:
         thing someone says is answered as fast as everything after it."""
         try:
             from luma.llm import inference, prompts
+            from luma.agent import mind
             soul = self.store.setting("soul")
             memories = [{"soul": True, "text": str(soul)[:1500]}] if soul and self.mode != "kids" else []
+            memories.append({"mind": True, "self": True, "text": mind.self_line(self.store.setting("self_model"))})  # the same steady part a turn has
             steady, _ = prompts.build_plan_parts(memories, {}, self.mode, prompts.normalize_profile(self.profile), "", compact=True)
             return inference.warm(steady)
         except Exception:
             return None
+
+    def _worth_understanding(self, lowered):
+        """Whether to rewrite a message into a plain instruction before answering it: it sounds like a job. Each rewrite is
+        another trip through the brain, seconds on a $250 device, so there a time on its own isn't enough ("ngl today was
+        long", "what should i cook tonight"): it needs something to do."""
+        if not ACTIONISH.search(lowered):
+            return False
+        if not self.use_model or self.planner is not None:
+            return True
+        try:
+            from luma.llm import brain
+            if not brain.slow_here():
+                return True
+        except Exception:
+            return True
+        return bool(ACTIONISH.search(WHEN_WORDS.sub(" ", lowered)))
 
     def _extra_look(self, key):
         """Think first, weigh it out, a second look: each is another trip through the brain ("what should I cook tonight"
@@ -2673,7 +2696,7 @@ class Agent:
         if summary: out.append({"about": True, "text": summary})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
-        out.append({"mind": True, "text": mind.self_line(self.store.setting("self_model"))})
+        out.append({"mind": True, "self": True, "text": mind.self_line(self.store.setting("self_model"))})  # changes when Luma reflects, not every turn
         soul = self.store.setting("soul")
         if soul and self.mode != "kids": out.append({"soul": True, "text": str(soul)[:1500]})
         style = self.store.setting("their_style")
@@ -5435,9 +5458,11 @@ class Agent:
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
-                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and ACTIONISH.search(lowered) and not just_talking(text):
+                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and self._worth_understanding(lowered) and not just_talking(text):
                 clear = self.understand(text, cancel_event)  # a story isn't rewritten into a job ("lmao my boss scheduled a meeting" became a stock check)
                 if isinstance(clear, str) and _garbled(clear): clear = None
+                if isinstance(clear, str) and clear.upper().startswith("ASK:") and _words(clear[4:]).split()[:3] == _words(text).split()[:3]:
+                    clear = None  # their own question handed back ("what should i cook tonight?") isn't asking what they meant
                 if isinstance(clear, list):
                     return self.run_steps(clear, cancel_event)
                 if clear and clear.upper().startswith("ASK:") and len(clear) > 6:

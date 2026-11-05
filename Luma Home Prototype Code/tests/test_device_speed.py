@@ -113,6 +113,22 @@ class SmallBoardTests(unittest.TestCase):
         self.assertNotIn("third", small, "two facts, not three")
         self.assertNotIn("they might want", small)
 
+    def test_a_budget_device_keeps_whats_steady_out_of_each_turn(self):
+        notes = [{"mind": True, "text": "Your mood right now: warm and easygoing."},
+                 {"self": True, "text": "Your evolving sense of yourself and this friendship (private, you wrote it): I'm Luma, still getting to know them."}]
+        chat, chat_turn = prompts.build_plan_parts(notes, {}, "friend", prompts.normalize_profile(None), "now", compact=True)
+        job, job_turn = prompts.build_plan_parts(notes, TOOLS, "friend", prompts.normalize_profile(None), "now", compact=True)
+        self.assertEqual(chat, job, "the tools that fit change with the message, so they come after the talk, not in the steady part")
+        self.assertIn("reminder.create", job_turn)
+        self.assertIn("Tools this turn: none", chat_turn)
+        self.assertIn("still getting to know them", chat, "who Luma has become changes when it reflects, not every turn")
+        self.assertNotIn("still getting to know them", chat_turn)
+        self.assertIn("warm and easygoing", chat_turn)
+        self.assertNotIn("Saved background facts", chat_turn, "no facts, no line about them")
+        full, full_turn = prompts.build_plan_parts(notes, TOOLS, "friend", prompts.normalize_profile(None), "now")
+        self.assertIn("Available tools", full, "a computer reads fast: its steady part keeps the tools")
+        self.assertIn("still getting to know them", full_turn)
+
     def test_it_reads_the_steady_part_once_at_start_up(self):
         seen = []
 
@@ -244,6 +260,32 @@ class OneTripTests(unittest.TestCase):
                         self.assertEqual(len(calls) - n, 2, "they switched think-first on themselves")
                         with mock.patch.object(brain, "cloud_on", return_value=True):
                             self.assertFalse(brain.slow_here(), "the cloud brain thinks fast")
+            finally:
+                store.close()
+
+    def test_a_time_on_its_own_isnt_a_job_on_a_slow_brain(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.runtime import Agent
+        from luma.llm import brain
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                store.set_setting("signed_up", True)
+                agent = Agent(store=store, use_model=True)
+                brain.init(store)
+                with mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget"}):
+                    self.assertFalse(agent._worth_understanding("ngl today was long, work was a lot"), "a rewrite costs a $250 device seconds")
+                    self.assertFalse(agent._worth_understanding("what should i cook tonight? something easy"))
+                    self.assertTrue(agent._worth_understanding("shceudle me an emial tmrw 9am saying call the bank"))
+                with mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": ""}):
+                    self.assertTrue(agent._worth_understanding("what should i cook tonight? something easy"), "a fast computer still takes the look")
+                    fake = lambda self, m, c, allowed, ev, profile=None, tier=None: {"type": "reply", "text": "Pasta, easy and quick."}
+                    handed_back = "ASK: What should I cook tonight, and what's a simple recipe?"
+                    with mock.patch.object(Agent, "call_planner", fake), mock.patch.object(Agent, "understand", return_value=handed_back):
+                        out = agent.chat("what should i cook tonight? something easy")
+                    self.assertIn("Pasta", out["text"], "the device lab's 1.7B handed their own question back as a clarifying one")
             finally:
                 store.close()
 
