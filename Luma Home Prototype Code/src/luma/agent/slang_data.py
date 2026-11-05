@@ -570,6 +570,27 @@ fuck around and find out | fafo | general | v | do something dumb and suffer the
 no shit | | general | v | obviously | no shit
 shit's crazy | | general | v | that's wild | shit's crazy
 on my mother | | aave | c | I swear | on my mother
+# 2024 to 2026: what's being said now (meanings checked, nothing guessed)
+6 7 | six seven, 6-7, sixseven, 67 | alpha+internet | c | a nonsense callout kids shout for the bit (from the 2025 song "Doot Doot (6 7)"); it doesn't mean anything | 6 7
+very demure | very mindful, very cutesy, demure and mindful | internet | c | modest, tasteful, well-behaved (said jokingly, from a 2024 TikTok trend) | very demure
+in my era | era, in my villain era, in my healing era | internet+stan | c | going through a phase defined by something ("in my healing era") | in my era
+boy math | | internet | c | jokey logic a guy uses to justify something silly | boy math
+quiet quitting | quiet quit, quietly quitting | internet+general | c | doing only what the job requires and nothing extra | quiet quitting
+yap | yapping, yapper, yappin, yap session | internet | c | talk a lot, ramble on | yap
+sending me | sent me, this is sending me | internet | c | making me laugh really hard | sending me
+standing on business | stand on business, on business | aave+internet | c | doing what you said you'd do, backing up your word | standing on business
+menty b | | internet | c | a mental breakdown (said lightly) | menty b
+it's joever | its joever, joever | internet | c | it's over, there's no saving it (said as a joke) | it's joever
+we're so back | we are so back, so back | internet | c | things are good again, the momentum's back | we're so back
+fax | no printer | internet+aave | c | facts, that's true | fax
+no shot | | internet+gaming | c | no way, that can't be true | no shot
+oomf | oomfs | stan+internet | c | one of my mutuals (someone you follow online, and who follows you) | oomf
+yeet | yeeted, yeeting | internet+aave | c | throw something hard, or a hype shout | yeet
+bop | | internet | c | a really catchy song | bop
+bombastic side eye | criminal offensive side eye | internet | c | a dramatic look of judgment (from a 2022 TikTok sound) | bombastic side eye
+gen alpha | | general | c | kids born from about 2010 to 2024 | Gen Alpha
+skibidi toilet | | alpha+internet | c | a YouTube cartoon of singing heads in toilets; "skibidi" alone is meme nonsense | skibidi toilet
+italian brainrot | tralalero tralala, tung tung tung sahur, ballerina cappuccina, bombardiro crocodilo | alpha+internet | c | 2025 meme characters with fake-Italian names, shared for absurd fun | Italian brainrot
 """.strip()
 
 # Slurs: understood so Luma can tell when someone's upset or quoting, never said by Luma.
