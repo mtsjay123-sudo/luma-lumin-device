@@ -150,6 +150,19 @@ QUOTE_ASK = re.compile(r"\b(?:quote|sing|recite|say|give|tell|type|write out)\s+
                        r"\b(?:first|last|opening)\s+(?:line|bar|verse|words)s?\s+(?:of|in|from|to)\b|"
                        r"\bwhat(?:'s| is| are)\s+the\s+(?:words|lyrics)\s+(?:to|of|in)\b|\bhow does\s+the\s+(?:chorus|hook|verse)\s+go\b", re.I)
 MUSIC_TOPIC = re.compile(r"\b(?:songs?|album|record|single|ep|track|verse|bars|lyrics?|hook|chorus|rap|rapper|singer|feature|mixtape|tape)\b", re.I)
+# Shows, movies and books: Luma knows them from what's written about them, but it never sat down and watched one. The lab caught
+# "I'm already halfway through the third episode" and a made-up line about an ending it never saw. Only checked when the talk is
+# about something on a screen or a page, so "I'm watching the front door" (the camera) is still fine.
+# Nouns only, so "show me how", "book a table" and "plot a chart" aren't about a show.
+_THE = r"(?:the|that|this|a|new|his|her|their|my|your|fave|favorite|tv)"
+SCREEN_TOPIC = re.compile(rf"\b{_THE} (?:show|series|book|novel|ending|plot|chapter|characters?|main character)\b|\bshows\b|\bseasons?\b|\bepisodes?\b|"
+                          r"\b(?:finale|premiere|movies?|films?|netflix|hulu|hbo|anime|sitcom|documentary|trailer|sequel|chapter \d+)\b", re.I)
+WATCHED = re.compile(r"\bi(?:'m| am|'ve| have| was| just| already| finally| literally)*(?: \w+)? (?:halfway through|"
+                     r"(?:binge[- ]?)?watch(?:ed|ing) (?:it|the(?! (?:front|back|doors?|camera|house|room|kids|baby|stove|oven|pot|dog|cat|driveway|yard)\b)|that|this|season|episode|every|all|both)\b|"
+                     r"binged|binging|rewatch(?:ed|ing)|"
+                     r"finished (?:it|the|that|this|season|watching|binging|reading)|caught (?:the|that) (?:premiere|finale|episode|show|movie)|"
+                     r"read (?:it|the whole|that book|the book) (?:last|in|over|this))|\bi'?m on (?:episode|season|ep|chapter|s\d)\b|"
+                     r"\bi saw (?:it|that|the (?:movie|show|film|finale|premiere)) (?:last night|yesterday|in (?:the )?theaters?|on (?:netflix|hulu|hbo|max|prime|disney))", re.I)
 # "what do you think of glass pelican's new record?", "is the zentrix pro 9 worth it?", "what's the plot of silver lanterns?": a question about
 # one specific thing a small brain may not really know. It invented a track for a band that doesn't exist, so Luma looks these up first.
 GROUND = re.compile(r"(?<!my )(?<!our )\b(?:new|newest|latest|upcoming)\s+(?:[\w'-]+\s+){0,2}(?:record|album|single|song|track|ep|mixtape|tape|project|movie|film|"
@@ -160,6 +173,12 @@ GROUND = re.compile(r"(?<!my )(?<!our )\b(?:new|newest|latest|upcoming)\s+(?:[\w
                     r"\bhave you read (?!my\b|it\b|that\b|this\b|what\b|the (?:message|text|email|doc))|\bhow much (?:is|are) gas\b|\bgas prices?\b(?: (?:near me|around here|today|right now))?", re.I)
 # A quoted line of 12+ characters in any quote style. Apostrophes inside ('I'm not trying…') don't end it; a short title ('Like That') isn't a quote.
 QUOTED = re.compile(r"“[^”]{12,}”|\"[^\"]{12,}\"|‘(?:[^’]|(?<=\w)’(?=\w)){12,}’(?!\w)|(?<!\w)'(?:[^']|(?<=\w)'(?=\w)){12,}'(?!\w)")
+def _quotes_not_theirs(reply, said):
+    """Quoted lines in a reply that aren't their own words: quoting them back ("'we need to talk' is the scariest text") is fine."""
+    theirs = re.sub(r"[’‘`]", "'", str(said or "")).lower()
+    return [q.group(0) for q in QUOTED.finditer(str(reply or "")) if re.sub(r"[’‘`]", "'", q.group(0)[1:-1]).strip().lower() not in theirs]
+
+
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
 from luma.skills.news import asks as asks_news  # noqa: E402
@@ -2877,34 +2896,35 @@ class Agent:
     def _without_made_up_lyrics(self, draft, text, cancel_event=None):
         """A reply about a song that quotes lines Luma didn't look up: a small brain misremembers lyrics, so talk about the feel instead."""
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
-                  "You might be misremembering the exact words, so don't quote any lyrics or lines. Keep your take: the flow, the energy, what it's about, "
-                  "why it hits. Same tone, slang and length. Reply with only the new text.")
+                  "You might be misremembering the exact words, so don't quote any lyrics, lines or reactions in quote marks. Keep your take: the flow, "
+                  "the energy, what it's about, why it hits. Same tone, slang and length. Reply with only the new text.")
         try:
             with self.lock:
                 out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
             fixed = out.get("text") if isinstance(out, dict) else None
-            if isinstance(fixed, str) and fixed.strip() and not QUOTED.search(fixed):
+            if isinstance(fixed, str) and fixed.strip() and not _quotes_not_theirs(fixed, text):
                 return fixed.strip()[:2000]
         except Exception:
             pass
-        kept = [s for s in re.split(r"(?<=[.!?…])\s+", draft) if s.strip() and not QUOTED.search(s)]
-        return " ".join(kept) or "That verse goes hard though. Which part got you?"
+        kept = [s for s in re.split(r"(?<=[.!?…])\s+", draft) if s.strip() and not _quotes_not_theirs(s, text)]
+        return " ".join(kept) or ("Which one? Tell me and I'm in." if SCREEN_TOPIC.search(text) else "That verse goes hard though. Which part got you?")
 
     def _without_senses(self, draft, text, cancel_event=None):
         """Rewrite a reply that claims Luma has a body (ate it, went there, was listening while making coffee). If the rewrite still does, drop those sentences."""
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
-                  "You live in their home as an AI with no body: you don't eat, drink, drive, make coffee or go places. Rewrite the draft so it doesn't claim any of that. "
+                  "You live in their home as an AI with no body: you don't eat, drink, drive, make coffee, go places, or sit down and watch shows and movies "
+                  "(you know them from what's written about them). Rewrite the draft so it doesn't claim any of that. "
                   "Keep everything you know about the song, show or food (lyrics, verses, plot, what people say about it) and keep the same tone, slang and length. "
                   "Reply with only the new text.")
         try:
             with self.lock:
                 out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
             fixed = out.get("text") if isinstance(out, dict) else None
-            if isinstance(fixed, str) and fixed.strip() and not SENSED.search(fixed):
+            if isinstance(fixed, str) and fixed.strip() and not SENSED.search(fixed) and not WATCHED.search(fixed):
                 return fixed.strip()[:2000]
         except Exception:
             pass
-        kept = [s for s in re.split(r"(?<=[.!?])\s+", draft) if s.strip() and not SENSED.search(s)]
+        kept = [s for s in re.split(r"(?<=[.!?])\s+", draft) if s.strip() and not SENSED.search(s) and not WATCHED.search(s)]
         return " ".join(kept) or "Which part lost you?"
 
     def reflect_self(self, cancel_event=None):
@@ -2995,11 +3015,12 @@ class Agent:
         return {"text": self._keep_it_honest(answer, text, cancel_event), "thinking": [lbl for lbl, _ in explored]}
 
     def _keep_it_honest(self, reply, text, cancel_event=None):
-        """The last look at anything the brain wrote: no body it doesn't have, no song lines it didn't read."""
-        if SENSED.search(reply):
-            reply = self._without_senses(reply, text, cancel_event)
+        """The last look at anything the brain wrote: no body it doesn't have, no show it never watched, no lines it didn't read."""
         recent = " ".join(str(t.get("content", "")) for t in self.history[-3:])  # "SOS by SZA", answering "which album?"
-        if (MUSIC_TOPIC.search(text) or MUSIC_TOPIC.search(recent)) and QUOTED.search(reply):
+        screen_talk = bool(SCREEN_TOPIC.search(text) or SCREEN_TOPIC.search(recent))  # they're talking about a show, a movie or a book
+        if SENSED.search(reply) or ((screen_talk or SCREEN_TOPIC.search(reply)) and WATCHED.search(reply)):
+            reply = self._without_senses(reply, text, cancel_event)
+        if (MUSIC_TOPIC.search(text) or MUSIC_TOPIC.search(recent) or screen_talk) and _quotes_not_theirs(reply, text):
             reply = self._without_made_up_lyrics(reply, text, cancel_event)
         return reply
 

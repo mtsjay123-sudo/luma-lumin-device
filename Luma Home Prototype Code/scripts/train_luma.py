@@ -104,10 +104,12 @@ def judge(row, reply):
 
 
 def evaluate(model, tokenizer, rows, torch, label):
-    scores = []
-    for row in rows:
-        reply = generate(model, tokenizer, row["messages"][:-1], torch)
-        scores.append({"question": row["messages"][1]["content"][:160], "reply": reply[:400], **judge(row, reply)})
+    return summarize(rows, [generate(model, tokenizer, row["messages"][:-1], torch) for row in rows], label)
+
+
+def summarize(rows, replies, label):
+    """Luma's checks over every held-out reply, however it was made (PyTorch here, MLX on a Mac: scripts/train_on_mac.py)."""
+    scores = [{"question": row["messages"][1]["content"][:160], "reply": reply[:400], **judge(row, reply)} for row, reply in zip(rows, replies)]
     n = max(1, len(scores))
     summary = {"label": label, "replies": len(scores),
                "unbacked_numbers": sum(len(s["unbacked"]) for s in scores),

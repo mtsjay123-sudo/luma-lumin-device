@@ -4,7 +4,7 @@ they're hurting, honest when it doesn't know. Written as chat examples (the form
     python scripts/finetune_data.py out/finetune        -> out/finetune/train.jsonl and valid.jsonl
 
 Every example is Luma's own material (humor_bank.py) or written here. Nothing scraped, nothing quoted from real comedians.
-Then scripts/finetune_mac.sh trains a small add-on (LoRA) on an Apple Silicon Mac and the lab compares it to the stock brain.
+Then scripts/train_on_mac.sh trains a small add-on (LoRA) on an Apple Silicon Mac, checks it against the stock brain and installs it.
 
 Four more kinds, each true by construction:
   - talking back in someone's register: their message is a phrase from the phrase bank (32 communities); the reply is

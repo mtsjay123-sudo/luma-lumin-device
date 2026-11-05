@@ -169,6 +169,33 @@ class SlangTalkTests(unittest.TestCase):
         self.assertEqual(self.agent._without_made_up_lyrics("He says “I don't need no love, I just need the truth”. The beat is insane though.", "kendrick verse"),
                          "The beat is insane though.")
 
+    def test_luma_never_claims_it_watched_a_show_or_quotes_one_it_never_saw(self):
+        from luma.agent.runtime import WATCHED
+        for claim in ["Because I'm already halfway through the third episode", "I watched the whole season in one night", "I binged it last weekend",
+                      "I'm on episode 4", "I saw it last night on Netflix", "I finished the finale"]:
+            self.assertTrue(WATCHED.search(claim), claim)
+        for fine in ["I'm watching the front door for you", "I heard the finale is wild", "Are you watching it?", "I know people binged it"]:
+            self.assertFalse(WATCHED.search(fine), fine)
+        # the two the lab caught: a show it "watched", and a line about an ending it never saw
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Wait, which one? I need to know what got better."}
+        self.assertEqual(self.agent._keep_it_honest("Wait, which one? Because I'm already halfway through the third episode and I'm like 'how did this get so good?'",
+                                                    "the show got way better this season"), "Wait, which one? I need to know what got better.")
+        self.agent.planner = lambda *a: {"type": "reply", "text": "Depends on the show! What was it?"}
+        self.assertEqual(self.agent._keep_it_honest("Depends on the show! What was it? I'll tell you if it made me go 'hmm, that one hit' or 'nah, just a weird twist.'",
+                                                     "did you like the ending?"), "Depends on the show! What was it?")
+        # their own words quoted back are fine, and so is the camera
+        said = "“we need to talk” after a show like that is the scariest text"
+        self.assertEqual(self.agent._keep_it_honest(said, "my boss texted “we need to talk” during the movie"), said)
+        self.assertEqual(self.agent._keep_it_honest("I'm watching the front door for you.", "keep an eye out for the package"), "I'm watching the front door for you.")
+        # everyday words that aren't a show: a quote in the reply stays as written
+        from luma.agent.runtime import SCREEN_TOPIC
+        for plain in ["show me how to cook rice", "book a table for two at 7", "plot a chart of my spending", "write a caption for my post"]:
+            self.assertFalse(SCREEN_TOPIC.search(plain), plain)
+        caption = "Try this: “golden hour hits different when you're home”"
+        self.assertEqual(self.agent._keep_it_honest(caption, "write a caption for my post"), caption)
+        for talk in ["did you like the ending?", "the show got way better this season", "that movie last night was crazy", "have you seen episode 3"]:
+            self.assertTrue(SCREEN_TOPIC.search(talk), talk)
+
     def test_that_album_with_no_album_named_gets_which_one(self):
         reply = self.agent.chat("ngl that album kinda mid")["text"]
         self.assertIn("which album", reply.lower())  # a friend asks; it never invents "the intro had that raw energy"

@@ -4,10 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="stylesheet" href="fonts.css">
     <title>Luma | Home</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap"
-        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -21,7 +19,7 @@
             height: 100vh;
             height: 100dvh;
             overflow: hidden;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-sans);
             background: #000;
         }
 
@@ -105,9 +103,10 @@
             bottom: 30%;
             left: 50%;
             transform: translateX(-50%);
-            font-family: 'Playfair Display', serif;
-            font-weight: 500;
-            font-size: 36px;
+            font-family: var(--font-serif);
+            font-weight: 400;
+            font-size: 42px;
+            letter-spacing: -0.01em;
             line-height: 1.1;
             text-align: center;
             color: rgba(255, 255, 255, 0.92);
@@ -121,7 +120,7 @@
             bottom: 24%;
             left: 50%;
             transform: translateX(-50%);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-sans);
             font-weight: 500;
             font-size: 12px;
             letter-spacing: 0.40em;
@@ -138,7 +137,7 @@
             bottom: 18%;
             left: 50%;
             transform: translateX(-50%);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-sans);
             font-weight: 300;
             font-size: 14px;
             line-height: 1.35;
@@ -163,7 +162,7 @@
             border: 1px solid rgba(255, 255, 255, 0.40);
             background: rgba(255, 255, 255, 0.06);
             color: rgba(255, 255, 255, 0.88);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-sans);
             font-size: 15px;
             font-weight: 400;
             text-decoration: none;
@@ -184,11 +183,11 @@
             bottom: 6%;
             left: 50%;
             transform: translateX(-50%);
-            font-family: 'Inter', sans-serif;
-            font-weight: 300;
-            font-size: 11px;
+            font-family: var(--font-sans);
+            font-weight: 400;
+            font-size: 12px;
             text-align: center;
-            color: rgba(255, 255, 255, 0.35);
+            color: rgba(255, 255, 255, 0.6); /* was 0.35: too faint to read over the photo */
             max-width: 78%;
             opacity: 0;
             animation: fadeIn 450ms ease-out 200ms forwards;

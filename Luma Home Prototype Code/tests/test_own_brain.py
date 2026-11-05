@@ -107,5 +107,17 @@ class OwnBrainTests(unittest.TestCase):
         self.assertNotIn("lora_path", made[0])
 
 
+
+class ReleaseTests(unittest.TestCase):
+    def test_a_brain_release_never_takes_latest_from_the_desktop_app(self):
+        """The website's Download for Mac is releases/latest/download/Luma-mac-apple-silicon.dmg: a brain release marked
+        latest (GitHub's default, by date) sends every visitor to a release with no app in it."""
+        workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "train-luma.yml").read_text()
+        create = [line for line in workflow.splitlines() if "gh release create" in line or "--notes-file" in line]
+        self.assertTrue(create)
+        self.assertIn("--latest=false", workflow.split('gh release create "luma-brain-', 1)[1].split("\n\n", 1)[0])
+        desktop = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "luma-desktop.yml").read_text()
+        self.assertIn("--latest", desktop.split('gh release create "desktop-v', 1)[1].split("\n", 2)[1])
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,11 @@
+/* Luma's two typefaces, the same on every page of the site, the phone app and the desktop app: Instrument Serif for
+   headlines, Geist for everything else. Both are served from this site (website/fonts, SIL Open Font License), so no
+   page asks another company for its fonts. */
+@font-face { font-family: "Geist"; src: url("website/fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Instrument Serif"; src: url("website/fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Instrument Serif"; src: url("website/fonts/instrument-serif-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+
+:root {
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "New York", "Iowan Old Style", Georgia, serif;
+}

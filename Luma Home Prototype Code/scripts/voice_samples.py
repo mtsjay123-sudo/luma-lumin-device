@@ -17,6 +17,7 @@ and the words each file should say, for scripts/voice_check.py to check by ear.
 import json
 import shutil
 import sys
+import os
 import time
 import wave
 from pathlib import Path
@@ -37,7 +38,7 @@ LINES = [
     ("friend", "Man, that hurts. First thing, you're not broken, you just felt it deep. Want to talk it through, or just sit with it for a bit?"),
 ]
 
-ENGINE_BUDGET = 15 * 60  # seconds of rendering per new voice, at most
+ENGINE_BUDGET = int(float(os.environ.get("LUMA_VOICE_BUDGET_MIN", "15")) * 60)  # seconds of rendering per new voice, at most (a fast Mac can give more)
 
 DESIGNS = [
     ("warm", "A warm, playful young woman in her early twenties with a relaxed American accent, quick to laugh, confident and friendly, natural conversational pacing."),

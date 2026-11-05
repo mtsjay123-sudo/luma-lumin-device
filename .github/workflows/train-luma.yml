@@ -78,5 +78,7 @@ jobs:
           PASSED=$(python -c "import json; print(json.load(open('out/luma-brain/eval.json')).get('as_honest', False))")
           if [ "$PASSED" != "True" ]; then echo "Not publishing: the trained brain wasn't at least as honest as the stock one."; exit 0; fi
           python scripts/train_report.py out/luma-brain/eval.json > "$RUNNER_TEMP/notes.md"
+          # Never "latest": the website's Download for Mac link is releases/latest/download/Luma-mac-apple-silicon.dmg, so the
+          # newest desktop build has to stay the latest release (a brain release taking it broke that link on Nov 3).
           gh release create "luma-brain-${{ github.run_number }}" out/luma-brain/luma-brain-lora.gguf out/luma-brain/eval.json \
-            --title "Luma brain ${{ github.run_number }}" --notes-file "$RUNNER_TEMP/notes.md"
+            --title "Luma brain ${{ github.run_number }}" --notes-file "$RUNNER_TEMP/notes.md" --latest=false
