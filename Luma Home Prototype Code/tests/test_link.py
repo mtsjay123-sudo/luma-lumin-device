@@ -178,3 +178,137 @@ class LinkWorkTests(LinkBase):
         import json as _json
         with self.assertRaises(luma_link.LinkError):
             luma_link.pinned_request("127.0.0.1", self.port, self.device.link_host.fingerprint or "x", "GET", "/link/work/projects", token="not-a-token")
+
+
+class ComputerBrainTests(LinkBase):
+    """The device thinks with the paired computer's brain: a $250 to $400 board's own takes 7 s or more to start talking."""
+
+    def tearDown(self):
+        from luma.llm import brain
+        brain.use_computer(None)
+        super().tearDown()
+
+    def test_the_device_thinks_on_the_paired_computer(self):
+        from luma.llm import brain, inference
+        self.pair()
+        brain.init(self.device_store)
+        asked = []
+
+        def laptop_brain(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
+            asked.append((threading.current_thread().name, messages[-1]["content"], mode))
+            return {"type": "reply", "text": "Pasta tonight, easy and quick."}
+
+        def one_round():
+            job = self.laptop.link.call("GET", "/link/hands/next", timeout=40).get("job")
+            self.laptop.link.call("POST", "/link/hands/done", {"id": job["id"], "result": self.laptop.link._do(job)})
+
+        with mock.patch.object(inference, "plan", side_effect=laptop_brain):
+            worker = threading.Thread(target=one_round, daemon=True, name="laptop-hands")
+            worker.start()
+            for _ in range(60):
+                if self.device.link_host.connected(): break
+                time.sleep(0.05)
+            self.assertTrue(brain.computer_on(), "the link turned it on for the device")
+            out = brain.plan([{"role": "user", "content": "what should i cook tonight"}], [], {}, "friend")
+            worker.join(10)
+        self.assertEqual(out["text"], "Pasta tonight, easy and quick.")
+        self.assertEqual(asked, [("laptop-hands", "what should i cook tonight", "friend")], "thought out on the computer, once")
+        self.assertEqual(self.device_store.setting("hands_log") or [], [], "not in what the phone shows Luma asked the computer to do")
+        self.assertEqual(self.laptop.link.computer.log(), [], "nor in the computer's own log: it touched nothing there")
+
+
+class ComputerBrainUnitTests(unittest.TestCase):
+    class Host:
+        def __init__(self, answer):
+            self.answer, self.sent = answer, []
+
+        def connected(self):
+            return True
+
+        def send(self, kind, wait=0, cancel=None, log=True, **args):
+            self.sent.append((kind, log, args))
+            return self.answer
+
+    def setUp(self):
+        from luma.llm import brain
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.temp.name) / "s.db", Path(self.temp.name) / "k")
+        brain.init(self.store)
+
+    def tearDown(self):
+        from luma.llm import brain
+        brain.use_computer(None)
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_an_away_computer_hands_the_turn_to_the_next_brain(self):
+        from luma.llm import brain, inference
+        local = {"type": "reply", "text": "From the device's own brain."}
+        for answer in (None, {"error": "Luma is paused on this computer. Resume it there to keep going."}, {"proposal": "nonsense"}):
+            brain.use_computer(self.Host(answer))
+            with mock.patch.object(inference, "plan", return_value=local):
+                self.assertEqual(brain.plan([{"role": "user", "content": "hi"}], [], {}, "friend"), local)
+            self.assertIn("another one did", self.store.setting("brain_computer_error"))
+
+    def test_a_tool_from_the_computer_comes_back_for_the_device_to_run(self):
+        from luma.llm import brain, inference
+        tool = {"type": "tool", "name": "reminder.create", "arguments": {"text": "call mom", "when": "5pm"}}
+        host = self.Host({"proposal": tool})
+        brain.use_computer(host)
+        with mock.patch.object(inference, "plan", side_effect=AssertionError("the device's own brain isn't needed")):
+            self.assertEqual(brain.plan([{"role": "user", "content": "remind me at 5 to call mom"}], [], {"reminder.create": {}}, "kids"), tool)
+        kind, logged, args = host.sent[0]
+        self.assertEqual((kind, logged, args["mode"]), ("brain.plan", False, "kids"), "kids mode goes along, and it isn't logged as hands")
+        host.answer = {"text": "Find the cheapest AirPods."}
+        self.assertEqual(brain.rewrite("findd cheapest airpods"), "Find the cheapest AirPods.", "the quick rewrite too")
+
+    def test_the_owner_can_keep_thinking_on_the_device(self):
+        from luma.llm import brain, inference
+        host = self.Host({"proposal": {"type": "reply", "text": "From the computer."}})
+        brain.use_computer(host)
+        self.store.set_setting("brain_use_computer", False)
+        with mock.patch.object(inference, "plan", return_value={"type": "reply", "text": "Here."}):
+            self.assertEqual(brain.plan([{"role": "user", "content": "hi"}], [], {}, "friend")["text"], "Here.")
+        self.assertEqual(host.sent, [])
+
+    def test_a_board_thinking_on_its_computer_isnt_slow(self):
+        from luma.llm import brain
+        with mock.patch.dict("os.environ", {"LUMA_DEVICE_TIER": "budget"}):
+            self.assertTrue(brain.slow_here())
+            brain.use_computer(self.Host(None))
+            self.assertFalse(brain.slow_here(), "think first and a second look come back: the computer's brain is fast")
+
+    def test_the_computer_lends_its_brain_but_never_passes_the_turn_on(self):
+        from luma.llm import brain
+        agent = Agent(store=self.store, use_model=False)
+        seen = []
+        with mock.patch.object(brain, "plan", side_effect=lambda *a, **k: seen.append(k) or {"type": "reply", "text": "ok"}):
+            out = agent.link._do({"kind": "brain.plan", "messages": [{"role": "user", "content": "hi"}], "memories": [], "tools": {}, "mode": "friend"})
+            self.assertEqual(out, {"proposal": {"type": "reply", "text": "ok"}})
+            self.assertIs(seen[0]["use_computer_brain"], False)
+            self.store.set_setting("lend_brain", False)
+            self.assertIn("isn't lending", agent.link._do({"kind": "brain.plan", "messages": []})["error"])
+            self.store.set_setting("lend_brain", True)
+            agent.link.computer._save(paused=True)
+            self.assertIn("paused", agent.link._do({"kind": "brain.plan", "messages": []})["error"])
+
+    def test_a_computer_that_just_went_to_sleep_isnt_asked(self):
+        from luma.llm import brain
+        agent = Agent(store=self.store, use_model=False)
+        host = luma_link.LinkHost(agent)
+        brain.use_computer(host)
+        host.hands_seen = agent.clock() - 30
+        self.assertTrue(host.connected(), "its hands still count for a minute")
+        self.assertFalse(brain.computer_on(), "but a turn won't wait 20 seconds on it")
+        host.hands_seen = agent.clock()
+        self.assertTrue(brain.computer_on())
+
+    def test_waiting_on_the_computer_stops_when_they_interrupt(self):
+        agent = Agent(store=self.store, use_model=False)
+        host = luma_link.LinkHost(agent)
+        stop = threading.Event()
+        threading.Timer(0.3, stop.set).start()
+        began = time.monotonic()
+        self.assertIsNone(host.send("brain.plan", wait=10, cancel=stop, log=False, messages=[]))
+        self.assertLess(time.monotonic() - began, 2)
+        self.assertEqual(self.store.setting("hands_log") or [], [])

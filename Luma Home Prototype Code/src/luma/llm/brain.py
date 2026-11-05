@@ -268,6 +268,83 @@ def cloud_on():
     return bool(_store is not None and _store.setting("brain_cloud", False) and cloud_key())
 
 
+# -- the paired computer's brain, on the device ------------------------------------------
+# A $250 to $400 board's processor can't hold a conversation with a good brain (the device lab: 13 to 15 s before the 4B
+# starts talking, 7 s for the 1.7B), and the owner's own computer can. On the device, while a paired computer is
+# connected over Luma Link, each turn is thought out on that computer; the tools still run here, with this device's
+# approvals. When it's away, the cloud brain (if it's on) answers, then the device's own brain.
+_computer = {"host": None}
+COMPUTER_WAIT = 20  # seconds: a computer that hasn't answered by then counts as away for this turn
+
+
+def use_computer(host):
+    """On the device: think with the paired computer's brain while it's connected (None: never)."""
+    _computer["host"] = host
+
+
+def computer_on():
+    host = _computer["host"]
+    if host is None:
+        return False
+    try:
+        here = host.listening() if hasattr(host, "listening") else host.connected()
+        return bool(here and (_store is None or _store.setting("brain_use_computer", True)))
+    except Exception:
+        return False
+
+
+def computer_label():
+    return "your computer's brain (Luma Link)"
+
+
+def _ask_computer(kind, payload, cancel_event=None, wait=COMPUTER_WAIT):
+    from luma.llm import inference
+    host = _computer["host"]
+    if host is None:
+        raise BrainUnavailable("No computer is connected.")
+    got = host.send(kind, wait=wait, cancel=cancel_event, log=False, **payload)
+    if cancel_event is not None and cancel_event.is_set():
+        raise inference.GenerationCancelled("The owner interrupted this turn.")
+    if not isinstance(got, dict):
+        raise TimeoutError("Your computer didn't answer in time.")
+    if got.get("error"):
+        raise RuntimeError(str(got["error"])[:200])
+    return got
+
+
+def _computer_plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
+    got = _ask_computer("brain.plan", {"messages": messages, "memories": memories, "tools": tools, "mode": mode, "profile": profile}, cancel_event)
+    proposal = got.get("proposal")
+    if not isinstance(proposal, dict) or proposal.get("type") not in ("reply", "tool"):
+        raise ValueError("Your computer's brain sent back something that isn't an answer.")
+    if on_text is not None and proposal.get("type") == "reply" and isinstance(proposal.get("text"), str):
+        on_text(proposal["text"])  # the whole reply at once: the voice starts on it like on a streamed one
+    return proposal
+
+
+def _computer_rewrite(prompt, max_tokens=90, cancel_event=None):
+    text = _ask_computer("brain.rewrite", {"prompt": prompt, "max_tokens": max_tokens}, cancel_event).get("text")
+    if not isinstance(text, str):
+        raise ValueError("Your computer's brain sent back no rewrite.")
+    return text
+
+
+def _from_computer(call, args, kwargs, sent, tier):
+    """One call on the computer's brain, or None when it couldn't (the next brain answers)."""
+    from luma.llm import inference
+    try:
+        result = _metered(computer_label(), tier, call, args, kwargs, sent)
+        if _store is not None and _store.setting("brain_computer_error"):
+            _store.set_setting("brain_computer_error", None)
+        return result
+    except inference.GenerationCancelled:
+        raise
+    except Exception as error:  # asleep, closed, too slow this once: the next brain answers this turn
+        if _store is not None:
+            _store.set_setting("brain_computer_error", f"Your computer's brain couldn't answer ({type(error).__name__}), so another one did.")
+        return None
+
+
 def set_cloud(on, key=None, model=None):
     if on:
         model = model or cloud_model()
@@ -380,8 +457,8 @@ SLOW = 15.0  # tokens a second: a brain slower than this answers in one trip (no
 
 def slow_here():
     """A brain that has to save its trips through the model: a $250 device says so itself (LUMA_DEVICE_TIER=budget), or this
-    computer timed the brain it's using below SLOW. The cloud brain thinks fast, so with it on nothing is slow."""
-    if cloud_on():
+    computer timed the brain it's using below SLOW. The cloud brain and a paired computer's think fast, so with either nothing is slow."""
+    if cloud_on() or computer_on():
         return False
     if os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget":
         return True
@@ -443,7 +520,10 @@ def install_huge():
     return colibri.install(ram_gb())
 
 
-def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None):
+def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None, use_computer_brain=True):
+    """One turn's proposal from the best brain that can answer: the huge one for heavy work, the paired computer's (on the
+    device), the cloud brain if it's on, then this one's own. use_computer_brain=False: a computer lending its brain to the
+    device never hands the turn on again."""
     from luma.llm import inference
     sent = [messages, memories, tools]
     if use_huge(tier):
@@ -456,6 +536,11 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
             raise
         except Exception as error:  # stopped, out of memory, an empty answer: the next brain answers this turn
             _store.set_setting("brain_huge_error", f"The huge brain couldn't answer ({type(error).__name__}), so another one did.")
+    if use_computer_brain and computer_on():
+        result = _from_computer(_computer_plan, (messages, memories, tools, mode),
+                                {"profile": profile, "cancel_event": cancel_event, "on_text": on_text}, sent, tier)
+        if result is not None:
+            return result
     if use_cloud(tier):
         try:
             result = _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).plan,
@@ -471,7 +556,7 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
                     {"profile": profile, "cancel_event": cancel_event, "on_text": on_text}, sent)
 
 
-def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light"):
+def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light", use_computer_brain=True):
     from luma.llm import inference
     if use_huge(tier):
         try:
@@ -480,6 +565,10 @@ def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light"):
             raise
         except Exception as error:
             _store.set_setting("brain_huge_error", f"The huge brain couldn't answer ({type(error).__name__}), so another one did.")
+    if use_computer_brain and computer_on():
+        said = _from_computer(_computer_rewrite, (prompt,), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt, tier)
+        if said is not None:
+            return said
     if use_cloud(tier):
         try:
             return _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).rewrite,

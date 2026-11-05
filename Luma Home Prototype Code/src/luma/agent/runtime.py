@@ -669,6 +669,21 @@ class Agent:
         except Exception:
             return None
 
+    def _has_device(self):
+        """On a computer: a Luma device is paired with it (it can lend the device its brain)."""
+        try:
+            return bool(self.link.device())
+        except Exception:
+            return False
+
+    def _thinks_on_computer(self):
+        """On the device: this turn's thinking happens on the paired computer's brain (it's connected and allowed to)."""
+        try:
+            from luma.llm import brain
+            return brain.computer_on()
+        except Exception:
+            return False
+
     def _worth_understanding(self, lowered):
         """Whether to rewrite a message into a plain instruction before answering it: it sounds like a job. Each rewrite is
         another trip through the brain, seconds on a $250 device, so there a time on its own isn't enough ("ngl today was
@@ -749,7 +764,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "brain_use_computer":self.store.setting("brain_use_computer",True), "thinks_on_computer":self._thinks_on_computer(), "is_device":self.link_host is not None, "lend_brain":self.store.setting("lend_brain",True), "has_device":self._has_device(), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]

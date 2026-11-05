@@ -128,6 +128,8 @@ def start_link(ctx, bind='0.0.0.0', port=None, discovery_port=None):
             host.announce = announce
         ctx.link_discovery = host.start_discovery(luma_link.DISCOVERY_PORT if discovery_port is None else discovery_port, bind='' if bind == '0.0.0.0' else bind)
         ctx.link_server, ctx.agent.link_host = server, host
+        from luma.llm import brain
+        brain.use_computer(host)  # the device thinks with the paired computer's brain while it's connected
         threading.Thread(target=server.serve_forever, daemon=True, name='luma-link').start()
     return link_status(ctx)
 
@@ -141,6 +143,8 @@ def stop_link(ctx):
             except Exception: pass
         ctx.link_server = ctx.link_discovery = None
         ctx.agent.link_host = None
+        from luma.llm import brain
+        brain.use_computer(None)
     return link_status(ctx)
 
 
@@ -728,6 +732,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
                     elif key in {'think_first','deep_mind','deliberate','show_thoughts'} and type(value) is bool: agent.store.set_setting(key,value)
                     elif key=='thinking_out_loud' and type(value) is bool: agent.store.set_setting(key,value)
+                    elif key in {'brain_use_computer','lend_brain'} and type(value) is bool: agent.store.set_setting(key,value)  # the device thinking on the paired computer
                     elif key=='language' and isinstance(value,str):
                         from luma.agent import language
                         agent.store.set_setting('language',language.configure(value))

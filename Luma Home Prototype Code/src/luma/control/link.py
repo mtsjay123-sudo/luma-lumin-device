@@ -121,6 +121,7 @@ class LinkHost:
         self.tickets = {}
         self.jobs, self.results, self.waiting = queue.Queue(), {}, {}
         self.hands_seen = 0
+        self.polling = 0  # laptops waiting for a job right now
         self.fingerprint = None
         self.port = None
         self.announce = None  # on the device: speak the pairing code when a computer looks for it
@@ -204,17 +205,28 @@ class LinkHost:
     def connected(self):
         return self.clock() - self.hands_seen < 60
 
-    def send(self, kind, wait=0, **args):
+    def listening(self):
+        """A laptop is waiting for a job right now (or was a moment ago): worth handing it this turn's thinking. A laptop that
+        just went to sleep stays connected() for a minute, and a turn shouldn't wait on it."""
+        return self.polling > 0 or self.clock() - self.hands_seen < 10
+
+    def send(self, kind, wait=0, cancel=None, log=True, **args):
+        """A job for the laptop. wait: seconds to wait for its answer (cancel, an Event, stops waiting early). log=False keeps
+        it out of what the phone shows Luma asked the computer to do (each turn thought out on the computer's brain)."""
         ident = secrets.token_hex(6)
         done = threading.Event()
         what = args.get("url") or args.get("query") or args.get("path") or args.get("name") or ""
         with self.lock:
             self.waiting[ident] = done
-            self._note(ident, {"kind": kind, "what": str(what)[:120], "at": self.clock(), "ok": None})
+            if log:
+                self._note(ident, {"kind": kind, "what": str(what)[:120], "at": self.clock(), "ok": None})
         self.jobs.put({"id": ident, "kind": kind, "at": self.clock(), **args})
         if not wait:
             return {"id": ident}
-        done.wait(wait)
+        end = time.monotonic() + wait
+        while not done.wait(0.2):
+            if time.monotonic() >= end or (cancel is not None and cancel.is_set()):
+                break
         with self.lock:
             self.waiting.pop(ident, None)
             return self.results.pop(ident, None)
@@ -222,6 +234,8 @@ class LinkHost:
     def next(self, timeout=25):
         self.hands_seen = self.clock()
         deadline = time.monotonic() + timeout
+        with self.lock:
+            self.polling += 1
         try:
             while True:
                 left = deadline - time.monotonic()
@@ -234,6 +248,8 @@ class LinkHost:
             return None
         finally:
             self.hands_seen = self.clock()
+            with self.lock:
+                self.polling -= 1
 
     def done(self, ident, result):
         with self.lock:
@@ -449,10 +465,12 @@ class LinkClient:
         for t in self.threads: t.start()
 
     def _do(self, job):
-        """Something only this computer can do, asked for by the device. Every request goes in this computer's log."""
+        """Something only this computer can do, asked for by the device. Every request goes in this computer's log (the device
+        thinking a turn out on this computer's brain doesn't: it touches nothing here)."""
         try: result = self._work(job)
         except Exception as error: result = {"error": str(error)[:200] or "That didn't work on this computer."}
-        self.computer.record(job, result)
+        if not str(job.get("kind") or "").startswith("brain."):
+            self.computer.record(job, result)
         return result
 
     def _work(self, job):
@@ -462,6 +480,8 @@ class LinkClient:
             return self.computer.do(job)  # checks Pause itself, since Luma running here calls it directly too
         if self.computer.settings()["paused"]:
             return {"error": "Luma is paused on this computer. Resume it there to keep going."}
+        if kind in {"brain.plan", "brain.rewrite"}:
+            return self._think(job)
         chrome = self.agent.chrome
         if kind in {"open", "play", "read", "tabs"} and chrome.connected():
             return chrome.send(kind, wait=20 if kind in {"read", "tabs", "play"} else 0, **{k: v for k, v in job.items() if k not in {"id", "kind", "at"}}) or {"ok": True}
@@ -477,3 +497,18 @@ class LinkClient:
             from urllib.parse import quote_plus
             return self._work({"kind": "open", "url": "https://music.youtube.com/search?q=" + quote_plus(str(job.get("query") or "music"))})
         return {"error": "This computer can't do that one."}
+
+    def _think(self, job):
+        """The device's turn, thought out on this computer's brain (bigger and much faster than a small board's). Only the
+        answer goes back: a reply, or one tool for the device to run with its own approvals."""
+        if not self.store.setting("lend_brain", True):
+            return {"error": "This computer isn't lending its brain to the device."}
+        from luma.llm import brain
+        if job.get("kind") == "brain.rewrite":
+            return {"text": brain.rewrite(str(job.get("prompt") or ""), max_tokens=max(16, min(int(job.get("max_tokens") or 90), 400)), use_computer_brain=False)}
+        mode = str(job.get("mode") or "friend")
+        messages = [m for m in (job.get("messages") or []) if isinstance(m, dict)][-40:]
+        memories = [m for m in (job.get("memories") or []) if isinstance(m, dict)][:60]
+        tools = job.get("tools") if isinstance(job.get("tools"), dict) else {}
+        profile = job.get("profile") if isinstance(job.get("profile"), dict) else None
+        return {"proposal": brain.plan(messages, memories, tools, mode, profile=profile, use_computer_brain=False)}
