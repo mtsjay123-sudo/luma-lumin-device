@@ -48,6 +48,11 @@ def speak(text, agent, cancel_event=None, allow_muted=False):
         _speech_lock.release()
 
 
+FILLER_AFTER = float(os.environ.get("LUMA_FILLER_AFTER_S", "1.2"))  # seconds of silence before Luma thinks out loud
+FILLER_AGAIN = 3.0   # right after the last one, it waits longer: a friend doesn't say "hmm" before every answer
+FILLER_GAP = 25.0    # seconds that count as "right after"
+
+
 class SpeechStream:
     """Feed it the reply as the model writes it; Luma starts talking at the first sentence."""
 
@@ -58,6 +63,33 @@ class SpeechStream:
         self.phrases = queue.Queue()
         self.thread = None
         self.speaker = speaker or speak
+        self._heard = self._closed = False
+        self._timer = None
+
+    def think_out_loud(self, said):
+        """If the first words don't come soon (a slow brain, a look-up), say a short line so the quiet doesn't feel like
+        Luma didn't hear: "Hmm, let me think.", "Let me check." Once a turn, and later when it just said one."""
+        store = getattr(self.agent, "store", None)
+        if not said or (store is not None and store.setting("thinking_out_loud", True) is False):
+            return self
+        recent = time.monotonic() - getattr(self.agent, "_filler_at", -FILLER_GAP * 2) < FILLER_GAP
+        self._timer = threading.Timer(FILLER_AGAIN if recent else FILLER_AFTER, self._fill, args=(said,))
+        self._timer.daemon = True
+        self._timer.start()
+        return self
+
+    def _fill(self, said):
+        if self.event.is_set() or self._heard or self._closed or getattr(self.agent, "speaking", False):
+            return
+        from luma.agent import language
+        line = language.filler(said, seed=f"{said}|{time.monotonic():.0f}", avoid=(getattr(self.agent, "_filler_last", ""),))
+        if not line:
+            return
+        self.agent._filler_at, self.agent._filler_last = time.monotonic(), line
+        try:
+            self.speaker(line, self.agent, cancel_event=self.event, allow_muted=self.allow_muted)
+        except Exception:
+            pass
 
     @property
     def started(self):
@@ -71,6 +103,8 @@ class SpeechStream:
             yield phrase
 
     def feed(self, delta):
+        if delta:
+            self._heard = True  # the answer is coming: no "hmm" now
         for phrase in self.buffer.feed(delta):
             self._push(phrase)
 
@@ -88,6 +122,9 @@ class SpeechStream:
 
     def finish(self, wait=True):
         """Speak whatever is left. Returns True if anything was spoken by streaming."""
+        self._closed = True
+        if self._timer is not None:
+            self._timer.cancel()
         if self.thread is None:
             return False
         for phrase in self.buffer.flush():
@@ -100,7 +137,7 @@ class SpeechStream:
 def ask_typed(text, agent=None, voice=False, cancel_event=None):
     agent = agent or get_agent()
     event = cancel_event or agent.new_turn()
-    stream = SpeechStream(agent, event) if voice else None
+    stream = SpeechStream(agent, event).think_out_loud(text) if voice else None
     result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None)
     # Do not write private conversations to service logs.
     if getattr(agent, 'on_result', None): agent.on_result(result)

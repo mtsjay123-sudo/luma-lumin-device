@@ -4,6 +4,7 @@ from faster_whisper import WhisperModel
 from luma.config import WHISPER_MODEL_SIZE
 
 _model: WhisperModel | None = None
+_multi: WhisperModel | None = None  # the multilingual model, for "follow me" and the other languages
 
 
 def _quiet_av():
@@ -34,13 +35,41 @@ _quiet_av()
 _MIN_AUDIO_BYTES = 1000
 
 
+def _load(name):
+    # The desktop app may fetch the speech model once (about 150 MB); the device ships with it.
+    download = os.environ.get("LUMA_WHISPER_DOWNLOAD") == "1"
+    return WhisperModel(name, device=os.environ.get("LUMA_WHISPER_DEVICE", "cpu"), compute_type=os.environ.get("LUMA_WHISPER_COMPUTE_TYPE", "int8"), local_files_only=not download)
+
+
+def multilingual_name():
+    """The English-only model ("base.en") can't hear other languages; its multilingual twin ("base") can."""
+    return os.environ.get("LUMA_WHISPER_MULTI_MODEL") or (WHISPER_MODEL_SIZE[:-3] if WHISPER_MODEL_SIZE.endswith(".en") else WHISPER_MODEL_SIZE)
+
+
 def _get_model() -> WhisperModel:
-    global _model
+    global _model, _multi
+    from luma.agent import language
+    if language.needs_multilingual_model():
+        if _multi is None:
+            _multi = _load(multilingual_name())
+        return _multi
     if _model is None:
-        # The desktop app may fetch the speech model once (about 150 MB); the device ships with it.
-        download = os.environ.get("LUMA_WHISPER_DOWNLOAD") == "1"
-        _model = WhisperModel(WHISPER_MODEL_SIZE, device=os.environ.get("LUMA_WHISPER_DEVICE", "cpu"), compute_type=os.environ.get("LUMA_WHISPER_COMPUTE_TYPE", "int8"), local_files_only=not download)
+        _model = _load(WHISPER_MODEL_SIZE)
     return _model
+
+
+def _options(quick=False):
+    from luma.agent import language
+    return dict(beam_size=1 if quick else 3, language=language.stt_language(), vad_filter=True, condition_on_previous_text=False)
+
+
+def _heard(info):
+    """Tell the conversation which language that was (Whisper says, with how sure it is)."""
+    from luma.agent import language
+    try:
+        language.heard(getattr(info, "language", None) or language.stt_language() or "en", getattr(info, "language_probability", 1.0) or 0.0)
+    except Exception:
+        pass
 
 
 # -- Moonshine (moonshine-ai/moonshine, MIT for its English models): on-device speech recognition built for live
@@ -101,10 +130,11 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
     import tempfile
     if len(data) < _MIN_AUDIO_BYTES:
         return ""
-    options = dict(beam_size=1 if quick else 3, language="en", vad_filter=True, condition_on_previous_text=False)
+    from luma.agent import language
+    options = _options(quick)
     samples = _wav_samples(data) if suffix == ".wav" else None
     text = None
-    if samples is not None and engine() == "moonshine":
+    if samples is not None and engine() == "moonshine" and language.stt_language() == "en":  # Moonshine's models here are English
         try:
             text = _moonshine_text(samples)
         except Exception as error:  # not downloaded yet, or it choked on this clip: Whisper takes it
@@ -116,6 +146,7 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
         # Plain WAV from Luma's window: straight to Whisper, no audio decoder involved at all.
         segments, _info = _get_model().transcribe(samples, **options)
         text = " ".join(seg.text.strip() for seg in segments).strip()
+        _heard(_info)
     else:
         with tempfile.TemporaryDirectory(prefix="luma-voice-") as folder:
             path = os.path.join(folder, "clip" + suffix)
@@ -123,6 +154,7 @@ def transcribe_clip(data: bytes, suffix: str = ".webm", *, quick: bool = False, 
                 handle.write(data)
             segments, _info = _get_model().transcribe(path, **options)
             text = " ".join(seg.text.strip() for seg in segments).strip()
+            _heard(_info)
     said = text.lower().strip(" .!?,")
     return "" if said in _PHANTOMS and said not in keep else text
 
@@ -141,7 +173,7 @@ def warm_up():
 
 
 def transcribe(audio_path: str) -> str:
-    global _model
+    global _model, _multi
 
     # Fix 1 / Fix 4: guard against missing, empty, or too-short audio files
     # before we ever hand them to whisper. Returning "" lets the orchestrator's
@@ -157,11 +189,13 @@ def transcribe(audio_path: str) -> str:
 
     try:
         model = _get_model()
-        segments, _info = model.transcribe(audio_path, beam_size=5, language="en")
-        return " ".join(seg.text.strip() for seg in segments).strip()
+        segments, _info = model.transcribe(audio_path, **{**_options(), "beam_size": 5, "vad_filter": False})
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        _heard(_info)
+        return text
     except Exception as e:
         # Fix 5: drop the model so the next call reloads it fresh. Recovers
         # from a corrupted/half-initialized model state without a restart.
         print(f"[stt] transcription failed: {e}", flush=True)
-        _model = None
+        _model = _multi = None
         return ""

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       base:
-        description: "Base model (Luma's brain is Qwen/Qwen3-4B-Instruct-2507; Qwen/Qwen3-0.6B checks the pipeline quickly)"
+        description: "Base model (Qwen/Qwen3-4B-Instruct-2507 for computers and the $399 device, Qwen/Qwen3-1.7B for the $249 device; Qwen/Qwen3-0.6B checks the pipeline quickly)"
         default: "Qwen/Qwen3-4B-Instruct-2507"
       minutes:
         description: "Minutes of training"
@@ -71,7 +71,7 @@ jobs:
             Luma Home Prototype Code/out/luma-brain/adapter/adapter_model.safetensors
           if-no-files-found: warn
       - name: Publish when it's at least as honest as the stock brain
-        if: inputs.publish && inputs.base == 'Qwen/Qwen3-4B-Instruct-2507'
+        if: inputs.publish && (inputs.base == 'Qwen/Qwen3-4B-Instruct-2507' || inputs.base == 'Qwen/Qwen3-1.7B')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -80,5 +80,11 @@ jobs:
           python scripts/train_report.py out/luma-brain/eval.json > "$RUNNER_TEMP/notes.md"
           # Never "latest": the website's Download for Mac link is releases/latest/download/Luma-mac-apple-silicon.dmg, so the
           # newest desktop build has to stay the latest release (a brain release taking it broke that link on Nov 3).
-          gh release create "luma-brain-${{ github.run_number }}" out/luma-brain/luma-brain-lora.gguf out/luma-brain/eval.json \
-            --title "Luma brain ${{ github.run_number }}" --notes-file "$RUNNER_TEMP/notes.md" --latest=false
+          # The 1.7B (the $249 device's brain) publishes its add-on under its own name, so each brain gets the one made for it.
+          tag="luma-brain-${{ github.run_number }}"; asset=out/luma-brain/luma-brain-lora.gguf; title="Luma brain ${{ github.run_number }}"
+          if [ "${{ inputs.base }}" = "Qwen/Qwen3-1.7B" ]; then
+            cp out/luma-brain/luma-brain-lora.gguf out/luma-brain/luma-brain-1.7b-lora.gguf
+            tag="luma-brain-small-${{ github.run_number }}"; asset=out/luma-brain/luma-brain-1.7b-lora.gguf; title="Luma brain (small, for the device) ${{ github.run_number }}"
+          fi
+          gh release create "$tag" "$asset" out/luma-brain/eval.json \
+            --title "$title" --notes-file "$RUNNER_TEMP/notes.md" --latest=false

@@ -59,7 +59,12 @@ def together(before, after):
 
 
 def sorry(seed):
-    """A quick sorry, different now and then, the same for the same words."""
+    """A quick sorry, different now and then, the same for the same words, in the language they're speaking."""
+    from luma.agent import language
+    if language.speaking() != "en":
+        said = language.phrase("sorry", seed)
+        if said:
+            return said
     return SORRY[zlib.crc32(str(seed).encode("utf-8", "ignore")) % len(SORRY)]
 
 

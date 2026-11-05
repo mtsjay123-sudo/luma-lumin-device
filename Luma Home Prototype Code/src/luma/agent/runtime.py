@@ -345,6 +345,11 @@ class Agent:
         self.offered = self.walking = self.unfinished = self.prev_request = self.depth_ask = None
         self.depth_asked_at = 0
         self.calm_until = self.last_reply_at = 0
+        try:  # the language they picked (Settings > Voice), or the device's own default
+            from luma.agent import language
+            language.configure(self.store.setting("language", None) or os.environ.get("LUMA_LANGUAGE") or "en")
+        except Exception:
+            pass
         self.last_asked = False
         self._last_diary_prune = 0
         self._owner_queue = __import__("queue").Queue()
@@ -643,6 +648,21 @@ class Agent:
                 scored.append((score, name))
         return {name for _, name in sorted(scored, reverse=True)[:limit]}
 
+    def _extra_look(self, key):
+        """Think first, weigh it out, a second look: each is another trip through the brain ("what should I cook tonight"
+        took five). They're on by default, but a brain that's slow here (a $250 device's) answers in one trip, unless the
+        owner switched them on themselves or the cloud brain is doing the thinking. "Think hard" still gets the full pass."""
+        chosen = self.store.setting(key, None)
+        if chosen is not None:
+            return bool(chosen)
+        if not self.use_model or self.planner is not None:
+            return True
+        try:
+            from luma.llm import brain
+            return not brain.slow_here()
+        except Exception:
+            return True
+
     def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
@@ -692,7 +712,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self.store.setting("think_first",True), "deep_mind":self.store.setting("deep_mind",True), "deliberate":self.store.setting("deliberate",True), "show_thoughts":self.store.setting("show_thoughts",False), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -2632,6 +2652,9 @@ class Agent:
         """Who they are, how Luma feels, and (when it matters) what Luma thought before answering."""
         from luma.agent import mind
         out = []
+        from luma.agent import language
+        speaking = language.note()  # set for this turn when it started; Luma answers in their language
+        if speaking: out.append({"language": True, "text": speaking})
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
         if summary: out.append({"about": True, "text": summary})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
@@ -2674,7 +2697,7 @@ class Agent:
             except Exception: pass  # a bad skill on disk never stops a reply
         note = getattr(self, "_depth_note", None)
         if note: out.append({"mind": True, "text": note})
-        if self.use_model and mind.MATTERS.search(text) and self.store.setting("think_first", True):
+        if self.use_model and mind.MATTERS.search(text) and self._extra_look("think_first"):
             try:
                 with self.lock:
                     note = self.call_planner([{"role": "user", "content": mind.reflect_prompt(text, summary, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
@@ -3825,6 +3848,8 @@ class Agent:
         reject_payment_secrets(text)
         if thread not in self.threads:
             raise ValueError("That chat is gone. Start a new one.")
+        from luma.agent import language
+        language.for_turn(text)
         # The owner always comes first: a helper working in the background gives way.
         if self.activity.background_running(): self.activity.stop()
         with self.lock:
@@ -4501,7 +4526,7 @@ class Agent:
         kind = depth.kind_of(text)
         if not kind or (kind != "news" and not self.use_model):
             return None
-        if kind != "news" and not self.store.setting("deep_mind", True):
+        if kind != "news" and not self._extra_look("deep_mind"):
             return None  # they turned deep thinking off for speed: just answer
         if kind == "news" and (PERSONAL_NEWS.search(lowered) or not self.integration_on("web_search") or self.rules.for_tool("web.search")[1] == "block"):
             return None
@@ -5307,7 +5332,7 @@ class Agent:
             if self.use_model and self.mode != "kids" and not checkable:
                 if mind.DEEP.search(lowered):
                     return self.deliberate(text, cancel_event)
-                if self.store.setting("deliberate", True) and self.store.setting("deep_mind", True) and mind.is_hard(text) \
+                if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) \
                         and not wants_message(text) and getattr(self, "_depth_mode", None) != "quick":
                     return self.deliberate(text, cancel_event)
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new |happening |going on |good |poppin |popping )?(?:on|in))\s+"
@@ -5461,7 +5486,7 @@ class Agent:
                     except (ValueError, ProviderError) as error:
                         return {"text": str(error)}
             from luma.agent.mind import MATTERS, without_disclaimers
-            if self.store.setting("deep_mind", True) and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
+            if self._extra_look("deep_mind") and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
             reply = self._keep_it_honest(reply, text, cancel_event)
             return {"text": without_disclaimers(reply, text)[:2000]}

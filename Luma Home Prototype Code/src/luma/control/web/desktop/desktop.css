@@ -2431,3 +2431,7 @@ body.live-on .chat-view .thread { padding-right: 296px; }  /* the conversation s
 @media (max-width: 720px) { .live-pip { width: 150px; right: 12px; top: 72px; } body.live-on .chat-view .thread { padding-right: 168px; } }
 
 .proj-video { display: block; width: 100%; max-height: 70vh; border-radius: 16px; background: #000; }
+
+/* the language picker in Settings > Voice */
+.item select.pick { font: 500 13px/1.2 var(--font); color: var(--ink); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; max-width: 46%; }
+.item select.pick:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }

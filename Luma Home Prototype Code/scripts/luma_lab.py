@@ -142,6 +142,116 @@ def speed(models, max_tokens=160):
     return {"brains": out, "pick": pick and pick["model"], "verdict": verdict}
 
 
+# ---------------------------------------------------------------- device ---
+# Luma on a stand-in for the $250-$400 device: the real conversation path (Luma's full instructions, turn after turn), with
+# the brain held to the cores a budget board has. The first turn reads everything; later turns only the newest exchange.
+DEVICE_TALK = ["ngl today was long, work was a lot", "what should i cook tonight? something easy", "lol okay and what about dessert",
+               "my sister's birthday is next week, what should i get her", "honestly i think i need a vacation"]
+SAY_FIRST = "Okay, so here's what I'd do tonight. Keep it simple and easy."
+
+
+def _median(values):
+    values = sorted(v for v in values if v is not None)
+    return round(values[len(values) // 2], 2) if values else None
+
+
+def _voice_timing(threads):
+    """How long a budget board takes to hear a short sentence and to say Luma's first one."""
+    out = {}
+    try:
+        import numpy as np
+        from kokoro_onnx import Kokoro
+        from luma.config import KOKORO_MODEL_PATH, KOKORO_VOICES_PATH
+        voice = Kokoro(str(KOKORO_MODEL_PATH), str(KOKORO_VOICES_PATH))
+        voice.create("Warm up.", voice="af_heart", speed=1.0, lang="en-us")
+        began = time.monotonic()
+        pcm, rate = voice.create(SAY_FIRST, voice="af_heart", speed=1.0, lang="en-us")
+        out["first_sentence_voice_seconds"] = round(time.monotonic() - began, 2)
+        out["first_sentence_audio_seconds"] = round(len(pcm) / rate, 2)
+        clip = np.interp(np.linspace(0, len(pcm), int(len(pcm) * 16000 / rate), endpoint=False), np.arange(len(pcm)), pcm).astype(np.float32)
+        from faster_whisper import WhisperModel
+        from luma.config import WHISPER_MODEL_SIZE
+        ears = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8", cpu_threads=threads,
+                            local_files_only=os.environ.get("LUMA_WHISPER_DOWNLOAD") != "1")
+        list(ears.transcribe(clip[:16000], beam_size=1, language="en")[0])
+        began = time.monotonic()
+        heard = " ".join(seg.text.strip() for seg in ears.transcribe(clip, beam_size=1, language="en", vad_filter=True)[0])
+        out["hearing_seconds"] = round(time.monotonic() - began, 2)
+        out["heard"] = heard[:120]
+        out["hearing_audio_seconds"] = round(len(clip) / 16000, 2)
+    except Exception as error:
+        out["voice_error"] = str(error)[:200]
+    return out
+
+
+def device(threads=4, label=None):
+    import resource
+    from luma.config import LLAMA_MODEL_PATH
+    path = Path(os.environ.get("LUMA_MODEL_PATH") or LLAMA_MODEL_PATH)
+    row = {"brain": label or path.name, "size_gb": round(path.stat().st_size / 1e9, 2), "threads": threads,
+           "add_on": bool(os.environ.get("LUMA_LORA_PATH")), "tier": os.environ.get("LUMA_DEVICE_TIER", "")}
+    from luma.llm import inference
+    began = time.monotonic()
+    inference._load_model()
+    row["load_seconds"] = round(time.monotonic() - began, 1)
+    lab = Profile(use_model=True)
+    turns = []
+    try:
+        for said in DEVICE_TALK:
+            result = lab.say(said)
+            reply = words_of(result)
+            words = len(reply.split())
+            turns.append({"said": said, "reply": reply[:200], "first_words": result["_first_words"], "seconds": result["_seconds"], "words": words,
+                          "words_per_second": round(words / max(0.05, result["_seconds"] - result["_first_words"]), 1) if words > 3 else None})
+            print(f"  {result['_first_words']:6.2f}s first words  {result['_seconds']:6.2f}s in all  {said[:48]!r} -> {reply[:70]!r}", flush=True)
+    finally:
+        lab.close()
+    row["turns"] = turns
+    row["first_words_first_turn"] = turns[0]["first_words"] if turns else None
+    row["first_words_later"] = _median(t["first_words"] for t in turns[1:])
+    row["words_per_second"] = _median(t["words_per_second"] for t in turns)
+    row.update(_voice_timing(threads))
+    row["peak_memory_gb"] = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2 ** 20, 2)  # kilobytes on Linux
+    if row.get("first_words_later") is not None and "hearing_seconds" in row:
+        row["first_sound_seconds"] = round(row["hearing_seconds"] + row["first_words_later"] + row["first_sentence_voice_seconds"], 2)
+    first = row.get("first_sound_seconds")
+    row["verdict"] = ("talks like a friend here" if first is not None and first <= 2.0 else
+                      "fine with thinking out loud covering the wait" if first is not None and first <= 4.0 else
+                      "too slow to talk with here: chat goes to the computer or the cloud brain")
+    print(f"{row['brain']}: load {row['load_seconds']}s, first words {row['first_words_first_turn']}s then {row['first_words_later']}s, "
+          f"{row['words_per_second']} words/s, peak memory {row['peak_memory_gb']} GB, first sound {first}s: {row['verdict']}", flush=True)
+    return row
+
+
+def device_summary(paths):
+    rows = []
+    for p in paths:
+        try:
+            rows.append(json.loads(Path(p).read_text())["device"])
+        except Exception:
+            continue
+    lines = ["## Luma on a $250-$400 device (stand-in: a cloud ARM machine held to 4 cores)", "",
+             "Real conversations through Luma's full instructions. *First sound* is hearing a short sentence, then the brain's first "
+             "words, then the voice saying Luma's first sentence: what you'd wait after you stop talking.", "",
+             "| Brain | Size | Peak memory | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in rows:
+        lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('first_words_first_turn')} s | "
+                     f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
+                     f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | {r.get('verdict')} |")
+    fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0]
+    best = max(fits, key=lambda r: r.get("size_gb") or 0) if fits else None
+    lines += ["", f"**The device's brain:** {best['brain']}, the biggest one that answers within 4 seconds of you stopping (thinking out loud covers the rest)."
+              if best else "**None of these talks fast enough here.** The device sends chat to the owner's computer or the cloud brain.",
+              "", "Cloud ARM cores are faster than a budget board's Cortex-A76 cores, so treat these as the best case and run the same "
+              "command on the board itself before choosing."]
+    for r in rows:
+        lines += ["", f"<details><summary>{r.get('brain')}: the conversation</summary>", ""]
+        lines += [f"- {t['first_words']} s / {t['seconds']} s: *{t['said']}* → {t['reply']}" for t in r.get("turns", [])]
+        lines += ["", "</details>"]
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------- honesty ---
 
 UNSURE = re.compile(r"\b(?:not sure|don'?t know|do not know|haven'?t (?:heard|seen|caught|listened|read|been)|not familiar|never heard|no idea|"
@@ -629,7 +739,9 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary"])
+    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary"])
+    parser.add_argument("--threads", type=int, default=4, help="processor cores the brain may use; device only")
+    parser.add_argument("--label", help="what to call this brain in the report; device only")
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -639,6 +751,9 @@ def main():
     args = parser.parse_args()
     if args.what == "summary":
         print(summary(args.reports))
+        return
+    if args.what == "device-summary":
+        print(device_summary(args.reports))
         return
     report = {"when": time.strftime("%Y-%m-%d %H:%M"), "brain": os.environ.get("LUMA_MODEL_PATH", "")}
 
@@ -664,6 +779,8 @@ def main():
     if slips is not None:
         report["language"] = slips.report()
         print(f"language: {slips.slips} small slips caught and fixed in {slips.replies} replies", flush=True)
+    if args.what == "device":
+        report["device"] = device(args.threads, args.label)
     if args.what in ("pulse", "all"):
         report["pulse"] = pulse()
     save()

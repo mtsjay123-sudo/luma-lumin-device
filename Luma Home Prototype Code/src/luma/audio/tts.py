@@ -175,9 +175,11 @@ def _resample(pcm, rate, target):
 def _samples(text, voice, should_stop, speed=None):
     _check_stop(should_stop)
     # The new expressive voice talks when it's ready; if it can't, the classic voice says the same words.
+    from luma.agent import language
+    code = language.of_reply(text)  # what this sentence is in: Luma's own lines are English even in a Spanish talk
     try:
         from luma.audio import natural
-        if natural.speaking():
+        if natural.speaking() and code == "en":  # the natural voices learned Luma's English voice
             pcm, rate = natural.voice().say(text)
             _check_stop(should_stop)
             return pcm, rate
@@ -197,8 +199,10 @@ def _samples(text, voice, should_stop, speed=None):
     try:
         _check_stop(should_stop)
         engine = _get_kokoro()
-        style = VOICE_PROFILES.get(voice, {}).get("voice", voice)
-        samples, rate = engine.create(text, voice=style, speed=speed, lang="en-us")
+        style, lang = VOICE_PROFILES.get(voice, {}).get("voice", voice), "en-us"
+        if code != "en":
+            style, lang = language.voice(code)  # Kokoro's own voice for that language
+        samples, rate = engine.create(text, voice=style, speed=speed, lang=lang)
     finally:
         _lock.release()
     _check_stop(should_stop)

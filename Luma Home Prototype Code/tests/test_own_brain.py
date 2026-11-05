@@ -81,6 +81,21 @@ class OwnBrainTests(unittest.TestCase):
         self.assertIsNone(inference.adapter_for(self.root / "Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"), "a LoRA on another model is noise")
         self.assertIsNone(inference.adapter_for(self.root / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"))
 
+    def test_the_device_brain_has_its_own_add_on(self):
+        small = self.root / "luma-brain-1.7b-lora.gguf"
+        small.write_bytes(b"GGUF")
+        inference.use_adapter(small)
+        self.assertEqual(inference.adapter_for(self.root / "Qwen_Qwen3-1.7B-Q4_K_M.gguf"), small)
+        self.assertIsNone(inference.adapter_for(self.root / BASE), "the 1.7B's add-on never goes on the 4B")
+        big = self.root / "luma-brain-lora.gguf"
+        big.write_bytes(b"GGUF")
+        inference.use_adapter(big)
+        self.assertIsNone(inference.adapter_for(self.root / "Qwen_Qwen3-1.7B-Q4_K_M.gguf"), "nor the 4B's on the 1.7B")
+        with mock.patch.object(brain, "LLAMA_MODEL_PATH", self.root / "Qwen_Qwen3-1.7B-Q4_K_M.gguf"):
+            self.assertEqual(brain.own_file(), "luma-brain-1.7b-lora.gguf")
+        with mock.patch.object(brain, "LLAMA_MODEL_PATH", self.root / BASE):
+            self.assertEqual(brain.own_file(), "luma-brain-lora.gguf")
+
     def test_an_add_on_that_wont_load_never_costs_luma_its_brain(self):
         model = self.root / BASE
         model.write_bytes(b"GGUF")
@@ -112,10 +127,11 @@ class ReleaseTests(unittest.TestCase):
     def test_a_brain_release_never_takes_latest_from_the_desktop_app(self):
         """The website's Download for Mac is releases/latest/download/Luma-mac-apple-silicon.dmg: a brain release marked
         latest (GitHub's default, by date) sends every visitor to a release with no app in it."""
-        workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "train-luma.yml").read_text()
-        create = [line for line in workflow.splitlines() if "gh release create" in line or "--notes-file" in line]
-        self.assertTrue(create)
-        self.assertIn("--latest=false", workflow.split('gh release create "luma-brain-', 1)[1].split("\n\n", 1)[0])
+        workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "train-luma.yml").read_text().splitlines()
+        creates = [i for i, line in enumerate(workflow) if "gh release create" in line]
+        self.assertTrue(creates)
+        for i in creates:
+            self.assertIn("--latest=false", " ".join(workflow[i:i + 2]), "every brain release")
         desktop = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "luma-desktop.yml").read_text()
         self.assertIn("--latest", desktop.split('gh release create "desktop-v', 1)[1].split("\n", 2)[1])
 

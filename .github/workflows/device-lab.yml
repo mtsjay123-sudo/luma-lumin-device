@@ -1,0 +1,85 @@
+# Luma on a stand-in for the $250-$400 device, in the cloud: an ARM machine held to 4 cores, with the brain built for the
+# instruction set a budget board's Cortex-A76 cores have (no SVE, no i8mm). It times real conversations through Luma's full
+# instructions, turn after turn, for each brain that could ship on the device, plus hearing a sentence and saying one, and
+# says which brain fits. Cloud ARM cores are faster than a $100 board's, so these are the best case; the same command runs
+# on the board itself (scripts/luma_lab.py device).
+name: Device lab
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "Luma Home Prototype Code/src/luma/llm/**"
+      - "Luma Home Prototype Code/src/luma/agent/language.py"
+      - "Luma Home Prototype Code/scripts/luma_lab.py"
+      - ".github/workflows/device-lab.yml"
+
+concurrency:
+  group: device-lab
+  cancel-in-progress: true
+
+jobs:
+  device:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    env:
+      TQDM_DISABLE: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      LUMA_THREADS: "4"
+      LUMA_DEVICE_TIER: budget   # what the device sets for itself: one trip through the brain per everyday turn
+      LUMA_WHISPER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The machine
+        run: nproc; free -g; lscpu | sed -n '1,20p'
+      - name: Luma's packages, with the brain built for a budget board's processor
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata \
+            "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7" "faster-whisper==1.2.1" "kokoro-onnx>=0.4,<1" huggingface_hub
+          CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
+            python -m pip install --no-binary llama-cpp-python "llama-cpp-python==0.3.23"
+      - name: The brains that could ship on the device, Luma's own add-on, and the voice
+        run: |
+          mkdir -p "$RUNNER_TEMP/brains" models/kokoro-82m
+          get() { curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/$1" "$2" || { echo "Couldn't download $1"; rm -f "$RUNNER_TEMP/brains/$1"; }; }
+          get Qwen_Qwen3-0.6B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+          get Qwen_Qwen3-1.7B-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
+          get Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          get luma-brain-lora.gguf "https://github.com/mtsjay123-sudo/luma-lumin-device/releases/download/luma-brain-4/luma-brain-lora.gguf"
+          K=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
+          curl -fsSL -o models/kokoro-82m/kokoro-v1.0.int8.onnx "$K/kokoro-v1.0.int8.onnx"
+          curl -fsSL -o models/kokoro-82m/voices-v1.0.bin "$K/voices-v1.0.bin"
+          ls -la "$RUNNER_TEMP/brains"
+      - name: Each brain, held to 4 cores
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab"
+          for name in Qwen_Qwen3-0.6B-Q4_K_M Qwen_Qwen3-1.7B-Q4_K_M Qwen_Qwen3-4B-Instruct-2507-Q4_K_M; do
+            f="$RUNNER_TEMP/brains/$name.gguf"
+            [ -f "$f" ] || continue
+            echo "== $name"
+            LUMA_MODEL_PATH="$f" timeout 30m taskset -c 0-3 python scripts/luma_lab.py device --threads 4 --save "$RUNNER_TEMP/lab/device-$name.json" || true
+          done
+          f="$RUNNER_TEMP/brains/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          if [ -f "$f" ] && [ -f "$RUNNER_TEMP/brains/luma-brain-lora.gguf" ]; then
+            echo "== Luma's own brain"
+            LUMA_MODEL_PATH="$f" LUMA_LORA_PATH="$RUNNER_TEMP/brains/luma-brain-lora.gguf" timeout 30m taskset -c 0-3 \
+              python scripts/luma_lab.py device --threads 4 --label "Luma's own brain (Qwen3 4B + luma-brain-4)" --save "$RUNNER_TEMP/lab/device-own.json" || true
+          fi
+      - name: Summary
+        if: always()
+        run: python scripts/luma_lab.py device-summary "$RUNNER_TEMP"/lab/device-*.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Luma-device-lab
+          path: ${{ runner.temp }}/lab
+          if-no-files-found: warn

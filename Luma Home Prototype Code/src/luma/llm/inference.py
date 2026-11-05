@@ -11,13 +11,27 @@ from zoneinfo import ZoneInfo
 from typing import Optional
 from luma.config import (LLAMA_MODEL_PATH, LLAMA_CONTEXT_SIZE, LLAMA_GPU_LAYERS,
                          LLAMA_THREADS, LLAMA_BATCH_SIZE, LLAMA_CHAT_FORMAT)
-from luma.llm.prompts import SYSTEM_PROMPT, build_plan_prompt, normalize_profile, proposal_schema
+from luma.llm.prompts import SYSTEM_PROMPT, build_plan_parts, build_plan_prompt, normalize_profile, proposal_schema
 
 _llm = None
 _llm_path = None
 _override = None  # a bigger model, once it's downloaded and verified (see luma.llm.brain)
-_adapter = None   # Luma's own brain: a LoRA add-on trained for Qwen3 4B Instruct 2507, applied on top of it (see luma.llm.brain)
+_adapter = None   # Luma's own brain: a LoRA add-on trained for the brain it runs on top of (see luma.llm.brain)
 ADAPTER_BASE = "Qwen3-4B-Instruct-2507"
+# The brains Luma trains its own add-on for, and the add-on's file: the 4B for computers and the $399 device, the 1.7B for
+# the $249 device (4 GB of memory holds it with room for hearing and the voice).
+ADAPTERS = {"Qwen3-4B-Instruct-2507": "luma-brain-lora.gguf", "Qwen3-1.7B": "luma-brain-1.7b-lora.gguf"}
+
+
+def base_of(model_path):
+    """Which of Luma's trained brains this model file is, or None."""
+    name = Path(model_path).name
+    return next((base for base in ADAPTERS if base in name), None)
+
+
+def adapter_base(adapter_path):
+    """The brain an add-on was trained for, from its name: the 1.7B's say so, the rest are the 4B's."""
+    return "Qwen3-1.7B" if "1.7b" in Path(adapter_path).name.lower() else ADAPTER_BASE
 _inference_lock = threading.RLock()
 
 
@@ -36,7 +50,7 @@ def use_adapter(path):
 def adapter_for(model_path):
     """The add-on to load with this model: only on the brain it was trained for (a LoRA on any other model is noise)."""
     chosen = _adapter or (Path(os.environ["LUMA_LORA_PATH"]) if os.environ.get("LUMA_LORA_PATH") else None)
-    if chosen and Path(chosen).is_file() and ADAPTER_BASE in Path(model_path).name:
+    if chosen and Path(chosen).is_file() and base_of(model_path) == adapter_base(chosen):
         return Path(chosen)
     return None
 
@@ -118,6 +132,22 @@ def fit_history(messages, token_count, budget):
     return recent
 
 
+def turn_layout(steady, this_turn, recent):
+    """The steady instructions first, then the conversation, then this turn's notes just before Luma answers. Turn after turn
+    the beginning stays the same (the instructions and every earlier message), so llama.cpp reads only the newest exchange
+    and this turn's notes instead of everything again."""
+    messages = [{"role": "system", "content": steady}] + list(recent)
+    if this_turn:
+        messages.append({"role": "system", "content": this_turn})
+    return messages
+
+
+def _template_refused(error):
+    """A chat template that won't take a second system message says so in its own words."""
+    said = f"{type(error).__name__} {error}".lower()
+    return "template" in said or "alternate" in said or ("system" in said and "role" in said)
+
+
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
     """Generate a constrained proposal; execution remains in the runtime. Runs in the brain's own process when Luma is serving."""
     from luma.llm import worker
@@ -129,8 +159,10 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
 
 def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
     profile = normalize_profile(profile)
-    now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat()
-    prompt = build_plan_prompt(memories, tools, mode, profile, now)
+    # To the minute: a time that changes every microsecond made every turn's instructions new.
+    now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat(timespec="minutes")
+    steady, this_turn = build_plan_parts(memories, tools, mode, profile, now)
+    prompt = steady + "\n\n" + this_turn
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
     if any({"slides", "sections", "cards"} & set(spec.get("fields", {}).values()) for spec in tools.values()):
         max_tokens = 1800  # a whole deck, document or set of cards in one constrained answer
@@ -141,11 +173,17 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
         recent = fit_history(messages, count, LLAMA_CONTEXT_SIZE - count(prompt) - max_tokens - 160)
         from luma.llm.streaming import ReplyTextStream
         stream = ReplyTextStream(on_text) if on_text is not None else None
-        raw = _complete(model, cancel_event, on_delta=stream.feed if stream else None,
-            messages=[{"role": "system", "content": prompt}] + recent,
-            response_format={"type": "json_object", "schema": proposal_schema(tools)},
-            max_tokens=max_tokens, temperature=0.45, top_p=0.9, repeat_penalty=1.08,
-        )
+        settings = dict(response_format={"type": "json_object", "schema": proposal_schema(tools)},
+                        max_tokens=max_tokens, temperature=0.45, top_p=0.9, repeat_penalty=1.08)
+        layout = turn_layout(steady, this_turn, recent)
+        try:
+            raw = _complete(model, cancel_event, on_delta=stream.feed if stream else None, messages=layout, **settings)
+        except Exception as error:
+            if not _template_refused(error):
+                raise
+            # A brain whose chat template takes one system message only: everything in it, the old way.
+            raw = _complete(model, cancel_event, on_delta=stream.feed if stream else None,
+                            messages=[{"role": "system", "content": prompt}] + recent, **settings)
     try:
         _check_cancel(cancel_event)
         result = json.loads(raw)

@@ -696,7 +696,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     from luma.orchestrator import SpeechStream, spoken_reply
                     event=agent.new_turn()
                     # Start talking at the first sentence while the model is still writing.
-                    stream=SpeechStream(agent,event,allow_muted=True) if data.get('voice') is True and not companion else None
+                    stream=SpeechStream(agent,event,allow_muted=True).think_out_loud(data.get('text')) if data.get('voice') is True and not companion else None
                     thread=data.get('thread') or 'main'
                     if not isinstance(thread,str): raise ValueError('Choose a chat.')
                     result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None,thread=thread)
@@ -727,6 +727,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
                     elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
                     elif key in {'think_first','deep_mind','deliberate','show_thoughts'} and type(value) is bool: agent.store.set_setting(key,value)
+                    elif key=='thinking_out_loud' and type(value) is bool: agent.store.set_setting(key,value)
+                    elif key=='language' and isinstance(value,str):
+                        from luma.agent import language
+                        agent.store.set_setting('language',language.configure(value))
                     else: raise ValueError('Unsupported setting')
                     result={'ok':True}
                 elif path=='/api/timers/start': result=agent.propose('timers.start',data)

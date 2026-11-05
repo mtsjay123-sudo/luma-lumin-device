@@ -3315,6 +3315,27 @@
     return it;
   }
 
+  // The language Luma talks in: English, whatever you speak (it follows you turn by turn), or one language.
+  function languageRow(current) {
+    const it = el("div", "item");
+    const g = el("div", "grow");
+    g.append(el("div", "title", "Language"), el("div", "sub", "“Follow me” answers in whatever language you speak, turn by turn, in a voice made for it."));
+    const pick = el("select", "pick");
+    pick.setAttribute("aria-label", "Language");
+    for (const [code, label] of [["en", "English"], ["auto", "Follow me"], ["es", "Español"], ["fr", "Français"], ["it", "Italiano"], ["pt", "Português"], ["hi", "हिन्दी"], ["ja", "日本語"], ["zh", "中文"]]) {
+      const o = el("option", "", label);
+      o.value = code;
+      if (code === current) o.selected = true;
+      pick.append(o);
+    }
+    pick.addEventListener("change", async () => {
+      try { await api("/api/setting", { key: "language", value: pick.value }); toast(pick.value === "auto" ? "Luma follows whatever language you speak." : "Luma talks in " + pick.selectedOptions[0].textContent + " now."); }
+      catch (e) { toast(e.message); }
+    });
+    it.append(g, pick);
+    return it;
+  }
+
   // ---------------------------------------------------------- settings ---
   function toggleRow(title, sub, on, onChange) {
     const it = el("div", "item");
@@ -3867,6 +3888,8 @@
     box.append(naturalVoiceRow());
     box.append(toggleRow("Stay in conversation", "Once you start talking, Luma keeps listening between replies, however long it takes, until you say “bye” or “that's all”. With this on it's listening as soon as you bring it up, no tapping.", voice.stay, (on) => setStay(on)));
     box.append(toggleRow("Say “mm-hm” while I talk", "When you talk for a while, Luma says a quiet “mm-hm” at your pauses so you know it's with you, like a friend listening. It never counts as something you said.", voice.mm, (on) => setMm(on)));
+    box.append(toggleRow("Think out loud", "When an answer takes a moment, Luma says a quick “hmm, let me think” or “let me check” so you know it heard you, the way a friend would.", s.thinking_out_loud !== false, (on) => api("/api/setting", { key: "thinking_out_loud", value: on })));
+    box.append(languageRow(s.language || "en"));
     box.append(toggleRow("Start with “Hey Luma”", "While Luma is open, just say “Hey Luma” to start talking. It listens for its name on this computer; nothing is kept or sent anywhere.", voice.wake, (on) => setWake(on)));
     if (!document.documentElement.classList.contains("in-app")) box.append(toggleRow("Listen for “Hey Luma”", "On the Luma device: talk out loud from across the room. The microphone stays off until you turn this on.", !s.microphone_muted, (on) => api("/api/setting", { key: "muted", value: !on })));
     box.append(toggleRow("Remember things I mention", "Small facts (your sister's birthday, your coffee order), encrypted on this computer.", s.presence?.learn_from_chat !== false, (on) => api("/api/setting", { key: "learn_from_chat", value: on })));

@@ -91,9 +91,16 @@ RELEASES = "https://api.github.com/repos/mtsjay123-sudo/luma-lumin-device/releas
 own_fetching = {"running": False, "error": None}
 
 
+def own_file():
+    """The add-on for the brain this computer runs: the 1.7B has its own (the $249 device), the rest use the 4B's."""
+    from luma.llm import inference
+    base = inference.base_of(getattr(inference, "_override", None) or LLAMA_MODEL_PATH)
+    return inference.ADAPTERS.get(base, OWN_FILE)
+
+
 def own_path():
     """The add-on file, if it's here."""
-    path = models_dir() / "luma-brain" / OWN_FILE
+    path = models_dir() / "luma-brain" / own_file()
     return path if path.is_file() else None
 
 
@@ -129,8 +136,9 @@ def fetch_own(opener=None):
         try:
             with get(RELEASES, 30) as response:
                 releases = json.loads(response.read(2_000_000))
+            wanted = own_file()
             pick = next(((r, a) for r in releases if str(r.get("tag_name", "")).startswith("luma-brain-") and not r.get("draft")
-                         for a in r.get("assets", []) if a.get("name") == OWN_FILE), None)
+                         for a in r.get("assets", []) if a.get("name") == wanted), None)
             if not pick:
                 own_fetching["error"] = "There's no trained Luma brain published yet."
                 return
@@ -142,9 +150,9 @@ def fetch_own(opener=None):
                 return
             folder = models_dir() / "luma-brain"
             folder.mkdir(parents=True, exist_ok=True)
-            part = folder / (OWN_FILE + ".part")
+            part = folder / (wanted + ".part")
             part.write_bytes(data)
-            part.replace(folder / OWN_FILE)
+            part.replace(folder / wanted)
             _store.set_setting("brain_own_release", release.get("tag_name"))
             _store.set_setting("brain_own", True)
             _apply_own()
@@ -365,6 +373,20 @@ def note_speed(tokens, seconds):
 def _median(values):
     ordered = sorted(values)
     return ordered[len(ordered) // 2] if ordered else 0.0
+
+
+SLOW = 15.0  # tokens a second: a brain slower than this answers in one trip (no think-first, weigh-it-out or second look)
+
+
+def slow_here():
+    """A brain that has to save its trips through the model: a $250 device says so itself (LUMA_DEVICE_TIER=budget), or this
+    computer timed the brain it's using below SLOW. The cloud brain thinks fast, so with it on nothing is slow."""
+    if cloud_on():
+        return False
+    if os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget":
+        return True
+    rate = speed().get("big" if inference_model_is_big() else "fast")
+    return bool(rate) and rate < SLOW
 
 
 def speed():
