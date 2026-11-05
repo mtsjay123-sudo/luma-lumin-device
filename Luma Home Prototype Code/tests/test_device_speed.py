@@ -306,17 +306,85 @@ class OneTripTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             store = Store(Path(root) / "s.db", Path(root) / "k")
             try:
+                from luma.agent.workflows import observation
                 agent = Agent(store=store, use_model=False)
+                # history keeps Luma's replies as its own JSON notes, the way a real turn leaves them
                 agent.history = [{"role": "user", "content": "lol okay and what about dessert"},
-                                 {"role": "assistant", "content": "Ngl, dessert? Maybe some cookies. Let me know what you think!"},
+                                 {"role": "assistant", "content": observation({"text": "Ngl, dessert? Maybe some cookies. Let me know what you think!"})},
                                  {"role": "user", "content": "my sister's birthday is next week"},
-                                 {"role": "assistant", "content": "Ngl, a gift? Maybe a nice snack. Let me know what you think!"}]
+                                 {"role": "assistant", "content": observation({"text": "Ngl, a gift? Maybe a nice snack. Let me know what you think!"})}]
                 note = agent._fresh_note()
                 self.assertIn("don't start with “Ngl” again", note, "the device lab's 1.7B, run 4")
                 self.assertIn("“Let me know what you think!”", note)
                 self.assertTrue(any(n.get("text") == note for n in agent._mind_context("honestly i think i need a vacation")))
-                agent.history[-1]["content"] = "A good book she'd actually read."
+                self.assertNotIn("text", note.split(":")[1][:20], "not the JSON's own keys")
+                agent.history[-1]["content"] = observation({"text": "A good book she'd actually read."})
                 self.assertIsNone(agent._fresh_note())
+            finally:
+                store.close()
+
+    def _talk(self, store):
+        from luma.agent.runtime import Agent
+        from luma.agent.workflows import observation
+        agent = Agent(store=store, use_model=True)
+        # a turn talks in its chat's own history (threads), so the earlier exchange goes there
+        agent.threads["main"] = agent.history = [{"role": "user", "content": "what should i cook tonight? something easy"},
+                                                 {"role": "assistant", "content": observation({"text": "Nah, something easy. Maybe a stir-fry or a pasta? You got the ingredients?"})}]
+        return agent
+
+    def test_an_earlier_reply_said_again_is_tried_once_more_not_said(self):
+        import tempfile
+        from pathlib import Path
+        from luma.llm import brain
+        from luma.memory.store import Store
+        stuck = {"type": "reply", "text": "Nah, something easy. Maybe a stir-fry or a pasta? You got the ingredients?"}
+        fresh = {"type": "reply", "text": "Brownies from a box. Ten minutes and you're done."}
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                store.set_setting("signed_up", True)
+                brain.init(store)
+                agent = self._talk(store)
+                seen = []
+                answers = [stuck, fresh]
+                with mock.patch.object(brain, "plan", side_effect=lambda m, c, *a, **k: seen.append(c) or answers.pop(0)), \
+                        mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget"}):
+                    out = agent.chat("lol okay and what about dessert")
+                self.assertEqual(out["text"], fresh["text"], "the device lab's 1.7B gave its cooking reply to four new messages")
+                self.assertEqual(len(seen), 2)
+                self.assertTrue(any("You already said this" in n.get("text", "") for n in seen[1]), "the second try is told what it said")
+                self.assertFalse(any("You already said this" in n.get("text", "") for n in seen[0]))
+                answers[:] = [stuck]
+                agent2 = self._talk(store)
+                with mock.patch.object(brain, "plan", side_effect=lambda *a, **k: answers.pop(0)), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget"}):
+                    self.assertEqual(agent2.chat("wait what did you say?")["text"], stuck["text"], "asked to say it again, the same words are right")
+            finally:
+                store.close()
+
+    def test_the_voice_never_starts_saying_an_earlier_reply(self):
+        import tempfile
+        from pathlib import Path
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                agent = self._talk(store)
+                agent._turn_text = "lol okay and what about dessert"
+                spoken = []
+                feed = agent._unless_said_before(spoken.append)
+                for piece in ["Nah, ", "something easy. ", "Maybe a stir-fry", " or a pasta?"]:
+                    feed(piece)
+                self.assertEqual(spoken, [], "the same opening and the same first sentence: nothing is said")
+                self.assertTrue(agent._streamed["blocked"])
+                feed = agent._unless_said_before(spoken.append)
+                for piece in ["Nah, ", "something sweet. ", "Brownies?"]:
+                    feed(piece)
+                self.assertEqual("".join(spoken), "Nah, something sweet. Brownies?", "same opening, new sentence: said, from the start")
+                spoken.clear()
+                feed = agent._unless_said_before(spoken.append)
+                feed("Brownies ")
+                feed("from a box.")
+                self.assertEqual("".join(spoken), "Brownies from a box.", "a new reply streams as soon as its first words differ")
             finally:
                 store.close()
 

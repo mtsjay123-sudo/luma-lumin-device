@@ -201,6 +201,10 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
                        r"tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 
 
+# They asked to hear it again: the same words are the right answer, not a repeat to stop.
+ASKED_AGAIN = re.compile(r"\b(?:say (?:that|it|this) again|repeat (?:that|it|yourself|what you said)|come again|what did you (?:just )?say|"
+                         r"what was that|(?:can|could) you say that|say it one more time|one more time)\b", re.I)
+
 # When something happens, not what to do: on its own ("ngl today was long", "what should i cook tonight") it isn't a job.
 WHEN_WORDS = re.compile(r"\b(?:past \d+|last \d+|\d+ ?(?:hrs?|hours?|mins?)|tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|"
                         r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
@@ -673,7 +677,10 @@ class Agent:
         """A friend doesn't open every reply with the same word or close each one with the same line. The device lab's 1.7B
         began five replies in a row with "Ngl," and ended three with "Let me know what you think!": when Luma's last two
         replies started or ended the same way, this turn is told to say it differently."""
-        said = [str(m.get("content") or "") for m in self.history if m.get("role") == "assistant"][-2:]
+        repeat, self._repeat_note = getattr(self, "_repeat_note", None), None
+        if repeat:
+            return repeat  # this turn's first answer was an earlier reply again
+        said = self._earlier_replies()[-2:]
         if len(said) < 2:
             return None
         asks = []
@@ -734,8 +741,78 @@ class Agent:
     def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
+        on_text = getattr(self, "_on_text", None)
+        self._streamed = None
         return brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
-                          on_text=getattr(self, "_on_text", None), tier=tier)
+                          on_text=self._unless_said_before(on_text) if on_text else None, tier=tier)
+
+    def _earlier_replies(self, pairs=False):
+        """What Luma said earlier in this conversation, as said (history keeps each reply as Luma's own JSON note). pairs=True:
+        (what they'd asked, what Luma said)."""
+        out, asked = [], ""
+        for m in self.history[:-1] if self.history and self.history[-1].get("role") == "user" else self.history:
+            if m.get("role") == "user":
+                asked = str(m.get("content") or "")
+                continue
+            if m.get("role") != "assistant":
+                continue
+            said = str(m.get("content") or "")
+            try:
+                data = json.loads(said)
+                said = data.get("text") if isinstance(data, dict) and isinstance(data.get("text"), str) else said
+            except ValueError:
+                pass
+            if said.strip():
+                out.append((asked, said))
+        return out if pairs else [said for _, said in out]
+
+    @staticmethod
+    def _alike(a, b, enough=0.7):
+        x, y = set(_words(a).split()), set(_words(b).split())
+        return bool(x and y) and len(x & y) / len(x | y) >= enough
+
+    def _repeatable(self):
+        """Earlier replies it would be wrong to give again: ones that answered a different message (the same question twice can
+        get the same answer)."""
+        now = getattr(self, "_turn_text", "") or ""
+        return [said for asked, said in self._earlier_replies(pairs=True)[-6:] if not (now and self._alike(asked, now))]
+
+    def _said_before(self, reply):
+        """The earlier reply this one repeats (nearly word for word), or None."""
+        if len(_words(reply).split()) < 4:
+            return None
+        return next((said for said in reversed(self._repeatable()) if self._alike(reply, said)), None)
+
+    def _unless_said_before(self, on_text):
+        """The voice speaks a reply as it streams. One that opens like an earlier reply waits for its first sentence; if that's
+        the earlier reply's too, nothing is said, and the turn tries again (above). Everything else streams as before."""
+        earlier = [] if getattr(self, "_asked_again", False) else [_words(said) for said in self._repeatable()]
+        self._streamed = state = {"held": "", "open": not earlier, "spoken": False, "blocked": False}
+
+        def feed(piece):
+            if state["open"]:
+                state["spoken"] = state["spoken"] or bool(str(piece).strip())
+                return on_text(piece)
+            if state["blocked"]:
+                return None
+            state["held"] += str(piece)
+            words = _words(state["held"]).split()
+            if len(words) < 3:
+                return None
+            if not any(e.split()[:3] == words[:3] for e in earlier):
+                state["open"] = True
+            else:
+                end = re.search(r"[.!?…](?:\s|$)", state["held"])
+                if not end and len(state["held"]) < 160:
+                    return None
+                first = set(_words(state["held"][:end.end() if end else 160]).split())
+                if any(first and len(first & set(e.split()[:len(first) + 4])) / len(first) >= 0.8 for e in earlier):
+                    state["blocked"] = True
+                    return None
+                state["open"] = True
+            state["spoken"] = True
+            return on_text(state["held"])
+        return feed
 
     def enable(self, service, value):
         if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser", "mail", "calendar", "connectors"}: raise ValueError("Unknown integration.")
@@ -3982,6 +4059,8 @@ class Agent:
             if event.is_set(): return {"state":"interrupted", "text":"Stopped before starting."}
             self.busy = True
             self._on_text = on_text
+            self._repeat_note, self._asked_again = None, bool(ASKED_AGAIN.search(text))  # "say that again": then the same words are right
+            self._turn_text = text
             self.history.append({"role":"user", "content":text.strip()})
             self.history = self.history[-20:]
             if self.mode != "kids" and self.last_reply and not agent_mode:
@@ -5545,6 +5624,12 @@ class Agent:
             # "..." or "<your own words ...>" copied from the format line is no reply either (small brains do that)
             if not isinstance(reply, str) or not reply.strip(" \t\n.…-—–_*\"'") or re.fullmatch(r"\s*<[^<>]{0,80}>\s*", reply):
                 raise ValueError("Local model returned no usable reply.")
+            again = None if getattr(self, "_asked_again", False) else self._said_before(reply)
+            if again and not (getattr(self, "_streamed", None) or {}).get("spoken"):
+                # An earlier reply word for word, to a new message (the device lab's small brains, four times in a row): not an
+                # answer. One more try, told what it already said; the voice hasn't said it, so nobody hears it twice.
+                self._repeat_note = f"You already said this earlier in the talk: “{again[:160]}”. Answer their newest message, in new words."
+                raise ValueError("Local model returned no usable reply (it said an earlier reply again).")
             if self.mode != "kids" and DENIES.search(reply):
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.
                 instead = self._instead_of_no(text, lowered, reply, cancel_event)
