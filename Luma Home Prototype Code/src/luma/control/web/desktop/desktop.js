@@ -5324,7 +5324,27 @@
         card.append(el("span", null, memEmoji(m.text)), document.createTextNode(m.text));
         mems.append(card);
       });
-      f.append(mems, go("Start talking →"));
+      f.append(mems);
+      // A big Mac starts on the small brain: offer the one it has room for, right here, one tap.
+      const L = state.home?.brain?.local || {};
+      if (L.big_fits && !L.big_ready && L.fetching == null) {
+        const gb = L.ram_gb || 0, studio = gb >= 128;
+        const name = studio ? (gb >= 192 ? "Qwen3.5 397B" : "Qwen3 235B") : (L.big_name || "my bigger brain");
+        const offer = el("div", "su-brain");
+        const words = el("div", "su-brain-t");
+        words.append(el("b", null, `Your Mac has ${gb} GB. That's room for my ${studio ? "studio" : "bigger"} brain.`),
+          el("span", null, `${name}: a lot smarter, still private, every word stays on this Mac. ${studio ? "About 90 GB" : "About 20 to 30 GB"}, once, in the background.`));
+        const get = el("button", "su-brain-go", "Get it");
+        get.type = "button";
+        get.addEventListener("click", async () => {
+          get.disabled = true;
+          try { await api("/api/brain", { action: "get_bigger" }); get.textContent = "Getting it"; offer.classList.add("on"); }
+          catch (e) { get.disabled = false; suErr(e.message); }
+        });
+        offer.append(words, get);
+        f.append(offer);
+      }
+      f.append(go("Start talking →"));
     }
     f.addEventListener("submit", (e) => { e.preventDefault(); suNext(); });
     setTimeout(() => f.querySelector("input:not([type=hidden]), select")?.focus(), 60);

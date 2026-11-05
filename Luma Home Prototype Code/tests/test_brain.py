@@ -278,6 +278,43 @@ class BiggerLocalBrainTests(unittest.TestCase):
         self.assertIsNone(brain.pick_parts(files, 128))
         self.assertEqual(brain.big_label(Path("/m/Qwen3.5-397B-A17B-UD-Q4_K_XL-00001-of-00005.gguf")), "Qwen3.5 397B")
 
+    def test_a_64_gb_mac_gets_qwen36_when_its_engine_can_run_it(self):
+        files = [{"path": f"Qwen3.6-35B-A3B-{q}.gguf", "size": int(gb * 1e9)}
+                 for q, gb in [("Q8_0", 37.2), ("Q6_K", 28.9), ("Q5_K_M", 24.9), ("Q4_K_M", 21.4), ("IQ4_XS", 18.9), ("Q3_K_M", 16.9)]]
+        files += [{"path": "Qwen3.6-35B-A3B-UD-Q6_K_XL.gguf", "size": int(30e9)}, {"path": "mmproj-F16.gguf", "size": int(0.9e9)}]
+        self.assertEqual(brain.pick(files, 64)["path"], "Qwen3.6-35B-A3B-Q6_K.gguf", "the best quality in half of 64 GB")
+        self.assertEqual(brain.pick(files, 48)["path"], "Qwen3.6-35B-A3B-Q5_K_M.gguf")
+        self.assertEqual(brain.pick(files, 36)["path"], "Qwen3.6-35B-A3B-IQ4_XS.gguf")
+        self.assertEqual(brain.pick(files, 32)["path"], "Qwen3.6-35B-A3B-Q3_K_M.gguf")
+        with mock.patch.object(brain, "engine", return_value=(0, 3, 36)):
+            self.assertEqual(brain.bigger_repos()[0], "unsloth/Qwen3.6-35B-A3B-GGUF")
+            self.assertEqual(brain.bigger_name(), "Qwen3.6 35B")
+        for old in [(0, 3, 16), ()]:  # an engine that doesn't know Qwen3.5's design, or none at all: the 30B, which always loads
+            with mock.patch.object(brain, "engine", return_value=old):
+                self.assertTrue(brain.bigger_repos())
+                self.assertFalse(any("Qwen3.6" in r for r in brain.bigger_repos()))
+                self.assertEqual(brain.bigger_name(), "Qwen3 30B")
+        with mock.patch("importlib.metadata.version", return_value="0.3.36"):
+            self.assertEqual(brain.engine(), (0, 3, 36))
+        self.assertEqual(brain.big_label(Path("/m/Qwen3.6-35B-A3B-Q6_K.gguf")), "Qwen3.6 35B")
+        self.assertEqual(brain.big_label(Path("/m/Qwen3-235B-A22B-Instruct-2507-UD-Q3_K_XL-00001-of-00003.gguf")), "Qwen3 235B")
+        self.assertEqual(brain.big_label(Path("/m/Qwen_Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf")), "Qwen3 30B")
+
+    def test_a_mac_with_the_30b_can_move_up_to_the_35b(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(brain, "models_dir", return_value=Path(d)), \
+                mock.patch.object(brain, "ram_gb", return_value=64), mock.patch.object(brain, "status", return_value={}), \
+                mock.patch.object(brain.threading, "Thread") as thread:
+            old = Path(d) / "Qwen_Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+            old.write_bytes(b"GGUF")
+            (Path(d) / (old.name + ".ok")).write_text("x")
+            with mock.patch.object(brain, "engine", return_value=(0, 3, 16)):
+                brain.fetch_bigger()
+                thread.assert_not_called()
+            with mock.patch.object(brain, "engine", return_value=(0, 3, 36)):
+                brain.fetch_bigger()
+                thread.assert_called_once()
+            brain.fetching["running"] = False
+
     def test_small_computers_are_pointed_at_the_cloud_brain(self):
         with mock.patch.object(brain, "ram_gb", return_value=16):
             with self.assertRaisesRegex(ValueError, "cloud brain"):

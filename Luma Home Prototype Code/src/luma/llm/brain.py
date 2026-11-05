@@ -2,9 +2,9 @@
 
 Three choices, all behind the same plan/rewrite calls the runtime already uses:
   • the small local model (Qwen3 4B), always there;
-  • a bigger local model (Qwen3 30B-A3B, a mixture-of-experts that thinks like a big
-    model but runs at the speed of a 3B one) for computers with the memory for it,
-    downloaded once, checked against its published SHA-256;
+  • a bigger local model (Qwen3.6 35B-A3B, or Qwen3 30B-A3B where the brain engine is too old for it: a
+    mixture-of-experts that thinks like a big model but runs at the speed of a 3B one) for computers with
+    the memory for it, downloaded once, checked against its published SHA-256;
   • on a computer with a lot of memory (a Mac Studio), a much bigger mixture-of-experts
     (Qwen3.5 397B-A17B, or Qwen3 235B-A22B), the same way, in as many pieces as it ships in;
   • the huge brain, on a big Mac (a Mac Studio): an open model of hundreds of billions of parameters
@@ -20,16 +20,22 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import threading
 import urllib.request
 
 from luma.config import LLAMA_MODEL_PATH
 from luma.llm import colibri
 
-# Tried in order; whichever has the files answers. The quant is picked to fit this computer's memory.
-BIG_REPOS = ["bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF", "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
-             "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-GGUF"]
-QUANTS = ["Q4_K_M", "IQ4_XS", "Q3_K_L", "Q3_K_M", "IQ3_M", "IQ3_XS"]  # best first
+# Tried in order; whichever has the files answers. The quant is picked to fit this computer's memory. Qwen3.6 35B-A3B
+# (April 2026, Apache 2.0) first: a 64 GB Mac talks with it at full speed. It's built like Qwen3.5, so it needs a brain
+# engine that knows that design (llama-cpp-python 0.3.36 carries it); with an older one, Qwen3 30B-A3B, which every
+# engine runs, so the bigger brain always loads.
+NEW_REPOS = ["unsloth/Qwen3.6-35B-A3B-GGUF", "bartowski/Qwen_Qwen3.6-35B-A3B-GGUF", "lmstudio-community/Qwen3.6-35B-A3B-GGUF"]
+BIG_REPOS = NEW_REPOS + ["bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF", "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+                         "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-GGUF"]
+NEW_ENGINE = (0, 3, 36)
+QUANTS = ["Q6_K", "Q5_K_M", "Q4_K_M", "IQ4_XS", "Q3_K_L", "Q3_K_M", "IQ3_M", "IQ3_XS"]  # best first
 MIN_RAM_GB = 24
 # A Mac Studio's worth of memory: the biggest open brains that still run here, best first. A repo that isn't
 # there is skipped; the quant is the best whose pieces fit in about 70% of memory (the rest is the OS and context).
@@ -53,12 +59,30 @@ def models_dir():
     return LLAMA_MODEL_PATH.parent
 
 
+def engine():
+    """The brain engine's version, read without loading it: (0, 3, 36), or () if it isn't installed."""
+    try:
+        from importlib.metadata import version
+        return tuple(int(x) for x in re.findall(r"\d+", version("llama-cpp-python"))[:3])
+    except Exception:
+        return ()
+
+
+def bigger_repos():
+    """The bigger brains this computer's engine can run, best first."""
+    return BIG_REPOS if engine() >= NEW_ENGINE else [r for r in BIG_REPOS if r not in NEW_REPOS]
+
+
+def bigger_name():
+    return "Qwen3.6 35B" if engine() >= NEW_ENGINE else "Qwen3 30B"
+
+
 def big_model_path():
     """The biggest verified local model here: a studio brain if there is one, else the 30B."""
     folder = models_dir()
     if not folder.is_dir():
         return None
-    for pattern in ("*397B*.gguf", "*235B*.gguf", "*30B-A3B*.gguf"):
+    for pattern in ("*397B*.gguf", "*235B*.gguf", "*35B-A3B*.gguf", "*30B-A3B*.gguf"):
         for path in sorted(folder.glob(pattern)):
             if (path.parent / (path.name + ".ok")).exists():
                 return path
@@ -68,7 +92,8 @@ def big_model_path():
 def big_label(path=None):
     path = path or big_model_path()
     name = path.name if path else ""
-    return "Qwen3.5 397B" if "397B" in name else "Qwen3 235B" if "235B" in name else "Qwen3 30B"
+    return ("Qwen3.5 397B" if "397B" in name else "Qwen3 235B" if "235B" in name else "Qwen3.6 35B" if "35B-A3B" in name
+            else "Qwen3 30B")
 
 
 def pick_parts(files, gb, quants=STUDIO_QUANTS, share=0.7):
@@ -377,7 +402,7 @@ def status():
                   "model": cloud_model(), "provider": provider(), "models": cloud_models(),
                   "last_error": (_store.setting("brain_cloud_error") if _store else None)},
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb), "using_big": using_big,
-                  "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else "Qwen3 30B"),
+                  "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else bigger_name()),
                   "studio": gb >= STUDIO_RAM_GB and not (big and ("397B" in big.name or "235B" in big.name)),
                   "fetching": progress(), "fetch_error": fetching["error"],
                   "speed": measured, "keeps_up": (measured.get("big" if using_big else "fast", KEEPS_UP) >= KEEPS_UP),
@@ -607,7 +632,8 @@ def pick(files, gb):
 def fetch_bigger():
     have = big_model_path()
     studio_ready = have and ("397B" in have.name or "235B" in have.name)
-    if fetching["running"] or studio_ready or (have and ram_gb() < STUDIO_RAM_GB):
+    upgrade = have is not None and "30B-A3B" in have.name and engine() >= NEW_ENGINE  # the 30B, and the 35B runs here now
+    if fetching["running"] or studio_ready or (have and ram_gb() < STUDIO_RAM_GB and not upgrade):
         return status()
     if ram_gb() < MIN_RAM_GB:
         raise ValueError(f"The bigger brain needs a computer with at least {MIN_RAM_GB} GB of memory; this one has {round(ram_gb())} GB. "
@@ -669,7 +695,7 @@ def _fetch():
             _apply_local()
             return
         choice, repo = None, None
-        for repo in BIG_REPOS:
+        for repo in bigger_repos():
             try:
                 with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/api/models/{repo}/tree/main", headers=UA), timeout=30) as r:
                     choice = pick(json.load(r), ram_gb())
