@@ -13,7 +13,8 @@ checks the result before anything changes:
   2. a LoRA add-on on Qwen3 4B Instruct 2507 (the brain Luma ships and the one the device runs): rank 16, every layer,
      only Luma's words learned (mask_prompt), a cosine schedule over the whole run;
   3. the stock brain and the trained one answer the held-out conversations, judged by train_luma.judge: numbers that
-     weren't in what was found, made-up or wrong slang meanings, a sentence said over and over, one reply to everything;
+     weren't in what was found, made-up or wrong slang meanings, a sentence said over and over, a brush-off when they
+     asked for ideas, one reply to everything;
   4. the add-on is rewritten as a PEFT adapter and converted with llama.cpp into the one small GGUF file Luma loads on top
      of the brain it already has, and installed only if it's at least as honest as the stock brain on every check.
 """

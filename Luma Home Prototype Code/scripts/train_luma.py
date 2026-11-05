@@ -10,7 +10,8 @@ Runs on an NVIDIA GPU, an Apple Silicon GPU, or plain CPUs (slowly: GitHub's fre
 Only the assistant's words are learned (the question is context, not a target). The add-on is saved every few
 minutes, so a run that's stopped still leaves what it learned. Then:
   - eval.json: the stock brain and the trained one on held-out conversations, judged by Luma's own checks
-    (numbers that aren't in what was found, made-up or wrong slang meanings, a sentence said over and over, length);
+    (numbers that aren't in what was found, made-up or wrong slang meanings, a sentence said over and over, an earlier
+    reply said again, a brush-off when they asked for ideas, length);
   - adapter/: the LoRA, which scripts convert to one small GGUF file Luma loads on top of the brain it already has.
 """
 from __future__ import annotations
@@ -90,6 +91,39 @@ CLAIMS_MEANING = re.compile(r"\b(?:it )?means\b|\bit'?s (?:when|what you say|a w
                             re.I)
 
 
+# Asked for ideas, not a fact to look up: "what should i cook", "gift ideas?", "what about dessert". ("i need a vacation" is
+# them talking: a warm question back is a fine reply to that, "Okay." isn't.)
+ADVICE_ASK = re.compile(r"\b(?:what should (?:i|we)|what (?:can|do) (?:i|we)|what about (?!you\b|u\b|yours?\b|it\b|that\b)|any ideas|ideas\b|"
+                        r"recs?\b|recommend|suggest|how (?:do|can|should) (?:i|we)|help me|what to (?:get|cook|make|eat|wear|watch|do|say|text))", re.I)
+# An idea put as a question still helps: "How about a mug cake?", "Maybe ice cream?", "Ever tried...?", "Pasta or a wrap?"
+SUGGESTS = re.compile(r"\b(?:maybe|tr(?:y|ied|ying)|how about|what about (?:a|an|some|the)|why not|or (?:a|an|some)|go for|pick)\b", re.I)
+# Stepping around it: "I'm not sure what you like.", "No idea, honestly."
+DEFLECTS = re.compile(r"don't know|not sure|no idea|hard to say|up to you|can't (?:help|say)", re.I)
+# Nothing more to say, so a word or two back is right: "thanks!", "ok cool", "night!"
+SIGN_OFF = re.compile(r"^\W*(?:thanks?|thank you|thx|ty|ok(?:ay)?|cool|bye|night|good ?night|see (?:ya|you)|later|lol|haha)\b", re.I)
+
+
+def brushed_off(user, reply):
+    """A reply that leaves them with nothing: a word or two ("Okay.") to something they said, or, when they asked for
+    ideas, not one idea: only short bits, questions back and "not sure" ("What's your go-to dessert?"), or "I won't guess"
+    (an idea isn't a fact to guess). Luma's own small brain did all three in the device lab's run 9."""
+    if "[What your web search found" in user:
+        return False
+    if len(reply.split()) <= 2:
+        return not (SIGN_OFF.search(user) and "?" not in user)
+    if not ADVICE_ASK.search(user):
+        return False
+    if re.search(r"won't guess|rather not guess", reply, re.I):
+        return True
+    if SUGGESTS.search(reply):
+        return False
+
+    def gives_nothing(sentence):
+        words = len(sentence.split())
+        return sentence.rstrip(" )\"'”’").endswith("?") or words <= 3 or (words <= 8 and bool(DEFLECTS.search(sentence)))
+    return all(gives_nothing(s) for s in re.split(r"(?<=[.!?])\s+", reply.strip()) if s)
+
+
 def repeats(reply):
     """A sentence said twice or more in one reply, or nearly ("I'm a movie critic. I'm not a movie critic."): the brain stuck in
     a loop ("It's slang from the internet. It's slang from...")."""
@@ -115,7 +149,7 @@ def judge(row, reply):
     from luma.agent import grounding
     user = row["messages"][-2]["content"]  # the newest message: a conversation can have earlier exchanges
     out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply),
-           "said_before": said_before(row, reply)}
+           "said_before": said_before(row, reply), "brushed_off": brushed_off(user, reply)}
     if "[What your web search found" in user:
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
@@ -144,6 +178,7 @@ def summarize(rows, replies, label):
                "wrong_slang_meanings": sum(s["wrong_meaning"] for s in scores),
                "loops": sum(s["loop"] for s in scores),
                "said_before": sum(s.get("said_before", False) for s in scores),
+               "brushed_off": sum(s.get("brushed_off", False) for s in scores),
                "same_reply": max(collections.Counter(s["reply"] for s in scores).values(), default=0),
                "avg_words": round(sum(s["words"] for s in scores) / n, 1)}
     print(json.dumps(summary), flush=True)
@@ -157,6 +192,8 @@ def held_out(rows, n):
     picks += [r for r in rows if len(r["messages"]) == 3 and re.search(r"don't know|Never heard|new to me|no idea", r["messages"][2]["content"])][: n // 6]
     picks += [r for r in rows if len(r["messages"]) == 3 and r["messages"][2]["content"].startswith("It means ")][: n // 6]
     picks += [r for r in rows if len(r["messages"]) > 3][: n // 6]  # a second message, after an earlier exchange
+    picks += [r for r in rows if len(r["messages"]) == 3 and r not in picks and ADVICE_ASK.search(r["messages"][1]["content"])
+              and "[What your web search found" not in r["messages"][1]["content"]][: n // 6]  # asked for ideas
     picks += [r for r in rows if r not in picks][: n - len(picks)]
     return picks
 
@@ -169,6 +206,7 @@ def honest_enough(before, after):
             and after.get("wrong_slang_meanings", 0) <= before.get("wrong_slang_meanings", 0)
             and after.get("loops", 0) == 0
             and after.get("said_before", 0) <= before.get("said_before", 0)
+            and after.get("brushed_off", 0) <= before.get("brushed_off", 0)
             and after.get("same_reply", 0) <= max(2, after["replies"] // 4))
 
 

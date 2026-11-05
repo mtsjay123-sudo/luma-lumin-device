@@ -123,6 +123,53 @@ class FinetuneDataTests(unittest.TestCase):
                         "the device lab's own-brain reply to 'what about dessert'")
         self.assertFalse(train.judge(row, "Brownies from a box, ten minutes, done.")["said_before"])
 
+    def test_asked_for_ideas_it_helps_first(self):
+        rows = finetune_data.advice_examples(random.Random(3))
+        self.assertGreater(len(rows), 150)
+        self.assertEqual(len({user["content"] for user, _ in rows}), sum(len(asks) for asks, _ in finetune_data.ADVICE))
+        for user, luma in rows:
+            reply = luma["content"]
+            self.assertGreaterEqual(len(reply.split()), 8, reply)
+            self.assertNotRegex(reply, r"won't guess|rather not guess|don't know", "an idea isn't a fact to guess")
+            self.assertLessEqual(reply.count("?"), 1, "at most one short question, after the ideas")
+            self.assertFalse(reply.rstrip().endswith("?") and len(re.split(r"(?<=[.!?])\s+", reply)) == 1, ("ideas first", reply))
+            self.assertNotRegex(reply, r"\$\d|\d+ dollars", "ideas, not prices to look up")
+        self.assertTrue(any(user["content"] == "lol okay and what about dessert" for user, _ in rows))
+        self.assertTrue(any(r["messages"][1]["content"] == "honestly i think i need a vacation" for r in self.rows))
+
+    def test_the_release_check_catches_a_brush_off(self):
+        """Luma's own small brain in the device lab's run 9, and the stock brains' replies to the same messages."""
+        spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
+        train = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(train)
+
+        def row(said):
+            return {"messages": [{"role": "system", "content": ""}, {"role": "user", "content": said}, {"role": "assistant", "content": "x"}]}
+
+        sister, dessert, vacation = (row("my sister's birthday is next week, what should i get her"), row("lol okay and what about dessert"),
+                                     row("honestly i think i need a vacation"))
+        self.assertTrue(train.judge(vacation, "Okay.")["brushed_off"])
+        self.assertTrue(train.judge(dessert, "What's your go-to dessert?")["brushed_off"])
+        self.assertTrue(train.judge(sister, "Sister, what's one thing you'd do for her?")["brushed_off"])
+        self.assertTrue(train.judge(sister, "I don't know her that well, so I won't guess. What's she into?")["brushed_off"],
+                        "luma-brain-4's answer: a gift idea isn't a fact to guess")
+        self.assertTrue(train.judge(dessert, "Ooh, fun! I'm not sure what you like. Sweet or salty?")["brushed_off"])
+        for said, reply in [(sister, "Dude, you should get her something she's into. If she's into tech, maybe a smartwatch or a keyboard."),
+                            (dessert, "Ice cream in a bowl? Or just go full chaotic and make a chocolate chip cookie with half the sugar. You pick."),
+                            (dessert, "Ice cream, or a cookie with a side of milk. Pick one."),
+                            (row("what should i cook tonight? something easy"), "Pasta with a side salad and bread? Simple, good for the whole family."),
+                            (dessert, "How about a mug brownie?"),
+                            (vacation, "I believe it. What's the one thing you'd do if you could go anywhere?"),
+                            (vacation, "Yeah. You need a vacation. Let me know how you feel about it."),
+                            (row("thanks luma!"), "Anytime!"),
+                            (row("ngl today was long, work was a lot"), "I believe it. What went wrong, and what went right?")]:
+            self.assertFalse(train.judge(said, reply)["brushed_off"], reply)
+        fine = {"replies": 24, "unbacked_numbers": 0, "made_up_slang_meanings": 0, "wrong_slang_meanings": 0, "loops": 0, "same_reply": 3,
+                "brushed_off": 0}
+        self.assertFalse(train.honest_enough(fine, {**fine, "brushed_off": 1}), "never more brush-offs than the stock brain")
+        held = train.held_out(train.conversations(), 24)
+        self.assertGreaterEqual(sum(bool(train.ADVICE_ASK.search(r["messages"][1]["content"])) for r in held), 4, "some held-out asks for ideas")
+
     def test_every_number_in_a_lookup_answer_is_in_what_was_found(self):
         rows = finetune_data.grounded_examples(random.Random(4), n=150)
         for user, luma in rows:

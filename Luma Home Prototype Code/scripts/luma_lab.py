@@ -25,7 +25,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
+sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests"), str(ROOT / "scripts")]
 HUB = ROOT / "tests" / "fixtures" / "mcp" / "apps_hub.py"
 
 # ---------------------------------------------------------------- the agent, fresh each time ---
@@ -162,11 +162,15 @@ def _same_reply(a, b):
     return bool(wa and wb) and (len(wa & wb) / len(wa | wb) >= 0.7 or (len(ca) >= 5 and len(ca & cb) / len(ca) >= 0.85))
 
 
-def missed(reply, earlier):
-    """Why a reply doesn't answer the message it was given: Luma's fallback line, or an earlier reply said again."""
+def missed(reply, earlier, said=""):
+    """Why a reply doesn't answer the message it was given: Luma's fallback line, an earlier reply said again, or nothing
+    to go on ("Okay.", or only a question back when they asked for ideas: the release check Luma's own brains train under)."""
+    from train_luma import brushed_off
     if not reply.strip() or FELL_BACK.search(reply):
         return "fell back"
-    return "said an earlier reply again" if any(_same_reply(reply, e) for e in earlier) else None
+    if any(_same_reply(reply, e) for e in earlier):
+        return "said an earlier reply again"
+    return "brushed them off" if said and brushed_off(said, reply) else None
 
 
 def repeats_itself(replies):
@@ -246,7 +250,7 @@ def device(threads=4, label=None):
             words = len(reply.split())
             turns.append({"said": said, "reply": reply[:200], "first_words": result["_first_words"], "seconds": result["_seconds"], "words": words,
                           "words_per_second": round(words / max(0.05, result["_seconds"] - result["_first_words"]), 1) if words > 3 else None,
-                          "missed": missed(reply, earlier)})
+                          "missed": missed(reply, earlier, said)})
             if turns[-1]["missed"]:
                 turns[-1]["brain_wrote"] = str(inference.last["raw"])[:300]  # what the brain itself wrote, to see why
             earlier.append(reply)
