@@ -84,15 +84,28 @@ def repeats(reply):
     return len(said) != len(set(said))
 
 
+def said_before(row, reply):
+    """The reply is one Luma already gave earlier in this conversation (or nearly): answering an old message, not the newest."""
+    mine = _content(reply)
+    for m in row["messages"][1:-1]:
+        if m["role"] == "assistant":
+            theirs = _content(m["content"])
+            if mine and theirs and len(mine & theirs) / len(mine | theirs) >= 0.7:
+                return True
+    return False
+
+
 def judge(row, reply):
-    """Luma's own checks on one reply: numbers not in what was found, a made-up slang meaning, a wrong one, a loop, how long it ran."""
+    """Luma's own checks on one reply: numbers not in what was found, a made-up slang meaning, a wrong one, a loop, a reply
+    it already gave earlier in the talk, how long it ran."""
     from luma.agent import grounding
-    user = row["messages"][1]["content"]
-    out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply)}
+    user = row["messages"][-2]["content"]  # the newest message: a conversation can have earlier exchanges
+    out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply),
+           "said_before": said_before(row, reply)}
     if "[What your web search found" in user:
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
-    expected = row["messages"][2]["content"]
+    expected = row["messages"][-1]["content"]
     if re.search(r"don't know|Never heard|new to me|no idea", expected) and re.search(r"\bit means\b|\bmeans\b", reply, re.I) \
             and not re.search(r"don't know|not sure|never heard|haven't heard|new to me|no idea", reply, re.I):
         out["made_up_meaning"] = True
@@ -109,13 +122,14 @@ def evaluate(model, tokenizer, rows, torch, label):
 
 def summarize(rows, replies, label):
     """Luma's checks over every held-out reply, however it was made (PyTorch here, MLX on a Mac: scripts/train_on_mac.py)."""
-    scores = [{"question": row["messages"][1]["content"][:160], "reply": reply[:400], **judge(row, reply)} for row, reply in zip(rows, replies)]
+    scores = [{"question": row["messages"][-2]["content"][:160], "reply": reply[:400], **judge(row, reply)} for row, reply in zip(rows, replies)]
     n = max(1, len(scores))
     summary = {"label": label, "replies": len(scores),
                "unbacked_numbers": sum(len(s["unbacked"]) for s in scores),
                "made_up_slang_meanings": sum(s["made_up_meaning"] for s in scores),
                "wrong_slang_meanings": sum(s["wrong_meaning"] for s in scores),
                "loops": sum(s["loop"] for s in scores),
+               "said_before": sum(s.get("said_before", False) for s in scores),
                "same_reply": max(collections.Counter(s["reply"] for s in scores).values(), default=0),
                "avg_words": round(sum(s["words"] for s in scores) / n, 1)}
     print(json.dumps(summary), flush=True)
@@ -126,8 +140,9 @@ def held_out(rows, n):
     """Held-out conversations for the before-and-after check: the kinds where a wrong answer is easy to spot (look-ups,
     slang that doesn't exist, slang that does) and everyday chat."""
     picks = [r for r in rows if "[What your web search found" in r["messages"][1]["content"]][: n // 3]
-    picks += [r for r in rows if re.search(r"don't know|Never heard|new to me|no idea", r["messages"][2]["content"])][: n // 6]
-    picks += [r for r in rows if r["messages"][2]["content"].startswith("It means ")][: n // 6]
+    picks += [r for r in rows if len(r["messages"]) == 3 and re.search(r"don't know|Never heard|new to me|no idea", r["messages"][2]["content"])][: n // 6]
+    picks += [r for r in rows if len(r["messages"]) == 3 and r["messages"][2]["content"].startswith("It means ")][: n // 6]
+    picks += [r for r in rows if len(r["messages"]) > 3][: n // 6]  # a second message, after an earlier exchange
     picks += [r for r in rows if r not in picks][: n - len(picks)]
     return picks
 
@@ -139,6 +154,7 @@ def honest_enough(before, after):
             and after["made_up_slang_meanings"] <= before["made_up_slang_meanings"]
             and after.get("wrong_slang_meanings", 0) <= before.get("wrong_slang_meanings", 0)
             and after.get("loops", 0) == 0
+            and after.get("said_before", 0) <= before.get("said_before", 0)
             and after.get("same_reply", 0) <= max(2, after["replies"] // 4))
 
 

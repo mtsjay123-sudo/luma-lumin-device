@@ -5484,7 +5484,8 @@ class Agent:
                     return self._follow_up(text, name, result, allowed, cancel_event)
                 return result
             reply = answer.get("text")
-            if not isinstance(reply, str) or not reply.strip(" \t\n.…-—–_*\"'"):  # "..." copied from the format line is no reply either
+            # "..." or "<your own words ...>" copied from the format line is no reply either (small brains do that)
+            if not isinstance(reply, str) or not reply.strip(" \t\n.…-—–_*\"'") or re.fullmatch(r"\s*<[^<>]{0,80}>\s*", reply):
                 raise ValueError("Local model returned no usable reply.")
             if self.mode != "kids" and DENIES.search(reply):
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.

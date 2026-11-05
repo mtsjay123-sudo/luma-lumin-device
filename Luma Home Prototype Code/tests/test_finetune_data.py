@@ -24,7 +24,7 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertGreater(len(self.rows), 1000)
         for row in self.rows:
             roles = [m["role"] for m in row["messages"]]
-            self.assertEqual(roles, ["system", "user", "assistant"])
+            self.assertIn(roles, (["system", "user", "assistant"], ["system", "user", "assistant", "user", "assistant"]))
             self.assertTrue(all(m["content"].strip() for m in row["messages"]))
 
     def test_slang_meanings_are_the_lexicons_own(self):
@@ -62,7 +62,7 @@ class FinetuneDataTests(unittest.TestCase):
 
     def test_the_brain_learns_meanings_from_the_dictionary_note_not_from_memory(self):
         for row in self.rows:
-            said, reply = row["messages"][1]["content"], row["messages"][2]["content"]
+            said, reply = row["messages"][-2]["content"], row["messages"][-1]["content"]
             system = row["messages"][0]["content"]
             if reply.startswith("It means "):
                 meaning = reply[len("It means "):].split(". ")[0]
@@ -97,6 +97,21 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertFalse(train.honest_enough(fine, {**fine, "loops": 1}))
         self.assertFalse(train.honest_enough(fine, {**fine, "wrong_slang_meanings": 1}))
         self.assertFalse(train.honest_enough(fine, {**fine, "same_reply": 9}), "the same reply to most questions")
+
+    def test_it_practises_answering_the_newest_message_after_an_earlier_one(self):
+        talks = [r["messages"] for r in self.rows if len(r["messages"]) == 5]
+        self.assertGreater(len(talks), 200)
+        for m in talks:
+            self.assertNotEqual(m[4]["content"], m[2]["content"], "the reply to learn is never the earlier one")
+        spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
+        train = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(train)
+        row = {"messages": [{"role": "system", "content": ""}, {"role": "user", "content": "ngl today was long, work was a lot"},
+                            {"role": "assistant", "content": "I believe it. Want me to remember today was long, so you can breathe easier tomorrow?"},
+                            {"role": "user", "content": "lol okay and what about dessert"}, {"role": "assistant", "content": "Brownies. Easy and cozy."}]}
+        self.assertTrue(train.judge(row, "Mmm, I believe it. Want me to remember today was long, so you can breathe easier tomorrow?")["said_before"],
+                        "the device lab's own-brain reply to 'what about dessert'")
+        self.assertFalse(train.judge(row, "Brownies from a box, ten minutes, done.")["said_before"])
 
     def test_every_number_in_a_lookup_answer_is_in_what_was_found(self):
         rows = finetune_data.grounded_examples(random.Random(4), n=150)

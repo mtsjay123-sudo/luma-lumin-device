@@ -94,7 +94,7 @@ Staying honest:
 """
 
 ACTION_CONTRACT = """Return exactly one JSON object, with no markdown:
-{"type":"reply","text":"..."} OR {"type":"tool","name":"listed.tool","arguments":{...}}.
+{"type":"reply","text":"<your own words back to their newest message>"} OR {"type":"tool","name":"listed.tool","arguments":{...}}.
 Only the listed tools exist. Only propose an action the current user actually asks you to do.
 A request such as 'Can you text my mom to pick up groceries?' is an action request.
 A question such as 'Explain how texting works' or 'How would you book an appointment?' asks for an explanation, not an action.

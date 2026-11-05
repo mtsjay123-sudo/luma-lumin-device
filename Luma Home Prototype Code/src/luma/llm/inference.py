@@ -158,7 +158,23 @@ def warm(steady):
     return _warm_here(steady)
 
 
+_steady = {"text": None}  # the steady instructions the brain last read, so a quick side request can keep them
+last = {"raw": None}  # what the brain itself wrote for the last reply, before Luma read it (the device lab shows it for a miss)
+
+
+def _keeping_steady(messages):
+    """A $250 device holds one conversation in memory: a quick side request (a rewrite) with its own short instructions
+    made it forget Luma's steady ones, and the next reply read all ten thousand characters again (42 s on the 1.7B).
+    On such a device a side request starts with the steady instructions it already has, then its own."""
+    if not compact() or not _steady["text"]:
+        return messages
+    first, rest = messages[0], messages[1:]
+    note = dict(first, content="For this one request, set the reply format above aside: " + first["content"])
+    return [{"role": "system", "content": _steady["text"]}, note] + rest
+
+
 def _warm_here(steady, cancel_event=None):
+    _steady["text"] = steady
     with _model_access(cancel_event):
         model = _load_model()
         try:
@@ -189,6 +205,7 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
     # To the minute: a time that changes every microsecond made every turn's instructions new.
     now = datetime.now(ZoneInfo(os.environ.get("LUMA_TIMEZONE", "America/New_York"))).isoformat(timespec="minutes")
     steady, this_turn = build_plan_parts(memories, tools, mode, profile, now, compact=compact())
+    _steady["text"] = steady
     prompt = steady + "\n\n" + this_turn
     max_tokens = {"brief": 224, "balanced": 384, "detailed": 640}[profile["verbosity"]]
     if any({"slides", "sections", "cards"} & set(spec.get("fields", {}).values()) for spec in tools.values()):
@@ -211,6 +228,7 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
             # A brain whose chat template takes one system message only: everything in it, the old way.
             raw = _complete(model, cancel_event, on_delta=stream.feed if stream else None,
                             messages=[{"role": "system", "content": prompt}] + recent, **settings)
+    last["raw"] = raw
     try:
         _check_cancel(cancel_event)
         result = json.loads(raw)
@@ -245,6 +263,30 @@ def _gpu_layers():
         return LLAMA_GPU_LAYERS
 
 
+def _answering_straight(model):
+    """Qwen3's smaller brains think to themselves before they answer unless their chat template is told not to, and
+    Luma holds every answer to its JSON format from the first word. Left with nowhere to think, the device lab's 1.7B
+    wrote "..." every turn and the 0.6B rambled. Told not to think (the template's own switch, and how Luma's own brain
+    is trained), they answer straight away, which is also what a slow board needs."""
+    try:
+        template = str((getattr(model, "metadata", None) or {}).get("tokenizer.chat_template", ""))
+        fmt = str(getattr(model, "chat_format", "") or "")
+        if "enable_thinking" not in template or getattr(model, "chat_handler", None) is not None or not fmt.startswith("chat_template."):
+            return model
+        handler = (getattr(model, "_chat_handlers", None) or {}).get(fmt)
+        if handler is None:
+            return model
+
+        def straight(**kwargs):
+            kwargs.setdefault("enable_thinking", False)
+            return handler(**kwargs)
+
+        model.chat_handler = straight
+    except Exception:
+        pass  # never worth a brain that won't start
+    return model
+
+
 def _load_model():
     global _llm, _llm_path
     if _llm is not None:
@@ -268,10 +310,10 @@ def _load_model():
         with _silence_stderr():
             if adapter:
                 try:
-                    return Llama(**settings, lora_path=str(adapter))
+                    return _answering_straight(Llama(**settings, lora_path=str(adapter)))
                 except Exception:
                     pass  # an add-on that won't load never costs Luma its brain: the stock one answers
-            return Llama(**settings)
+            return _answering_straight(Llama(**settings))
 
     global note
     layers = _gpu_layers()
@@ -425,11 +467,24 @@ def rewrite(prompt: str, max_tokens: int = 90, cancel_event=None) -> str:
 
 
 def _rewrite_here(prompt: str, max_tokens: int = 90, cancel_event=None, on_text=None) -> str:
+    own = [{"role": "system", "content": "You rewrite messages into clear instructions. Answer with the rewrite only, as plain text."},
+           {"role": "user", "content": prompt}]
+    settings = dict(max_tokens=max_tokens, temperature=0.1, top_p=0.9)
     with _model_access(cancel_event):
         model = _load_model()
-        return _complete(model, cancel_event, messages=[{"role": "system", "content": "You rewrite messages into clear instructions. Answer with the rewrite only."},
-                                                        {"role": "user", "content": prompt}],
-                         max_tokens=max_tokens, temperature=0.1, top_p=0.9).strip()
+        messages = _keeping_steady(own)
+        try:
+            said = _complete(model, cancel_event, messages=messages, **settings).strip()
+        except Exception as error:
+            if messages is own or not _template_refused(error):
+                raise
+            return _complete(model, cancel_event, messages=own, **settings).strip()  # a template that takes one system message
+    if messages is not own and said.startswith("{"):
+        try:  # behind Luma's steady instructions a small brain may still answer in their reply format
+            said = str(json.loads(said).get("text") or said).strip()
+        except (ValueError, AttributeError):
+            pass
+    return said
 
 
 def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None) -> str:

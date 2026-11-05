@@ -150,6 +150,22 @@ DEVICE_TALK = ["ngl today was long, work was a lot", "what should i cook tonight
 SAY_FIRST = "Okay, so here's what I'd do tonight. Keep it simple and easy."
 
 
+FELL_BACK = re.compile(r"lost my train of thought|brain \(the AI model on this computer\) isn't running", re.I)
+
+
+def _same_reply(a, b):
+    """Nearly the same words: a brain answering an earlier message again instead of the newest one."""
+    wa, wb = set(re.findall(r"[a-z']+", a.lower())), set(re.findall(r"[a-z']+", b.lower()))
+    return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.7
+
+
+def missed(reply, earlier):
+    """Why a reply doesn't answer the message it was given: Luma's fallback line, or an earlier reply said again."""
+    if not reply.strip() or FELL_BACK.search(reply):
+        return "fell back"
+    return "said an earlier reply again" if any(_same_reply(reply, e) for e in earlier) else None
+
+
 def _median(values):
     values = sorted(v for v in values if v is not None)
     return round(values[len(values) // 2], 2) if values else None
@@ -200,13 +216,20 @@ def device(threads=4, label=None):
         began = time.monotonic()
         lab.agent._warm_brain()  # what a device does when it starts: read the steady instructions once
         row["start_up_seconds"] = round(time.monotonic() - began, 1)
+        earlier = []
         for said in DEVICE_TALK:
+            inference.last["raw"] = None
             result = lab.say(said)
             reply = words_of(result)
             words = len(reply.split())
             turns.append({"said": said, "reply": reply[:200], "first_words": result["_first_words"], "seconds": result["_seconds"], "words": words,
-                          "words_per_second": round(words / max(0.05, result["_seconds"] - result["_first_words"]), 1) if words > 3 else None})
-            print(f"  {result['_first_words']:6.2f}s first words  {result['_seconds']:6.2f}s in all  {said[:48]!r} -> {reply[:70]!r}", flush=True)
+                          "words_per_second": round(words / max(0.05, result["_seconds"] - result["_first_words"]), 1) if words > 3 else None,
+                          "missed": missed(reply, earlier)})
+            if turns[-1]["missed"]:
+                turns[-1]["brain_wrote"] = str(inference.last["raw"])[:300]  # what the brain itself wrote, to see why
+            earlier.append(reply)
+            print(f"  {result['_first_words']:6.2f}s first words  {result['_seconds']:6.2f}s in all  {said[:48]!r} -> {reply[:70]!r}"
+                  + (f"  MISSED ({turns[-1]['missed']}); the brain wrote {turns[-1]['brain_wrote'][:160]!r}" if turns[-1]["missed"] else ""), flush=True)
     finally:
         lab.close()
     row["turns"] = turns
@@ -218,9 +241,12 @@ def device(threads=4, label=None):
     if row.get("first_words_later") is not None and "hearing_seconds" in row:
         row["first_sound_seconds"] = round(row["hearing_seconds"] + row["first_words_later"] + row["first_sentence_voice_seconds"], 2)
     first = row.get("first_sound_seconds")
+    row["answered"] = sum(not t["missed"] for t in turns)
     row["verdict"] = ("talks like a friend here" if first is not None and first <= 2.0 else
                       "fine with thinking out loud covering the wait" if first is not None and first <= 4.0 else
                       "too slow to talk with here: chat goes to the computer or the cloud brain")
+    if row["answered"] < len(turns):  # fast is no use if it doesn't answer what was said
+        row["verdict"] = f"answered {row['answered']} of {len(turns)} messages: not good enough to talk with"
     print(f"{row['brain']}: load {row['load_seconds']}s, first words {row['first_words_first_turn']}s then {row['first_words_later']}s, "
           f"{row['words_per_second']} words/s, peak memory {row['peak_memory_gb']} GB, first sound {first}s: {row['verdict']}", flush=True)
     return row
@@ -237,21 +263,24 @@ def device_summary(paths):
              "Real conversations through Luma's full instructions. *Start-up* is the device reading its steady instructions once when it "
              "turns on. *First sound* is hearing a short sentence, then the brain's first words, then the voice saying Luma's first "
              "sentence: what you'd wait after you stop talking.", "",
-             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Verdict |",
-             "|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('start_up_seconds', '-')} s | {r.get('first_words_first_turn')} s | "
                      f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
-                     f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | {r.get('verdict')} |")
-    fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0]
+                     f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | "
+                     f"{r.get('answered', '-')} of {len(r.get('turns', []))} | {r.get('verdict')} |")
+    fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0
+            and r.get("answered", len(r.get("turns", []))) == len(r.get("turns", []))]
     best = max(fits, key=lambda r: r.get("size_gb") or 0) if fits else None
-    lines += ["", f"**The device's brain:** {best['brain']}, the biggest one that answers within 4 seconds of you stopping (thinking out loud covers the rest)."
+    lines += ["", f"**The device's brain:** {best['brain']}, the biggest one that answers every message within 4 seconds of you stopping (thinking out loud covers the rest)."
               if best else "**None of these talks fast enough here.** The device sends chat to the owner's computer or the cloud brain.",
               "", "Cloud ARM cores are faster than a budget board's Cortex-A76 cores, so treat these as the best case and run the same "
               "command on the board itself before choosing."]
     for r in rows:
         lines += ["", f"<details><summary>{r.get('brain')}: the conversation</summary>", ""]
-        lines += [f"- {t['first_words']} s / {t['seconds']} s: *{t['said']}* → {t['reply']}" for t in r.get("turns", [])]
+        lines += [f"- {t['first_words']} s / {t['seconds']} s: *{t['said']}* → {t['reply']}" + (f" **({t['missed']})**" if t.get("missed") else "")
+                  + (f" The brain wrote: `{t['brain_wrote'][:200]}`" if t.get("brain_wrote") else "") for t in r.get("turns", [])]
         lines += ["", "</details>"]
     return "\n".join(lines)
 

@@ -296,7 +296,23 @@ def examples(rng):
         typed = message[:1].upper() + message[1:].replace(" i ", " I ").replace(" i'm ", " I'm ").replace(" i've ", " I've ")
         rows.append([{"role": "user", "content": typed}, {"role": "assistant", "content": reply.replace(" lol", "").replace(" 😭", "")}])
     rows += mirror_examples(rng) + meaning_examples(rng) + unknown_examples(rng) + grounded_examples(rng)
-    return [{"messages": [{"role": "system", "content": SYSTEM + _noted(r[0]["content"])}] + r} for r in rows]
+    rows += multi_turn_examples(rng, rows)
+    # the dictionary note is for the newest message, the way Luma's brain gets it live
+    return [{"messages": [{"role": "system", "content": SYSTEM + _noted(r[-2]["content"])}] + r} for r in rows]
+
+
+def multi_turn_examples(rng, singles, n=260):
+    """Two exchanges, and only the second reply is learned: answer the newest message, never say the last reply again.
+    Trained on single exchanges only, Luma's own brain answered "what about dessert" with its reply about a long day
+    (the device lab caught it, twice in five turns). People jump topics, so the two can be about anything."""
+    pool = [r for r in singles if len(r) == 2 and "[What your web search found" not in r[0]["content"]]
+    rows = []
+    while len(rows) < n and len(pool) > 1:
+        first, second = rng.sample(pool, 2)
+        if first[1]["content"] == second[1]["content"] or first[0]["content"] == second[0]["content"]:
+            continue
+        rows.append([first[0], first[1], second[0], second[1]])
+    return rows
 
 
 def _noted(said):

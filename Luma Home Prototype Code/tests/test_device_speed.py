@@ -128,6 +128,87 @@ class SmallBoardTests(unittest.TestCase):
             inference._plan_here([{"role": "user", "content": "hi"}], [], {}, "friend")
         self.assertEqual(seen[0][0], seen[1][0], "the first real turn begins exactly where the warm-up left off")
 
+    def test_qwen3s_small_brains_answer_straight_instead_of_thinking_first(self):
+        class Brain:
+            chat_handler = None
+
+            def __init__(self, template, fmt="chat_template.default"):
+                self.metadata, self.chat_format, self.seen = {"tokenizer.chat_template": template}, fmt, []
+                self._chat_handlers = {"chat_template.default": lambda **kw: self.seen.append(kw) or {"choices": []}}
+
+        hybrid = "{%- if enable_thinking is defined and enable_thinking is false %}{{- '<think>\\n\\n</think>\\n\\n' }}{%- endif %}"
+        small = inference._answering_straight(Brain(hybrid))
+        small.chat_handler(llama=small, messages=[{"role": "user", "content": "hi"}])
+        self.assertIs(small.seen[-1]["enable_thinking"], False, "the 0.6B and 1.7B are told to answer straight away")
+        instruct = inference._answering_straight(Brain("{{- '<|im_start|>assistant\\n' }}"))
+        self.assertIsNone(instruct.chat_handler, "the 4B Instruct never thinks first: left as it is")
+        chosen = inference._answering_straight(Brain(hybrid, fmt="chatml"))
+        self.assertIsNone(chosen.chat_handler, "a chat format the owner chose is theirs")
+
+    def test_a_quick_side_request_keeps_the_steady_part(self):
+        seen, answers = [], []
+
+        class Model:
+            def tokenize(self, data, add_bos=False): return data.split()
+            def create_chat_completion(self, **kwargs):
+                seen.append(kwargs["messages"])
+                if answers and answers[0] == "refuse":
+                    answers.pop(0)
+                    raise ValueError("Conversation roles must alternate user/assistant/user/assistant")
+                return {"choices": [{"message": {"content": answers.pop(0) if answers else "Find the cheapest AirPods."}}]}
+
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget", "LUMA_TIMEZONE": "UTC"}):
+            steady, _ = prompts.build_plan_parts([], {}, "friend", prompts.normalize_profile(None), "", compact=True)
+            inference.warm(steady)
+            self.assertEqual(inference._rewrite_here("findd cheapest airpods"), "Find the cheapest AirPods.")
+            self.assertEqual(seen[-1][0], seen[0][0], "a rewrite starts where the brain already is, so the next reply doesn't read it all again")
+            self.assertEqual([m["role"] for m in seen[-1]], ["system", "system", "user"])
+            answers.append(json.dumps({"type": "reply", "text": "Text Mom: I'm on my way."}))
+            self.assertEqual(inference._rewrite_here("txt mom im omw"), "Text Mom: I'm on my way.", "the reply format answered anyway")
+            answers.append("refuse")
+            self.assertEqual(inference._rewrite_here("findd cheapest airpods"), "Find the cheapest AirPods.")
+            self.assertEqual([m["role"] for m in seen[-1]], ["system", "user"], "its own short instructions when the template takes one")
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": ""}):
+            inference._rewrite_here("findd cheapest airpods")
+            self.assertEqual([m["role"] for m in seen[-1]], ["system", "user"], "a fast computer keeps the rewrite short")
+
+
+class DeviceLabTests(unittest.TestCase):
+    """The device lab picks the brain that answers every message in time, not the fastest one that doesn't."""
+
+    def lab(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location("luma_lab", Path(__file__).resolve().parents[1] / "scripts" / "luma_lab.py")
+        lab = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lab)
+        return lab
+
+    def test_a_reply_that_doesnt_answer_counts_as_missed(self):
+        lab = self.lab()
+        long_day = "I believe it. Want me to remember today was long, so you can breathe easier tomorrow?"
+        self.assertEqual(lab.missed("I lost my train of thought on that one. Say it again?", []), "fell back")
+        self.assertEqual(lab.missed("Mmm, I believe it. Want me to remember today was long, so you can breathe easier tomorrow?", [long_day]),
+                         "said an earlier reply again", "the device lab's own-brain answer to 'what about dessert'")
+        self.assertIsNone(lab.missed("Brownies from a box. Ten minutes, done.", [long_day]))
+
+    def test_the_summary_picks_a_brain_that_answers_everything(self):
+        import tempfile
+        from pathlib import Path
+        lab = self.lab()
+        turn = lambda missed=None: {"said": "x", "reply": "y", "first_words": 1.0, "seconds": 2.0, "missed": missed}
+        fast = {"brain": "small", "size_gb": 1.1, "first_sound_seconds": 3.0, "answered": 3, "turns": [turn(), turn("fell back"), turn("fell back"), turn(), turn()]}
+        good = {"brain": "middle", "size_gb": 2.0, "first_sound_seconds": 3.9, "answered": 5, "turns": [turn()] * 5}
+        with tempfile.TemporaryDirectory() as root:
+            paths = []
+            for row in (fast, good):
+                paths.append(Path(root) / f"{row['brain']}.json")
+                paths[-1].write_text(json.dumps({"device": row}))
+            said = lab.device_summary([str(p) for p in paths])
+        self.assertIn("**The device's brain:** middle", said)
+        self.assertIn("| 3 of 5 |", said)
+        self.assertIn("**(fell back)**", said)
+
 
 class OneTripTests(unittest.TestCase):
     """On a slow brain (a $250 device's) an everyday question is one trip through the brain, not five."""
