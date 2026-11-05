@@ -414,9 +414,30 @@ class OneTripTests(unittest.TestCase):
                 self.assertEqual(agent._without_tics("Ngl, easy? A stir-fry. Let me know what you think!"),
                                  "Ngl, easy? A stir-fry. Let me know what you think!", "asked to say it again: as it was")
                 agent._asked_again = False
-                self.assertTrue(agent._mostly("Nah, you should cook something easy that you can eat.",
-                                              "Nah, you should cook something easy that you can eat. Like, something that takes 10 minutes or less."),
-                                "a shorter copy of an earlier reply is a copy")
+                self.assertTrue(agent._mostly("Nah, you should cook something easy that you can eat. Like, something that takes 10 minutes or less.",
+                                              "Nah, you should cook something easy that you can eat. Like, something that takes 10 minutes or less. "
+                                              "Maybe a stir-fry, or some pasta. You know, the kind of thing that doesn't require too much prep time."),
+                                "a shorter copy of an earlier reply is a copy (run 6)")
+                self.assertFalse(agent._mostly("Ngl, yeah. You need a vacation. You got this! 😊",
+                                               "Ngl, yeah. Work's been a beast this week. But hey, you got this! Let me know if you need anything, "
+                                               "even just a coffee break or a chat. You're not alone, ya know? 😊"),
+                                 "a short answer sharing “you”, “need” and “got” isn't a copy (run 7)")
+            finally:
+                store.close()
+
+    def test_a_tic_doesnt_come_back_every_other_reply(self):
+        import tempfile
+        from pathlib import Path
+        from luma.agent.workflows import observation
+        from luma.memory.store import Store
+        with tempfile.TemporaryDirectory() as root:
+            store = Store(Path(root) / "s.db", Path(root) / "k")
+            try:
+                agent = self._talk(store)
+                said = agent._without_tics("Ngl, easy? Maybe a salad or some chicken nuggets. You got this! 😊")
+                agent.threads["main"] += [{"role": "assistant", "content": observation({"text": said})}, {"role": "user", "content": "and dessert"}]
+                self.assertEqual(agent._without_tics("Ngl, maybe a cookie or some chocolate? You got this! 😊"), "Maybe a cookie or some chocolate?",
+                                 "the brain's own “Ngl,” and “You got this! 😊” are remembered though the text kept neither (run 7)")
             finally:
                 store.close()
 

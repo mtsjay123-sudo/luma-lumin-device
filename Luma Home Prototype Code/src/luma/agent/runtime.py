@@ -201,6 +201,12 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
                        r"tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 
 
+# Words nearly every reply has: a short answer sharing them with an earlier one isn't a copy of it.
+COMMON_WORDS = set("""a an the and or but if so to of in on at for with from is are was were be been being it its it's this that
+these those you your you're yours i i'm i'd i'll me my mine we us our they them their he him his she her do does did doing have has
+had just not no yes yeah ya yep got get can will would could should like know let let's what how why when where who maybe some
+something really all up out about as more one too very much any there here then than now well oh okay ok sure""".split())
+
 # Filler a reply opens with; said at the start of reply after reply it's a tic ("Ngl," five times in the device lab).
 TIC_OPENERS = {"ngl", "nah", "lol", "lmao", "honestly", "aight", "ayy", "bet", "yo", "so", "well", "okay", "ok", "yeah", "yea",
                "hmm", "bruh", "fr", "tbh", "oof", "ooh", "oh", "alright", "look", "listen"}
@@ -787,10 +793,11 @@ class Agent:
 
     @staticmethod
     def _mostly(reply, said, enough=0.85):
-        """Almost every word of this reply was in that one: a copy, even a shorter one (run 6's 1.7B gave a cut-down cooking
-        reply to "what about dessert")."""
-        x, y = set(_words(reply).split()), set(_words(said).split())
-        return len(x) >= 6 and bool(y) and len(x & y) / len(x) >= enough
+        """Almost every word that matters in this reply was in that one: a copy, even a shorter one (run 6's 1.7B gave a cut-down
+        cooking reply to "what about dessert"). Words like "you", "got" and "need" don't count: "Yeah. You need a vacation. You
+        got this!" isn't a copy of a reply that said "if you need anything"."""
+        x, y = set(_words(reply).split()) - COMMON_WORDS, set(_words(said).split()) - COMMON_WORDS
+        return len(x) >= 5 and bool(y) and len(x & y) / len(x) >= enough
 
     def _said_before(self, reply):
         """The earlier reply this one repeats (nearly word for word, or mostly it), or None."""
@@ -798,41 +805,54 @@ class Agent:
             return None
         return next((said for said in reversed(self._repeatable()) if self._alike(reply, said) or self._mostly(reply, said)), None)
 
-    def _recent_tics(self):
-        """How Luma's last replies began and ended: the filler word the last one opened with ("Ngl,"), and the closing lines of
-        the last two ("Let me know what you think!")."""
-        if getattr(self, "_asked_again", False):
-            return None, set()  # "what did you say?": the same words, as they were
-        said = self._earlier_replies()[-2:]
-        opener = None
-        if said:
-            first = re.match(r"\s*([A-Za-z']+)[,!.…]*\s+", said[-1])
-            if first and first.group(1).lower() in TIC_OPENERS:
-                opener = first.group(1).lower()
-        closers = set()
-        for reply in said:
-            last = re.split(r"(?<=[.!?])\s+", reply.strip())[-1]
-            if 3 <= len(last.split()) <= 12:
-                closers.add(_words(last))
-        return opener, closers
+    @staticmethod
+    def _sentences(text):
+        """A reply's sentences; an emoji after the last one stays with it ("You got this! 😊")."""
+        return re.split(r"(?<=[.!?…])\s+(?=[^\W_])", str(text).strip())
 
     @staticmethod
-    def _trim_opener(text, opener):
-        m = re.match(rf"\s*{re.escape(opener)}\b[,!.…]*\s+", text, re.I) if opener else None
-        if not m or len(text) - m.end() < 8:
+    def _tics_of(reply):
+        """(the filler word a reply opens with or None, its closing line's words or None), as the brain wrote it."""
+        first = re.match(r"\s*([A-Za-z']+)[,!.…]*\s+", reply)
+        opener = first.group(1).lower() if first and first.group(1).lower() in TIC_OPENERS else None
+        last = Agent._sentences(reply)[-1] if reply.strip() else ""
+        closer = _words(last) if 3 <= len(_words(last).split()) <= 12 and len(Agent._sentences(reply)) > 1 else None
+        return opener, closer
+
+    def _recent_tics(self):
+        """How the brain began and ended its last replies, as it wrote them (before any trim): the filler words it opened with
+        ("Ngl,") and its closing lines ("Let me know what you think!"). From the trimmed text alone a tic came back every other
+        reply (the device lab's run 7)."""
+        if getattr(self, "_asked_again", False):
+            return set(), set()  # "what did you say?": the same words, as they were
+        used = list(getattr(self, "_tics_used", []))[-3:]
+        openers = {o for o, _ in used if o}
+        closers = {c for _, c in used if c}
+        for reply in self._earlier_replies()[-2:]:  # and the replies as they stand
+            o, c = self._tics_of(reply)
+            if o: openers.add(o)
+            if c: closers.add(c)
+        return openers, closers
+
+    @staticmethod
+    def _trim_opener(text, openers):
+        first = re.match(r"\s*([A-Za-z']+)[,!.…]*\s+", text)
+        if not first or first.group(1).lower() not in (openers or ()) or len(text) - first.end() < 8:
             return text
-        rest = text[m.end():]
+        rest = text[first.end():]
         return rest[:1].upper() + rest[1:]
 
     def _without_tics(self, reply, tics=None):
-        """A friend doesn't open every reply with "Ngl," or close each one with "Let me know what you think!". Telling a small
-        brain so didn't work (the device lab's 1.7B, runs 5 and 6), so the filler the last reply opened with and a closing line
-        from the last two are left off this one."""
-        opener, closers = tics or self._recent_tics()
-        text = self._trim_opener(reply, opener)
-        parts = re.split(r"(?<=[.!?])\s+", text.strip())
+        """A friend doesn't open every reply with "Ngl," or close each one with "You got this!". Telling a small brain so didn't
+        work (the device lab's 1.7B, runs 5 and 6), so a filler word or a closing line from its last replies is left off this
+        one. What the brain itself wrote is remembered, so the tic doesn't come back on the next reply."""
+        openers, closers = tics or self._recent_tics()
+        text = self._trim_opener(reply, openers)
+        parts = self._sentences(text)
         if len(parts) > 1 and _words(parts[-1]) in closers:
             text = " ".join(parts[:-1])
+        if not getattr(self, "_asked_again", False):
+            self._tics_used = (list(getattr(self, "_tics_used", [])) + [self._tics_of(reply)])[-3:]
         return text
 
     def _unless_said_before(self, on_text):
@@ -850,8 +870,8 @@ class Agent:
         def sentences():
             # after the opening, whole sentences go on, but not a closing line the last replies used
             while True:
-                end = re.search(r"[.!?…](?:\s+|$)", state["tail"])
-                if not end or (end.end() == len(state["tail"]) and not state["tail"].endswith((" ", "\n"))):
+                end = re.search(r"[.!?…]\s+(?=[^\W_])", state["tail"])  # an emoji after it stays with the sentence
+                if not end:
                     return None
                 sentence, state["tail"] = state["tail"][:end.end()], state["tail"][end.end():]
                 if _words(sentence) not in tics[1]:
@@ -876,7 +896,7 @@ class Agent:
                     state["blocked"] = True
                     return None
             state["open"] = True
-            return say(self._trim_opener(state["held"], tics[0]))
+            return say(self._trim_opener(state["held"], tics[0]))  # tics[0]: the filler words its last replies opened with
 
         def flush():
             if state["blocked"]:

@@ -154,10 +154,12 @@ FELL_BACK = re.compile(r"lost my train of thought|brain \(the AI model on this c
 
 
 def _same_reply(a, b):
-    """Nearly the same words, or almost every word of it from the earlier one (a shorter copy): a brain answering an earlier
-    message again instead of the newest one."""
-    wa, wb = set(re.findall(r"[a-z']+", a.lower())), set(re.findall(r"[a-z']+", b.lower()))
-    return bool(wa and wb) and (len(wa & wb) / len(wa | wb) >= 0.7 or (len(wa) >= 6 and len(wa & wb) / len(wa) >= 0.85))
+    """Nearly the same words, or almost every word that matters from the earlier one (a shorter copy; words like "you" and "got"
+    don't count): a brain answering an earlier message again instead of the newest one."""
+    from luma.agent.runtime import COMMON_WORDS
+    wa, wb = set(re.findall(r"[a-z0-9']+", a.lower())), set(re.findall(r"[a-z0-9']+", b.lower()))
+    ca, cb = wa - COMMON_WORDS, wb - COMMON_WORDS
+    return bool(wa and wb) and (len(wa & wb) / len(wa | wb) >= 0.7 or (len(ca) >= 5 and len(ca & cb) / len(ca) >= 0.85))
 
 
 def missed(reply, earlier):
