@@ -210,6 +210,8 @@ class DeviceLabTests(unittest.TestCase):
         self.assertEqual(lab.missed("Okay.", [], "honestly i think i need a vacation"), "brushed them off", "Luma's own small brain, run 9")
         self.assertEqual(lab.missed("What's your go-to dessert?", [long_day], "lol okay and what about dessert"), "brushed them off")
         self.assertIsNone(lab.missed("Ice cream, or a cookie with a side of milk. Pick one.", [long_day], "lol okay and what about dessert"))
+        self.assertEqual(lab.missed("cookies, a smoothie or a bowl of cereal", [long_day], "lol okay and what about dessert"),
+                         "said it flat, to nobody", "Luma's own small brain, run 19")
 
     def test_it_notices_a_brain_that_keeps_saying_the_same_thing(self):
         lab = self.lab()

@@ -137,6 +137,32 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertTrue(any(user["content"] == "lol okay and what about dessert" for user, _ in rows))
         self.assertTrue(any(r["messages"][1]["content"] == "honestly i think i need a vacation" for r in self.rows))
 
+    def test_the_release_check_catches_a_flat_reply(self):
+        """Luma's own small brain in the device lab's run 19 answered every message, but like a search result."""
+        spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
+        train = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(train)
+
+        def row(said):
+            return {"messages": [{"role": "system", "content": ""}, {"role": "user", "content": said}, {"role": "assistant", "content": "x"}]}
+
+        dessert, sister, cook = row("lol okay and what about dessert"), row("my sister's birthday is next week, what should i get her"), \
+            row("what should i cook tonight? something easy")
+        for said, reply in [(dessert, "cookies, a smoothie or a bowl of cereal"), (cook, "spaghetti with garlic, a stir fry or rice and beans"),
+                            (sister, "a goodie bag with a card, or a personalized item she'd love."), (dessert, "Cookies or a smoothie")]:
+            self.assertTrue(train.judge(said, reply)["flat"], reply)
+        for said, reply in [(dessert, "Ice cream, or a cookie with a side of milk. Pick one."),
+                            (dessert, "Lol, maybe a quick chocolate bar or some ice cream. Let me know what you're into!"),
+                            (row("honestly i think i need a vacation"), "Okay, a vacation sounds like a good idea. Need anything sorted before you head out?"),
+                            (row("what does bussin mean"), "delicious, really good"), (row("thanks luma!"), "anytime")]:
+            self.assertFalse(train.judge(said, reply)["flat"], reply)
+        practice = train.conversations()
+        advice = [r for r in practice if len(r["messages"]) == 3 and train.ADVICE_ASK.search(r["messages"][1]["content"])
+                  and "[What your web search found" not in r["messages"][1]["content"]]
+        self.assertTrue(advice)
+        talks_to_nobody = [r["messages"][2]["content"] for r in advice if not train.PERSON.search(r["messages"][2]["content"])]
+        self.assertLessEqual(len(talks_to_nobody), len(advice) // 10, f"the practice answers talk to the person: {talks_to_nobody[:3]}")
+
     def test_the_release_check_catches_a_brush_off(self):
         """Luma's own small brain in the device lab's run 9, and the stock brains' replies to the same messages."""
         spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
@@ -176,6 +202,7 @@ class FinetuneDataTests(unittest.TestCase):
         fine = {"replies": 24, "unbacked_numbers": 0, "made_up_slang_meanings": 0, "wrong_slang_meanings": 0, "loops": 0, "same_reply": 3,
                 "brushed_off": 0}
         self.assertFalse(train.honest_enough(fine, {**fine, "brushed_off": 1}), "never more brush-offs than the stock brain")
+        self.assertFalse(train.honest_enough(fine, {**fine, "flat": 1}), "never flatter than the stock brain")
         held = train.held_out(train.conversations(), 24)
         self.assertGreaterEqual(sum(bool(train.ADVICE_ASK.search(r["messages"][1]["content"])) for r in held), 4, "some held-out asks for ideas")
 

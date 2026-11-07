@@ -138,6 +138,23 @@ def brushed_off(user, reply):
     return not any(gives_an_idea(p) for p in parts)
 
 
+# Talking to someone: a reply a friend gives has "you", "I", "we" or "let's" in it somewhere.
+PERSON = re.compile(r"\b(?:you|your|you're|yours|you'll|you'd|you've|yourself|u|ur|i|i'm|i'd|i'll|i've|me|my|we|we're|let's|us)\b", re.I)
+PERSONAL = re.compile(r"\b(?:i|i'm|im|i've|i'd|my|me)\b", re.I)
+
+
+def flat(user, reply):
+    """Said like a search result, not by a friend: when they talk about their life or ask what to do, a bare list said to
+    nobody ("cookies, a smoothie or a bowl of cereal", Luma's own small brain in the device lab's run 19): no "you" or "I"
+    anywhere, and a fragment (no sentence, or starting lowercase). Look-ups and slang meanings don't count."""
+    if "[What your web search found" in user or not (ADVICE_ASK.search(user) or PERSONAL.search(user)):
+        return False
+    text = reply.strip()
+    if not text or PERSON.search(text):
+        return False
+    return text[0].islower() or not re.search(r"[.!?]", text)
+
+
 def repeats(reply):
     """A sentence said twice or more in one reply, or nearly ("I'm a movie critic. I'm not a movie critic."): the brain stuck in
     a loop ("It's slang from the internet. It's slang from...")."""
@@ -163,7 +180,7 @@ def judge(row, reply):
     from luma.agent import grounding
     user = row["messages"][-2]["content"]  # the newest message: a conversation can have earlier exchanges
     out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply),
-           "said_before": said_before(row, reply), "brushed_off": brushed_off(user, reply)}
+           "said_before": said_before(row, reply), "brushed_off": brushed_off(user, reply), "flat": flat(user, reply)}
     if "[What your web search found" in user:
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
@@ -193,6 +210,7 @@ def summarize(rows, replies, label):
                "loops": sum(s["loop"] for s in scores),
                "said_before": sum(s.get("said_before", False) for s in scores),
                "brushed_off": sum(s.get("brushed_off", False) for s in scores),
+               "flat": sum(s.get("flat", False) for s in scores),
                "same_reply": max(collections.Counter(s["reply"] for s in scores).values(), default=0),
                "avg_words": round(sum(s["words"] for s in scores) / n, 1)}
     print(json.dumps(summary), flush=True)
@@ -221,6 +239,7 @@ def honest_enough(before, after):
             and after.get("loops", 0) == 0
             and after.get("said_before", 0) <= before.get("said_before", 0)
             and after.get("brushed_off", 0) <= before.get("brushed_off", 0)
+            and after.get("flat", 0) <= before.get("flat", 0)
             and after.get("same_reply", 0) <= max(2, after["replies"] // 4))
 
 

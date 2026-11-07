@@ -15,10 +15,11 @@ gb=$(( $(sysctl -n hw.memsize) / 1073741824 ))
 free_gb=$(df -g . | awk 'NR==2 {print $4}')
 echo "This Mac: $chip, $gb GB of memory, $free_gb GB free on this disk."
 echo
-# The same lines Luma's brain settings use (src/luma/llm/brain.py): 24 GB for the bigger brain, 128 for the studio brain, 192 for the biggest.
+# The same lines Luma's brain settings use (src/luma/llm/brain.py): 24 GB for the bigger brain, 64 for the 122B, 128 for the studio brain, 192 for the biggest.
 if   [ "$gb" -ge 192 ]; then brain="Qwen3.5 397B (the studio brain)"; need=160
 elif [ "$gb" -ge 128 ]; then brain="Qwen3 235B (the studio brain)"; need=100
-elif [ "$gb" -ge 24 ];  then brain="Qwen3 30B (the bigger brain: fast and much smarter than the small one)"; need=25
+elif [ "$gb" -ge 64 ];  then brain="Qwen3.6 35B (the bigger brain), and Qwen3.5 122B fits too (Settings > Brain > Get Qwen3.5 122B)"; need=45
+elif [ "$gb" -ge 24 ];  then brain="Qwen3.6 35B (the bigger brain: fast and much smarter than the small one)"; need=25
 else brain="Qwen3 4B (the small, fast brain)"; need=5; fi
 echo "Brain this Mac can run at home, free and private: $brain"
 echo "  In Luma: Settings > Brain > Get the bigger brain (or Get the studio brain). It needs about $need GB of disk."

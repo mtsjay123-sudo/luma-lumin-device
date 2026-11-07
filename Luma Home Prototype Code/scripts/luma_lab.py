@@ -165,12 +165,14 @@ def _same_reply(a, b):
 def missed(reply, earlier, said=""):
     """Why a reply doesn't answer the message it was given: Luma's fallback line, an earlier reply said again, or nothing
     to go on ("Okay.", or only a question back when they asked for ideas: the release check Luma's own brains train under)."""
-    from train_luma import brushed_off
+    from train_luma import brushed_off, flat
     if not reply.strip() or FELL_BACK.search(reply):
         return "fell back"
     if any(_same_reply(reply, e) for e in earlier):
         return "said an earlier reply again"
-    return "brushed them off" if said and brushed_off(said, reply) else None
+    if said and brushed_off(said, reply):
+        return "brushed them off"
+    return "said it flat, to nobody" if said and flat(said, reply) else None
 
 
 def repeats_itself(replies):
