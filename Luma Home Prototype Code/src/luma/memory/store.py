@@ -97,7 +97,11 @@ class Store:
 
     def delete(self, kind, id):
         with self.lock, self.db:
-            return self.db.execute("DELETE FROM records WHERE kind=? AND id=?", (kind, id)).rowcount > 0
+            gone = self.db.execute("DELETE FROM records WHERE kind=? AND id=?", (kind, id)).rowcount > 0
+        if kind == "memory":  # forgetting a memory forgets what it meant too
+            from luma.memory import meaning
+            meaning.forget(self, id)
+        return gone
 
     def transition(self, id, expected, state, **extra):
         """Atomic cross-process action claim; only one caller may execute a draft."""
@@ -135,14 +139,22 @@ class Store:
             return list(self._memories[1])
 
     def recall(self, query, limit=5):
-        # Deterministic lexical retrieval over every memory, never just the newest (see luma.memory.segments).
-        from luma.memory import segments
-        return segments.recall(query, self.memories(), limit)
+        # Deterministic lexical retrieval over every memory, never just the newest (see luma.memory.segments), then what
+        # words missed but means the same thing, when this computer has the meaning model (luma.memory.meaning).
+        from luma.memory import meaning, segments
+        memories = self.memories()
+        found = segments.recall(query, memories, limit)
+        try:
+            return meaning.recall(self, query, memories, found, limit)
+        except Exception:
+            return found
 
     def erase(self):
         with self.lock, self.db:
             self.db.execute("DELETE FROM records")
         with self.lock: self.db.execute("VACUUM")
+        from luma.memory import meaning
+        meaning._cache.clear()
 
     def close(self):
         with self.lock: self.db.close()

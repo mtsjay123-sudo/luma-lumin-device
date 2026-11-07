@@ -694,6 +694,11 @@ def fetch_bigger(studio=False):
                          "The cloud brain (Settings) is the way to go here.")
     fetching.update(running=True, done=0, total=0, error=None, file=None)
     threading.Thread(target=_fetch, args=(studio,), name="luma-brain-fetch", daemon=True).start()
+    try:  # a computer big enough for the bigger brain also gets memory by meaning (luma.memory.meaning), about 640 MB
+        from luma.memory import meaning
+        meaning.fetch(_store)
+    except Exception:
+        pass
     return status()
 
 
