@@ -33,6 +33,14 @@ class FeelTests(unittest.TestCase):
         feel.set_mood("not a mood", now=0.0)
         self.assertEqual(feel.mood(now=1.0), "neutral")
 
+    def test_no_thinking_sounds_when_theyre_hurting(self):
+        from luma.audio import speakable
+        text = "The green one is probably better for you since it lasts longer and it is a lot quieter at night."
+        self.assertNotEqual(speakable.think_aloud(text), text, "a sentence that gets a thinking sound")
+        self.assertNotEqual(" ".join(w for w, _ in tts.speech_plan(text)), " ".join(w for w, _ in tts.speech_plan(text, natural=False)))
+        feel.set_mood("grief")
+        self.assertEqual([w for w, _ in tts.speech_plan(text)], [w for w, _ in tts.speech_plan(text, natural=False)])
+
     def test_the_spoken_reply_takes_it_on(self):
         text = "I'm so sorry. That's a lot to carry. I'm right here, take your time."
         normal = tts.speech_plan(text, natural=False)

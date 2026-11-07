@@ -122,7 +122,8 @@ def speech_plan(text, expressive=False, natural=True):
             continue
         from luma.agent import slang
         said_out = speakable.say_it(slang.clean(spoken))
-        if natural and index == 0:
+        from luma.audio import feel
+        if natural and index == 0 and feel.mood() not in ("grief", "upset"):  # with someone hurting, a friend pauses; no "um"
             said_out = speakable.think_aloud(said_out)
         beats = speakable.beats(said_out)
         for b, (words, after) in enumerate(beats):
