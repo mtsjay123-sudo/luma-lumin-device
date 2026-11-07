@@ -144,7 +144,8 @@ def speech_plan(text, expressive=False, natural=True):
                 plan.append((chunk, speakable.pause_ms(chunk, kind if c == len(chunks) - 1 else None)))
     if not plan:
         raise ValueError("Speech text cannot be empty.")
-    return plan
+    from luma.audio import feel
+    return [(words, feel.pause(ms)) for words, ms in plan]  # gentler pauses when they're hurting, quicker when it's all jokes
 
 
 def _breathe(words, pcm, rate, pause_before, since_breath, first=False):
@@ -194,6 +195,8 @@ def _samples(text, voice, should_stop, speed=None):
     speed = VOICE_SPEED if speed is None else speed
     if type(speed) not in (int,float) or not math.isfinite(speed) or not 0.5 <= speed <= 1.5:
         raise ValueError("LUMA_VOICE_SPEED must be 0.5–1.5.")
+    from luma.audio import feel
+    speed = feel.pace(speed)  # a touch slower when they're hurting, a touch quicker when they're laughing
     while not _lock.acquire(timeout=0.05):
         _check_stop(should_stop)
     try:

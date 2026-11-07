@@ -224,6 +224,11 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                     text = turntaking.together(heard["text"], text)
                     threading.Thread(target=speak, args=(turntaking.sorry(text), agent), kwargs={"cancel_event": event}, daemon=True).start()
                 heard["text"] = text
+                try:  # say the reply the way they said it: gentle when they're hurting, lighter when they're laughing
+                    from luma.audio import feel
+                    feel.set_from(text) if agent.store.setting('match_mood', True) is not False else feel.reset()
+                except Exception:
+                    pass
                 ask_typed(text, agent, voice=True, cancel_event=event)
                 followup_until = time.monotonic() + 45
             except Exception as error:
