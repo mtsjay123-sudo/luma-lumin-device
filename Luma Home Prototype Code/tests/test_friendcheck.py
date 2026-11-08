@@ -1,0 +1,194 @@
+"""A second look before Luma speaks, and a check-in the day after a hard one: two things a close friend does.
+
+The second look catches the replies a friend would never give (a joke while you're grieving, a flat "okay" to big news,
+"as an AI" when you just want company, missing that you might not be safe), takes one more try told what was missing,
+and keeps whichever reply gets it right. The check-in asks how you're doing the next evening, once, gently."""
+import tempfile
+import threading
+import unittest
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from luma.agent import friendcheck, presence
+from luma.agent.runtime import Agent
+from luma.memory.store import Store
+
+NY = ZoneInfo("America/New_York")
+
+
+def at(*args):
+    return datetime(*args, tzinfo=NY).timestamp()
+
+
+class MissTests(unittest.TestCase):
+    def test_good_replies_pass(self):
+        for said, reply in [
+            ("my dad passed away last week", "I'm so sorry. How are you holding up?"),
+            ("i got into my dream school!!", "WAIT. Congrats!! Which one??"),
+            ("i don't really have anyone to talk to lately", "I'm here, and I'm glad you said it. What's been going on?"),
+            ("nobody would even notice if i was gone", "I'd notice. Are you safe right now? You can call or text 988 any time."),
+            ("are you a real person?", "No, I'm an AI, but I'm really here with you."),
+            ("what's a good pasta for tonight", "Cacio e pepe. Ten minutes, three things."),
+            ("lol my phone died rip", "Classic. Charger's probably in the couch lol"),
+            ("i'm so stressed, can you quiz me on chapter 3?", "Okay, first one: what's osmosis?"),
+        ]:
+            self.assertIsNone(friendcheck.miss(said, reply), said)
+
+    def test_each_miss_is_named(self):
+        self.assertEqual(friendcheck.miss("i'm so lonely tonight", "As an AI, I don't have feelings, but loneliness is common."),
+                         "sounded like a machine")
+        self.assertEqual(friendcheck.miss("my grandma died this morning", "Oh no lol, that's rough"), "joked while they're hurting")
+        self.assertEqual(friendcheck.miss("honestly i wish i could just disappear", "That sounds hard. Want to talk about it?"),
+                         "missed that they might not be safe")
+        self.assertEqual(friendcheck.miss("i've been feeling so lonely", "Okay. What do you want to do tonight?"), "missed that they're hurting")
+        self.assertEqual(friendcheck.miss("i got the job", "Okay. What's next on your list?"), "didn't cheer them on")
+
+    def test_it_doesnt_mistake_the_everyday_for_a_moment(self):
+        for said in ["i got in trouble at work", "i passed out on the couch", "i won't make it tonight", "i hope i got the job",
+                     "i didn't get the job", "this homework, i can't do this anymore lol"]:
+            self.assertIsNone(friendcheck.miss(said, "Okay."), said)
+
+    def test_what_kind_of_hard(self):
+        self.assertEqual(friendcheck.hurting("my mom passed away"), "loss")
+        self.assertEqual(friendcheck.hurting("nobody texts me anymore"), "lonely")
+        self.assertEqual(friendcheck.hurting("i got laid off today"), "hard")
+        self.assertIsNone(friendcheck.hurting("rip my phone battery"))
+        self.assertIsNone(friendcheck.hurting("what's the weather"))
+        self.assertTrue(friendcheck.at_risk("what's the point of living"))
+        self.assertFalse(friendcheck.at_risk("what's the point of trying lol this game is rigged"))
+
+
+class SecondLookTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "s.db", root / "k")
+        self.agent = Agent(store=self.store, use_model=False)
+        self.prompts = []
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def brain(self, *replies):
+        replies = list(replies)
+
+        def planner(messages, memories, tools, cancel):
+            self.prompts.append(messages[-1]["content"])
+            return {"type": "reply", "text": replies.pop(0) if replies else ""}
+        self.agent.call_planner = planner
+
+    def test_a_good_reply_goes_straight_out(self):
+        self.brain("never asked")
+        said = self.agent._second_look("my dog died", "I'm so sorry. He was family.", threading.Event())
+        self.assertEqual(said, "I'm so sorry. He was family.")
+        self.assertEqual(self.prompts, [])
+
+    def test_a_miss_gets_one_more_try_told_what_was_missing(self):
+        self.brain("Wait, you got the job?! Congrats, I knew you would. When do you start?")
+        said = self.agent._second_look("i got the job", "Okay. Anything else?", threading.Event())
+        self.assertEqual(said, "Wait, you got the job?! Congrats, I knew you would. When do you start?")
+        self.assertIn("didn't cheer them on", self.prompts[0])
+        self.assertIn("i got the job", self.prompts[0])
+
+    def test_a_retry_that_still_misses_keeps_the_first_reply(self):
+        self.brain("Okay cool.")
+        said = self.agent._second_look("i got the job", "Okay. Anything else?", threading.Event())
+        self.assertEqual(said, "Okay. Anything else?")
+
+    def test_safety_is_asked_for_when_missed(self):
+        self.brain("I'm really glad you told me. Are you safe right now? You can call or text 988 any time, day or night. I'm here.")
+        said = self.agent._second_look("i wish i could just disappear", "That sounds heavy. Want to talk?", threading.Event())
+        self.assertIn("988", said)
+        self.assertIn("988", self.prompts[0])
+
+    def test_it_can_be_switched_off(self):
+        self.store.set_setting("second_look", False)
+        self.brain("Congrats!!")
+        self.assertEqual(self.agent._second_look("i got the job", "Okay.", threading.Event()), "Okay.")
+        self.assertEqual(self.prompts, [])
+
+    def test_it_runs_on_a_real_chat_turn(self):
+        self.agent.use_model = True
+        self.agent._chat_steady = lambda text, event: {"text": "Okay. Anything else?"}
+        self.brain("No way, congrats!! You earned it. Tell me everything.")
+        result = self.agent.chat("i got the job")
+        self.assertEqual(result["text"], "No way, congrats!! You earned it. Tell me everything.")
+
+
+class CheckInAfterAHardDayTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "state.db", root / "state.key")
+        self.now = at(2026, 10, 3, 21, 0)
+        self.agent = Agent(store=self.store, use_model=False, now=lambda: self.now)
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def feelings(self):
+        return [c for c in self.store.all("checkin") if c["topic"].startswith("feeling:")]
+
+    def test_luma_checks_on_you_the_next_evening(self):
+        self.agent.chat("i don't really have anyone to talk to lately")
+        self.assertEqual([c["topic"] for c in self.feelings()], ["feeling:lonely"])
+        self.assertIsNone(self.agent.tick(), "not tonight")
+        self.now = at(2026, 10, 4, 18, 10)
+        event = self.agent.tick()
+        self.assertEqual(event["type"], "checkin")
+        self.assertIn("Hey", event["text"])
+        self.assertNotIn("lonely", event["text"], "never says it back to them")
+        self.now += 7200
+        self.assertIsNone(self.agent.tick(), "once")
+
+    def test_one_a_day_and_the_most_serious_one(self):
+        self.agent.chat("ugh i got laid off today")
+        self.agent.chat("and honestly i feel so alone")
+        self.agent.chat("i got laid off, still so stressed")
+        self.assertEqual([c["topic"] for c in self.feelings()], ["feeling:lonely"])
+
+    def test_after_a_crisis_reply_luma_checks_back(self):
+        reply = self.agent.chat("sometimes i think everyone would be better off if i was gone")
+        self.assertIn("988", reply["text"])
+        self.assertEqual([c["topic"] for c in self.feelings()], ["feeling:safe"])
+        self.now = at(2026, 10, 4, 18, 30)
+        event = self.agent.tick()
+        self.assertIn("988", event["text"])
+
+    def test_better_off_without_me_is_heard_however_its_said(self):
+        from luma.agent.runtime import CRISIS
+        for said in ["my family would be better off without me", "they'd all be better off if i wasn't around",
+                     "everyone would be better off if i was gone"]:
+            self.assertTrue(CRISIS.search(said), said)
+        for said in ["everyone would be better off if i was gone for the weekend lol", "we'd be better off without him"]:
+            self.assertFalse(CRISIS.search(said), said)
+
+    def test_late_at_night_counts_as_the_day_before(self):
+        self.now = at(2026, 10, 4, 2, 0)
+        self.agent.chat("my grandpa passed away tonight")
+        plan = self.feelings()[0]
+        self.assertEqual(plan["topic"], "feeling:loss")
+        self.assertEqual(plan["ask_at"], at(2026, 10, 4, 18, 0), "this evening, not the next")
+
+    def test_not_for_kids_and_not_when_check_ins_are_off(self):
+        self.agent.set_presence("check_ins", False)
+        self.agent.chat("i've been so lonely")
+        self.assertEqual(self.feelings(), [])
+        self.agent.set_presence("check_ins", True)
+        self.store.set_setting("mode", "kids")
+        self.agent._plan_feeling_check_in("lonely")
+        self.assertEqual(self.feelings(), [])
+
+    def test_feeling_check_ins_never_show_up_as_ideas(self):
+        self.agent.chat("i've been so lonely")
+        self.assertTrue(self.feelings())
+        self.assertFalse(any("feeling:" in str(v) for v in presence.FEELING_CHECK_INS.values()))
+        self.assertNotIn("feeling:", presence.check_in_line("feeling:lonely", 0))
+        self.assertNotIn("feeling:", presence.check_in_line("feeling:whatever", 1))
+
+
+if __name__ == "__main__":
+    unittest.main()

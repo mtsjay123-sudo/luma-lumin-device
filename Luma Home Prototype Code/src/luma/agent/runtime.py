@@ -135,7 +135,8 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
 CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad)|unalive myself|"
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
-                    r"(?:everyone|they|the world)(?:'d| would) be better off without me|no reason to (?:live|keep going)|"
+                    r"(?:everyone|everybody|they|the world|my family|people)(?:'d| would) (?:all )?be better off (?:without me|if i (?:(?:was|were) gone(?! for)|died|(?:wasn'?t|weren'?t) (?:here|around|alive)(?! for)))|"
+                    r"no reason to (?:live|keep going)|"
                     r"(?:nobody|no one|no1)(?: would| will|'d)? (?:even )?(?:notice|care|miss me) if i (?:(?:was|were) gone(?! for)|died|disappeared(?! for)|wasn'?t here(?! for))|"
                     r"wish i (?:was|were) (?:never born|dead)|wish i (?:wasn'?t|weren'?t) (?:alive|born)|"
                     r"(?:what'?s|whats) (?:even )?the point (?:of|in) (?:living|being alive|me being (?:here|alive)))", re.I)
@@ -2443,7 +2444,7 @@ class Agent:
             idea("Go through my inbox every morning", "every morning go through my inbox", "A short summary of what needs you, before you open Gmail.", "inbox")
         if not self.calendar.connected():
             idea("Put your calendar on Today", "connect my calendar", "Paste your calendar's private iCal link and I'll plan around it.", "setup")
-        for row in sorted(self.store.all("checkin", 50), key=lambda r: r.get("day", ""))[:2]:
+        for row in sorted((r for r in self.store.all("checkin", 50) if not str(r.get("topic", "")).startswith("feeling:")), key=lambda r: r.get("day", ""))[:2]:
             if not row.get("asked"):
                 idea(f"Check in about {row['topic']}", f"remind me to ask about {row['topic']}", "You mentioned it, so I'll bring it up at the right time.", "people")
         for memory in self.store.all("memory", 300):
@@ -4186,6 +4187,8 @@ class Agent:
                     result["text"] = polish.plain_errors(polish.tidy(lexicon.clean(result["text"])))  # "the the", "a apple", a program's error: fixed before anyone sees them
                     if not agent_mode:  # a small brain's habits in chat: a bare list said to nobody, their own message said back to them
                         result["text"] = polish.unparrot(polish.warm_list(result["text"], text), text)
+                        if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
+                            result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
@@ -4314,6 +4317,26 @@ class Agent:
         prompt = self._observation_prompt(question, tool, result) + "Answer me naturally in a sentence or two using only that. If it didn't find anything useful, just say so."
         text = self._plain_answer(prompt, cancel_event)
         return self._grounded(question, result, text, lambda note: self._plain_answer(prompt + note, cancel_event)) if text else None
+
+    def _second_look(self, said, draft, cancel_event):
+        """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,
+        talking like a machine). The retry is kept only if it gets it right; otherwise the first reply stands."""
+        from luma.agent import friendcheck
+        if self.store.setting("second_look", True) is False:
+            return draft
+        missed = friendcheck.miss(said, draft)
+        if not missed:
+            return draft
+        self.second_looks = (getattr(self, "second_looks", []) + [{"missed": missed, "at": self.clock()}])[-50:]
+        again = self._plain_answer(friendcheck.second_try_prompt(said, draft, missed), cancel_event)
+        if again:
+            from luma.agent import polish
+            from luma.agent import slang as lexicon
+            from luma.llm.inference import garbled
+            again = polish.plain_errors(polish.tidy(lexicon.clean(again)))
+            if not garbled(again) and friendcheck.miss(said, again) is None:
+                return again
+        return draft
 
     def _plain_answer(self, prompt, cancel_event):
         try:
@@ -5358,7 +5381,20 @@ class Agent:
             for loop in presence.notice_open_loops(text, now):
                 if (loop["topic"], loop["day"]) not in planned:
                     self.store.put("checkin", {**loop, "asked": False, "mode": self.mode})
+            from luma.agent import friendcheck
+            self._plan_feeling_check_in("safe" if friendcheck.at_risk(text) else friendcheck.hurting(text))
         return saved
+
+    def _plan_feeling_check_in(self, kind):
+        """After a hard moment, ask how they're doing tomorrow evening: one a day, the most serious one that came up."""
+        if not kind or self.mode == "kids" or not self.store.setting("check_ins", True): return
+        plan = presence.notice_feeling(kind, datetime.fromtimestamp(self.clock(), self.zone))
+        if not plan: return
+        same_day = [c for c in self.store.all("checkin", 200) if str(c.get("topic", "")).startswith("feeling:") and c.get("day") == plan["day"]]
+        rank = lambda topic: presence.FEELING_RANK.get(str(topic)[8:], 0)  # noqa: E731
+        if any(c.get("asked") or rank(c["topic"]) >= rank(plan["topic"]) for c in same_day): return
+        for c in same_day: self.store.delete("checkin", c["id"])
+        self.store.put("checkin", {**plan, "asked": False, "mode": self.mode})
 
     def _write_diary(self, text, reply, channel):
         days = self.store.setting("diary_days", 0)
@@ -5441,6 +5477,8 @@ class Agent:
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
             # A modest deterministic safety fallback, not a clinical classifier.
             if CRISIS.search(lowered):
+                try: self._plan_feeling_check_in("safe")  # and check on them tomorrow, like a friend would
+                except Exception: pass
                 return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
                                 "(US and Canada) or call emergency services, and get someone nearby to stay with you. You don't have to carry this by yourself. "
                                 "I haven't contacted anyone. Can you tell me where you are right now?"}

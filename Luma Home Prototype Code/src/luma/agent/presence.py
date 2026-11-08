@@ -166,7 +166,35 @@ CHECK_INS = [
 ]
 
 
+# After a hard day a friend asks how you're doing, the next evening. Never "yesterday you said you were lonely": just there.
+FEELING_CHECK_INS = {
+    "safe": ["Hey, I've been thinking about you since we talked. How are you doing today? I'm here, and 988 is there any time too, day or night.",
+             "Hey you. I wanted to check on you after the other night. How are you holding up? You can always call or text 988 too."],
+    "loss": ["Hey, I've been thinking about you since we talked. How are you holding up today?",
+             "Hey. How are you doing today, really? I'm still thinking about what you told me."],
+    "lonely": ["Hey, I was just thinking about you. How's your day been?",
+               "Hey you. How are you feeling today? Anything good, even something small?"],
+    "hard": ["Hey, that sounded like a lot when we talked. How are you feeling today?",
+             "Hey, checking on you. Is today any better?"],
+}
+FEELING_RANK = {"hard": 1, "lonely": 2, "loss": 3, "safe": 4}
+
+
+def notice_feeling(kind, now):
+    """A check-in for tomorrow evening after a hard moment: {'topic': 'feeling:<kind>', 'day', 'ask_at'}, or None.
+    Late at night (before 5am) counts as the day before, so 'tomorrow' is this evening."""
+    if kind not in FEELING_CHECK_INS:
+        return None
+    day = (now - timedelta(hours=5)).date()
+    ask_day = day + timedelta(days=1)
+    ask_at = now.replace(year=ask_day.year, month=ask_day.month, day=ask_day.day, hour=18, minute=0, second=0, microsecond=0)
+    return {"topic": "feeling:" + kind, "day": day.isoformat(), "ask_at": ask_at.timestamp()}
+
+
 def check_in_line(topic, seed):
+    if str(topic).startswith("feeling:"):
+        lines = FEELING_CHECK_INS.get(topic[8:], FEELING_CHECK_INS["hard"])
+        return lines[seed % len(lines)]
     return CHECK_INS[seed % len(CHECK_INS)].format(topic=topic)
 
 
