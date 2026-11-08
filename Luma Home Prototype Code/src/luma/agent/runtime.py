@@ -4181,6 +4181,8 @@ class Agent:
                     from luma.llm.inference import garbled
                     from luma.agent import polish
                     result["text"] = polish.plain_errors(polish.tidy(lexicon.clean(result["text"])))  # "the the", "a apple", a program's error: fixed before anyone sees them
+                    if not agent_mode:  # a small brain's habits in chat: a bare list said to nobody, their own message said back to them
+                        result["text"] = polish.unparrot(polish.warm_list(result["text"], text), text)
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote

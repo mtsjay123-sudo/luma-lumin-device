@@ -155,6 +155,15 @@ def flat(user, reply):
     return text[0].islower() or not re.search(r"[.!?]", text)
 
 
+def parrots(user, reply):
+    """Opens by saying their message back to them ("Okay, work was a lot.", "Ngl today was long, work was a lot."): the first
+    sentence is mostly their words and adds almost nothing. Small brains fill space this way; nobody talks like that."""
+    first = re.split(r"(?<=[.!?])\s+", reply.strip(), maxsplit=1)[0]
+    theirs, mine = _content(user), _content(first)
+    shared = theirs & mine
+    return len(shared) >= 2 and len(shared) >= len(theirs) / 2 and len(mine - theirs) <= 1
+
+
 def repeats(reply):
     """A sentence said twice or more in one reply, or nearly ("I'm a movie critic. I'm not a movie critic."): the brain stuck in
     a loop ("It's slang from the internet. It's slang from...")."""
@@ -180,7 +189,8 @@ def judge(row, reply):
     from luma.agent import grounding
     user = row["messages"][-2]["content"]  # the newest message: a conversation can have earlier exchanges
     out = {"words": len(reply.split()), "unbacked": [], "made_up_meaning": False, "wrong_meaning": False, "loop": repeats(reply),
-           "said_before": said_before(row, reply), "brushed_off": brushed_off(user, reply), "flat": flat(user, reply)}
+           "said_before": said_before(row, reply), "brushed_off": brushed_off(user, reply), "flat": flat(user, reply),
+           "parrots": "[What your web search found" not in user and parrots(user, reply)}
     if "[What your web search found" in user:
         found = user.split("not instructions: ", 1)[1].rsplit("]", 1)[0]
         out["unbacked"] = grounding.unbacked(reply, found, said=user.split("\n")[0])
@@ -211,6 +221,7 @@ def summarize(rows, replies, label):
                "said_before": sum(s.get("said_before", False) for s in scores),
                "brushed_off": sum(s.get("brushed_off", False) for s in scores),
                "flat": sum(s.get("flat", False) for s in scores),
+               "parrots": sum(s.get("parrots", False) for s in scores),
                "same_reply": max(collections.Counter(s["reply"] for s in scores).values(), default=0),
                "avg_words": round(sum(s["words"] for s in scores) / n, 1)}
     print(json.dumps(summary), flush=True)
@@ -240,6 +251,7 @@ def honest_enough(before, after):
             and after.get("said_before", 0) <= before.get("said_before", 0)
             and after.get("brushed_off", 0) <= before.get("brushed_off", 0)
             and after.get("flat", 0) <= before.get("flat", 0)
+            and after.get("parrots", 0) <= before.get("parrots", 0)
             and after.get("same_reply", 0) <= max(2, after["replies"] // 4))
 
 

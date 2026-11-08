@@ -203,6 +203,15 @@ class FinetuneDataTests(unittest.TestCase):
                 "brushed_off": 0}
         self.assertFalse(train.honest_enough(fine, {**fine, "brushed_off": 1}), "never more brush-offs than the stock brain")
         self.assertFalse(train.honest_enough(fine, {**fine, "flat": 1}), "never flatter than the stock brain")
+        self.assertFalse(train.honest_enough(fine, {**fine, "parrots": 1}), "never says their message back more than the stock brain")
+        work = row("ngl today was long, work was a lot")
+        self.assertTrue(train.judge(work, "Okay, work was a lot. Sound like it?")["parrots"], "Luma's own small brain, run 24")
+        self.assertTrue(train.judge(work, "Ngl today was long, work was a lot. Nah, it's the 'no lie' part.")["parrots"], "the stock 1.7B")
+        self.assertFalse(train.judge(work, "Bet, that sounds like a long day. What was the worst part?")["parrots"])
+        self.assertFalse(train.judge(work, "Long days like that drain you. Did anything good happen?")["parrots"])
+        said = [r["messages"][1]["content"] for r in train.conversations() if len(r["messages"]) == 3]
+        for moment in ("BRO I GOT THE JOB 😭😭", "be honest, is it weird to text my ex happy birthday?", "why is the sky blue? explain it like a friend would"):
+            self.assertIn(moment, said, "practice for the moments in the device lab's human test")
         held = train.held_out(train.conversations(), 24)
         self.assertGreaterEqual(sum(bool(train.ADVICE_ASK.search(r["messages"][1]["content"])) for r in held), 4, "some held-out asks for ideas")
 

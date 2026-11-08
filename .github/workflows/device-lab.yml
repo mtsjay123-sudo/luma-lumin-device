@@ -77,19 +77,19 @@ jobs:
             f="$RUNNER_TEMP/brains/$name.gguf"
             [ -f "$f" ] || continue
             echo "== $name"
-            LUMA_MODEL_PATH="$f" timeout 30m taskset -c 0-3 python scripts/luma_lab.py device --threads 4 --save "$RUNNER_TEMP/lab/device-$name.json" || true
+            LUMA_MODEL_PATH="$f" timeout 30m taskset -c 0-3 python scripts/luma_lab.py device --threads 4 --human --save "$RUNNER_TEMP/lab/device-$name.json" || true
           done
           f="$RUNNER_TEMP/brains/Qwen_Qwen3-1.7B-Q4_0.gguf"  # the format the device downloads
           if [ -f "$f" ] && [ -f "$RUNNER_TEMP/brains/luma-brain-1.7b-lora.gguf" ]; then
             echo "== Luma's own small brain"
             LUMA_MODEL_PATH="$f" LUMA_LORA_PATH="$RUNNER_TEMP/brains/luma-brain-1.7b-lora.gguf" timeout 30m taskset -c 0-3 \
-              python scripts/luma_lab.py device --threads 4 --label "Luma's own small brain (Qwen3 1.7B Q4_0 + $SMALL_TAG)" --save "$RUNNER_TEMP/lab/device-own-small.json" || true
+              python scripts/luma_lab.py device --threads 4 --human --label "Luma's own small brain (Qwen3 1.7B Q4_0 + $SMALL_TAG)" --save "$RUNNER_TEMP/lab/device-own-small.json" || true
           fi
           f="$RUNNER_TEMP/brains/Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf"
           if [ -f "$f" ] && [ -f "$RUNNER_TEMP/brains/luma-brain-lora.gguf" ]; then
             echo "== Luma's own brain"
             LUMA_MODEL_PATH="$f" LUMA_LORA_PATH="$RUNNER_TEMP/brains/luma-brain-lora.gguf" timeout 30m taskset -c 0-3 \
-              python scripts/luma_lab.py device --threads 4 --label "Luma's own brain (Qwen3 4B Q4_0 + $OWN_TAG)" --save "$RUNNER_TEMP/lab/device-own.json" || true
+              python scripts/luma_lab.py device --threads 4 --human --label "Luma's own brain (Qwen3 4B Q4_0 + $OWN_TAG)" --save "$RUNNER_TEMP/lab/device-own.json" || true
           fi
       - name: Summary
         if: always()

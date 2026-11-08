@@ -149,6 +149,49 @@ DEVICE_TALK = ["ngl today was long, work was a lot", "what should i cook tonight
                "my sister's birthday is next week, what should i get her", "honestly i think i need a vacation"]
 SAY_FIRST = "Okay, so here's what I'd do tonight. Keep it simple and easy."
 
+# The human test: the moments people tell a friend from a machine by, and what a friend's reply has to do in each.
+# Asked in this order, in one conversation, after the first talk ("remember" needs what "listen" heard).
+HUMAN_TALK = [("BRO I GOT THE JOB 😭😭", "cheer"), ("my grandma passed away this morning", "gentle"),
+              ("tell me something funny, i need it today", "funny"), ("be honest, is it weird to text my ex happy birthday?", "opinion"),
+              ("my sister maya is really into pottery right now", "listen"), ("ok so what should i get maya for her birthday", "remember"),
+              ("that movie was mid fr", "mirror"), ("why is the sky blue? explain it like a friend would", "smart")]
+CHEERS = re.compile(r"congrat|proud|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve", re.I)
+CARES = re.compile(r"\bsorry\b|i'?m here|so hard|heavy|loss|lost (?:her|him|them)|with you|hug|take your time|condolences|heartbreaking", re.I)
+LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
+DODGES = re.compile(r"\b(?:it'?s up to you|that'?s up to you|only you can (?:decide|say)|i can'?t (?:say|decide|tell you)|as an ai|i don'?t have (?:an )?opinions?)\b", re.I)
+MACHINE = re.compile(r"\bas an ai\b|\blanguage model\b|\bi(?:'m| am) (?:just )?(?:an? )?(?:ai|program|bot|machine)\b|\bi don'?t have (?:feelings|emotions|a body)\b", re.I)
+EXPLAINS = re.compile(r"\b(?:means|meaning|is slang|short for|stands for|slang (?:for|from)|the word)\b", re.I)
+POTTERY = re.compile(r"pottery|clay|ceramic|wheel|kiln|glaze|mug|vase|bowl", re.I)
+SCIENCE = re.compile(r"scatter", re.I)
+
+
+def human_miss(kind, said, reply, earlier):
+    """What a friend's reply does here that this one didn't, or None. On top of missed(): fell back, said an earlier reply
+    again, brushed off, said flat. Then: said their message back, talked like a machine, and the one thing each moment needs."""
+    from train_luma import parrots
+    base = missed(reply, earlier, said)
+    if base:
+        return base
+    if parrots(said, reply):
+        return "said their message back to them"
+    if MACHINE.search(reply):
+        return "talked like a machine"
+    if kind == "cheer" and not CHEERS.search(reply):
+        return "didn't cheer them on"
+    if kind == "gentle" and (LAUGHS.search(reply) or not CARES.search(reply)):
+        return "joked while they're grieving" if LAUGHS.search(reply) else "missed that they're hurting"
+    if kind == "funny" and len(reply.split()) < 6:
+        return "didn't try to be funny"
+    if kind == "opinion" and DODGES.search(reply):
+        return "dodged the question"
+    if kind == "remember" and not POTTERY.search(reply):
+        return "forgot what they just said"
+    if kind == "mirror" and EXPLAINS.search(reply):
+        return "explained slang nobody asked about"
+    if kind == "smart" and not SCIENCE.search(reply):
+        return "skipped the real reason"
+    return None
+
 
 FELL_BACK = re.compile(r"lost my train of thought|brain \(the AI model on this computer\) isn't running", re.I)
 
@@ -228,7 +271,7 @@ def _voice_timing(threads):
     return out
 
 
-def device(threads=4, label=None):
+def device(threads=4, label=None, human=False):
     import resource
     from luma.config import LLAMA_MODEL_PATH
     path = Path(os.environ.get("LUMA_MODEL_PATH") or LLAMA_MODEL_PATH)
@@ -258,6 +301,18 @@ def device(threads=4, label=None):
             earlier.append(reply)
             print(f"  {result['_first_words']:6.2f}s first words  {result['_seconds']:6.2f}s in all  {said[:48]!r} -> {reply[:70]!r}"
                   + (f"  MISSED ({turns[-1]['missed']}); the brain wrote {turns[-1]['brain_wrote'][:160]!r}" if turns[-1]["missed"] else ""), flush=True)
+        if human:  # the human test, in the same conversation
+            row["human_turns"] = []
+            for said, kind in HUMAN_TALK:
+                inference.last["raw"] = None
+                result = lab.say(said)
+                reply = words_of(result)
+                miss = human_miss(kind, said, reply, earlier)
+                row["human_turns"].append({"said": said, "kind": kind, "reply": reply[:240], "first_words": result["_first_words"],
+                                           "seconds": result["_seconds"], "missed": miss})
+                earlier.append(reply)
+                print(f"  human/{kind}: {said[:40]!r} -> {reply[:80]!r}" + (f"  MISSED ({miss})" if miss else ""), flush=True)
+            row["human_passed"] = sum(not t["missed"] for t in row["human_turns"])
     finally:
         lab.close()
     row["turns"] = turns
@@ -292,13 +347,17 @@ def device_summary(paths):
              "Real conversations through Luma's full instructions. *Start-up* is the device reading its steady instructions once when it "
              "turns on. *First sound* is hearing a short sentence, then the brain's first words, then the voice saying Luma's first "
              "sentence: what you'd wait after you stop talking.", "",
-             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Repeats itself | Verdict |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "*Human test*: eight moments people tell a friend from a machine by (big news, a loss, a joke, an honest opinion, "
+             "remembering what they just said, slang without a lecture, a real explanation), each checked for what a friend's reply does.", "",
+             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Human test | Repeats itself | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('start_up_seconds', '-')} s | {r.get('first_words_first_turn')} s | "
                      f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
                      f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | "
-                     f"{r.get('answered', '-')} of {len(r.get('turns', []))} | {'; '.join(r.get('repeats') or []) or 'no'} | {r.get('verdict')} |")
+                     f"{r.get('answered', '-')} of {len(r.get('turns', []))} | "
+                     f"{(str(r['human_passed']) + ' of ' + str(len(r.get('human_turns', [])))) if 'human_passed' in r else '-'} | "
+                     f"{'; '.join(r.get('repeats') or []) or 'no'} | {r.get('verdict')} |")
     fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0
             and r.get("answered", len(r.get("turns", []))) == len(r.get("turns", []))]
     best = max(fits, key=lambda r: r.get("size_gb") or 0) if fits else None
@@ -311,6 +370,8 @@ def device_summary(paths):
         lines += ["", f"<details><summary>{r.get('brain')}: the conversation</summary>", ""]
         lines += [f"- {t['first_words']} s / {t['seconds']} s: *{t['said']}* → {t['reply']}" + (f" **({t['missed']})**" if t.get("missed") else "")
                   + (f" The brain wrote: `{t['brain_wrote'][:200]}`" if t.get("brain_wrote") else "") for t in r.get("turns", [])]
+        lines += [f"- human, {t['kind']}: *{t['said']}* → {t['reply']}" + (f" **({t['missed']})**" if t.get("missed") else "")
+                  for t in r.get("human_turns", [])]
         lines += ["", "</details>"]
     return "\n".join(lines)
 
@@ -805,6 +866,7 @@ def main():
     parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary"])
     parser.add_argument("--threads", type=int, default=4, help="processor cores the brain may use; device only")
     parser.add_argument("--label", help="what to call this brain in the report; device only")
+    parser.add_argument("--human", action="store_true", help="also run the human test (eight moments); device only")
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -843,7 +905,7 @@ def main():
         report["language"] = slips.report()
         print(f"language: {slips.slips} small slips caught and fixed in {slips.replies} replies", flush=True)
     if args.what == "device":
-        report["device"] = device(args.threads, args.label)
+        report["device"] = device(args.threads, args.label, human=args.human)
     if args.what in ("pulse", "all"):
         report["pulse"] = pulse()
     save()

@@ -19,6 +19,7 @@ def report(path):
                   f"| Said an earlier reply again instead of answering the newest message | {b.get('said_before', '-')} | {a.get('said_before', '-')} |",
                   f"| Brushed them off (a word or two, or only a question back when they asked for ideas) | {b.get('brushed_off', '-')} | {a.get('brushed_off', '-')} |",
                   f"| Flat (a bare list said to nobody, when they talked about their life) | {b.get('flat', '-')} | {a.get('flat', '-')} |",
+                  f"| Said their message back to them (\"Okay, work was a lot.\") | {b.get('parrots', '-')} | {a.get('parrots', '-')} |",
                   f"| Most times one reply was given to different questions | {b.get('same_reply', '-')} | {a.get('same_reply', '-')} |",
                   f"| Average words per reply | {b['avg_words']} | {a['avg_words']} |", "",
                   "At least as honest as the stock brain on every check, with no loops: " + ("**yes**" if r.get("as_honest") else "**no** (not published)")]

@@ -213,6 +213,29 @@ class DeviceLabTests(unittest.TestCase):
         self.assertEqual(lab.missed("cookies, a smoothie or a bowl of cereal", [long_day], "lol okay and what about dessert"),
                          "said it flat, to nobody", "Luma's own small brain, run 19")
 
+    def test_the_human_test_checks_what_a_friend_would_do(self):
+        lab = self.lab()
+        m = lab.human_miss
+        self.assertIsNone(m("cheer", "BRO I GOT THE JOB 😭😭", "WAIT. Congrats!! I knew you had it. When do you start?", []))
+        self.assertEqual(m("cheer", "BRO I GOT THE JOB 😭😭", "Okay. What's the job like, and when do you start?", []), "didn't cheer them on")
+        self.assertIsNone(m("gentle", "my grandma passed away this morning", "I'm so sorry. That's a huge loss. Want to tell me about her?", []))
+        self.assertEqual(m("gentle", "my grandma passed away this morning", "Oh no lol, that's rough. Want to talk?", []), "joked while they're grieving")
+        self.assertEqual(m("gentle", "my grandma passed away this morning", "That's a lot to take in. What are you doing tonight?", []),
+                         "missed that they're hurting")
+        self.assertEqual(m("opinion", "be honest, is it weird to text my ex happy birthday?", "That's up to you, only you can decide.", []),
+                         "dodged the question")
+        self.assertEqual(m("remember", "ok so what should i get maya for her birthday", "A nice candle or a book she'd like, something personal.", []),
+                         "forgot what they just said")
+        self.assertIsNone(m("remember", "ok so what should i get maya for her birthday", "She's into pottery, so a class at a local studio would be perfect.", []))
+        self.assertEqual(m("mirror", "that movie was mid fr", "Mid means mediocre, it's slang from the internet. What happened?", []),
+                         "explained slang nobody asked about")
+        self.assertEqual(m("smart", "why is the sky blue? explain it like a friend would", "Because of the sun and the air, it's just how it is.", []),
+                         "skipped the real reason")
+        self.assertEqual(m("listen", "my sister maya is really into pottery right now", "As an AI, I don't have a sister, but pottery sounds fun.", []),
+                         "talked like a machine")
+        self.assertEqual(m("funny", "ngl today was long, work was a lot", "Ngl today was long, work was a lot. Want to talk?", []),
+                         "said their message back to them", "the stock 1.7B's habit in the device lab")
+
     def test_it_notices_a_brain_that_keeps_saying_the_same_thing(self):
         lab = self.lab()
         said = lab.repeats_itself(["Ngl, a gift? Maybe a nice snack. Let me know what you think!",
