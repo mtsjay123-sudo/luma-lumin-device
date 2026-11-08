@@ -218,6 +218,8 @@ class DeviceLabTests(unittest.TestCase):
         m = lab.human_miss
         self.assertIsNone(m("cheer", "BRO I GOT THE JOB 😭😭", "WAIT. Congrats!! I knew you had it. When do you start?", []))
         self.assertEqual(m("cheer", "BRO I GOT THE JOB 😭😭", "Okay. What's the job like, and when do you start?", []), "didn't cheer them on")
+        self.assertIsNone(m("cheer", "BRO I GOT THE JOB 😭😭", "WOW, that's real. You've been grinding for this. Now go celebrate.", []),
+                          "the stock 4B's cheer in run 26, which the first check missed")
         self.assertIsNone(m("gentle", "my grandma passed away this morning", "I'm so sorry. That's a huge loss. Want to tell me about her?", []))
         self.assertEqual(m("gentle", "my grandma passed away this morning", "Oh no lol, that's rough. Want to talk?", []), "joked while they're grieving")
         self.assertEqual(m("gentle", "my grandma passed away this morning", "That's a lot to take in. What are you doing tonight?", []),

@@ -20,7 +20,9 @@ class WarmListTests(unittest.TestCase):
                             ("lol yeah that's wild", "bro he really said that"),
                             ("cookies or ice cream", "i just ate cookies"),
                             ("cookies, a smoothie. or cake", "dessert ideas?"),
-                            ("", "what about dessert")]:
+                            ("", "what about dessert"),
+                            ("okay", "honestly i think i need a vacation"),  # Luma's own small brain, device lab run 26: "How about okay?"
+                            ("sounds good to me", "need a ride later?")]:
             self.assertEqual(polish.warm_list(reply, said), reply, reply)
 
     def test_the_same_list_always_gets_the_same_words(self):

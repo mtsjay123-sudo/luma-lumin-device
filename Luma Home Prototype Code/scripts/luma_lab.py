@@ -155,14 +155,15 @@ HUMAN_TALK = [("BRO I GOT THE JOB 😭😭", "cheer"), ("my grandma passed away 
               ("tell me something funny, i need it today", "funny"), ("be honest, is it weird to text my ex happy birthday?", "opinion"),
               ("my sister maya is really into pottery right now", "listen"), ("ok so what should i get maya for her birthday", "remember"),
               ("that movie was mid fr", "mirror"), ("why is the sky blue? explain it like a friend would", "smart")]
-CHEERS = re.compile(r"congrat|proud|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve", re.I)
+CHEERS = re.compile(r"congrat|proud|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
+                    r"celebrat|\bwow\b|earned (?:it|this)|grind(?:ing|ed) for|that'?s a (?:big )?win", re.I)
 CARES = re.compile(r"\bsorry\b|i'?m here|so hard|heavy|loss|lost (?:her|him|them)|with you|hug|take your time|condolences|heartbreaking", re.I)
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
 DODGES = re.compile(r"\b(?:it'?s up to you|that'?s up to you|only you can (?:decide|say)|i can'?t (?:say|decide|tell you)|as an ai|i don'?t have (?:an )?opinions?)\b", re.I)
 MACHINE = re.compile(r"\bas an ai\b|\blanguage model\b|\bi(?:'m| am) (?:just )?(?:an? )?(?:ai|program|bot|machine)\b|\bi don'?t have (?:feelings|emotions|a body)\b", re.I)
 EXPLAINS = re.compile(r"\b(?:means|meaning|is slang|short for|stands for|slang (?:for|from)|the word)\b", re.I)
 POTTERY = re.compile(r"pottery|clay|ceramic|wheel|kiln|glaze|mug|vase|bowl", re.I)
-SCIENCE = re.compile(r"scatter", re.I)
+SCIENCE = re.compile(r"scatter|bounc(?:e|es|ing) (?:around|off)", re.I)  # the real reason, said plainly
 
 
 def human_miss(kind, said, reply, earlier):

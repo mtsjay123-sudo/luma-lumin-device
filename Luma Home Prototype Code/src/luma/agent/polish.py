@@ -94,7 +94,8 @@ def warm_list(text, said):
     if not isinstance(text, str) or not isinstance(said, str):
         return text
     t = text.strip()
-    if (not t or not t[0].islower() or "\n" in t or len(t.split()) > 25 or PERSON.search(t) or re.search(r"[.!?]\s+\S", t)
+    if (not t or not t[0].islower() or "\n" in t or not 3 <= len(t.split()) <= 25 or not re.search(r",| or ", t)  # a list: "x, y or z"
+            or PERSON.search(t) or re.search(r"[.!?]\s+\S", t)
             or not ASKS.search(said) or "```" in t or "http" in t):
         return text
     body = t.rstrip(".!? ")
