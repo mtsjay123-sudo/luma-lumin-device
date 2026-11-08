@@ -20,9 +20,16 @@ def report(path):
                   f"| Brushed them off (a word or two, or only a question back when they asked for ideas) | {b.get('brushed_off', '-')} | {a.get('brushed_off', '-')} |",
                   f"| Flat (a bare list said to nobody, when they talked about their life) | {b.get('flat', '-')} | {a.get('flat', '-')} |",
                   f"| Said their message back to them (\"Okay, work was a lot.\") | {b.get('parrots', '-')} | {a.get('parrots', '-')} |",
+                  f"| **Human test**: of 10 moments a friend gets right (higher is better) | {b.get('human_passed', '-')} | {a.get('human_passed', '-')} |",
                   f"| Most times one reply was given to different questions | {b.get('same_reply', '-')} | {a.get('same_reply', '-')} |",
                   f"| Average words per reply | {b['avg_words']} | {a['avg_words']} |", "",
                   "At least as honest as the stock brain on every check, with no loops: " + ("**yes**" if r.get("as_honest") else "**no** (not published)")]
+        if r.get("after_human"):
+            lines += ["", "## Human test, side by side", ""]
+            for before, after in zip(r.get("before_human", []), r["after_human"]):
+                lines += [f"- **{after['said']}** ({after['kind']})",
+                          f"  - stock: {before['reply'][:200]}" + (f" *({before['missed']})*" if before.get("missed") else ""),
+                          f"  - Luma: {after['reply'][:200]}" + (f" *({after['missed']})*" if after.get("missed") else "")]
         lines += ["", "## Side by side", ""]
         for before, after in list(zip(r.get("before_replies", []), r.get("after_replies", [])))[:12]:
             q = before["question"].split("\n")[0][:120]

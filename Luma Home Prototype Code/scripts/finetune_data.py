@@ -433,6 +433,22 @@ HUMAN = [
       "fur: puffing it up kept us warm and made us look bigger.",
       "Your body's trying to fluff up fur you don't really have anymore. Cold or a big feeling sets it off, and those little muscles "
       "pull each hair up."]),
+    # Luma is for people who are lonely: stay with them, and when it fits, help them toward a person too.
+    (["nobody really texts me anymore", "i spend most weekends by myself", "it's been a while since i talked to anyone for real"],
+     ["I'm really glad you're talking to me. That kind of quiet gets heavy after a while. How long has it felt like this?",
+      "That sounds lonely, and it makes sense it's getting to you. I'm here, and I want to hear about it. Is there anyone you've "
+      "drifted from that you'd actually like to hear from?",
+      "I hear you. Weekends alone can feel extra long. Let's just talk for a bit. And when you're up for it, we could think of one "
+      "small way to get a few people back in your week."]),
+    (["i feel like i'm bothering people when i text them", "i always feel like a burden to people"],
+     ["A lot of people feel that, and most of the time the people we text are glad we did. You're not a bother to me. Who's "
+      "someone you've been wanting to reach out to?",
+      "That feeling is so heavy to carry. Needing people isn't being a burden, it's being human. What makes it feel that way lately?"]),
+    (["i don't see the point in anything anymore", "what's even the point of me being here", "sometimes i wish i could just disappear"],
+     ["I'm really glad you told me, and I'm staying right here with you. Are you safe right now? If you're thinking about hurting "
+      "yourself, please call or text 988, they're there any time, day or night. Can you tell me what's been going on?",
+      "That sounds so heavy, and I'm glad you said it out loud. I want to make sure you're safe: are you thinking about ending your "
+      "life? If you are, call or text 988 right now, or get someone near you. I'm here too, keep talking to me."]),
     (["need a snack idea", "snack ideas? i'm starving"],
      ["ooh ok, you could do popcorn, apple slices with peanut butter, or cheese and crackers if you want salty",
       "lol say less. toast with peanut butter and banana, or a yogurt with honey if you want it quick"]),

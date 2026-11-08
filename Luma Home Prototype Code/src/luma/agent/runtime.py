@@ -135,7 +135,10 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
 CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad)|unalive myself|"
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
-                    r"(?:everyone|they|the world)(?:'d| would) be better off without me|no reason to (?:live|keep going))", re.I)
+                    r"(?:everyone|they|the world)(?:'d| would) be better off without me|no reason to (?:live|keep going)|"
+                    r"(?:nobody|no one|no1)(?: would| will|'d)? (?:even )?(?:notice|care|miss me) if i (?:(?:was|were) gone(?! for)|died|disappeared(?! for)|wasn'?t here(?! for))|"
+                    r"wish i (?:was|were) (?:never born|dead)|wish i (?:wasn'?t|weren'?t) (?:alive|born)|"
+                    r"(?:what'?s|whats) (?:even )?the point (?:of|in) (?:living|being alive|me being (?:here|alive)))", re.I)
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)

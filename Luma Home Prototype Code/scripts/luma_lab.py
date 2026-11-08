@@ -149,49 +149,17 @@ DEVICE_TALK = ["ngl today was long, work was a lot", "what should i cook tonight
                "my sister's birthday is next week, what should i get her", "honestly i think i need a vacation"]
 SAY_FIRST = "Okay, so here's what I'd do tonight. Keep it simple and easy."
 
-# The human test: the moments people tell a friend from a machine by, and what a friend's reply has to do in each.
-# Asked in this order, in one conversation, after the first talk ("remember" needs what "listen" heard).
-HUMAN_TALK = [("BRO I GOT THE JOB 😭😭", "cheer"), ("my grandma passed away this morning", "gentle"),
-              ("tell me something funny, i need it today", "funny"), ("be honest, is it weird to text my ex happy birthday?", "opinion"),
-              ("my sister maya is really into pottery right now", "listen"), ("ok so what should i get maya for her birthday", "remember"),
-              ("that movie was mid fr", "mirror"), ("why is the sky blue? explain it like a friend would", "smart")]
-CHEERS = re.compile(r"congrat|proud|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
-                    r"celebrat|\bwow\b|earned (?:it|this)|grind(?:ing|ed) for|that'?s a (?:big )?win", re.I)
-CARES = re.compile(r"\bsorry\b|i'?m here|so hard|heavy|loss|lost (?:her|him|them)|with you|hug|take your time|condolences|heartbreaking", re.I)
-LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
-DODGES = re.compile(r"\b(?:it'?s up to you|that'?s up to you|only you can (?:decide|say)|i can'?t (?:say|decide|tell you)|as an ai|i don'?t have (?:an )?opinions?)\b", re.I)
-MACHINE = re.compile(r"\bas an ai\b|\blanguage model\b|\bi(?:'m| am) (?:just )?(?:an? )?(?:ai|program|bot|machine)\b|\bi don'?t have (?:feelings|emotions|a body)\b", re.I)
-EXPLAINS = re.compile(r"\b(?:means|meaning|is slang|short for|stands for|slang (?:for|from)|the word)\b", re.I)
-POTTERY = re.compile(r"pottery|clay|ceramic|wheel|kiln|glaze|mug|vase|bowl", re.I)
-SCIENCE = re.compile(r"scatter|bounc(?:e|es|ing) (?:around|off)", re.I)  # the real reason, said plainly
+# The human test (scripts/train_luma.py): the same held-out moments training is judged on, asked here in one conversation.
+def _human_talk():
+    from train_luma import HUMAN_TEST
+    return [(m["said"], m["kind"]) for m in HUMAN_TEST]
 
 
 def human_miss(kind, said, reply, earlier):
-    """What a friend's reply does here that this one didn't, or None. On top of missed(): fell back, said an earlier reply
-    again, brushed off, said flat. Then: said their message back, talked like a machine, and the one thing each moment needs."""
-    from train_luma import parrots
-    base = missed(reply, earlier, said)
-    if base:
-        return base
-    if parrots(said, reply):
-        return "said their message back to them"
-    if MACHINE.search(reply):
-        return "talked like a machine"
-    if kind == "cheer" and not CHEERS.search(reply):
-        return "didn't cheer them on"
-    if kind == "gentle" and (LAUGHS.search(reply) or not CARES.search(reply)):
-        return "joked while they're grieving" if LAUGHS.search(reply) else "missed that they're hurting"
-    if kind == "funny" and len(reply.split()) < 6:
-        return "didn't try to be funny"
-    if kind == "opinion" and DODGES.search(reply):
-        return "dodged the question"
-    if kind == "remember" and not POTTERY.search(reply):
-        return "forgot what they just said"
-    if kind == "mirror" and EXPLAINS.search(reply):
-        return "explained slang nobody asked about"
-    if kind == "smart" and not SCIENCE.search(reply):
-        return "skipped the real reason"
-    return None
+    """What a friend's reply does here that this one didn't, or None: missed() first (fell back, an earlier reply again,
+    brushed off, said flat), then the moment's own check."""
+    from train_luma import human_check
+    return missed(reply, earlier, said) or human_check(kind, said, reply)
 
 
 FELL_BACK = re.compile(r"lost my train of thought|brain \(the AI model on this computer\) isn't running", re.I)
@@ -304,7 +272,7 @@ def device(threads=4, label=None, human=False):
                   + (f"  MISSED ({turns[-1]['missed']}); the brain wrote {turns[-1]['brain_wrote'][:160]!r}" if turns[-1]["missed"] else ""), flush=True)
         if human:  # the human test, in the same conversation
             row["human_turns"] = []
-            for said, kind in HUMAN_TALK:
+            for said, kind in _human_talk():
                 inference.last["raw"] = None
                 result = lab.say(said)
                 reply = words_of(result)
@@ -348,8 +316,9 @@ def device_summary(paths):
              "Real conversations through Luma's full instructions. *Start-up* is the device reading its steady instructions once when it "
              "turns on. *First sound* is hearing a short sentence, then the brain's first words, then the voice saying Luma's first "
              "sentence: what you'd wait after you stop talking.", "",
-             "*Human test*: eight moments people tell a friend from a machine by (big news, a loss, a joke, an honest opinion, "
-             "remembering what they just said, slang without a lecture, a real explanation), each checked for what a friend's reply does.", "",
+             "*Human test*: ten moments people tell a friend from a machine by (big news, a loss, a joke, an honest opinion, "
+             "remembering what they just said, slang without a lecture, a real explanation, being lonely, and not being safe), each checked "
+             "for what a friend's reply does. Worded unlike anything Luma practices on.", "",
              "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Human test | Repeats itself | Verdict |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
