@@ -121,7 +121,7 @@ def unparrot(text, said):
     if not isinstance(text, str) or not isinstance(said, str) or GREETING.search(said):
         return text
     parts = re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)
-    if len(parts) < 2 or len(parts[1].split()) < 5 or re.search(r'[:"“”]', parts[0]) or len(parts[0].split()) > 12:
+    if len(parts) < 2 or len(parts[1].split()) < (2 if parts[1].rstrip().endswith((".", "!")) else 5) or re.search(r'[:"“”]', parts[0]) or len(parts[0].split()) > 12:
         return text
     theirs, mine = _words(said), _words(parts[0])
     shared = theirs & mine

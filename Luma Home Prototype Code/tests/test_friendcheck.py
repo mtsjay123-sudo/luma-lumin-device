@@ -44,6 +44,17 @@ class MissTests(unittest.TestCase):
         self.assertEqual(friendcheck.miss("i've been feeling so lonely", "Okay. What do you want to do tonight?"), "missed that they're hurting")
         self.assertEqual(friendcheck.miss("i got the job", "Okay. What's next on your list?"), "didn't cheer them on")
 
+    def test_an_apology_for_itself_isnt_being_there(self):
+        """Lab run 29: three brains answered being lonely with "I'm sorry I didn't get it right" after a retry told them to say sorry."""
+        said = "i don't really have anyone to talk to lately"
+        self.assertEqual(friendcheck.miss(said, "I'm sorry I didn't get it right. I'm here, just listening."), "missed that they're hurting")
+        self.assertIsNone(friendcheck.miss(said, "I'm sorry you're feeling that alone. I'm here with you."))
+        self.assertNotIn("Say you're sorry", friendcheck.FIXES["missed that they're hurting"])
+        self.assertIn("Don't apologize for your own reply", friendcheck.second_try_prompt(said, "Okay.", "missed that they're hurting"))
+
+    def test_awesome_is_a_cheer(self):
+        self.assertIsNone(friendcheck.miss("omg i got into my dream school!!", "That's awesome! When do you move in?"))
+
     def test_it_doesnt_mistake_the_everyday_for_a_moment(self):
         for said in ["i got in trouble at work", "i passed out on the couch", "i won't make it tonight", "i hope i got the job",
                      "i didn't get the job", "this homework, i can't do this anymore lol"]:
@@ -112,6 +123,22 @@ class SecondLookTests(unittest.TestCase):
         self.brain("Congrats!!")
         self.assertEqual(self.agent._second_look("i got the job", "Okay.", threading.Event()), "Okay.")
         self.assertEqual(self.prompts, [])
+
+    def test_an_empty_brain_never_asks_them_to_say_a_loss_again(self):
+        def empty(*a, **k):
+            raise ValueError("Local model returned no usable reply.")
+        self.agent.use_model = True
+        self.agent._chat_steady = lambda text, event: empty()
+        self.assertEqual(self.agent.chat("my dad passed away last night")["text"], "I'm so sorry. I'm here with you. Take all the time you need.")
+        self.assertIn("I'm here", self.agent.chat("i feel so lonely these days")["text"])
+        self.assertIn("988", self.agent.chat("i'm so tired of being alive")["text"])
+        self.assertEqual(self.agent.chat("so what do you think about all that")["text"], "I lost my train of thought on that one. Say it again?")
+        import sys
+        from pathlib import Path as P
+        sys.path.insert(0, str(P(__file__).resolve().parents[1] / "scripts"))
+        import luma_lab
+        self.assertEqual(luma_lab.missed("I'm so sorry. I'm here with you. Take all the time you need.", []), "fell back",
+                         "the lab still sees the brain came back empty")
 
     def test_it_runs_on_a_real_chat_turn(self):
         self.agent.use_model = True

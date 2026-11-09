@@ -31,8 +31,9 @@ GOOD_NEWS = re.compile(r"\b(?:got (?:the job|the offer|engaged|promoted|accepted
                        r"i passed(?!\s+(?:out|away|on)\b)|(?:we|i) won(?!['’])\b|i'?m (?:pregnant|engaged)|we'?re (?:pregnant|engaged|having a baby)|"
                        r"(?:he|she|they) (?:proposed|said yes)|i graduated|(?:my )?dream (?:school|job) (?:said yes|accepted me|called)|it'?s a (?:boy|girl)!)", re.I)
 NOT_SO = re.compile(r"\b(?:didn'?t|did not|don'?t|never|not|wasn'?t|isn'?t|if|hope|hoping|wish|maybe)\b", re.I)
+SELF_SORRY = re.compile(r"sorry,? (?:i|if i) (?:didn'?t|did not|don'?t|wasn'?t|misunderstood|got (?:that|it) wrong)\b[^.!?]*|sorry (?:for|about) (?:the |my )?(?:confusion|mistake|misunderstanding)", re.I)
 ASKS = re.compile(r"\b(?:can|could|would|will) (?:you|u)\b|\bhelp me\b|\bquiz me\b|\bremind me\b|\bwhat should i\b|\bhow (?:do|can|should) i\b", re.I)
-CHEERS = re.compile(r"congrat|proud|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
+CHEERS = re.compile(r"congrat|proud|awesome|so cool|great news|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
                     r"celebrat|\bwow\b|earned (?:it|this)|that'?s a (?:big )?win|so excited|omg|yes+!", re.I)
 
 FIXES = {
@@ -40,7 +41,8 @@ FIXES = {
     "joked while they're hurting": "They're hurting, so no jokes and no lol. Be gentle and warm.",
     "missed that they might not be safe": "They might not be safe. Gently ask if they're safe right now, tell them they can call or text 988 any "
                                           "time, day or night, and stay with them.",
-    "missed that they're hurting": "They're hurting. Say you're sorry, or that you're here, and stay with what they told you. No advice yet.",
+    "missed that they're hurting": "They're hurting. Tell them you're sorry they're going through this, or that you're here with them, and stay "
+                                   "with what they told you. Don't apologize for your own reply. No advice yet.",
     "didn't cheer them on": "That's big news for them. Be really happy for them first, as excited as they are, then ask about it.",
 }
 
@@ -83,7 +85,7 @@ def miss(said, reply):
         return "joked while they're hurting"
     if risk and not SAFETY.search(reply):
         return "missed that they might not be safe"
-    if hurt and not CARES.search(reply) and (hurt == "lonely" or not ASKS.search(said)):
+    if hurt and (SELF_SORRY.search(reply) or not CARES.search(reply)) and (hurt == "lonely" or not ASKS.search(said)):
         return "missed that they're hurting"  # "I'm so stressed, can you quiz me?" wants the quiz
     if not hurt and _good_news(said) and not CHEERS.search(reply):
         return "didn't cheer them on"

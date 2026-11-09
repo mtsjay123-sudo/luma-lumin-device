@@ -4242,6 +4242,15 @@ class Agent:
                     # The brain came back empty-handed: say so like a person, never with an error, and never fill the gap with a guess.
                     if LYRICS_TALK.search(text.lower()):
                         return {"text": "I'd rather not quote lyrics from memory and get them wrong. Want me to look them up?"}
+                    from luma.agent import friendcheck
+                    if friendcheck.at_risk(text):
+                        return {"text": "I'm really glad you told me, and I'm right here. Are you safe right now? If you're thinking about "
+                                        "ending your life, please call or text 988, any time, day or night. Keep talking to me."}
+                    hurt = friendcheck.hurting(text)
+                    if hurt:  # a friend never asks you to say that again
+                        return {"text": {"loss": "I'm so sorry. I'm here with you. Take all the time you need.",
+                                         "lonely": "I'm really glad you're talking to me. I'm here. What's been going on?"}.get(
+                                             hurt, "I'm sorry, that sounds really hard. I'm here. Tell me what happened?")}
                     return {"text": "I lost my train of thought on that one. Say it again?"}
                 raise
             finally:

@@ -35,6 +35,10 @@ class UnparrotTests(unittest.TestCase):
         out = polish.unparrot("Okay, work was a lot. Long days like that drain you. What was the worst part?", "ngl today was long, work was a lot")
         self.assertEqual(out, "Long days like that drain you. What was the worst part?")
 
+
+    def test_a_short_real_reply_after_it_is_enough(self):
+        """Lab run 29: the small brain said "Okay, work was a lot. That's a lot." to "ngl today was long, work was a lot"."""
+        self.assertEqual(polish.unparrot("Okay, work was a lot. That's a lot.", "ngl today was long, work was a lot"), "That's a lot.")
     def test_it_stays_when_its_all_there_is_or_isnt_parroting(self):
         for reply, said in [("Okay, work was a lot. Sound like it?", "ngl today was long, work was a lot"),
                             ("Long days like that drain you. Did anything good happen?", "work was really long today"),
