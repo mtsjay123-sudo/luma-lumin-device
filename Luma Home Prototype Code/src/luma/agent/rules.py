@@ -57,6 +57,31 @@ VERBS = {
 }
 
 
+# The approvals ladder. Every tool stands on one rung:
+#   read   looks and changes nothing: runs on its own, unless the owner blocks it
+#   own    Luma's own notes at home (a reminder, a timer, a memory): the owner asked, and nothing leaves the house
+#   draft  prepared for the owner to look over (an email draft, a document, a cart): nothing is sent or bought
+#   act    speaks or acts for the owner (send, post, book, delete, run): a yes every time; no rule can make it "allow"
+#   never  buying and paying: off until the owner turns orders on, and even then a yes with the exact total in front of them
+RUNG = {"browse": "read", "inbox": "read", "apps_read": "read", "computer": "read",
+        "reminders": "own", "drafts": "draft", "cart": "draft",
+        "texts": "act", "email": "act", "posts": "act", "bookings": "act", "home": "act", "apps_act": "act", "computer_act": "act",
+        "spend": "never"}
+RUNG_OF_TOOL = {"browser.click": "draft", "browser.type": "draft", "computer.open_app": "draft", "computer.shortcuts": "read", "shop.compare": "read",
+                "skills.install": "act", "food.checkout": "never"}
+
+
+def rung(tool, reads=False):
+    """Which rung of the ladder a tool stands on. reads: it only looks (a look-up, or an app's read-only tool)."""
+    if tool in RUNG_OF_TOOL:
+        return RUNG_OF_TOOL[tool]
+    if reads:
+        return "read"
+    if tool.startswith("mcp."):
+        return "act"  # an app's tool that isn't read-only changes something
+    return RUNG.get(TOOL_CATEGORY.get(tool), "own")
+
+
 class Blocked(ValueError):
     """The owner's rules say Luma doesn't do this."""
 

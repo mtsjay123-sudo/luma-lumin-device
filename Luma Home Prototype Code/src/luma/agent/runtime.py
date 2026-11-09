@@ -31,6 +31,7 @@ from luma.agent.conversation import wants_message, style_update, grocery_request
 from luma.agent import texting, presence, understanding, insights
 from luma.integrations.luma_cloud import LumaCloud, QuotaReached
 from luma.agent.activity import Activity, Stopped
+from luma.agent import rules as rules_ladder
 from luma.agent.rules import Rules
 from luma.agent.helpers import Feed, Helpers, EVERY as HELPER_EVERY
 from luma.integrations.mail import Mailbox, MailError
@@ -500,6 +501,8 @@ class Agent:
         self._last_diary_prune = 0
         self._sleeper = None  # the nightly tidy of what Luma remembers (luma.memory.life), when it's running
         self._ahead = None    # a reply started before they'd finished talking (think_ahead), until the turn takes it or drops it
+        from luma.agent.provenance import Sources
+        self.sources = Sources(theirs=self._their_people, clock=self.clock)  # where each value came from: what they said, what Luma read (RAM only)
         self._owner_queue = __import__("queue").Queue()
         self._owner_worker = None
         self._last_reply_poll = 0
@@ -1196,8 +1199,19 @@ class Agent:
         # Only an unlocked rule the owner set to "allow" (adding to a cart) skips the review. Through the apps hub, reading
         # (fetch email, list events) runs on its own; sending, posting, creating and deleting always wait for a yes.
         ask = TOOLS[name].confirm and not (self.mode != "kids" and self.rules.may_skip_approval(name)) and not self._reads(name, args)
+        # Where its values came from: someone or somewhere the owner didn't give always waits for their yes, and the yes
+        # says where it came from, whatever a rule says and whatever the brain was told (luma.agent.provenance).
+        seen = self._where_from(name, args)
+        step = rules_ladder.rung(name, self._reads(name, args))
+        if not seen["note"] and step in ("act", "never") and getattr(self, "_just_read", None):
+            seen = {**seen, "note": f"I came up with this right after reading {self._just_read}."}  # nothing in it to trace, but the owner should know
+        if seen["ask"]:
+            ask = True
+        if seen["note"]:
+            review = {**(review if isinstance(review, dict) else {"details": review} if review else {}), "came_from": seen["note"]}
         row = self.store.put("action", {"tool": name, "arguments": args, "review": review, "state": "pending" if ask else "ready", "created": self.clock(), "expires": self.clock() + 600, "approval_hash": hashlib.sha256(token.encode()).hexdigest()})
         if ask:
+            self._audit("asked", name, args, step, action=row["id"], came_from=seen["note"])
             # Token is returned once to the local control surface, never to LLM.
             self.approval_tokens = {k: v for k, v in self.approval_tokens.items() if v[1] > self.clock()}
             self.approval_tokens[row["id"]] = (token, row["expires"])
@@ -1208,6 +1222,79 @@ class Agent:
             return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered.",
                     **({"text": asked} if asked else {})}
         return self._execute(row, {"ready"})
+
+    def _their_people(self):
+        """The owner's saved people, for telling "one of yours" from "someone a page named": names and numbers."""
+        try:
+            return [value for c in self.contacts.list() for value in (c.get("name"), c.get("phone"), c.get("email"), c.get("aliases")) if value]
+        except Exception:
+            return []
+
+    def _where_from(self, name, args):
+        try:
+            return self.sources.judge(rules_ladder.rung(name, self._reads(name, args)), args)
+        except Exception:
+            return {"ask": TOOLS[name].confirm, "note": None}  # if in doubt, as before: whatever acts already waits for a yes
+
+    # Their own notes and people. Not the calendar or the briefing: an invite is written by whoever sent it.
+    OWN_LOOKUPS = {"memory.recall", "household.find", "contacts.list", "tasks.list", "timers.list"}
+
+    def _note_read(self, name, args, result):
+        """After a look-up: what came back is remembered as read (from where), or as the owner's own (their notes, their
+        contacts). Only in RAM, and only so the next action's values can be traced. If naming where it came from goes
+        wrong, it's still remembered as read: this never fails open."""
+        from urllib.parse import urlsplit
+        try:
+            if name in self.OWN_LOOKUPS:
+                return self.sources.owner_has(result)
+            origin, more = "a look-up (" + name + ")", {}
+            if name in {"web.search", "shop.compare"}:
+                found = [r for key in ("results", "offers") for r in ((result.get(key) if isinstance(result, dict) else None) or []) if isinstance(r, dict)]
+                best = result.get("best") if isinstance(result, dict) and isinstance(result.get("best"), dict) else {}
+                origin = "a web search" if name == "web.search" else "a price check"
+                more = {"kind": "search", "links": [r.get("url") for r in found + [best] if r.get("url")]}
+            elif name in {"calendar.agenda", "briefing.today"}:
+                origin = "your calendar (an invite or an event's notes)"
+            elif name in {"mail.read", "mail.inbox"}:
+                mail = result.get("email") if isinstance(result, dict) and isinstance(result.get("email"), dict) else {}
+                sender = str(mail.get("from") or "").strip()
+                origin, more = (f"an email from {sender}" if sender else "your inbox"), {"sender": sender}
+            elif name.startswith("browser."):
+                page = str((result.get("url") if isinstance(result, dict) else "") or self.store.setting("browser_page", "") or "")
+                host = urlsplit(page).netloc if page else ""
+                origin = f"a web page at {host}" if host else "a web page"
+            elif name.startswith("mcp."):
+                origin = "your " + name.split(".")[1] + " app"
+            elif name.startswith("computer."):
+                origin = "a file or a screen on your computer"
+            self.sources.read(origin, result, **more)
+            self._just_read = origin  # until their next message: an action thought up now was thought up after reading this
+        except Exception:
+            self.sources.read("something Luma looked up", result)
+            self._just_read = "something Luma looked up"
+
+    AUDIT_KEPT = 3000
+
+    def _audit(self, what, tool, args, rung, action=None, came_from=None, note=None):
+        """One line in the log of what Luma was asked to do and what happened, kept at home (encrypted like everything
+        else) for the owner to read. Long numbers are masked; approval codes never go in."""
+        try:
+            short = {k: (v[:200] if isinstance(v, str) else v) for k, v in (args or {}).items() if isinstance(v, (str, int, float, bool))}
+            self._audit_n = getattr(self, "_audit_n", 0) + 1
+            self.store.put("audit", mask_long_numbers({"at": self.clock(), "n": self._audit_n, "what": what, "tool": tool, "rung": rung, "details": mask_long_numbers(json.dumps(short, ensure_ascii=False))[:600],
+                                                         **({"action": action} if action else {}), **({"came_from": came_from} if came_from else {}),
+                                                         **({"note": str(note)[:300]} if note else {})}))
+            extra = self.store.count("audit") - self.AUDIT_KEPT
+            if extra > 200:
+                for row in sorted(self.store.all("audit", self.AUDIT_KEPT + extra), key=lambda r: r.get("at") or 0)[:extra]:
+                    self.store.delete("audit", row["id"])
+        except Exception:
+            pass  # the log never stops the thing it's logging
+
+    def audit_log(self, limit=200):
+        """What Luma was asked to do and what happened, newest first."""
+        rows = sorted(self.store.all("audit", max(limit * 2, 400)), key=lambda r: (r.get("at") or 0, r.get("n") or 0), reverse=True)
+        return [{k: v for k, v in row.items() if k not in ("id", "n")} for row in rows[:limit]]
 
     def confirm(self, id, token):
         row = self.store.get("action", id)
@@ -1226,6 +1313,7 @@ class Agent:
         if self.awaiting and self.awaiting["action"] == id: self.awaiting = None
         self.approval_tokens.pop(id, None)
         row = self.store.transition(id, {"pending", "ready"}, "cancelled")
+        self._audit("declined", row["tool"], row["arguments"], rules_ladder.rung(row["tool"], self._reads(row["tool"], row["arguments"])), action=id)
         return {"action": id, "state": row["state"]}
 
     def _humanize(self, row, result):
@@ -1276,6 +1364,11 @@ class Agent:
             self.store.transition(row["id"], {"executing"}, state, result=receipt, finished=self.clock())
             if name in {"sms.send", "mac_messages.send", "luma.send"}:
                 self._remember_sent(args["to"], args["body"])
+            reads = self._reads(name, args)
+            if reads or name == "shop.compare":  # a price check finds links too: the offers are its results
+                self._note_read(name, args, result)
+            self._audit("done" if state == "succeeded" else "handed to you", name, args, rules_ladder.rung(name, reads), action=row["id"],
+                        came_from=(row.get("review") or {}).get("came_from") if isinstance(row.get("review"), dict) else None)
             return {"action": row["id"], "state": state, **result}
         except QuotaReached as e:
             self.store.transition(row["id"], {"executing"}, "failed", error=str(e))
@@ -1285,6 +1378,7 @@ class Agent:
             return {"action": row["id"], "state": "unknown", "summary": str(e)}
         except (ProviderError, ValueError) as e:
             self.store.transition(row["id"], {"executing"}, "failed", error=str(e))
+            self._audit("failed", name, args, rules_ladder.rung(name, self._reads(name, args)), action=row["id"], note=str(e))
             return {"action": row["id"], "state": "failed", "summary": str(e)}
         except Exception:
             # Unexpected failure after dispatch must never be reported as success.
@@ -1924,6 +2018,7 @@ class Agent:
             self.activity.finish(text)
         if not background:
             self.last_offers, self.last_query = result["offers"], result["query"]
+            self._note_read("shop.compare", {}, result)  # the offers are results of a price check they asked for
             if result["best"]:
                 self.feed.add({"kind": "deal", "title": f"{result['query']}: {shopping.money(result['best']['price'])} at {result['best']['store']}",
                                "body": text, "items": result["offers"][:6], "url": result["best"].get("url")})
@@ -4452,6 +4547,8 @@ class Agent:
             self._turn_text = text
             self.history.append({"role":"user", "content":text.strip()})
             self.history = self._window(self.history)
+            self.sources.owner_said(text)  # theirs: an address or a link in it is one they gave
+            self._just_read = None
             if self.mode != "kids" and self.last_reply and not agent_mode:
                 from luma.agent import banter
                 if banter.laughed(text):

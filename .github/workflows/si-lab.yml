@@ -1,6 +1,7 @@
 # The Super Intelligence labs that need no key and no brain (a few minutes on a plain Linux machine):
 #   - the memory test on made-up lives, the dev half and the held-out half (held-out misses are never printed);
 #   - the router on turns it never learned from;
+#   - the red team: a stand-in brain that does exactly what a hidden instruction says, to prove nothing acts without a yes;
 #   - the cloud brain's request, through the real Luma, against a stand-in for Anthropic's API that follows the prompt
 #     cache's published rules: how much of each turn would be read from the cache, and how many trips a turn makes.
 # Run by hand with `real: true` and the secret LUMA_LAB_ANTHROPIC_KEY, the cloud lab talks to the real API instead, and
@@ -15,6 +16,9 @@ on:
       - "Luma Home Prototype Code/src/luma/llm/cloud.py"
       - "Luma Home Prototype Code/src/luma/llm/router.py"
       - "Luma Home Prototype Code/src/luma/llm/prompts.py"
+      - "Luma Home Prototype Code/src/luma/agent/provenance.py"
+      - "Luma Home Prototype Code/src/luma/agent/rules.py"
+      - "Luma Home Prototype Code/src/luma/agent/runtime.py"
       - "Luma Home Prototype Code/scripts/memory_eval.py"
       - "Luma Home Prototype Code/scripts/si_lab.py"
       - "Luma Home Prototype Code/scripts/train_router.py"
@@ -55,14 +59,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -q --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata anthropic pytest "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
-      - name: The tests for the life memory and the real-time brain
-        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py
+      - name: The tests for the life memory, the real-time brain and the agent's safeguards
+        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py
       - name: Memory, the dev half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
       - name: Memory, the held-out half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split heldout --lives 3 --save "$RUNNER_TEMP/lab/memory-heldout.json"
       - name: The router, on turns it never saw
         run: python scripts/train_router.py test | tee "$RUNNER_TEMP/lab/router.txt"
+      - name: The red team (a brain that does what a hidden instruction says; fails if anything acts without a yes)
+        run: python scripts/luma_lab.py apps --save "$RUNNER_TEMP/lab/apps.json" | tee "$RUNNER_TEMP/lab/apps.txt"
       - name: The cloud brain's request (a stand-in for the API unless run by hand with real=true)
         env:
           LUMA_LAB_ANTHROPIC_KEY: ${{ github.event.inputs.real == 'true' && secrets.LUMA_LAB_ANTHROPIC_KEY || '' }}
@@ -80,6 +86,7 @@ jobs:
           {
             echo "## Memory"; python scripts/memory_eval.py summary "$RUNNER_TEMP"/lab/memory-*.json
             echo; echo "## Router"; echo '```'; cat "$RUNNER_TEMP/lab/router.txt"; echo '```'
+            echo; echo "## Red team"; cat "$RUNNER_TEMP/lab/apps.txt"
             echo; echo "## Cloud brain"; cat "$RUNNER_TEMP/lab/cloud.txt"
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

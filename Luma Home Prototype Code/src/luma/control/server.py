@@ -434,6 +434,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/insights':
                 from luma.agent import insights
                 return self.send(insights.overview(agent))
+            if path=='/api/audit':
+                # What Luma was asked to do and what happened, newest first: kept on this device, for the owner to read.
+                return self.send({'audit': agent.audit_log(200)})
             if path=='/api/activity':
                 # keep_awake: this computer is the paired Luma's hands, so Luma Desktop keeps it from dozing off (switch it off in What Luma can do here).
                 hands=bool(agent.link.device()) and agent.link.computer.settings()['awake']
