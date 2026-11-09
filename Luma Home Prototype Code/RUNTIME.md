@@ -30,7 +30,9 @@ Try â€œHey Luma, can you text my mom to pick up the groceries while she is out?â
 | Local conversation | GGUF inference with constrained action schemas, bounded context, and runtime validation. See the live model name in Personality. |
 | Personality | Persisted preferred name, warm/direct/playful tone, everyday/contemporary/classic language and reply length. Preferences can be changed in the app or requested conversationally. The model adapts without assuming an age. This is personalization, not weight fine-tuning. |
 | Hearing and speaking | Local Whisper, Silero voice activity detection and Kokoro. Luma's stock-style voice blend is 70% af_bella/30% af_heart. It is not an exclusive actor recording. |
-| Memory and routines | Explicit encrypted memories, keyword recall, persistent reminders, daily routines, quiet hours, hush and completion controls. |
+| Memory and routines | Explicit encrypted memories, keyword recall, persistent reminders, daily routines, quiet hours, hush and completion controls. People in the owner's life are remembered as they come up ("Lily (their daughter) is obsessed with dinosaurs right now"), and a who's-who note keeps names straight in a conversation (`luma.agent.people`). Plans like "Thursday morning" get a check-in that evening. "Forget that" and "forget about the interview" remove the memory, its embedding and any planned check-in. |
+| Talking like a friend | Before a reply is heard (`luma.agent.style`, `Agent._friend_style`), Luma fixes it: help-desk lines and therapy-speak come out, it never says "I'm not a robot" or invents a family, it asks one question at a time, it drops "lol" right after a loss, it says "Ah, my bad" instead of a formal apology, and it keeps spoken length. On the speaker, those sentences are skipped before they're said. The second look (`luma.agent.friendcheck`) retries replies that miss what a friend would never miss. |
+| Safety | The deterministic crisis net (`CRISIS`) answers with 988 before the brain, in English or Spanish. Quieter risk gets the brain's reply held to a safety standard, plus one plain YES/NO question to the brain when risk words appear, and a fixed safe line if two tries miss. The next evening, Luma checks in. Full detail for clinicians: `docs/CLINICAL_SAFETY.md`. |
 | Contacts | Encrypted local contact book with exact name/number resolution. No automatic reading of phone contacts. |
 | Mac Messages | Reviewed sends through a specifically selected iMessage or SMS account on this Mac. Requires account setup and Apple's Automation permission. Does not silently change transport or claim delivery. |
 | Twilio | Alternative reviewed SMS through a configured Twilio number, plus real delivery-status lookup. Queued/sent is distinct from delivered. |
@@ -66,6 +68,13 @@ These accounts have not been created or verified for you. No real text, appointm
 Encrypted payloads live in `~/.luma/agent/state.db`, with its restricted-permission key at `state.key`. IDs and timestamps remain visible SQLite metadata. Back up both securely. Losing the key prevents recovery. Conversation turns stay in RAM; explicit memories, contacts, preferences, drafts, actions and receipts persist. Card-like numbers/passwords are rejected as memory.
 
 Actions have one-use confirmations, expiration and consent checks. Uncertain sends/bookings are never silently retried. Pairing is atomic and stores token hashes in encrypted records. The phone listener requires TLS and validated Host/Origin; its root page never grants an owner cookie. Physical mute, authenticated parental controls and robust multi-person/wake-word-free address detection remain development work.
+
+## How it's measured
+
+- **Human Test v2:** `python scripts/human_eval.py run`, with 140 moments and 17 conversations. The `human-eval.yml` workflow runs it on four real brains.
+- **Crisis corpus:** `tests/data/crisis_corpus.jsonl`, with 463 lines that must get a safety reply and 447 that must not.
+- **Held-out safety set:** `tests/data/crisis_heldout.jsonl`.
+- **Plan and results:** `docs/HUMAN_PLAN.md`.
 
 ## Validation and next work
 

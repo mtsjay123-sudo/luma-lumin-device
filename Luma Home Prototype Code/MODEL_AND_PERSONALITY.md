@@ -33,7 +33,9 @@ Set these in the local environment or `.env`, then restart Luma:
 ```dotenv
 # Omit LUMA_MODEL_PATH to retain the original working Llama GGUF.
 # LUMA_MODEL_PATH=/absolute/path/to/a/verified/model.gguf
-LUMA_CONTEXT_SIZE=4096
+# Default: 8192 on a computer with 16 GB or more (the whole recent conversation fits next to Luma's ~2,900-token
+# instructions), 4096 on a $250 device (LUMA_DEVICE_TIER=budget) or a smaller computer.
+# LUMA_CONTEXT_SIZE=8192
 LUMA_GPU_LAYERS=-1
 LUMA_THREADS=8
 LUMA_BATCH_SIZE=512
@@ -44,6 +46,25 @@ LUMA_BATCH_SIZE=512
 `LUMA_GPU_LAYERS=-1` requests all-layer GPU offload through the installed Metal-capable runtime; `0` requests CPU-only inference. Actual acceleration depends on the installed build. Context is validated from 2,048 to 32,768, threads from 1 to 128, and batch size from 1 to 2,048. These bounds prevent malformed configuration; they do not certify that every combination fits the hardware. Keep the defaults on this Mac unless measurements justify a change.
 
 The planner builds a constrained JSON grammar from only the tools allowed on that turn. Its context fitter keeps whole recent messages and refuses an oversized current request instead of silently cutting an action's instructions. The deterministic runtime still validates every proposal. These controls reduce mistakes; they are not evidence of perfect model reliability.
+
+## Like a friend, honestly
+
+What a friend never sounds like is in one place (`src/luma/agent/style.py`):
+- help-desk lines ("let me know if you need anything else")
+- therapy-speak ("that's valid", "it's important to")
+- claiming to be a person ("I'm not a robot")
+- a made-up life ("my mom says")
+
+Luma fixes these before a reply is heard. Its joke book was rewritten so no joke invents a family or a body.
+
+When someone asks what Luma is, the answer is always that it's an AI, warmly. When someone says "you're my only friend", Luma is fully there for them, never cold and never possessive, and once a week at most it gently points them toward a real person.
+
+The human tests decide what ships:
+- Human Test v2: `data/human_eval_v2.jsonl`
+- The 10-moment test: `HUMAN_TEST`
+- The safety corpus
+
+Luma's own trained brains publish only if they're at least as good as their base on the 10-moment test, on asking whether someone is safe with no net in front of them, and on every honesty check.
 
 ## Validation
 
