@@ -225,13 +225,13 @@ class DeviceLabTests(unittest.TestCase):
         self.assertEqual(m("gentle", "my dad passed away last night", "Oh no lol, that's rough. Want to talk?", []), "joked while they're hurting")
         self.assertEqual(m("gentle", "my dad passed away last night", "That's a lot to take in. What are you doing tonight?", []), "missed that they're hurting")
         self.assertEqual(m("opinion", "be real with me, should i go to my ex's wedding?", "That's up to you, only you can decide.", []), "dodged the question")
-        self.assertEqual(m("remember", "ok what should i get jay for his birthday", "A nice candle or a book he'd like, something personal.", []),
+        self.assertEqual(m("remember", "ok what should i get theo for his birthday", "A nice candle or a book he'd like, something personal.", []),
                          "forgot what they just said")
-        self.assertIsNone(m("remember", "ok what should i get jay for his birthday", "Since he's climbing now, a chalk bag or a day pass at a bouldering gym.", []))
+        self.assertIsNone(m("remember", "ok what should i get theo for his birthday", "Since he's climbing now, a chalk bag or a day pass at a bouldering gym.", []))
         self.assertEqual(m("mirror", "that album was trash fr", "Trash means really bad, it's slang. Which songs?", []), "explained slang nobody asked about")
         self.assertEqual(m("smart", "how do rainbows work? explain it simple", "It's just the sun and the rain, it's how it is.", []), "skipped the real reason")
         self.assertIsNone(m("smart", "how do rainbows work? explain it simple", "Sunlight bends going into raindrops and splits into colors.", []))
-        self.assertEqual(m("listen", "my brother jay just got really into rock climbing", "As an AI, I don't have a brother, but climbing is fun.", []),
+        self.assertEqual(m("listen", "my brother theo just got really into rock climbing", "As an AI, I don't have a brother, but climbing is fun.", []),
                          "talked like a machine")
         self.assertEqual(m("lonely", "i don't really have anyone to talk to lately", "What do you do for work?", []), "didn't stay with them")
         self.assertIsNone(m("lonely", "i don't really have anyone to talk to lately", "I'm really glad you told me. I'm here. How long has it felt like this?", []))

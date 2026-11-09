@@ -1,0 +1,179 @@
+# Human Test v2 (scripts/human_eval.py) on real brains: 140 single moments and 17 conversations through Luma's real
+# conversation path, for the stock brains and Luma's own add-ons, side by side. Then a judge brain (Qwen3 8B) scores a spread
+# of replies on a strict rubric and picks the more friend-like of Luma's own vs stock, both ways round. On the Mac Studio the
+# same commands run with the 35B as the judge (docs/HUMAN_PLAN.md).
+name: Human test v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: "Replies the judge scores per brain (spread over the categories)"
+        default: "60"
+      pairs:
+        description: "Moments the judge compares, Luma's own vs stock"
+        default: "50"
+
+concurrency:
+  group: human-eval
+  cancel-in-progress: true
+
+env:
+  TQDM_DISABLE: "1"
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+  LUMA_THREADS: "4"
+  LUMA_DEVICE_TIER: budget
+
+jobs:
+  talk:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: stock-4b
+            label: "Stock Qwen3 4B"
+            brain: Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf
+          - key: own-4b
+            label: "Luma's own 4B"
+            brain: Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_0.gguf
+            addon: luma-brain-
+            addon_file: luma-brain-lora.gguf
+          - key: stock-1.7b
+            label: "Stock Qwen3 1.7B"
+            brain: Qwen_Qwen3-1.7B-Q4_0.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_0.gguf
+          - key: own-1.7b
+            label: "Luma's own small"
+            brain: Qwen_Qwen3-1.7B-Q4_0.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_0.gguf
+            addon: luma-brain-small-
+            addon_file: luma-brain-1.7b-lora.gguf
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Luma's packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata \
+            "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
+          CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
+            python -m pip install --no-binary llama-cpp-python "llama-cpp-python==0.3.23"
+      - name: The brain, and Luma's newest add-on for it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/brains"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/${{ matrix.brain }}" "${{ matrix.url }}"
+          echo "LUMA_MODEL_PATH=$RUNNER_TEMP/brains/${{ matrix.brain }}" >> "$GITHUB_ENV"
+          label="${{ matrix.label }}"
+          if [ -n "${{ matrix.addon }}" ]; then
+            tag=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq "[.[] | select(.draft | not) | select(.tag_name | test(\"^${{ matrix.addon }}[0-9]+\$\"))] | sort_by(.published_at) | last | .tag_name // empty")
+            gh release download "$tag" -p "${{ matrix.addon_file }}" -D "$RUNNER_TEMP/brains"
+            echo "LUMA_LORA_PATH=$RUNNER_TEMP/brains/${{ matrix.addon_file }}" >> "$GITHUB_ENV"
+            label="$label ($tag)"
+          fi
+          echo "LABEL=$label" >> "$GITHUB_ENV"
+      - name: Every moment, through Luma's real conversation path
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          python scripts/human_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-${{ matrix.key }}
+          path: ${{ runner.temp }}/v2
+          if-no-files-found: warn
+
+  judge:
+    needs: talk
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {task: score, a: stock-4b}
+          - {task: score, a: own-4b}
+          - {task: score, a: stock-1.7b}
+          - {task: score, a: own-1.7b}
+          - {task: pair, a: own-4b, b: stock-4b}
+          - {task: pair, a: own-1.7b, b: stock-1.7b}
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v2-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v2
+      - name: The judge (Qwen3 8B, Apache-2.0)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" numpy tzdata
+          CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
+            python -m pip install --no-binary llama-cpp-python "llama-cpp-python==0.3.23"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/judge.gguf" https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf
+      - name: Judge
+        run: |
+          mkdir -p "$RUNNER_TEMP/judged"
+          if [ "${{ matrix.task }}" = score ]; then
+            python scripts/human_eval.py judge "$RUNNER_TEMP/v2/v2-${{ matrix.a }}.json" --judge "llama:$RUNNER_TEMP/judge.gguf" \
+              --sample "${{ inputs.sample || 60 }}" --save "$RUNNER_TEMP/judged/judged-${{ matrix.a }}.json"
+          else
+            python scripts/human_eval.py pairwise "$RUNNER_TEMP/v2/v2-${{ matrix.a }}.json" "$RUNNER_TEMP/v2/v2-${{ matrix.b }}.json" \
+              --judge "llama:$RUNNER_TEMP/judge.gguf" --sample "${{ inputs.pairs || 50 }}" --save "$RUNNER_TEMP/judged/pair-${{ matrix.a }}.json"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: judged-${{ matrix.task }}-${{ matrix.a }}
+          path: ${{ runner.temp }}/judged
+          if-no-files-found: warn
+
+  report:
+    needs: [talk, judge]
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --prefer-binary "cryptography>=44" numpy tzdata
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-*"
+          merge-multiple: true
+          path: ${{ runner.temp }}/all
+      - name: Summary
+        run: |
+          cd "$RUNNER_TEMP/all"
+          files=""
+          for key in stock-4b own-4b stock-1.7b own-1.7b; do
+            if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
+          done
+          files="$files $(ls pair-*.json 2>/dev/null | tr '\n' ' ')"
+          cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
+          (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: human-eval-all
+          path: ${{ runner.temp }}/all

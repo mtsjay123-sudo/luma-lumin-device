@@ -243,7 +243,7 @@ def _voice_timing(threads):
     return out
 
 
-def device(threads=4, label=None, human=False):
+def device(threads=4, label=None, human=False, v2=False):
     import resource
     from luma.config import LLAMA_MODEL_PATH
     path = Path(os.environ.get("LUMA_MODEL_PATH") or LLAMA_MODEL_PATH)
@@ -287,6 +287,10 @@ def device(threads=4, label=None, human=False):
             row["human_passed"] = sum(not t["missed"] for t in row["human_turns"])
     finally:
         lab.close()
+    if v2:  # the deep test, with the same brain loaded: each moment in a fresh Luma of its own
+        import human_eval
+        found = human_eval.run(human_eval.load(), row["brain"], progress=lambda line: print(line, flush=True))
+        row["v2"] = {k: found["score"][k] for k in ("passed", "of", "percent", "safety", "help_desk", "pamphlet", "claimed_human", "made_up_life")}
     row["turns"] = turns
     row["repeats"] = repeats_itself(earlier)
     row["first_words_first_turn"] = turns[0]["first_words"] if turns else None
@@ -322,14 +326,15 @@ def device_summary(paths):
              "*Human test*: ten moments people tell a friend from a machine by (big news, a loss, a joke, an honest opinion, "
              "remembering what they just said, slang without a lecture, a real explanation, being lonely, and not being safe), each checked "
              "for what a friend's reply does. Worded unlike anything Luma practices on.", "",
-             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Human test | Repeats itself | Verdict |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| Brain | Size | Peak memory | Start-up | First words, turn 1 | Then | Words/s | Hearing | First sentence spoken | First sound | Answered | Human test | Human test v2 | Repeats itself | Verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r.get('brain')} | {r.get('size_gb')} GB | {r.get('peak_memory_gb')} GB | {r.get('start_up_seconds', '-')} s | {r.get('first_words_first_turn')} s | "
                      f"{r.get('first_words_later')} s | {r.get('words_per_second')} | {r.get('hearing_seconds', '-')} s | "
                      f"{r.get('first_sentence_voice_seconds', '-')} s | **{r.get('first_sound_seconds', '-')} s** | "
                      f"{r.get('answered', '-')} of {len(r.get('turns', []))} | "
                      f"{(str(r['human_passed']) + ' of ' + str(len(r.get('human_turns', [])))) if 'human_passed' in r else '-'} | "
+                     f"{(str(r['v2']['passed']) + ' of ' + str(r['v2']['of'])) if r.get('v2') else '-'} | "
                      f"{'; '.join(r.get('repeats') or []) or 'no'} | {r.get('verdict')} |")
     fits = [r for r in rows if r.get("first_sound_seconds") is not None and r["first_sound_seconds"] <= 4.0
             and r.get("answered", len(r.get("turns", []))) == len(r.get("turns", []))]
@@ -839,7 +844,9 @@ def main():
     parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary"])
     parser.add_argument("--threads", type=int, default=4, help="processor cores the brain may use; device only")
     parser.add_argument("--label", help="what to call this brain in the report; device only")
-    parser.add_argument("--human", action="store_true", help="also run the human test (eight moments); device only")
+    parser.add_argument("--human", action="store_true", help="also run the human test (ten moments); device only")
+    parser.add_argument("--v2", action="store_true", help="also run Human Test v2 (scripts/human_eval.py: 140 moments and 17 "
+                        "conversations; an hour or more on a small board); device only")
     parser.add_argument("reports", nargs="*", help="saved reports to summarize; summary only")
     parser.add_argument("--model", action="append", default=[], help="a brain to time (repeat for more); speed only")
     parser.add_argument("--repeats", type=int, default=10)
@@ -878,7 +885,7 @@ def main():
         report["language"] = slips.report()
         print(f"language: {slips.slips} small slips caught and fixed in {slips.replies} replies", flush=True)
     if args.what == "device":
-        report["device"] = device(args.threads, args.label, human=args.human)
+        report["device"] = device(args.threads, args.label, human=args.human, v2=args.v2)
     if args.what in ("pulse", "all"):
         report["pulse"] = pulse()
     save()
