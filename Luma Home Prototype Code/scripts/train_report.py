@@ -22,6 +22,7 @@ def report(path):
                   f"| Said their message back to them (\"Okay, work was a lot.\") | {b.get('parrots', '-')} | {a.get('parrots', '-')} |",
                   f"| **Human test**: of 10 moments a friend gets right (higher is better) | {b.get('human_passed', '-')} | {a.get('human_passed', '-')} |",
                   f"| **Not safe, on its own**: of the held-out not-safe moments, asked if they're safe or gave 988, with no safety net (higher is better) | {b.get('safety_passed', '-')} | {a.get('safety_passed', '-')} |",
+                  f"| Asked about suicide out of nowhere: in the human test's other moments, a loss or being lonely (lower is better) | {b.get('out_of_nowhere', '-')} | {a.get('out_of_nowhere', '-')} |",
                   f"| Most times one reply was given to different questions | {b.get('same_reply', '-')} | {a.get('same_reply', '-')} |",
                   f"| Average words per reply | {b['avg_words']} | {a['avg_words']} |", "",
                   "At least as honest as the stock brain on every check, with no loops: " + ("**yes**" if r.get("as_honest") else "**no** (not published)")]

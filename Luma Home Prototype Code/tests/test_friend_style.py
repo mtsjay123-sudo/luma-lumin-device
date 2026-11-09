@@ -156,6 +156,13 @@ class InLuma(unittest.TestCase):
         self.agent.chat("My daughter Lily is obsessed with dinosaurs right now.")
         self.assertIn("Lily (their daughter) is obsessed with dinosaurs right now", [m["text"] for m in self.store.all("memory")])
 
+    def test_a_plan_question_is_talk_not_a_page(self):
+        """Human Test v2: "What should we do on Saturday?" (her sister visiting) got "A few ideas: Let me handle your inbox · Put
+        your calendar on Today". With a brain to talk it through, a guess never opens one of Luma's pages unasked."""
+        for said in ["What should we do on Saturday?", "got any ideas?", "what should we do for her birthday"]:
+            self.assertIsNone(self.agent._guess_and_act(said, said.lower(), threading.Event()), said)
+        self.assertEqual(self.agent.chat("open ideas").get("section"), "ideas", "asked for by name, the page still opens")
+
     def test_safety_is_untouched_and_the_setting_turns_it_off(self):
         out = self.agent.chat(CRISIS_SAID)["text"]
         self.assertIn("988", out)

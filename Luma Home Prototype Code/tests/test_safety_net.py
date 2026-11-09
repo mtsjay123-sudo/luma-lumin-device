@@ -80,6 +80,20 @@ class TheCorpus(unittest.TestCase):
         self.assertGreater(len(lines), 200)
         self.assertLessEqual(len(asked), 11, asked)
 
+    def test_everyday_exaggeration_doesnt_get_the_question(self):
+        """Built from the corpus's everyday lines: a 1.7B asked about them said YES to 15 to 19 of 60. Only the idiom comes out,
+        and not when they talk about themselves the heavy way."""
+        calm = [r["text"] for r in self.rows if not r["should"]]
+        self.assertLessEqual(sum(friendcheck.worth_asking(t) and not caught(t) for t in calm), 30, "it was 242 of 447")
+        for said in ["i'm dead inside", "my feet are killing me and i want to disappear", "i'd kill for a way out of this life"]:
+            self.assertTrue(friendcheck.worth_asking(said), said)
+        for said in ["my boss is gonna kill me if i'm late again", "i'm so dead lol", "we were just killing time"]:
+            self.assertFalse(friendcheck.worth_asking(said), said)
+        for rows in (self.held, self.held2):  # never one fewer risky line asked about
+            missed = [r["text"] for r in rows if r["should"] and not caught(r["text"])]
+            stripped = [t for t in missed if not friendcheck.worth_asking(t) and (friendcheck.RISK_WORDS.search(t) or friendcheck.WARNING_SIGNS.search(t))]
+            self.assertEqual(stripped, [])
+
     def test_the_questions_examples_are_in_no_test(self):
         everything = " ".join(p.read_text(encoding="utf-8").lower() for p in [DATA / "crisis_corpus.jsonl", DATA / "crisis_heldout.jsonl",
                                                                                DATA / "crisis_heldout2.jsonl", DATA.parent.parent / "data" / "human_eval_v2.jsonl"])
@@ -161,6 +175,9 @@ class InLuma(unittest.TestCase):
         self.assertIn("988", out)
         self.assertIn("AYUDA", out)
         self.assertIn("marca el 2", out)
+        self.assertIn("¿Me dices dónde estás?", out)
+        self.assertLessEqual(style.words(out), 70, "said out loud, it can't run long (it was 79 words)")
+        self.assertNotIn(" solo.", out, "'a solas' fits anyone")
 
     def test_leaning_on_luma_gets_a_gentle_nudge_at_most_weekly(self):
         notes = []
@@ -225,7 +242,7 @@ class OutLoud(unittest.TestCase):
                 return {"type": "reply", "text": "NO"}
             return {"type": "reply", "text": "Ha, then we leave ten minutes early. Want a reminder?"}
         self.agent.use_model, self.agent.planner = True, planner
-        self.agent.chat("my boss is gonna kill me if i'm late again", on_text=self.heard.append)
+        self.agent.chat("i was up on the roof fixing the gutter all day", on_text=self.heard.append)
         self.assertEqual(quiet, [True])
         self.assertNotIn("NO", "".join(self.heard))
 

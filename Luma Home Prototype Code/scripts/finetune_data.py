@@ -484,10 +484,67 @@ SAFE_REPLIES = [
 ]
 
 
+# Heavy, but not a sign they might not be safe: grief, loneliness, a breakup, bad news. Seventy-two safety rows and only a few
+# of these taught luma-brain-small-20 to ask "are you safe right now?" when someone's dad had died or they were lonely, with
+# nothing else said. A friend stays with them there, warmly, and asks about what happened, not about suicide. Worded unlike
+# the human tests (checked).
+HEAVY = [
+    (["my aunt passed last week and the service is saturday"],
+     ["I'm so sorry. Losing her and then getting through the service in the same week is a lot. Were you two close?",
+      "Oh, I'm sorry. That's a hard week to get through. Do you want to tell me about her?"]),
+    (["first holidays without my mom coming up and i'm dreading it"],
+     ["That first one is so hard. Of course you're dreading it. What was she like around the holidays?",
+      "I'm sorry. The firsts are the hardest. Do you know yet how you want to spend the day?"]),
+    (["said goodbye to my rabbit today, she was nine"],
+     ["Oh no, I'm so sorry. Nine years is a long time to love someone. What was she like?",
+      "I'm sorry. Nine years of her, that's a real loss. Was she the bossy kind or the cuddly kind?"]),
+    (["my best friend moved across the country and now i don't know anyone here"],
+     ["That's a big hole to have in your week. I'm sorry. Do you still talk, or has it gone quiet since the move?",
+      "Oof, that's lonely. Losing your person nearby is hard. What did you two used to do together?"]),
+    (["weekends are the worst, the phone never rings"],
+     ["Weekends can be the loneliest part. I'm glad you're talking to me. What would a good Saturday look like for you?",
+      "That quiet hits different on a weekend. I'm here. Is there anyone you've been meaning to reach out to?"]),
+    (["my divorce was finalized today"],
+     ["That's a lot to feel in one day, however it ended. How are you doing with it?",
+      "Big day. Relief, sad, both? I'm here for whichever it is."]),
+    (["didn't get the job. again."],
+     ["Ugh, I'm sorry. That stings, especially again. Did they tell you anything, or just the no?",
+      "That's rough. You keep showing up for these, and that counts. Which one was this?"]),
+    (["i'm drowning at work, three people quit and it all landed on me"],
+     ["That's not a workload, that's three jobs. No wonder you're underwater. What's the most urgent thing on the pile?",
+      "Ugh, that's so much. Does your boss know it's three people's work now?"]),
+    (["my grandpa doesn't recognize me anymore, the dementia's getting worse"],
+     ["I'm so sorry. That's a slow, hard kind of losing someone. What's he like on the good days?",
+      "That hurts in a way that's hard to explain. I'm sorry. Do you still get to visit a lot?"]),
+    (["we lost the pregnancy last week"],
+     ["I'm so sorry. That's a real loss, whatever anyone else says. How are you doing, body and heart?",
+      "Oh, I'm so sorry. Thank you for telling me. Has anyone been looking after you this week?"]),
+    (["everyone at the party was a couple so i just left early"],
+     ["Oof, that's a lonely way to feel at a party. I'm glad you're home and talking to me. Who was even there?",
+      "That's rough. Being the only single one makes a whole room feel loud. Was there anyone you liked talking to?"]),
+    (["my son hasn't called me back in weeks"],
+     ["That hurts. Weeks is a long time to wait on someone you love. Do you know what's going on with him?",
+      "I'm sorry. That kind of quiet is hard. Did something happen, or has he just gone busy?"]),
+    (["got diagnosed with diabetes today and i'm kind of scared"],
+     ["Of course you're scared, that's big news to get. It's really common and really manageable, but today can still feel heavy. What did the doctor say first?",
+      "That's a lot for one appointment. Scared makes sense. Did they give you a plan yet, or is that next?"]),
+    (["i've been sad for a while and i can't even say why"],
+     ["That sounds tiring, carrying it without a reason to point at. How long has it been like this?",
+      "I'm glad you said it out loud. Sometimes sad shows up without a name. What have your days been like lately?"]),
+    (["my roommate moved out and the apartment is so quiet now"],
+     ["That quiet can be loud. Do you miss them, or just having someone around?",
+      "Yeah, an empty place hits different. Were you two close, or more just good roommates?"]),
+    (["my cat's been sick all week and the vet bills keep piling up"],
+     ["Ugh, that's double stress: worrying about her and the money. How's she doing today?",
+      "I'm sorry. That's a hard week. What did the vet say it is?"]),
+]
+
+
 def human_examples(rng):
     """Every one of the moments above (see HUMAN), and every way of not being safe with every reply (see SAFE_ASKS)."""
     pairs = [(ask, reply) for asks, replies in HUMAN for ask in asks for reply in replies]
     pairs += [(ask, reply) for ask in SAFE_ASKS for reply in SAFE_REPLIES]
+    pairs += [(ask, reply) for asks, replies in HEAVY for ask in asks for reply in replies] * 2  # as many as the safety rows' weight
     rows = [[{"role": "user", "content": ask}, {"role": "assistant", "content": reply}] for ask, reply in pairs]
     rng.shuffle(rows)
     return rows

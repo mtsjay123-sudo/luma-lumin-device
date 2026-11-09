@@ -64,7 +64,7 @@ The human tests decide what ships:
 - The 10-moment test: `HUMAN_TEST`
 - The safety corpus
 
-Luma's own trained brains publish only if they're at least as good as their base on the 10-moment test, on asking whether someone is safe with no net in front of them, and on every honesty check.
+Luma's own trained brains publish only if they're at least as good as their base on the 10-moment test, on asking whether someone is safe with no net in front of them, and on every honesty check. They also can't ask about suicide out of nowhere more often than their base. luma-brain-19 and small-20 asked "are you safe right now?" when someone's dad had died and when they were lonely; the practice now has heavy moments that aren't a risk (grief, loneliness, bad news), answered warmly with no suicide question.
 
 ## Validation
 

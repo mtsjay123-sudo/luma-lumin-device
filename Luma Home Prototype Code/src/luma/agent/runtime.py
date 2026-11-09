@@ -4874,6 +4874,12 @@ class Agent:
         self.offered = {"options": [{"intent": i, "label": understanding.label(i)} for i in options], "text": about, "at": self.clock()}
         return [o["label"] for o in self.offered["options"]]
 
+    # Luma's own pages. Human Test v2 caught "What should we do on Saturday?" (planning a sister's visit) answered with
+    # "A few ideas: Let me handle your inbox · Put your calendar on Today": the understanding model reads plan questions as
+    # the ideas page, and was sure.
+    PAGES = {"open_feed", "open_news", "open_ideas", "open_goals", "open_identity", "open_settings", "open_library", "open_rules",
+             "open_connectors", "open_browser"}
+
     def _guess_and_act(self, text, lowered, cancel_event):
         """None of the exact phrasings matched. The understanding model reads the meaning: it acts when it's sure,
         asks "did you mean" when it's torn, and stays out of the way when it's just conversation."""
@@ -4883,6 +4889,8 @@ class Agent:
         if not top or top[0][0] == "chat":
             return None
         intent, p = top[0]
+        if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
+            return None  # "what should we do on saturday?", "got any ideas?" are talk: the brain answers; a page opens when they ask for one
         from luma.agent.scenarios import INTENTS
         from luma.agent import humor
         mood = humor.read_tone(text)["mood"]
@@ -5754,11 +5762,11 @@ class Agent:
             if CRISIS.search(lowered):
                 try: self._plan_feeling_check_in("safe")  # and check on them tomorrow, like a friend would
                 except Exception: pass
-                if SPANISH_CRISIS.search(lowered):  # 988 answers in Spanish: press 2, or text AYUDA
-                    return {"text": "Me alegra mucho que me lo hayas dicho, y aquí sigo contigo. Tu seguridad es lo primero: si podrías hacerte daño, "
-                                    "llama al 988 y marca el 2 para español, o envía un mensaje de texto con la palabra AYUDA al 988, o llama a emergencias, "
-                                    "y busca a alguien cerca que se quede contigo. No tienes que cargar con esto solo. No he contactado a nadie. "
-                                    "¿Me dices dónde estás ahora mismo?"}
+                if SPANISH_CRISIS.search(lowered):  # 988 answers in Spanish: press 2, or text AYUDA. Short enough to say (69 words; it was
+                    # 79 and ran long for a voice), and "a solas" fits anyone ("solo" assumed a man).
+                    return {"text": "Me alegra que me lo hayas dicho, y aquí sigo contigo. Tu seguridad es lo primero: si podrías hacerte daño, llama al 988 "
+                                    "y marca el 2, o envía AYUDA por texto al 988, o llama a emergencias, y busca a alguien cerca que se quede contigo. "
+                                    "No tienes que cargar con esto a solas. No he contactado a nadie. ¿Me dices dónde estás?"}
                 return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
                                 "(US and Canada) or call emergency services, and get someone nearby to stay with you. You don't have to carry this by yourself. "
                                 "I haven't contacted anyone. Can you tell me where you are right now?"}

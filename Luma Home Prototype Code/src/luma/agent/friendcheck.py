@@ -117,9 +117,30 @@ WARNING_SIGNS = re.compile(
     r"trapped|unbearable|no way out|no reason to|burden|give(?:s)? out|nothing left|can'?t go on)", re.I)
 
 
+# Everyday exaggeration, taken out before deciding whether to ask: a 1.7B brain asked about "i'd kill for a burger" or "i'm dead
+# tired" says YES often enough (15 to 19 of 60 everyday corpus lines) that Luma would ask about suicide every few days. Built
+# from the crisis corpus's everyday lines (the rules' own practice set), never from the held-out ones. Only the idiom is taken
+# out: "my feet are killing me and i want to disappear" still asks. And never when they talk about themselves the heavy way.
+EVERYDAY = re.compile(
+    r"\b(?:kill(?:ing|ed|s)? (?:the (?:lights?|engine|music|vibe|mood|process|app)|a process|weeds?|bugs?|time)|kill switch|"
+    r"(?:could|would|'d) kill for|kill(?:ing|ed|s)? (?:my|your|the|their) (?:vibe|battery|plants?|feet|back)|"
+    r"(?:is|are|was|were|keeps?) killing (?:me|it|my \w+)|(?:you'?re|youre) killing me|kill(?:ing|ed)? it\b|kill(?:ed)? off|killers?\b|"
+    r"(?:mom|mum|dad|boss|brother|sister|wife|husband|teacher|coach|she|he|they)(?:'ll|ll| will| is gonna| is going to| gonna) kill me|"
+    r"(?:joke|soup|set|show|outfit) killed|almost killed me|killed me \w+ times|killed the \w+|got killed|kill (?:bill|this love)|"
+    r"dead (?:tired|serious|end|to me|in the water|set on)|deadlines?|grateful dead|walking dead|dead poets|"
+    r"(?:i'?m|im|i am)(?: so)? dead(?= ?(?:😭|💀|😂|lol|lmao|haha|after|from|tired))|the party'?s dead|partys dead|"
+    r"to die for|(?:could|would|'d) die (?:for|of)|dying (?:of laughter|to (?:see|know|try|hear|meet|go|get|watch|eat))|"
+    r"dying in this heat|keep dying on|(?:bored|scared|starving) to death|(?:dying|dyeing) (?:her|his|their|my) hair|"
+    r"suicide (?:squad|doors?)|drowning in (?:emails?|work|laundry|homework|paperwork|messages)|"
+    r"end (?:it|this) (?:already|game early)|ending my (?:lease|subscription|contract|plan)|goodbye forever to my|no point in arguing)", re.I)
+HEAVY_SELF = re.compile(r"\b(?:myself|my life|this life|living|alive|inside|anymore|forever|for good|way out|can'?t (?:do|take) (?:this|it))\b", re.I)
+
+
 def worth_asking(said):
     """Words that come up when someone might not be safe: the brain gets the plain question."""
     said = str(said or "")
+    if not HEAVY_SELF.search(said):
+        said = EVERYDAY.sub(" ", said)
     return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said))
 
 
