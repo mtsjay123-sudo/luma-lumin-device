@@ -41,7 +41,8 @@ HUMAN_CLAIM = re.compile(
 INVENTED_LIFE = re.compile(
     r"\bmy (?:mom|mother|mama|dad|father|parents|brother|sister|grandma|grandpa|grandmother|grandfather|granny|nana|kids?|son|"
     r"daughter|wife|husband|girlfriend|boyfriend|uncle|aunt|auntie|cousin|family|ex|roommate|boss|coworker|neighbor|dog|cat)\b|"
-    r"\bwhen i was (?:a kid|little|young|younger|a teenager|growing up|in (?:school|college|high school))\b|"
+    r"\bwhen i was (?:a kid|little|young|younger|a teenager|growing up|in (?:school|college|high school)|\d{1,2}|a (?:teen|baby|toddler)|"
+    r"(?:thir|four|fif|six|seven|eigh|nine)teen|twenty|thirty|your age)\b|\bi remember (?:when i was|being (?:a kid|little|young|\d{1,2}))\b|"
     r"\bi (?:also |too )?(?:lost|buried) (?:my|a) (?:mom|dad|mother|father|brother|sister|friend|best friend|grandma|grandpa|"
     r"dog|cat|pet|husband|wife|son|daughter|child|baby)\b|\bi(?:'ve| have) (?:been through|gone through) (?:that|this|the same|something (?:similar|like))\b|"
     r"\bi used to (?:live|work|play|go|have|date)\b|\bi grew up\b|\bi know (?:exactly )?how (?:it|that) feels\b|"
@@ -96,14 +97,22 @@ def _runs(found, n=RUN):
     return {tuple(found[i:i + n]) for i in range(len(found) - n + 1)}
 
 
+def _inside(words, example):
+    """The words, all of them in order, somewhere in the example ("Which way you leaning?" is the sneaker example's tail)."""
+    k = len(words)
+    return any(example[i:i + k] == words for i in range(len(example) - k + 1))
+
+
 def lifted(text, examples, said="", n=RUN):
     """The example a reply took n or more words in a row from, or None. A run counts when at least two of its longer words
     aren't theirs: "you want to practice tell me about yourself" is fine when they asked to practice it."""
-    theirs = set(_plain_words(said))
-    mine = {run for run in _runs(_plain_words(text), n) if sum(len(w) >= 4 and w not in theirs for w in run) >= 2}
-    if not mine:
+    theirs, words = set(_plain_words(said)), _plain_words(text)
+    mine = {run for run in _runs(words, n) if sum(len(w) >= 4 and w not in theirs for w in run) >= 2}
+    short = 3 <= len(words) < n and sum(len(w) >= 4 and w not in theirs for w in words) >= 2
+    if not mine and not short:
         return None
-    return next((example.strip() for example in examples if mine & _runs(_plain_words(example), n)), None)
+    return next((example.strip() for example in examples
+                 if mine & _runs(_plain_words(example), n) or (short and _inside(words, _plain_words(example)))), None)
 
 
 @functools.lru_cache(maxsize=1)
@@ -260,12 +269,16 @@ def friend_style(reply, said="", hurt_recently=False, depth=None):
     if honest is not None:
         text, fixes = honest, fixes + ["claimed human"]
     rules = [("help desk", lambda s: bool(assistantisms(s))), ("pamphlet", lambda s: bool(therapy_speak(s))),
-             ("made-up life", lambda s: bool(invented_life(s))), ("copied an example", lambda s: bool(copied_example(s, said)))]
+             ("made-up life", lambda s: bool(invented_life(s)))]
     for name, bad in rules:
         parts = split_sentences(text)
         kept = _drop(parts, bad)
         if len(kept) < len(parts):
             text, fixes = _join(kept), fixes + [name]
+    parts = split_sentences(text)
+    kept = [p for p in parts if not copied_example(p, said)]
+    if kept and len(kept) < len(parts):  # every copied sentence goes, even one the next leans on (nothing left: Luma asks again)
+        text, fixes = _join(kept), fixes + ["copied an example"]
     if "**" in text:
         text, fixes = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", text), fixes + ["markdown"]
     if hurt_recently and not friendcheck.LAUGHS.search(str(said or "")) and friendcheck.LAUGHS.search(text):

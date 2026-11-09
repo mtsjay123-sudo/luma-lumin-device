@@ -193,7 +193,7 @@ def label(intent):
 DANGLING = re.compile(
     r"(?:(?<!just )\b(?:the|a|an|my|your|our|and|or|but|because|so that|if|um+|uh+|like|whether|than)"
     r"|\b(?:remind me|ping me|nudge me|need|want|have|got|going|gonna|wanna|trying|tryna|how|ask \w+|tell \w+|text \w+|email \w+|is|was|were)\s+to"
-    r"|\bremind me(?: that)?|(?:^\W*|\b(?:can you|could you|please|and|then|to|gotta|need to)\s+)(?:tell|text|email|ask)\s+(?!you\b|u\b|back\b|me\b|again\b|now\b|later\b|too\b|please\b)\w+(?: (?!again\b|now\b|later\b|too\b|please\b)\w+)?(?: that)?"
+    r"|\bremind me(?: that)?|(?:^\W*|\b(?:can you|could you|please|and|then|to|gotta|need to)\s+)(?:tell|text|email|ask)\s+(?!you\b|u\b|back\b|me\b|again\b|now\b|later\b|too\b|please\b)\w+(?: (?!again\b|now\b|later\b|too\b|please\b|everything\b|anything\b|something\b|nothing\b|off\b|goodnight\b|hi\b|hello\b|bye\b|thanks\b|congrats\b|sorry\b|no\b|yes\b|it\b|so\b|all\b|everyone\b)\w+)?(?: that)?"
     r"|\blet (?!me\b|us\b)\w+ know(?: that)?"
     r"|\b(?:can you|could you|would you|will you|i need you to|i want you to|i need|i want|set a reminder for|play some|look up|search for|find me|make me|open my|what's on my|what is on my|where is my|where are my|about the|for the|with the|to the|at the|on the|in the|of the)"
     r"|\.\.\.|…|[-—])\s*$", re.I)

@@ -426,6 +426,18 @@ def just_telling(text):
     return bool(TELLING.match(plain)) and not asks_for_something(text)
 
 
+# Their own plan, said out loud ("gonna text my ex at 3am", "i'm about to quit"): a friend weighs in, and Luma doesn't take the
+# job over. (Human Test v2, run 6: the rewrite step turned "gonna text my ex at 3am and tell him how i really feel" into a text.)
+THEIR_PLAN = re.compile(r"^(?:i'?m |im |i am |i'?ll |ill |we'?re |were )?(?:just |prob(?:ably)? |finally |totally )?"
+                        r"(?:gonna|going to|finna|about to|ima|i'?ma|planning to|thinking (?:about|of))\b", re.I)
+
+
+def their_own_plan(text):
+    """Telling Luma what they're going to do, not asking it to do anything ("gonna text him", not "remind me to text him")."""
+    plain = CHATTER.sub("", understanding.normalize(str(text or "")))
+    return bool(THEIR_PLAN.match(plain)) and not REQUEST.search(plain)
+
+
 def wants_a_take(text):
     """Asking what Luma thinks ("should i text him first", "be honest, is it weird..."), not asking it to do anything
     ("should i text him? just write one for me" asks for both)."""
@@ -707,7 +719,7 @@ class Agent:
         relevant.update(self._connector_tools_for(lowered))
         if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type", "computer.run", "computer.shortcuts", "computer.shortcut"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
-        if not agent_mode and (just_telling(text) or wants_a_take(text)):
+        if not agent_mode and (just_telling(text) or wants_a_take(text) or their_own_plan(text)):
             allowed = {name: spec for name, spec in allowed.items() if name not in MAKES}
         if not wants_message(text): allowed.pop("messages.prepare", None)
         if "messages.prepare" in allowed:
@@ -2547,6 +2559,8 @@ class Agent:
     def _instead_of_no(self, text, lowered, reply, cancel_event=None):
         """The model said no to something Luma can do. Do the real thing, or say truthfully what it takes."""
         from luma.agent import abilities, later_mail
+        if just_telling(text):
+            return None  # "i don't really have anyone to talk to lately" isn't asking whether Luma can talk (the 0.6B, device lab 37)
         denied = " ".join(m.group(0) for m in DENIES.finditer(reply)).lower()
         web_ok = self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
         if web_ok and (asks_news(lowered) or re.search(r"\b(?:news|headlines|current events)\b", denied)) and not PERSONAL_NEWS.search(lowered):
@@ -4641,11 +4655,14 @@ class Agent:
         missed = friendcheck.miss(said, draft, risky)
         if not missed:
             return draft
-        if self.store.setting("second_look", True) is False and missed != "missed that they might not be safe":
-            return draft  # turned off, the second look still never lets a reply skip asking if they're safe
+        must = friendcheck.cant_miss(said, draft, risky)  # first, whatever else the reply missed
+        if self.store.setting("second_look", True) is False and not must:
+            return draft  # turned off, the second look still never lets a reply skip asking if they're safe, or let them drive drunk
+        missed = must or missed
         if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
             # they've already heard the reply: another try would say it twice. Only what can't wait is said, after it.
             after = {"missed that they might not be safe": friendcheck.SAFETY_AFTER,
+                     "let them drive after drinking": "And hey, please don't drive after drinking. Get a ride or a cab, or stay where you are.",
                      "said it's a person": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening.",
                      "dodged what it is": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening."}.get(missed)
             if after:
@@ -4662,8 +4679,10 @@ class Agent:
             again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
             if not garbled(again) and friendcheck.miss(said, again, risky) is None:
                 return again
-        if missed == "missed that they might not be safe":
+        if must == "missed that they might not be safe":
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
+        if must == "let them drive after drinking":
+            return friendcheck.DONT_DRIVE_LINE  # twice without saying don't drive: Luma says it
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":
@@ -6086,7 +6105,8 @@ class Agent:
                 return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
-                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and self._worth_understanding(lowered) and not just_talking(text):
+                    and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and self._worth_understanding(lowered) and not just_talking(text) \
+                    and not (wants_a_take(text) or just_telling(text) or their_own_plan(text)):  # "should i text him first" isn't "text him first"
                 clear = self.understand(text, cancel_event)  # a story isn't rewritten into a job ("lmao my boss scheduled a meeting" became a stock check)
                 if isinstance(clear, str) and _garbled(clear): clear = None
                 if isinstance(clear, str) and clear.upper().startswith("ASK:") and _words(clear[4:]).split()[:3] == _words(text).split()[:3]:
