@@ -514,6 +514,7 @@ def examples(rng):
         rows.append([{"role": "user", "content": typed}, {"role": "assistant", "content": reply.replace(" lol", "").replace(" 😭", "")}])
     rows += mirror_examples(rng) + meaning_examples(rng) + unknown_examples(rng) + grounded_examples(rng) + advice_examples(rng) + human_examples(rng)
     rows += multi_turn_examples(rng, rows)
+    rows += callback_examples(rng) * 3 + carry_over_examples() * 2  # few, and each one matters: seen a few times
     # the dictionary note is for the newest message, the way Luma's brain gets it live
     return [{"messages": [{"role": "system", "content": SYSTEM + _noted(r[-2]["content"])}] + r} for r in rows]
 
@@ -530,6 +531,78 @@ def multi_turn_examples(rng, singles, n=260):
             continue
         rows.append([first[0], first[1], second[0], second[1]])
     return rows
+
+
+# Conversations where what they said a few turns back is the point. Luma's two-exchange practice (above) pairs unrelated
+# messages, so its brains learned the earlier turn doesn't matter: the small one forgot "my brother ... rock climbing" one
+# turn later, where the stock brain remembered. Here the last reply has to use what came earlier, with ordinary talk in
+# between. Worded unlike the human tests (data/human_eval_v2.jsonl; tests/test_human_eval.py checks).
+PEOPLE_IN_LIFE = [
+    ("cousin", "dana", "her", "just started taking surf lessons", "she's terrible at it but she loves it",
+     "A wax kit and a cute rash guard, or another lesson so she can finally stand up on that board."),
+    ("roommate", "jo", "her", "got really into baking sourdough", "the whole apartment smells like bread now",
+     "A proper banneton basket and a lame for scoring the loaves. She'll think you actually listened, because you did."),
+    ("grandpa", "walt", "him", "started doing jigsaw puzzles every night", "he did a 1000 piece one in a week",
+     "A really detailed 1500 piece puzzle and a roll-up mat so he can keep going after dinner."),
+    ("best friend", "priya", "her", "is training for her first marathon", "she runs at like 5am every day",
+     "Good running socks and one of those clip-on lights for the 5am runs. Practical, but she'll use them every day."),
+    ("son", "eli", "him", "is obsessed with chess right now", "he beat his teacher last week",
+     "A nice wooden chess set, or a kids' puzzle book so he can keep beating grown-ups."),
+    ("neighbor", "rosa", "her", "grows tomatoes in her backyard", "she gave us like a whole bag last summer",
+     "Some good seed packets, heirloom tomatoes maybe, and a thank-you note for all those tomatoes."),
+    ("coworker", "ben", "him", "just got into film photography", "he bought an old camera at a flea market",
+     "A few rolls of film. He'll burn through them fast with that flea market camera."),
+    ("aunt", "carol", "her", "started knitting during the winter", "she's made everyone scarves already",
+     "Really nice yarn in a color she'd never buy herself. Everyone's already got a scarf from her, so she's earned it."),
+    ("brother", "nate", "him", "plays guitar in a little band", "they had their first gig at a bar last week",
+     "A pack of good strings and a capo, or a strap with the band's name if you want to make him smile."),
+    ("daughter", "zoe", "her", "loves drawing horses", "she fills whole notebooks with them",
+     "A real sketchbook and a set of good colored pencils. Maybe a book on drawing horses, since that's her thing."),
+    ("dad", "frank", "him", "just retired and started fishing", "he goes out on the lake every morning",
+     "A good tackle box or a comfy folding chair for those mornings on the lake."),
+    ("girlfriend", "sam", "her", "is learning to skateboard", "she fell like ten times yesterday and kept going",
+     "Wrist guards, honestly. She's clearly not quitting, so help her keep falling safely."),
+]
+FILLER = [("anyway my day was so long", "Long how? Busy long or annoying long?"),
+          ("ugh it's raining again", "Rain all day is a whole mood. You staying in?"),
+          ("i finally cleaned my room lol", "Look at you. That's a win."),
+          ("work was a lot today", "That kind of day, huh. What made it a lot?"),
+          ("i just made coffee", "Good call. Second cup or first?"),
+          ("my phone's at 3% and i'm too lazy to get up", "Living dangerously. Where's the charger?")]
+ASKS_ABOUT = ["any gift ideas for {o}? {p} birthday's coming up", "i need a present for {o}, help", "help me pick a birthday present for {o}",
+              "{n}'s birthday is next week and i have nothing"]
+
+
+def callback_examples(rng):
+    rows = []
+    for rel, name, obj, hobby, detail, gift in PEOPLE_IN_LIFE:
+        poss = "his" if obj == "him" else "her"
+        talk = [{"role": "user", "content": f"my {rel} {name} {hobby}"},
+                {"role": "assistant", "content": rng.choice(["Oh that's so fun. How's it going so far?", "Wait, I love that. Since when?",
+                                                             "Okay that's a great one to get into. Are they any good yet?"])},
+                {"role": "user", "content": detail},
+                {"role": "assistant", "content": rng.choice(["Ha, that's commitment.", "Honestly, that's the best part.", "Love that for them."])}]
+        for said, back in rng.sample(FILLER, rng.choice([1, 2])):  # ordinary talk in between
+            talk += [{"role": "user", "content": said}, {"role": "assistant", "content": back}]
+        ask = rng.choice(ASKS_ABOUT).format(o=rng.choice([obj, name]), p=poss, n=name)
+        rows.append(talk + [{"role": "user", "content": ask}, {"role": "assistant", "content": gift}])
+    return rows
+
+
+# A hard moment earlier, then an ordinary ask: the ask gets answered, gently, without jokes.
+CARRY_OVER = [
+    ("my uncle passed away this morning", "I'm so sorry. I'm here. Do you want to talk about him?", "not really. can you just help me pick something to eat",
+     "Of course. Something easy and warm: soup, or toast with eggs. You don't have to cook anything big today."),
+    ("i got laid off today", "Oh no. I'm really sorry. That's a gut punch.", "can you help me figure out what to do tonight",
+     "Yeah. Tonight, nothing productive. Order something you like, watch something easy, and we'll make a plan tomorrow."),
+    ("my dog had to go to the emergency vet tonight", "Oh no. I'm so sorry, that's scary. Is he okay right now?", "they're keeping him overnight. what do i even do",
+     "Try to rest if you can, and keep your phone loud in case they call. I'm here if you want to talk while you wait."),
+]
+
+
+def carry_over_examples():
+    return [[{"role": "user", "content": a}, {"role": "assistant", "content": b}, {"role": "user", "content": c}, {"role": "assistant", "content": d}]
+            for a, b, c, d in CARRY_OVER]
 
 
 def _noted(said):
