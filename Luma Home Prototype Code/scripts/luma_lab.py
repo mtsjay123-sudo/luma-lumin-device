@@ -7,6 +7,7 @@
     python scripts/luma_lab.py all --save lab.json
     python scripts/luma_lab.py cloud [--turns 15] [--model claude-sonnet-5-5]   # the cloud brain: what it re-reads, first words, cost (scripts/si_lab.py)
     python scripts/luma_lab.py apps                                             # hidden instructions in what Luma reads: does anything act without a yes
+    python scripts/luma_lab.py news-test                                        # 200 questions over a frozen, made-up snapshot of feeds
 
 The brain comes from LUMA_MODEL_PATH. Everything runs in a throwaway profile: your real memories, contacts and
 settings are untouched, nothing is sent and nothing is bought. Jobs that need your accounts (email) run against a
@@ -843,7 +844,7 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary", "cloud", "apps"])
+    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary", "cloud", "apps", "news-test"])
     parser.add_argument("--turns", type=int, default=15, help="turns of the made-up conversation; cloud only")
     parser.add_argument("--threads", type=int, default=4, help="processor cores the brain may use; device only")
     parser.add_argument("--label", help="what to call this brain in the report; device only")
@@ -862,6 +863,15 @@ def main():
         return
     if args.what == "device-summary":
         print(device_summary(args.reports))
+        return
+    if args.what == "news-test":
+        import si_lab
+        report = si_lab.news()
+        print(si_lab.news_table(report))
+        if args.save:
+            Path(args.save).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.save).write_text(json.dumps({"when": time.strftime("%Y-%m-%d %H:%M"), "news": {k: v for k, v in report.items() if k != "rows"}}, indent=1))
+            print("saved", args.save)
         return
     if args.what == "apps":
         import si_lab

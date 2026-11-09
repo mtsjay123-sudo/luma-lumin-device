@@ -15,7 +15,7 @@ The spec is `docs/SUPER_INTELLIGENCE_PROMPT.md`. Machine for everything below: a
 | 1. Life memory | Built and measured. Fast at any size. Held-out recall misses its target. |
 | 2. Real-time brain | Built. Measured on a stand-in only: no key here, so no real speed or cost. |
 | 3. Agent that acts | The safeguards are built and measured with a red team that needs no brain. Tool-picking with a real brain is not measured. |
-| 4. News intelligence | See section 4. |
+| 4. News intelligence | Built and measured on a frozen, made-up snapshot. "Told once" misses its target on held-out stories. Live search is not exercised. |
 | 5. Plus and the future model | See section 5. |
 
 Main has not moved. It stays at `06c5530` until the human tests and the safety sets pass with the Super Intelligence on and off.
@@ -303,3 +303,53 @@ All 57 tools stand on a rung, and a test checks it.
 ### An honest limit
 
 Tracing matches what it can see. A hidden instruction that makes a brain reword a message is not traced by its wording. That's why the rule for people and links is the other way round: anyone the owner didn't name needs a yes, traced or not.
+
+## 4. News intelligence
+
+### The test
+
+`python scripts/luma_lab.py news-test`. A frozen snapshot of feeds that never existed: made-up outlets, places, teams and events, so nothing in it is a real report about a real person. 40 stories carried by one to five outlets each, in their own words: 94 reports. 200 questions are asked of it. Answers come from what's already been read: no live search and no brain.
+
+Half the stories (the even-numbered ones) were looked at while building. The other half never were.
+
+| Measure | All | Dev stories | Held-out stories |
+|---|---|---|---|
+| Questions | 200 | 80 | 80 |
+| Answered | 100% (200/200) | 100% (80/80) | 100% (80/80) |
+| Grounded: every source, link and number is in the snapshot | 100% (200/200) | | |
+| Asked about one story, and found it | | 100% (80/80) | 100% (80/80) |
+| ...and gave its newest report's time | | 100% (80/80) | 100% (80/80) |
+| The same story told once | 94.5% (189/200) | 100% (80/80) | 90% (72/80) |
+| Asked for the last N hours, and stayed inside them (or said nothing new came out) | 100% (12/12) | | |
+| Answers that still said BREAKING on something hours old | 0 | | |
+| Answer time from the cache | p50 2.3 ms, p95 14.1 ms | | |
+
+The other 40 questions are general ("what's in the news", "any tech news", "the last 6 hours").
+
+### Against the targets
+
+| Target | Goal | Result | Met? |
+|---|---|---|---|
+| Grounded in the snapshot | 100% | 100% (200/200) | Yes |
+| Uses the newest relevant item | ≥ 95% | 100% (160/160) | Yes |
+| The same story told once, not five times | ≥ 95% | 94.5% overall; 90% on held-out stories | No |
+| Answer time from the cache, p95 | ≤ 300 ms | 14 ms | Yes, on this box |
+
+**Why "told once" misses.** Reports are grouped by the words their headlines share. Two outlets that word one story very differently aren't joined. The first run was 90.5%: a group only knew its first headline's words, so a third report that matched the second was left out. Fixing that brought the dev stories to 100%. The held-out stories stayed at 90%, and their misses were not looked at.
+
+### What was built
+
+- **Where outlets disagree.** When outlets covering one story give different numbers, Luma says who says what, and never picks one as fact.
+- **Nothing old is "breaking".** "BREAKING:" and "Just in:" come off a headline once it's two hours old.
+- **Never made up.** A news answer a brain writes is checked against the headlines it was given. An outlet that didn't report it, or a number that isn't there, and the plain headlines are said instead.
+- **Read the room.** Someone who's grieving or having a bad time isn't shown deaths and disasters unless they ask. Asked for the headlines on a hard day, they get the others first.
+- **Theirs.** What they care about comes from what they've told Luma (their city, their team), never from clicks. Those stories come right after the biggest one.
+- **Fast.** If two or more reports on a topic are already here, nobody waits on a search. Otherwise a live search gets two seconds, then Luma answers from what it had.
+- **Alerts are opt-in.** Off by default. Never in kids mode, never during quiet hours, at most one an hour, and never a hard story on a day they've had a hard time.
+- **One story, many outlets** was already there. It now also joins a third report through the second.
+
+### Not built
+
+- **Local news and live scores fetched for them.** Luma only reorders what the public feeds already carry. Fetching their city or their team in the background would send what they care about to a search engine, so it needs its own setting, off by default.
+- **Alerts at night on request.**
+- **The live search path** isn't in the test. The snapshot is frozen, so the test answers from the cache.

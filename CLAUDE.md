@@ -39,6 +39,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
 | Red team: hidden instructions in what Luma reads | `python scripts/luma_lab.py apps` |
+| News test: 200 questions over a frozen, made-up snapshot | `python scripts/luma_lab.py news-test` |
 | Device lab | `python scripts/luma_lab.py device --human [--v2] --label NAME` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |

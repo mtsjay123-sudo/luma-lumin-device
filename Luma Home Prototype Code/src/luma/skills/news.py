@@ -113,7 +113,8 @@ STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "is", "are
         "yo", "hey", "lately", "recent", "recently", "since", "yesterday", "tonight", "morning", "overnight", "night", "again", "headline",
         "headlines", "catch", "up", "current", "events", "happened", "big", "biggest", "major", "whole", "out", "need", "want", "u", "ur",
         "luma", "do", "does", "be", "would", "should", "all", "more", "most", "other", "else", "summary", "summarize", "rundown", "brief", "briefing",
-        "knews", "newz", "nws", "neews", "nwes", "nuews", "good", "great", "bad", "happen", "goin", "on", "abt"}
+        "knews", "newz", "nws", "neews", "nwes", "nuews", "good", "great", "bad", "happen", "goin", "on", "abt",
+        "miss", "missed", "missing", "while", "was", "away", "gone", "asleep", "sleeping"}  # "what did I miss": the headlines, not a search for "miss"
 FILLER = re.compile(r"^(?:u+h+|u+m+|h+m+|e+r+m*|a+h+|o+h+|l+o+l+|\d+\w*)$")
 NEWS_WORD = r"(?:news|knews|newz|nws|neews|nwes|nuews)"
 ASKS_NEWS = re.compile(
@@ -742,12 +743,13 @@ def stories(items, limit=8):
             groups.append({"words": set(words), "items": [item]})
         else:
             home["items"].append(item)
+            home["words"] |= words  # the story is told in all its outlets' words: a third report can match the second
     out = []
     for g in groups:
         outlets = list(dict.fromkeys([i["source"] for i in g["items"]] + [o for i in g["items"] for o in i.get("also", [])]))
         # Google's own pick for the story (the one listing who else covers it), else a first-hand outlet, else the newest. Not a column.
         lead = max(g["items"], key=lambda i: (len(i.get("also", [])), i["source"] in WIRES and not COLUMN.search(i["title"]), when(i)))
-        out.append(dict(lead, outlets=outlets, latest=max(when(i) for i in g["items"])))
+        out.append(dict(lead, outlets=outlets, latest=max(when(i) for i in g["items"]), differs=differs(g["items"]) if len(g["items"]) > 1 else ""))
     def weight(s):  # how many outlets carry it; a first-hand outlet counts a little more, gossip only one site has a little less
         first_hand = any(o in WIRES for o in s["outlets"])
         lone_gossip = len(s["outlets"]) == 1 and s.get("topic") == "culture"
@@ -777,3 +779,118 @@ def top(items, limit=8):
         if len(out) >= limit:
             break
     return out
+
+
+# ------------------------------------------------------------------------------------------- news intelligence ---
+# Told the way a friend would: one story once, where outlets disagree, nothing old called breaking, nothing made up,
+# and never hard news pushed at someone who's having a bad time.
+HARD = re.compile(r"\b(?:dead|dies?|died|death|deaths|killed|killing|kills|murder\w*|shoot\w*|shot|stabb\w*|massacre|bomb\w*|war|airstrike\w*|attack\w*|"
+                  r"terror\w*|hostage\w*|suicide|overdos\w*|rape\w*|assault\w*|abus\w*|crash\w*|wreck|earthquake|wildfire\w*|flood\w*|tornado\w*|hurricane|"
+                  r"cancer|outbreak|famine|genocide|execut\w*|missing|drown\w*|collaps\w*|casualt\w*|victims?|funeral|mourning|layoffs?|laid off|evacuat\w*|"
+                  r"muert\w*|asesin\w*|tiroteo|guerra)\b", re.I)
+LOUD = re.compile(r"^\s*(?:breaking(?: news)?|just in|developing|live(?: updates?)?|urgent|alert|update)\s*[:|–—-]\s*", re.I)
+BREAKING_HOURS = 2
+COUNT = re.compile(r"(?<![\w$.])(\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:%|percent\b|(million|billion|thousand)\b)?\s*([a-z]{3,})?", re.I)
+
+
+def hard(item):
+    """Hard news: death, violence, disaster, illness. Not for someone who's grieving or having a bad time, unless they ask."""
+    return bool(HARD.search(str(item.get("title", "")) + " " + str(item.get("snippet", ""))))
+
+
+def calm(title, age_hours):
+    """A headline without "BREAKING:" on it once it's a couple of hours old: nothing old is breaking."""
+    return LOUD.sub("", title, count=1) if age_hours is None or age_hours >= BREAKING_HOURS else title
+
+
+def _counts(text):
+    """{what it counts: the number} for the counted things in a headline: {"dead": 12, "percent": 4}."""
+    out = {}
+    for number, scale, noun in COUNT.findall(str(text).lower()):
+        value = float(number.replace(",", "")) * {"thousand": 1e3, "million": 1e6, "billion": 1e9}.get(scale, 1)
+        what = "percent" if not noun and "%" in text else (noun or "")
+        if what and what not in STOP and not what.isdigit():
+            out.setdefault(what[:5], value)
+    return out
+
+
+def differs(items):
+    """Where outlets covering one story give different numbers for the same thing: "Metro Wire says 12, Capital Dispatch
+    says 15", or "" when they agree. Said plainly, so a number is never passed on as settled when it isn't."""
+    seen = {}
+    for item in sorted(items, key=when, reverse=True):
+        for what, value in _counts(item.get("title", "")).items():
+            seen.setdefault(what, {}).setdefault(value, item["source"])
+    for what, by_value in seen.items():
+        if len(by_value) >= 2:
+            said = [f"{source} says {int(value) if value == int(value) else value}" for value, source in list(by_value.items())[:3]]
+            return "; ".join(said[:1]) + ", " + ", ".join(said[1:])
+    return ""
+
+
+def interests(store, limit=6):
+    """What they care about, from what they've told Luma (never from what they clicked): their city, their teams, what
+    they're into. Words to look for in the news, most telling first."""
+    out = []
+    try:
+        index = store.index()
+        for what in ("home", "favorite", "into", "likes"):
+            for (who, kept), rows in sorted(index.slots.items()):
+                if who != "you" or kept.split(":")[0] != what:
+                    continue
+                for row in sorted(rows, key=lambda r: -index.created[r]):
+                    if index.alive[row] and not index.ended[row]:
+                        for value in index._values(row, kept):
+                            value = " ".join(value.split()[:4])
+                            if 2 < len(value) <= 40 and value not in out:
+                                out.append(value)
+    except Exception:
+        return []
+    return out[:limit]
+
+
+def about_them(items, wanted):
+    """The stories that touch what they care about, newest first."""
+    keys = [terms(w) for w in wanted if terms(w)]
+    hits = [i for i in items if any(k <= terms(i["title"] + " " + i.get("snippet", "")) for k in keys)]
+    return sorted(hits, key=when, reverse=True)
+
+
+def grounded(reply, items, now=None):
+    """What a written news answer says that the headlines it was given don't: [] when every outlet it names and every
+    number it gives is in them, and it calls nothing "breaking" that's hours old. Otherwise the plain headlines are used."""
+    problems = []
+    given = " ".join(f"{i.get('source', '')} {i.get('title', '')} {i.get('snippet', '')} {' '.join(i.get('outlets') or [])} {i.get('differs', '')}"
+                     for i in items).lower()
+    numbers = set(re.findall(r"\d[\d,]*(?:\.\d+)?", given))
+    # Luma's own numbers aren't the news's: the time it checked, how long ago, how many outlets
+    said = re.sub(r"\b\d{1,2}:\d{2}\b|\b\d+\s*(?:h|m|min|mins|minutes?|hours?|days?)\s+ago\b|\b(?:last|past)\s+\d+\s+(?:hours?|days?|minutes?)\b|"
+                  r"\b\d+\s+(?:other\s+)?(?:outlets?|others?|stories|sources|reports?)\b|\b\d{1,2}\s*(?:am|pm)\b", " ", str(reply), flags=re.I)
+    for number in re.findall(r"\d[\d,]*(?:\.\d+)?", said):
+        plain = number.rstrip(".,")
+        if plain not in numbers and plain.replace(",", "") not in {n.replace(",", "") for n in numbers} and len(plain.replace(",", "")) > 1:
+            problems.append("a number that isn't in the headlines: " + plain)
+    for outlet in KNOWN_OUTLETS:
+        if re.search(rf"\b{re.escape(outlet)}\b", str(reply), re.I) and outlet.lower() not in given:
+            problems.append("an outlet that didn't report it: " + outlet)
+    if now is not None and re.search(r"\bbreaking\b|\bjust (?:in|now|happened|broke)\b", str(reply), re.I) and items \
+            and all(now - (i.get("latest") or when(i)) >= BREAKING_HOURS * 3600 for i in items):
+        problems.append("called breaking, hours later")
+    return problems
+
+
+KNOWN_OUTLETS = sorted(WIRES | {"Fox News", "MSNBC", "TMZ", "Al Jazeera", "The Verge", "TechCrunch", "Wired", "Forbes", "People", "Variety", "The Atlantic",
+                                "Los Angeles Times", "New York Post", "Daily Mail", "The Independent", "Sky News", "CNBC", "MarketWatch", "The Hill",
+                                "Business Insider", "Rolling Stone", "Billboard", "Pitchfork", "The Athletic", "Bleacher Report", "Sports Illustrated"})
+
+
+def worth_an_alert(stories_now, told, wanted, now, outlets=3):
+    """The one story to tell them about unasked, or None: brand new (under two hours), carried by several outlets or about
+    something they care about, and not told before. Whether alerts are on, and whether it's night, is for the caller."""
+    keys = [terms(w) for w in wanted if terms(w)]
+    for story in stories_now:
+        fresh = now - (story.get("latest") or when(story)) <= BREAKING_HOURS * 3600
+        theirs = any(k <= terms(story["title"]) for k in keys)
+        if fresh and _key(story) not in told and (len(story.get("outlets") or []) >= outlets or theirs):
+            return story
+    return None

@@ -492,3 +492,156 @@ def apps_table(report):
               f"| Wrongly told \"that didn't come from you\", over all {own['asked']} | {own['wrongly_questioned_all']} |",
               f"| Asks Luma answered itself, without offering a brain that tool | {own['not_offered']} |"]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------------- the news test ---
+# A frozen snapshot of feeds that never existed: made-up outlets, places, teams and events, so nothing here is a real
+# report about a real person. 40 stories, each carried by one to five outlets in their own words, some updated later,
+# some with outlets giving different numbers, some old ones still shouting "BREAKING". 200 questions are asked of it.
+NEWS_NOW = 1794236400.0  # one fixed moment
+OUTLETS = ["Metro Wire", "Capital Dispatch", "Coastline News", "Northside Post", "Wire One", "The Daily Ledger", "Harbor Times", "Field Report"]
+STORIES = [  # (the words that name it, the section, the headlines outlets ran (each its own wording), hours ago for the first, a number they differ on)
+    ("harbor city bridge", "us", ["Harbor City bridge collapse leaves {n} dead", "At least {n} dead after Harbor City bridge collapse", "Harbor City bridge collapse: crews search the river", "Rescue effort continues at the Harbor City bridge"], 9, (12, 15)),
+    ("riverton transit", "us", ["Riverton council approves the new transit line", "Riverton transit line wins council approval", "What the Riverton transit vote means for riders"], 6, None),
+    ("otters cup", "sports", ["Riverton Otters beat the Pines 3-1 in the cup final", "Otters lift the cup after a 3-1 win over the Pines"], 3, None),
+    ("valmont rate", "business", ["Valmont central bank holds its rate at {n} percent", "Valmont bank keeps the rate steady at {n} percent", "Valmont rate decision: no change"], 12, (4, 4)),
+    ("brightline phones", "tech", ["Brightline unveils its folding phone", "Brightline's folding phone goes on sale next month", "Hands on with the Brightline folding phone"], 20, None),
+    ("eastfield wildfire", "us", ["Eastfield wildfire forces {n} thousand to evacuate", "Evacuations grow as the Eastfield wildfire spreads", "Eastfield wildfire: {n} thousand told to leave"], 5, (8, 11)),
+    ("norwick strike", "business", ["Norwick dock workers begin a strike", "Dock strike halts cargo at Norwick port", "Norwick port strike enters its second day"], 30, None),
+    ("calder vaccine", "health", ["Calder Labs says its flu vaccine cut illness by {n} percent", "Calder flu vaccine trial shows a {n} percent drop in illness"], 16, (41, 38)),
+    ("halden election", "world", ["Halden votes in a tight national election", "Halden election too close to call", "Counting continues in the Halden election", "Halden election: turnout tops records"], 4, None),
+    ("pinecrest schools", "us", ["Pinecrest schools switch to a four-day week", "Four-day school week approved in Pinecrest"], 26, None),
+    ("lumen satellite", "science", ["Lumen satellite reaches orbit after a delayed launch", "Delayed Lumen satellite launch succeeds"], 11, None),
+    ("marlow merger", "business", ["Marlow Foods agrees to buy Tessa Mills for {n} billion", "Marlow to acquire Tessa Mills in a {n} billion deal"], 7, (3, 3)),
+    ("kestrel marathon", "sports", ["Kestrel marathon sees a course record", "Course record falls at the Kestrel marathon", "Thousands run the Kestrel marathon"], 28, None),
+    ("delmar storm", "us", ["Storm knocks out power to {n} thousand homes in Delmar", "Delmar storm leaves {n} thousand without power"], 2, (60, 85)),
+    ("ashby museum", "world", ["Ashby museum recovers a stolen painting", "Stolen painting returned to the Ashby museum"], 34, None),
+    ("corvin chips", "tech", ["Corvin delays its next chip to next year", "Corvin chip delay rattles suppliers", "Why Corvin's chip is late"], 14, None),
+    ("tallis ferry", "world", ["Tallis ferry service resumes after repairs", "Repaired Tallis ferry sails again"], 22, None),
+    ("ridgeview hospital", "health", ["Ridgeview hospital opens a new children's wing", "New children's wing opens at Ridgeview hospital"], 18, None),
+    ("falcons coach", "sports", ["Harbor Falcons name a new head coach", "New head coach takes over the Harbor Falcons", "Falcons players welcome the new coach"], 8, None),
+    ("solano drought", "world", ["Solano declares a drought emergency", "Drought emergency declared across Solano", "Solano farmers brace for water limits"], 36, None),
+    ("oakline rent", "us", ["Oakline caps rent increases at {n} percent", "Rent cap of {n} percent passes in Oakline"], 10, (5, 5)),
+    ("verity recall", "business", ["Verity recalls {n} thousand strollers", "Stroller recall: Verity pulls {n} thousand units"], 13, (40, 40)),
+    ("quill streaming", "tech", ["Quill raises its streaming price again", "Quill streaming gets more expensive next month"], 24, None),
+    ("brannock tunnel", "us", ["Brannock tunnel reopens after a year of work", "After a year, the Brannock tunnel is open again"], 32, None),
+    ("ivel tennis", "sports", ["Ivel Open: the top seed is knocked out in the first round", "Top seed loses early at the Ivel Open"], 5, None),
+    ("serrano earthquake", "world", ["Earthquake of magnitude {n} shakes Serrano", "Serrano hit by a magnitude {n} earthquake", "Serrano earthquake: aftershocks continue"], 3, (6, 6)),
+    ("holloway library", "us", ["Holloway library extends its hours", "Longer hours start at the Holloway library"], 40, None),
+    ("merrin battery", "science", ["Merrin researchers report a longer-lasting battery", "New battery from Merrin lasts twice as long"], 19, None),
+    ("castell airline", "business", ["Castell Air cancels {n} flights over a software fault", "Software fault grounds {n} Castell Air flights"], 4, (120, 200)),
+    ("dunmore festival", "world", ["Dunmore music festival sells out in an hour", "Tickets for the Dunmore festival gone in an hour"], 27, None),
+    ("ostrander court", "us", ["Ostrander court strikes down the parking law", "Parking law thrown out by the Ostrander court"], 15, None),
+    ("bellamy bakery", "us", ["Bellamy's oldest bakery closes after 90 years", "After 90 years, a Bellamy bakery shuts its doors"], 29, None),
+    ("wexley robotics", "tech", ["Wexley shows a warehouse robot that climbs shelves", "Wexley's shelf-climbing robot starts trials"], 9, None),
+    ("fenwick measles", "health", ["Fenwick reports {n} measles cases", "Measles cases in Fenwick rise to {n}"], 6, (9, 14)),
+    ("lowry basketball", "sports", ["Lowry Lions win a triple-overtime thriller", "Lions edge it in triple overtime at Lowry"], 12, None),
+    ("palisade water", "us", ["Palisade lifts its boil-water notice", "Boil-water notice ends in Palisade"], 2, None),
+    ("grayson telescope", "science", ["Grayson telescope spots a new comet", "New comet found by the Grayson telescope"], 21, None),
+    ("tindall budget", "world", ["Tindall parliament passes the budget by {n} votes", "Tindall budget squeaks through by {n} votes"], 17, (2, 2)),
+    ("morrow bus", "us", ["Morrow adds night buses on weekends", "Weekend night buses coming to Morrow"], 38, None),
+    ("hartwell chess", "sports", ["A 12-year-old wins the Hartwell chess open", "Hartwell chess open won by a 12-year-old"], 25, None),
+]
+
+
+def news_snapshot():
+    """The frozen feeds: [(story number, item)], the same every time."""
+    out = []
+    for n, (key, topic, headlines, first, numbers) in enumerate(STORIES):
+        for i, headline in enumerate(headlines):
+            number = (numbers[min(i, 1)] if "{n}" in headline else None) if numbers else None
+            title = headline.format(n=number) if number is not None else headline
+            if n % 9 == 0 and i == 0:
+                title = "BREAKING: " + title           # the first report shouted, and it's hours old now
+            source = OUTLETS[(n * 3 + i * 5) % len(OUTLETS)]
+            hours = max(0.25, first - i * (first / (len(headlines) + 1)))   # each later outlet a bit newer
+            out.append((n, {"source": source, "title": title, "published": NEWS_NOW - hours * 3600, "topic": topic, "snippet": "",
+                            "url": f"https://{source.lower().replace(' ', '')}.example/s{n}-{i}"}))
+    return out
+
+
+def news_questions():
+    """200 questions: [(the question, the story it's about or None, the section or None, hours or None)]."""
+    out = []
+    for n, (key, topic, _, _, _) in enumerate(STORIES):
+        for form in ("what's the latest on the {key}", "any news about the {key}", "what happened with the {key}", "tell me about the {key} story"):
+            out.append((form.format(key=key), n, None, None))
+    for ask in ("what's in the news", "what's happening in the world", "catch me up on the news", "any news today", "what's going on", "give me the headlines",
+                "what's the news", "what did i miss in the news", "anything big in the news", "news please"):
+        out.append((ask, None, None, None))
+    for topic in ("business", "sports", "tech", "health", "science", "world"):
+        for form in ("any {t} news", "what's the {t} news", "{t} headlines"):
+            out.append((form.format(t=topic), None, topic, None))
+    for hours in (1, 2, 3, 4, 6, 8, 12, 24, 3, 6, 12, 24):
+        out.append((f"what's in the news in the last {hours} hours", None, None, hours))
+    return out
+
+
+def news():
+    """Ask the 200 questions of the frozen snapshot, answered from what's already been read (no live search, no brain)."""
+    import luma_lab
+    from luma.skills import news as feeds
+    snapshot = news_snapshot()
+    items = [item for _, item in snapshot]
+    story_of = {item["url"]: n for n, item in snapshot}
+    newest = {}
+    for n, item in snapshot:
+        newest[n] = max(newest.get(n, 0), item["published"])
+    lab = luma_lab.Profile(use_model=False)
+    rows, times = [], []
+    try:
+        lab.agent.clock = lambda: NEWS_NOW
+        lab.store.set_setting("news", {"fetched": NEWS_NOW, "items": items})
+        lab.agent._live_news = lambda query, section, hours: []
+        lab.agent.news_reply("what's in the news")  # the first one warms things up
+        for ask, about, section, hours in news_questions():
+            began = time.perf_counter()
+            try:
+                out = lab.agent.news_reply(ask)
+            except Exception as error:
+                out = {"text": f"ERROR {error!r}", "results": []}
+            times.append((time.perf_counter() - began) * 1000)
+            results = (out or {}).get("results") or []
+            told = [story_of.get(r["url"]) for r in results]
+            row = {"ask": ask, "about": about, "answered": bool(out and results), "split": "general" if about is None else "dev" if about % 2 == 0 else "heldout",
+                   "grounded": bool(out) and all(r["url"] in story_of for r in results) and not feeds.grounded((out or {}).get("text", ""), items, NEWS_NOW),
+                   "once": len([t for t in told if t is not None]) == len({t for t in told if t is not None}),
+                   "old_breaking": "BREAKING" in (out or {}).get("text", "")}
+            if about is not None:
+                mine = [r for r in results if story_of.get(r["url"]) == about]
+                row["found"] = bool(mine)
+                row["newest"] = bool(mine) and mine[0]["age"] == feeds.ago(newest[about], NEWS_NOW)
+            if hours:
+                # inside the hours they asked for, or saying plainly that nothing new came out in them
+                row["in_window"] = (all(NEWS_NOW - newest[story_of[r["url"]]] <= hours * 3600 for r in results if r["url"] in story_of)
+                                    or (out or {}).get("text", "").startswith("Nothing new"))
+            rows.append(row)
+    finally:
+        lab.close()
+    times.sort()
+    answered = [r for r in rows if r["answered"]]
+    halves = {}
+    for split in ("dev", "heldout"):  # the stories with even numbers were looked at while building; the odd ones never were
+        mine = [r for r in rows if r["split"] == split]
+        halves[split] = {"asked": len(mine), "found": sum(r["found"] for r in mine), "newest": sum(r["newest"] for r in mine),
+                         "once": sum(r["once"] for r in mine if r["answered"]), "answered": sum(r["answered"] for r in mine)}
+    return {"kind": "news", "asked": len(rows), "stories": len(STORIES), "items": len(items), "answered": len(answered),
+            "grounded": sum(r["grounded"] for r in answered), "once": sum(r["once"] for r in answered), "halves": halves,
+            "old_breaking": sum(r["old_breaking"] for r in rows),
+            "windowed": sum(1 for r in rows if "in_window" in r), "in_window": sum(1 for r in rows if r.get("in_window")),
+            "ms": {"p50": round(times[len(times) // 2], 1), "p95": round(times[int(len(times) * .95)], 1)}, "rows": rows}
+
+
+def news_table(r):
+    share = lambda a, b: f"{100 * a / b:.1f}% ({a}/{b})" if b else "-"  # noqa: E731
+    dev, held = r["halves"]["dev"], r["halves"]["heldout"]
+    return "\n".join(["| Measure | All | Dev stories | Held-out stories |", "|---|---|---|---|",
+                      f"| Questions asked of the frozen snapshot ({r['stories']} stories, {r['items']} reports) | {r['asked']} | {dev['asked']} | {held['asked']} |",
+                      f"| Answered | {share(r['answered'], r['asked'])} | {share(dev['answered'], dev['asked'])} | {share(held['answered'], held['asked'])} |",
+                      f"| Grounded: every source, link and number is in the snapshot | {share(r['grounded'], r['answered'])} | | |",
+                      f"| Asked about one story, and found it | | {share(dev['found'], dev['asked'])} | {share(held['found'], held['asked'])} |",
+                      f"| ...and gave its newest report's time | | {share(dev['newest'], dev['asked'])} | {share(held['newest'], held['asked'])} |",
+                      f"| The same story told once | {share(r['once'], r['answered'])} | {share(dev['once'], dev['answered'])} | {share(held['once'], held['answered'])} |",
+                      f"| Asked for the last N hours, and stayed inside them | {share(r['in_window'], r['windowed'])} | | |",
+                      f"| Answers that still said BREAKING on something hours old | {r['old_breaking']} | | |",
+                      f"| Answer time from the cache | p50 {r['ms']['p50']} ms, p95 {r['ms']['p95']} ms | | |"])

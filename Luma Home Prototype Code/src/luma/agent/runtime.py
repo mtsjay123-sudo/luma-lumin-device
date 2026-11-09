@@ -3715,7 +3715,21 @@ class Agent:
         """Headlines that match what they're asking about, so an older model still knows what's new."""
         from luma.skills import news
         hits = news.relevant(text, news.cached(self.store).get("items", []), limit=3)
-        return [{"news": True, "text": f"{h['source']}: {h['title']}" + (f" ({h['snippet'][:180]})" if h.get("snippet") else "")} for h in hits]
+        if not news.asks(text) and self._hurt_recently(text):
+            hits = [h for h in hits if not news.hard(h)]  # read the room: no deaths and disasters for someone having a bad time, unless they ask
+        now = self.clock()
+        return [{"news": True, "text": f"{h['source']}: {news.calm(h['title'], (now - news.when(h)) / 3600)}" + (f" ({h['snippet'][:180]})" if h.get("snippet") else "")}
+                for h in hits]
+
+    LIVE_NEWS_WAIT = 2.0
+
+    def _live_news_soon(self, query, section, hours):
+        """A live search, given two seconds. Slower than that and Luma answers from what it already had (None)."""
+        box = {}
+        worker = threading.Thread(target=lambda: box.update(hits=self._live_news(query, section, hours)), daemon=True, name="luma-news-search")
+        worker.start()
+        worker.join(self.LIVE_NEWS_WAIT)
+        return box.get("hits")
 
     def news_reply(self, text, cancel_event=None, depth=None):
         """What's new right now: feeds re-read if they're over 15 minutes old, a live search for a topic, only the hours they asked about.
@@ -3730,6 +3744,7 @@ class Agent:
             query, section = about + (f" {section}" if section in ("tiktok", "instagram") else ""), None  # "what are people saying about the Brewers": the Brewers
         if outlet or section in news.OWN_TOPICS:
             return self._culture_reply(text, outlet, section, hours, cancel_event, depth)
+        hurting = self._hurt_recently(text)
         self.activity.start("news", "Reading the latest news")
         try:
             try:
@@ -3739,15 +3754,27 @@ class Agent:
             stale = False
             if query or section:
                 self.activity.step(f"Searching the news for “{query}”" if query else f"Reading the {section} headlines")
-                hits = news.within(self._live_news(query or None, None if query else news.TOPICS.get(section), hours or 24), hours or (48 if query else 24), now)[:6]
-                if not hits and query:
-                    hits = news.relevant(query, news.within([i for i in items if i.get("topic") not in news.NOT_HEADLINES], hours, now),
-                                         limit=5, at_least=1 if len(query.split()) < 3 else 2)  # stories, not search terms or encyclopedia pages
-                if not hits and section:
-                    hits = news.top([i for i in news.within(items, hours or 24, now) if i.get("topic") == section], 6)
+                # What's already here first: stories, not search terms or encyclopedia pages. If it covers the topic, nobody waits on a search.
+                had = news.relevant(query, news.within([i for i in items if i.get("topic") not in news.NOT_HEADLINES], hours, now),
+                                    limit=12, at_least=1 if len(query.split()) < 3 else 2) if query else []
+                if query and len(had) >= 2:  # two or more reports on it are already here
+                    hits = had
+                else:  # not here yet: look it up live, for two seconds, then go with what there was
+                    live = self._live_news_soon(query or None, None if query else news.TOPICS.get(section), hours or 24)
+                    hits = news.within(live or [], hours or (48 if query else 24), now)[:12]
+                    if not hits and query:
+                        hits = had
+                    if not hits and section:
+                        hits = news.top([i for i in news.within(items, hours or 24, now) if i.get("topic") == section], 6)
+                hits = sorted(news.stories(hits, 6), key=lambda h: h.get("latest") or news.when(h), reverse=True)  # each story once, the newest first
             else:
                 headlines = [i for i in items if i.get("topic") not in news.NOT_TOP]
                 hits = news.stories(news.within(headlines, hours or 24, now), 8)  # the biggest first: the story the most outlets are covering
+                theirs = news.about_them(news.within(headlines, hours or 24, now), news.interests(self.store))  # then what touches their own life
+                mine = [s for s in news.stories(theirs, 2) if all(news._key(s) != news._key(h) for h in hits[:3])]
+                hits = hits[:1] + mine + [h for h in hits[1:] if all(news._key(h) != news._key(m) for m in mine)]
+                if hurting:  # read the room: the hard stories wait unless they ask for them by name
+                    hits = [h for h in hits if not news.hard(h)] or hits[:1]
                 if not hits and not hours:
                     hits = news.stories(news.within(headlines, 48, now), 8)
                 if hours and not hits and headlines:
@@ -3758,10 +3785,12 @@ class Agent:
             return None
         checked = datetime.fromtimestamp(news.cached(self.store).get("fetched") or now, self.zone).strftime("%-I:%M %p")
         span = ("the last hour" if hours == 1 else f"the last {hours} hours") if hours else "today"
+        hits = [dict(h, title=news.calm(h["title"], (now - (h.get("latest") or news.when(h))) / 3600)) for h in hits]  # nothing old is "breaking"
         aged = [(h, news.ago(h.get("latest") or news.when(h), now)) for h in hits]
-        who = lambda h: news.credit(h) if h.get("outlets") else h["source"]
+        who = lambda h: (news.credit(h) if h.get("outlets") else h["source"]) + (f"; they differ: {h['differs']}" if h.get("differs") else "")
         lines = [f"{h['source']}: {h['title']}" + (f" ({age})" if age else "") + (f" [covered by {len(h['outlets'])} outlets: {', '.join(h['outlets'][:5])}]"
                  if len(h.get("outlets") or []) > 1 else " [one outlet so far]" if h.get("outlets") else "")
+                 + (f" [outlets give different numbers: {h['differs']}]" if h.get("differs") else "")
                  + (f" — {h['snippet'][:200]}" if h.get("snippet") else "") for h, age in aged]
         if stale:
             reply = f"Nothing new from my sources in {span}. The latest I have: " + "; ".join(f"{h['title']} ({who(h)}, {age})" for h, age in aged[:4]) + "."
@@ -3779,12 +3808,15 @@ class Agent:
                       + "Lead with the biggest story (the one the most outlets are covering), "
                         "name the outlet when it matters, mention how fresh it is when that helps, and add your honest one-line take at the end if you have one. "
                         "When only one outlet has a story, say it's their report (\"TMZ is reporting...\"), not settled fact. "
+                        "Where outlets give different numbers, say that they differ and who says what; never pick one as fact. "
                         "If the headlines don't answer the question, say so. Never say you can't get news: you just read these. Plain text, no lists.")
             try:
                 with self.lock:
                     answer = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
                 written = answer.get("text") if isinstance(answer, dict) else None
-                if isinstance(written, str) and written.strip() and not DENIES.search(written) and not _garbled(written): reply = written.strip()[:1600 if depth == "deep" else 900]
+                if isinstance(written, str) and written.strip() and not DENIES.search(written) and not _garbled(written) \
+                        and not news.grounded(written, hits, now):  # an outlet or a number the headlines don't have: the plain headlines are said instead
+                    reply = written.strip()[:1600 if depth == "deep" else 900]
             except Exception:
                 pass
         return {"text": reply, "section": "news", "checked_at": now,
@@ -4416,6 +4448,8 @@ class Agent:
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
             presence_event = self._presence_event(now, local)
             if presence_event: return presence_event
+            alert = self._news_alert(now, local)
+            if alert: return alert
             due = [r for r in self.store.all("task", 1000) if not r["done"] and not r["notified"] and r["due"] <= now and r.get("mode", "friend") == self.mode]
             routines = [r for r in self.store.all("routine", 1000) if r["enabled"] and r["last_day"] != local.date().isoformat() and r["at"] <= local.strftime("%H:%M") and r.get("mode", "friend") == self.mode]
             if not due and not routines:
@@ -4435,6 +4469,31 @@ class Agent:
                 titles.append(row["title"])
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
+
+    def _news_alert(self, now, local):
+        """One brand-new story, told unasked. Only if they turned alerts on (off by default); never in kids mode; never at
+        night or while hushed (tick() doesn't get this far then); at most one an hour; and never a hard story (a death,
+        a disaster) on a day they've had a hard time themselves. What they care about comes from what they've told Luma."""
+        if self.mode == "kids" or not self.store.setting("news_alerts", False):
+            return None
+        if now - float(self.store.setting("news_alert_at", 0) or 0) < 3600:
+            return None
+        from luma.skills import news
+        items = [i for i in news.cached(self.store).get("items", []) if i.get("topic") not in news.NOT_TOP]
+        told = list(self.store.setting("news_told", []) or [])
+        story = news.worth_an_alert(news.stories(news.within(items, news.BREAKING_HOURS, now), 8), set(told), news.interests(self.store), now)
+        if story is None:
+            return None
+        today = local.date().isoformat()
+        hard_day = any(str(c.get("topic", "")).startswith("feeling:") and str(c.get("day", "")) >= today for c in self.store.all("checkin", 200))
+        self.store.set_setting("news_told", (told + [news._key(story)])[-200:])
+        if news.hard(story) and hard_day:
+            return None  # read the room: it's kept back, not saved for later
+        self.store.set_setting("news_alert_at", now)
+        self.store.set_setting("last_proactive", now)
+        age = news.ago(story.get("latest") or news.when(story), now)
+        return {"type": "news", "text": f"{story['title']} ({news.credit(story)}{', ' + age if age else ''}).", "created": now,
+                "url": story.get("url"), "section": "news"}
 
     SLEEP_HOUR = 3  # local time: the tidy runs once a day, at the first quiet moment from here on
 

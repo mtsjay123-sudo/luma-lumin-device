@@ -17,6 +17,7 @@ on:
       - "Luma Home Prototype Code/src/luma/llm/router.py"
       - "Luma Home Prototype Code/src/luma/llm/prompts.py"
       - "Luma Home Prototype Code/src/luma/agent/provenance.py"
+      - "Luma Home Prototype Code/src/luma/skills/news.py"
       - "Luma Home Prototype Code/src/luma/agent/rules.py"
       - "Luma Home Prototype Code/src/luma/agent/runtime.py"
       - "Luma Home Prototype Code/scripts/memory_eval.py"
@@ -60,7 +61,7 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -q --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata anthropic pytest "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
       - name: The tests for the life memory, the real-time brain and the agent's safeguards
-        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py
+        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py
       - name: Memory, the dev half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
       - name: Memory, the held-out half
@@ -69,6 +70,8 @@ jobs:
         run: python scripts/train_router.py test | tee "$RUNNER_TEMP/lab/router.txt"
       - name: The red team (a brain that does what a hidden instruction says; fails if anything acts without a yes)
         run: python scripts/luma_lab.py apps --save "$RUNNER_TEMP/lab/apps.json" | tee "$RUNNER_TEMP/lab/apps.txt"
+      - name: The news test (200 questions over a frozen, made-up snapshot of feeds)
+        run: python scripts/luma_lab.py news-test --save "$RUNNER_TEMP/lab/news.json" | tee "$RUNNER_TEMP/lab/news.txt"
       - name: The cloud brain's request (a stand-in for the API unless run by hand with real=true)
         env:
           LUMA_LAB_ANTHROPIC_KEY: ${{ github.event.inputs.real == 'true' && secrets.LUMA_LAB_ANTHROPIC_KEY || '' }}
@@ -87,6 +90,7 @@ jobs:
             echo "## Memory"; python scripts/memory_eval.py summary "$RUNNER_TEMP"/lab/memory-*.json
             echo; echo "## Router"; echo '```'; cat "$RUNNER_TEMP/lab/router.txt"; echo '```'
             echo; echo "## Red team"; cat "$RUNNER_TEMP/lab/apps.txt"
+            echo; echo "## News"; cat "$RUNNER_TEMP/lab/news.txt"
             echo; echo "## Cloud brain"; cat "$RUNNER_TEMP/lab/cloud.txt"
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
