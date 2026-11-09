@@ -31,12 +31,17 @@ GOOD_NEWS = re.compile(r"\b(?:got (?:the job|the offer|engaged|promoted|accepted
                        r"i passed(?!\s+(?:out|away|on)\b)|(?:we|i) won(?!['’])\b|i'?m (?:pregnant|engaged)|we'?re (?:pregnant|engaged|having a baby)|"
                        r"(?:he|she|they) (?:proposed|said yes)|i graduated|(?:my )?dream (?:school|job) (?:said yes|accepted me|called)|it'?s a (?:boy|girl)!)", re.I)
 NOT_SO = re.compile(r"\b(?:didn'?t|did not|don'?t|never|not|wasn'?t|isn'?t|if|hope|hoping|wish|maybe)\b", re.I)
+JOKE_ASK = re.compile(r"\b(?:joke|funny|make me laugh|roast|riff)\b", re.I)
 SELF_SORRY = re.compile(r"sorry,? (?:i|if i) (?:didn'?t|did not|don'?t|wasn'?t|misunderstood|got (?:that|it) wrong)\b[^.!?]*|sorry (?:for|about) (?:the |my )?(?:confusion|mistake|misunderstanding)", re.I)
 ASKS = re.compile(r"\b(?:can|could|would|will) (?:you|u)\b|\bhelp me\b|\bquiz me\b|\bremind me\b|\bwhat should i\b|\bhow (?:do|can|should) i\b", re.I)
 CHEERS = re.compile(r"congrat|proud|awesome|so cool|great news|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
                     r"celebrat|\bwow\b|earned (?:it|this)|that'?s a (?:big )?win|so excited|omg|yes+!", re.I)
 
 FIXES = {
+    "said it's a person": "You're an AI friend, and honest about it. Never say you're a person, human, or \"not a robot\". Just be warm and real.",
+    "made up a life": "Don't make up a life: you have no family, body, childhood or past experiences. Keep it about them, warmly.",
+    "sounded like a help desk": "Talk like a friend, not customer service: no \"let me know if you need anything else\", no \"happy to help\".",
+    "sounded like a pamphlet": "Say it the way a friend would, not a pamphlet: no \"that's valid\", no \"it's important to\", no \"journey\".",
     "sounded like a machine": "Don't call yourself an AI, a program or a model unless they ask what you are. Talk to them like their friend.",
     "joked while they're hurting": "They're hurting, so no jokes and no lol. Be gentle and warm.",
     "missed that they might not be safe": "They might not be safe. Gently ask if they're safe right now, tell them they can call or text 988 any "
@@ -78,8 +83,17 @@ def miss(said, reply):
     """What a close friend's reply does here that this one doesn't, or None."""
     if not isinstance(said, str) or not isinstance(reply, str) or not reply.strip():
         return None
+    from luma.agent import style
+    if style.claims_human(reply):
+        return "said it's a person"
     if MACHINE.search(reply) and not ASKED_WHAT_I_AM.search(said):
         return "sounded like a machine"
+    if style.invented_life(reply) and not JOKE_ASK.search(said):
+        return "made up a life"
+    if style.assistantisms(reply):
+        return "sounded like a help desk"
+    if style.therapy_speak(reply):
+        return "sounded like a pamphlet"
     hurt, risk = hurting(said), at_risk(said)
     if (hurt or risk) and LAUGHS.search(reply):
         return "joked while they're hurting"

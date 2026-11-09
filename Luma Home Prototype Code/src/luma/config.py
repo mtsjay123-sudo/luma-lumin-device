@@ -21,7 +21,23 @@ def _model_int(name, default, minimum, maximum):
     return value
 
 
-LLAMA_CONTEXT_SIZE = _model_int("LUMA_CONTEXT_SIZE", 4096, 2048, 32768)
+def default_context_size(tier=None, ram_gb=None):
+    """Room for the conversation itself. Luma's steady instructions take about 2,900 tokens, so a 4,096 window left room for
+    two or three exchanges, and every brain lost the thread a few turns back. A computer with 16 GB or more gets 8,192 (the
+    whole recent conversation: about ten exchanges, a few hundred MB of memory); a $250 device keeps 4,096, where every word
+    the brain reads costs time (it leans on the who's-who note instead, luma.agent.people)."""
+    tier = os.environ.get("LUMA_DEVICE_TIER", "") if tier is None else tier
+    if str(tier).strip().lower() == "budget":
+        return 4096
+    if ram_gb is None:
+        try:
+            ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2 ** 30
+        except (ValueError, OSError, AttributeError):
+            ram_gb = 0
+    return 8192 if ram_gb >= 15 else 4096
+
+
+LLAMA_CONTEXT_SIZE = _model_int("LUMA_CONTEXT_SIZE", default_context_size(), 2048, 32768)
 LLAMA_GPU_LAYERS = _model_int("LUMA_GPU_LAYERS", -1, -1, 999)
 LLAMA_THREADS = _model_int("LUMA_THREADS", min(8, os.cpu_count() or 4), 1, 128)
 LLAMA_BATCH_SIZE = _model_int("LUMA_BATCH_SIZE", 512, 1, 2048)

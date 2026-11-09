@@ -212,6 +212,20 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
 
 
 # Words nearly every reply has: a short answer sharing them with an earlier one isn't a copy of it.
+_WRITTEN = []
+
+
+def _told_as_written(reply):
+    """Luma's own jokes and bits are told exactly as written ("You went back to him? After all that?" is a roast, not two
+    questions to trim)."""
+    if not _WRITTEN:
+        from luma.agent import humor_bank, jokes
+        _WRITTEN.append({text for _, _, text, _ in humor_bank.all_bits()} | set(getattr(jokes, "JOKES", [])))
+    return reply.strip() in _WRITTEN[0]
+
+
+FORGET_ABOUT = re.compile(r"^(?:please |ok(?:ay)? |and )?(?:forget|stop remembering|don'?t remember|do not remember) (?:about |everything about |what i (?:said|told you) about )"
+                          r"(?!(?:it|that|this|them|him|her)$)(?P<what>[a-z0-9][\w' -]{2,60})$")
 COMMON_WORDS = set("""a an the and or but if so to of in on at for with from is are was were be been being it its it's this that
 these those you your you're yours i i'm i'd i'll me my mine we us our they them their he him his she her do does did doing have has
 had just not no yes yeah ya yep got get can will would could should like know let let's what how why when where who maybe some
@@ -759,6 +773,12 @@ class Agent:
             return True
 
     def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
+        out = self._call_planner(messages, context, allowed, cancel_event, profile, tier)
+        if isinstance(out, dict) and isinstance(out.get("text"), str):  # what the brain wrote this turn (the cheap fixes are for it only)
+            self._brain_texts = (getattr(self, "_brain_texts", []) + [out["text"]])[-12:]
+        return out
+
+    def _call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
         on_text = getattr(self, "_on_text", None)
@@ -2913,6 +2933,11 @@ class Agent:
         if speaking: out.append({"language": True, "text": speaking})
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
         if summary: out.append({"about": True, "text": summary})
+        if self.mode != "kids" and self.store.setting("people_note", True) is not False:
+            from luma.agent import people
+            said = [h["content"] for h in self.history[-24:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
+            who = people.note(said, text)
+            if who: out.append({"people": True, "text": who})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
         fresh = self._fresh_note()
@@ -3230,6 +3255,38 @@ class Agent:
             pass
         return self.store.setting("self_model")
 
+    def _recent_talk(self, text, turns=6):
+        """The last few exchanges as said (Luma's own notes unwrapped), and who's who in them: for prompts that don't carry the
+        conversation themselves."""
+        from luma.agent import people
+        lines, said = [], []
+        for m in self.history[-(turns + 1):]:
+            content = str(m.get("content") or "")
+            if m.get("role") == "user":
+                if content.strip() == str(text).strip():
+                    continue
+                lines.append("Them: " + content[:240])
+                said.append(content)
+            elif m.get("role") == "assistant":
+                try:
+                    data = json.loads(content)
+                    content = data.get("text") if isinstance(data, dict) and isinstance(data.get("text"), str) else content
+                except ValueError:
+                    pass
+                if content.strip():
+                    lines.append("You: " + content[:240])
+        out = ("The conversation so far (most recent last):\n" + "\n".join(lines[-turns:])) if lines else ""
+        longer = [str(m.get("content") or "") for m in self.history[-24:] if m.get("role") == "user" and str(m.get("content") or "").strip() != str(text).strip()]
+        who = people.note(longer, text) if self.mode != "kids" else ""  # who's who from further back than the last few lines
+        kept = []
+        if self.mode != "kids":
+            try:
+                kept = [m["text"][:200] for m in self.store.recall(text)[:3] if isinstance(m, dict) and m.get("text")]
+            except Exception:
+                kept = []
+        remembered = ("What you remember that may matter here (use it if it does): " + "; ".join(kept)) if kept else ""
+        return "\n".join(x for x in (out, who, remembered) if x).strip()
+
     def think_deep(self, text, cancel_event=None):
         """Deliberate, Monte-Carlo style: look at it from several angles, weigh which is most likely right, verify, commit."""
         return self.deliberate(text, cancel_event, scenarios=None)
@@ -3244,6 +3301,7 @@ class Agent:
         import concurrent.futures
         stopped = lambda: cancel_event is not None and cancel_event.is_set()
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
+        recent = self._recent_talk(text)
         picks = scenarios if scenarios is not None else mind.SCENARIOS
         self.activity.start("think", "Weighing a few ways to look at it")
         explored = []
@@ -3253,7 +3311,7 @@ class Agent:
                 label, instruction = label_instr
                 try:
                     with self.lock:
-                        out = self.call_planner([{"role": "user", "content": mind.candidate_prompt(instruction, text, summary)}], [], {}, cancel_event or threading.Event())
+                        out = self.call_planner([{"role": "user", "content": mind.candidate_prompt(instruction, text, summary, recent)}], [], {}, cancel_event or threading.Event())
                     said = out.get("text") if isinstance(out, dict) else None
                     return (label, said.strip()[:600]) if isinstance(said, str) and said.strip() else None
                 except Exception:
@@ -3275,7 +3333,7 @@ class Agent:
             # 2) Judge — weigh the takes and merge the truest into one answer.
             self.activity.step("Weighing which holds up")
             with self.lock:
-                out = self.call_planner([{"role": "user", "content": mind.judge_prompt(text, [c for _, c in explored], summary)}], [], {}, cancel_event or threading.Event(),
+                out = self.call_planner([{"role": "user", "content": mind.judge_prompt(text, [c for _, c in explored], summary, recent)}], [], {}, cancel_event or threading.Event(),
                                         tier="heavy")  # the last word on a hard question: the strongest brain there is
             answer = out.get("text") if isinstance(out, dict) else None
             answer = answer.strip()[:1500] if isinstance(answer, str) and answer.strip() else explored[0][1]
@@ -4111,6 +4169,7 @@ class Agent:
         # The owner always comes first: a helper working in the background gives way.
         if self.activity.background_running(): self.activity.stop()
         with self.lock:
+            self._brain_texts = []  # what the brain writes this turn
             main, self.history = self.history, self.threads[thread]
             if thread != "main" and self.thread_titles.get(thread) == "New chat":
                 self.thread_titles[thread] = text.strip()[:48]
@@ -4193,6 +4252,8 @@ class Agent:
                     result["text"] = polish.plain_errors(polish.tidy(lexicon.clean(result["text"])))  # "the the", "a apple", a program's error: fixed before anyone sees them
                     if not agent_mode:  # a small brain's habits in chat: a bare list said to nobody, their own message said back to them
                         result["text"] = polish.unparrot(polish.warm_list(result["text"], text), text)
+                        if set(result) <= {"text", "choices", "noticed", "memory_full", "asked"}:  # talk, not a tool's result
+                            result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
@@ -4333,6 +4394,31 @@ class Agent:
         text = self._plain_answer(prompt, cancel_event)
         return self._grounded(question, result, text, lambda note: self._plain_answer(prompt + note, cancel_event)) if text else None
 
+    def _hurt_recently(self, said):
+        """They told Luma about a loss, loneliness, a hard day or not being safe, now or in their last few messages."""
+        from luma.agent import friendcheck
+        earlier = [h["content"] for h in self.history[-8:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)][-3:]
+        return any(friendcheck.hurting(m) or friendcheck.at_risk(m) or CRISIS.search(m.lower()) for m in [said] + earlier)
+
+    def _brain_wrote(self, reply):
+        """The reply is (mostly) words the brain wrote this turn, not one of Luma's own written lines."""
+        mine = set(_words(reply).split())
+        return bool(mine) and any(len(mine & set(_words(t).split())) >= 0.6 * len(mine) for t in getattr(self, "_brain_texts", []))
+
+    def _friend_style(self, said, reply):
+        """The cheap fixes a friend's ear makes before anyone hears the reply (luma.agent.style): customer-service lines and
+        therapy-speak out, never "I'm not a robot" or a made-up family, one question at a time, no lol right after a loss,
+        "Ah, my bad" instead of "I apologize for the misunderstanding", and spoken length. Setting "friend_style" turns it off."""
+        if not isinstance(reply, str) or self.store.setting("friend_style", True) is False or _told_as_written(reply) \
+                or not self._brain_wrote(reply):
+            return reply  # Luma's own lines (the crisis reply, "which album?", a joke) are said as written
+        from luma.agent import style
+        depth = None if self.profile.get("verbosity") != "detailed" else True
+        fixed, fixes = style.friend_style(reply, said, hurt_recently=self._hurt_recently(said), depth=depth)
+        if fixes:
+            self.style_fixes = (getattr(self, "style_fixes", []) + [{"fixes": fixes, "at": self.clock()}])[-50:]
+        return fixed or reply
+
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,
         talking like a machine). The retry is kept only if it gets it right; otherwise the first reply stands."""
@@ -4348,9 +4434,12 @@ class Agent:
             from luma.agent import polish
             from luma.agent import slang as lexicon
             from luma.llm.inference import garbled
-            again = polish.plain_errors(polish.tidy(lexicon.clean(again)))
+            again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
             if not garbled(again) and friendcheck.miss(said, again) is None:
                 return again
+        if missed == "said it's a person":
+            from luma.agent import style
+            return style.honest_about_itself(draft, said) or style.HONEST  # never a person, even when both tries said so
         return draft
 
     def _plain_answer(self, prompt, cancel_event):
@@ -5382,7 +5471,8 @@ class Agent:
         self.last_noticed = []
         saved = []
         if self.store.setting("learn_from_chat", True):
-            for fact in presence.notice_facts(text):
+            from luma.agent import people
+            for fact in presence.notice_facts(text) + people.facts(text):  # "Lily (their daughter) is obsessed with dinosaurs"
                 row = self.remember_fact(fact)
                 if row == "full":
                     self.memory_full = True
@@ -5395,7 +5485,8 @@ class Agent:
             planned = {(c["topic"], c["day"]) for c in self.store.all("checkin", 200)}
             for loop in presence.notice_open_loops(text, now):
                 if (loop["topic"], loop["day"]) not in planned:
-                    self.store.put("checkin", {**loop, "asked": False, "mode": self.mode})
+                    row = self.store.put("checkin", {**loop, "asked": False, "mode": self.mode})
+                    self.last_planned = (getattr(self, "last_planned", []) + [row["id"]])[-4:]  # for "forget that"
             from luma.agent import friendcheck
             self._plan_feeling_check_in("safe" if friendcheck.at_risk(text) else friendcheck.hurting(text))
         return saved
@@ -5443,9 +5534,23 @@ class Agent:
             if spoken: result["text"] = spoken
         return result
 
+    def forget_about(self, what):
+        """"Forget about the interview": the memories that mention it, and any plan to ask about it, gone for good (and what
+        each memory meant, with it). Only ones that mention every word that matters, so "forget about my sister's
+        birthday" doesn't take everything about her."""
+        keys = [w for w in re.findall(r"[a-z0-9']+", what.lower()) if w not in COMMON_WORDS and w not in {"about", "thing", "stuff", "the"}]
+        if not keys:
+            return {"forgotten": True, "text": "Tell me what to forget, like “forget about the interview”."}
+        matches = lambda t: all(re.search(rf"\b{re.escape(k)}", str(t).lower()) for k in keys)  # noqa: E731
+        gone = [self.store.delete("memory", m["id"]) for m in self.store.all("memory", 100000) if matches(m.get("text"))]
+        gone += [self.store.delete("checkin", c["id"]) for c in self.store.all("checkin", 500) if not c.get("asked") and matches(c.get("topic"))]
+        n = sum(bool(g) for g in gone)
+        return {"forgotten": True, "text": "Done, it's forgotten." if n else "I didn't have anything saved about that."}
+
     def forget_last(self):
         removed = [self.store.delete("memory", ident) for ident in self.last_noticed]
-        self.last_noticed = []
+        removed += [self.store.delete("checkin", ident) for ident in getattr(self, "last_planned", [])]  # and not asking about it later
+        self.last_noticed, self.last_planned = [], []
         diary = self.store.all("diary", 1)
         if diary and self.clock() - diary[0]["created"] < 900: self.store.delete("diary", diary[0]["id"])
         return {"forgotten": True, "text": "Forgotten." if any(removed) or diary else "There was nothing new to forget."}
@@ -5525,6 +5630,9 @@ class Agent:
             if place is not None: return place
             if lowered.rstrip(".!") in {"forget that", "forget what i just said", "don't remember that", "do not remember that", "scratch that"}:
                 return self.forget_last()
+            about = FORGET_ABOUT.match(lowered.rstrip(".!"))
+            if about and self.mode != "kids":
+                return self.forget_about(about["what"])
             if re.search(r"\bwhat (?:did|have) (?:i|we) (?:say|said|tell you|told you|talk|talked|mention|mentioned)\b", lowered):
                 return self.diary_recall(text, cancel_event)
             if lowered in {"actually tomorrow", "actually, tomorrow", "make that tomorrow", "tomorrow instead"} and self.last_task:

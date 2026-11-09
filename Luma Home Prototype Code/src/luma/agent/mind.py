@@ -239,8 +239,11 @@ def is_hard(text):
     return bool(HARD.search(t) or t.endswith("?") and len(t.split()) >= 6)
 
 
-def candidate_prompt(scenario_instruction, text, about_line):
+def candidate_prompt(scenario_instruction, text, about_line, recent=""):
+    """recent: the conversation so far and who's who in it. Without it, "what should I get him?" three turns after "my brother
+    just got into bouldering" was answered as if nothing had been said."""
     return (("What you know about them: " + about_line + "\n" if about_line else "")
+            + (recent + "\n" if recent else "")
             + scenario_instruction + "\n"
             + f"They asked: {text}\n"
               "Give that take in two or three sentences. Be specific and honest; if a fact is needed that you don't have, say what it is. No preamble.")
@@ -307,9 +310,10 @@ def without_disclaimers(reply, asked=""):
     return out if len(out.split()) >= 3 else reply
 
 
-def judge_prompt(text, candidates, about_line):
+def judge_prompt(text, candidates, about_line, recent=""):
     takes = "\n".join(f"[{chr(65+i)}] {c}" for i, c in enumerate(candidates))
     return (("What you know about them: " + about_line + "\n" if about_line else "")
+            + (recent + "\n" if recent else "")
             + f"They asked: {text}\n\nHere are different takes on it:\n{takes}\n\n"
               "You're the judge. For each take, silently weigh how likely it is to actually be right and genuinely help them, "
               "and whether it leans on a fact nobody here can confirm. Then write ONE answer that takes the strongest, truest parts "

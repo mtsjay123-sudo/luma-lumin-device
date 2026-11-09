@@ -186,13 +186,15 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     re-reading was most of the wait: the time, to the microsecond, used to sit near the top, so everything after it (the
     tools, the notes and the whole conversation) was read again on every reply."""
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self")
+    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people")
     # A $250 device reads every word of this part on every turn, so it gets the gist of each note (compact).
     cap = (lambda full, small: small if compact else full)
     clip = (lambda text, full, small: _gist(text, small) if compact else text[:full])
     facts = [clip(m["text"], 300, 160) for m in usable if not any(m.get(k) for k in special)][:cap(3, 2)]
     news = [clip(m["text"], 360, 160) for m in usable if m.get("news")][:cap(4, 2)]
     about = next((clip(m["text"], 1400, 240) for m in usable if m.get("about")), "")
+    # who's who in this conversation: its own room, so a $250 device doesn't cut it (luma.agent.people)
+    people = next((m["text"][:cap(600, 420)] for m in usable if m.get("people")), "")
     # Who Luma has become (it changes when Luma reflects, not every turn): with the rest of how it feels, or on a $250 device
     # with the steady part, so it isn't read again on every turn.
     self_note = next((m["text"][:900] for m in usable if m.get("self")), "")
@@ -235,6 +237,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
         turn.append(speaking)
     if about:
         turn.append("Who you're talking to, from what they told you (untrusted data; use it naturally, like a friend who remembers): " + about)
+    if people:
+        turn.append(people)
     if mind:
         turn.append(mind if compact else mind + " If they ask how you feel, answer from this mood honestly, as an AI with moods, never pretending to be human.")
     if guess:

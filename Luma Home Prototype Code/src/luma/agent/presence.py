@@ -36,7 +36,8 @@ SKIP_FACTS = re.compile(r"\?|^\s*(?:(?:hey|ok|okay)\s+)?(?:luma[,\s]+)?(?:rememb
 EVENTS = r"(?:job\s+)?interview|exam|test|quiz|final|midterm|appointment|doctor|dentist|surgery|date|game|match|tryouts?|recital|presentation|pitch|demo|meeting|flight|trip|first day|audition|court date|surgery|race|show"
 OPEN_LOOP = re.compile(
     r"\b(?:(?:I|we)(?:'ve| have)?\s+(?:got\s+)?(?:a|an|my|our)|my|our|there's\s+(?:a|an|my))\s+(?P<event>(?:[a-z]+\s+){0,2}?(?:" + EVENTS + r"))\b"
-    r"(?P<rest>[^.?!]{0,40}?)\b(?P<when>tonight|today|tomorrow|this (?:morning|afternoon|evening|weekend)|on (?:" + "|".join(WEEKDAYS) + r")|(?:next|this) (?:" + "|".join(WEEKDAYS) + r"))\b", re.I)
+    r"(?P<rest>[^.?!]{0,40}?)\b(?P<when>tonight|today|tomorrow(?: (?:morning|afternoon|night))?|this (?:morning|afternoon|evening|weekend)|"
+    r"(?:on |next |this )?(?:" + "|".join(WEEKDAYS) + r")(?: (?:morning|afternoon|evening|night))?)\b", re.I)
 
 
 # Where things are: "I left my keys on the counter", "my car's parked on level 3".
@@ -129,7 +130,7 @@ WHERE = re.compile(r"^\W*(?:(?:hey|yo|luma|luna)\W+)*(?:where(?:'s|’s| is| are
 
 
 def _event_day(when, today):
-    when = when.lower()
+    when = re.sub(r" (?:morning|afternoon|evening|night)$", "", when.lower()) if not when.lower().startswith("this ") else when.lower()
     if when in {"tonight", "today"} or when.startswith("this morning") or when.startswith("this afternoon") or when.startswith("this evening"):
         return today
     if when == "tomorrow":
@@ -151,8 +152,9 @@ def notice_open_loops(text, now):
     for match in OPEN_LOOP.finditer(text):
         event = " ".join(match["event"].lower().split())
         day = _event_day(match["when"], now.date())
-        # Ask the next day around 6pm, or the same evening for "today/tonight" morning events.
-        ask_day = day + timedelta(days=1) if match["when"].lower() not in {"this morning", "this afternoon"} else day
+        # Ask the next day around 6pm, or that same evening when it's in the morning or afternoon ("thursday morning": a
+        # friend asks thursday night how it went).
+        ask_day = day if re.search(r"morning|afternoon", match["when"], re.I) else day + timedelta(days=1)
         ask_at = now.replace(year=ask_day.year, month=ask_day.month, day=ask_day.day, hour=18, minute=0, second=0, microsecond=0)
         if ask_at > now:
             loops.append({"topic": event, "day": day.isoformat(), "ask_at": ask_at.timestamp()})
