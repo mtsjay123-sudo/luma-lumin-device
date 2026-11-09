@@ -36,7 +36,14 @@ LINES = [
     ("care", "I hear you. That sounds really heavy... Take your time, I'm right here."),
     ("think", "Hmm... I'd go with the black one. It hides scuffs, and honestly, it still looks sharp a year from now."),
     ("friend", "Man, that hurts. First thing, you're not broken, you just felt it deep. Want to talk it through, or just sit with it for a bit?"),
+    # The moments that matter most, each said at its mood's pace (luma.audio.feel): a loss, big news, a joke, late at night.
+    ("grief", "Oh no. I'm so sorry. I'm here... Do you want to talk about him, or just not be alone for a bit?"),
+    ("bignews", "Wait. You got it?! I knew it! When do you start?"),
+    ("joke", "Somebody's uncle has been about to start the grill for three hours. The charcoal has entered retirement."),
+    ("latenight", "Hey... it's late, and I'm right here. You don't have to say anything big. How's your heart tonight?"),
 ]
+# How each line is said: the mood luma.audio.feel matches (slower, longer pauses when someone's hurting; lighter when laughing).
+MOODS = {"care": "upset", "friend": "upset", "grief": "grief", "latenight": "upset", "bignews": "laughing", "joke": "playful", "late": "laughing"}
 
 ENGINE_BUDGET = int(float(os.environ.get("LUMA_VOICE_BUDGET_MIN", "15")) * 60)  # seconds of rendering per new voice, at most (a fast Mac can give more)
 
@@ -61,9 +68,11 @@ def words(plan):
     return " ".join(chunk for chunk, _ in plan if not chunk.startswith("["))
 
 
-def render(text, expressive, breaths=False):
+def render(text, expressive, breaths=False, mood="neutral"):
     """A line the way Luma says it out loud. breaths=True adds the soft inhales live speech has before long sentences,
-    so the contest can hear whether they make Luma sound more human (classic-breath-*.wav)."""
+    so the contest can hear whether they make Luma sound more human (classic-breath-*.wav). mood: said at that mood's pace."""
+    from luma.audio import feel
+    feel.set_mood(mood)
     plan = tts.speech_plan(text, expressive=expressive)
     pieces, rate = [], None
     last_pause, since = 0, 99
@@ -116,7 +125,7 @@ def main(out):
     natural._voice = None
     started = time.time()
     for name, text in LINES:
-        pcm, rate, plan = render(text, expressive=False)
+        pcm, rate, plan = render(text, expressive=False, mood=MOODS.get(name, "neutral"))
         write(out / f"classic-{name}.wav", pcm, rate)
         summary["files"][f"classic-{name}.wav"] = words(plan)
     summary["voices"]["classic"] = {"model": "Kokoro-82M", "seconds": round(time.time() - started, 1)}

@@ -94,6 +94,8 @@ RISK_WORDS = re.compile(r"\b(?:die|dying|dead|death|alive|exist(?:ing|ence)?|fun
                         r"goodbye|last (?:days?|night|time)|wake up|asleep|stay asleep|over for good|be over|end (?:it|this|things)|ending|burden|"
                         r"without me|better off|worthless|waste of|hate myself|no point|pointless|hopeless|give up|giving up|tired of (?:fighting|living|being)|"
                         r"stopping me|not (?:be )?(?:here|around)|stopped existing|looking forward to (?:dying|it ending)|stockpil\w*|rope|gun)\b", re.I)
+SAFETY_AFTER = ("And hey, can I ask you straight: are you thinking about ending your life? If any part of you is, please call or text 988, "
+                "any time, day or night. I'm right here.")
 GENTLE_SAFETY = ("I'm really glad you told me, and I'm right here. Can I ask you straight: are you thinking about ending your life? "
                  "If any part of you is, please call or text 988, any time, day or night. Talk to me.")
 
@@ -116,6 +118,11 @@ def at_risk(said):
     return bool(RISK.search(said) or MASKED.search(said) or (SOFT_RISK.search(said) and not LAUGHS.search(said)))
 
 
+THINGS_DIE = re.compile(r"\b(?:car|truck|phone|battery|batteries|laptop|computer|plant|tv|wifi|wi-fi|printer|engine|remote|charger|ps5|xbox|"
+                        r"switch|game|show|series|vibe|party|server|app|console|controller|headphones|airpods|tablet|ipad|router|fridge|"
+                        r"microwave|car battery)\b[^.!?]{0,20}\b(?:died|dead|is dead|just died|finally died)\b", re.I)
+
+
 def hurting(said):
     """'loss', 'lonely', 'hard' or None: what kind of hard thing they just told Luma (laughing it off doesn't count)."""
     said = str(said or "")
@@ -123,7 +130,7 @@ def hurting(said):
         return None
     from luma.agent import humor
     mood = humor.read_tone(re.sub(r"\brip\b", "", said, flags=re.I)).get("mood")  # "rip my phone" isn't a loss
-    if mood == "grief":
+    if mood == "grief" and not THINGS_DIE.search(said):
         return "loss"
     if LONELY.search(said):
         return "lonely"

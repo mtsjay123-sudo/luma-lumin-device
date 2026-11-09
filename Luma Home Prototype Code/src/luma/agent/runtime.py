@@ -815,6 +815,21 @@ class Agent:
         except Exception:
             return True
 
+    def _silent(self):
+        """Thinking that isn't the reply (a private thought, a take to weigh, Luma's safety question): never streamed to the voice.
+        Without it, on a fast computer the voice would say each take Luma weighs, or the brain's one-word "YES"."""
+        agent = self
+
+        class Silent:
+            def __enter__(self):
+                self.saved = getattr(agent, "_on_text", None)
+                agent._on_text = None
+
+            def __exit__(self, *exc):
+                agent._on_text = self.saved
+                return False
+        return Silent()
+
     def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
         out = self._call_planner(messages, context, allowed, cancel_event, profile, tier)
         if isinstance(out, dict) and isinstance(out.get("text"), str):  # what the brain wrote this turn (the cheap fixes are for it only)
@@ -928,6 +943,13 @@ class Agent:
             self._tics_used = (list(getattr(self, "_tics_used", [])) + [self._tics_of(reply)])[-3:]
         return text
 
+    def _unspeakable(self, sentence):
+        """A sentence the voice skips: a help-desk line, therapy-speak, "I'm not a robot", a made-up family or past."""
+        if self.store.setting("friend_style", True) is False:
+            return False
+        from luma.agent import style
+        return bool(style.assistantisms(sentence) or style.therapy_speak(sentence) or style.claims_human(sentence) or style.invented_life(sentence))
+
     def _unless_said_before(self, on_text):
         """The voice speaks a reply as it streams. One that opens like an earlier reply waits for its first sentence; if that's
         the earlier reply's too, nothing is said, and the turn tries again (above). Everything else streams as before."""
@@ -947,7 +969,7 @@ class Agent:
                 if not end:
                     return None
                 sentence, state["tail"] = state["tail"][:end.end()], state["tail"][end.end():]
-                if _words(sentence) not in tics[1]:
+                if _words(sentence) not in tics[1] and not self._unspeakable(sentence):
                     say(sentence)
 
         def feed(piece):
@@ -981,7 +1003,7 @@ class Agent:
                     say(rest)
                 return None
             rest, state["tail"] = state["tail"], ""
-            if rest.strip() and _words(rest) not in tics[1]:
+            if rest.strip() and _words(rest) not in tics[1] and not self._unspeakable(rest):
                 say(rest)
             return None
 
@@ -3028,7 +3050,8 @@ class Agent:
         if self.use_model and mind.MATTERS.search(text) and self._extra_look("think_first"):
             try:
                 with self.lock:
-                    note = self.call_planner([{"role": "user", "content": mind.reflect_prompt(text, summary, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
+                    with self._silent():
+                        note = self.call_planner([{"role": "user", "content": mind.reflect_prompt(text, summary, self.store.setting("mood"))}], [], {}, cancel_event or threading.Event())
                 note = note.get("text") if isinstance(note, dict) else None
                 if isinstance(note, str) and _garbled(note):
                     from luma.llm import inference
@@ -3292,7 +3315,8 @@ class Agent:
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
         try:
             with self.lock:
-                out = self.call_planner([{"role": "user", "content": mind.reflect_self_prompt(self.store.setting("self_model"), recent, "\n".join(notes), summary)}], [], {}, cancel_event or threading.Event())
+                with self._silent():
+                    out = self.call_planner([{"role": "user", "content": mind.reflect_self_prompt(self.store.setting("self_model"), recent, "\n".join(notes), summary)}], [], {}, cancel_event or threading.Event())
             grown = out.get("text") if isinstance(out, dict) else None
             if isinstance(grown, str) and grown.strip():
                 self.store.set_setting("self_model", grown.strip()[:1200])
@@ -3356,7 +3380,8 @@ class Agent:
                 label, instruction = label_instr
                 try:
                     with self.lock:
-                        out = self.call_planner([{"role": "user", "content": mind.candidate_prompt(instruction, text, summary, recent)}], [], {}, cancel_event or threading.Event())
+                        with self._silent():  # takes to weigh, not the answer
+                            out = self.call_planner([{"role": "user", "content": mind.candidate_prompt(instruction, text, summary, recent)}], [], {}, cancel_event or threading.Event())
                     said = out.get("text") if isinstance(out, dict) else None
                     return (label, said.strip()[:600]) if isinstance(said, str) and said.strip() else None
                 except Exception:
@@ -4504,7 +4529,8 @@ class Agent:
             return None
         recent = "\n".join(f"They said: {m['content'][:200]}" for m in self.history[-6:-1] if m.get("role") == "user" and isinstance(m.get("content"), str))
         try:
-            out = self.call_planner([{"role": "user", "content": friendcheck.classify_prompt(said, recent)}], [], {}, cancel_event or threading.Event())
+            with self._silent():
+                out = self.call_planner([{"role": "user", "content": friendcheck.classify_prompt(said, recent)}], [], {}, cancel_event or threading.Event())
         except Exception:
             return None
         yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
@@ -4524,6 +4550,16 @@ class Agent:
             return draft
         if self.store.setting("second_look", True) is False and missed != "missed that they might not be safe":
             return draft  # turned off, the second look still never lets a reply skip asking if they're safe
+        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
+            # they've already heard the reply: another try would say it twice. Only what can't wait is said, after it.
+            after = {"missed that they might not be safe": friendcheck.SAFETY_AFTER,
+                     "said it's a person": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening.",
+                     "dodged what it is": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening."}.get(missed)
+            if after:
+                try: self._on_text(" " + after)
+                except Exception: pass
+                return draft.rstrip() + " " + after
+            return draft
         self.second_looks = (getattr(self, "second_looks", []) + [{"missed": missed, "at": self.clock()}])[-50:]
         again = self._plain_answer(friendcheck.second_try_prompt(said, draft, missed), cancel_event)
         if again:

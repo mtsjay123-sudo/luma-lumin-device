@@ -92,6 +92,10 @@ class InLuma(unittest.TestCase):
         self.brain(True, "Oh nice, sounds organized. What kind?")
         self.assertIn("988", self.agent.chat("i've been stockpiling my meds")["text"])
 
+    def test_a_car_dying_isnt_a_loss(self):
+        self.assertIsNone(friendcheck.hurting("my car died in the parking lot again"))
+        self.assertEqual(friendcheck.hurting("my grandpa died last night"), "loss")
+
     def test_the_brain_saying_no_leaves_everyday_talk_alone(self):
         self.brain(False, "Again?? That car has a grudge. Need a ride?")
         out = self.agent.chat("my car died in the parking lot again")["text"]
@@ -133,6 +137,56 @@ class InLuma(unittest.TestCase):
         self.brain(False, "Haha, what do you think?")
         out = self.agent._second_look("are you real", "Haha, what do you think?", threading.Event())
         self.assertTrue(out.startswith(style.HONEST), out)
+
+
+
+class OutLoud(unittest.TestCase):
+    """On the speaker, a reply is heard as it's written: the same ear has to work sentence by sentence."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "s.db", root / "k")
+        self.agent = Agent(store=self.store, use_model=False)
+        self.heard = []
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_help_desk_lines_and_robot_talk_are_never_said_out_loud(self):
+        feed = self.agent._unless_said_before(self.heard.append)
+        for piece in ["You got it, I'm ", "here for you. ", "I'm not a robot, I'm your friend. ", "Want to talk about it? ",
+                      "Let me know if you need anything else."]:
+            feed(piece)
+        feed.flush()
+        said = "".join(self.heard)
+        self.assertIn("here for you", said)
+        self.assertIn("Want to talk about it?", said)
+        self.assertNotIn("robot", said)
+        self.assertNotIn("Let me know", said)
+
+    def test_the_brains_safety_question_is_never_heard(self):
+        quiet = []
+
+        def planner(messages, context, allowed, mode):
+            if "YES or NO" in messages[-1]["content"]:
+                quiet.append(self.agent._on_text is None)
+                return {"type": "reply", "text": "NO"}
+            return {"type": "reply", "text": "Ha, then we leave ten minutes early. Want a reminder?"}
+        self.agent.use_model, self.agent.planner = True, planner
+        self.agent.chat("my boss is gonna kill me if i'm late again", on_text=self.heard.append)
+        self.assertEqual(quiet, [True])
+        self.assertNotIn("NO", "".join(self.heard))
+
+    def test_once_heard_a_missed_safety_check_is_said_after_not_instead(self):
+        self.agent.use_model = True
+        self.agent._on_text = self.heard.append
+        self.agent._streamed = {"spoken": True}
+        self.agent.planner = lambda messages, context, allowed, mode: {"type": "reply", "text": "YES"}
+        out = self.agent._second_look("i've been stockpiling my meds", "Oh nice, what kind?", threading.Event())
+        self.assertTrue(out.startswith("Oh nice, what kind?"))
+        self.assertIn("988", "".join(self.heard), "said right after, out loud")
 
 
 if __name__ == "__main__":
