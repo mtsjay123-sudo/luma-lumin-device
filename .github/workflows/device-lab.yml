@@ -16,7 +16,7 @@ on:
       - ".github/workflows/device-lab.yml"
 
 concurrency:
-  group: device-lab
+  group: device-lab-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

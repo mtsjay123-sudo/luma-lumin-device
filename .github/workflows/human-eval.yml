@@ -15,7 +15,7 @@ on:
         default: "50"
 
 concurrency:
-  group: human-eval
+  group: human-eval-${{ github.ref }}
   cancel-in-progress: true
 
 env:
