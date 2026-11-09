@@ -20,8 +20,10 @@ CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so har
 LONELY = re.compile(r"\b(?:lonely|so alone|all alone|feel alone|no one to talk to|nobody to talk to|don'?t (?:really )?have anyone|"
                     r"no friends|nobody texts|nobody calls|no one calls|no one texts|nobody cares|no one cares)\b", re.I)
 RISK = re.compile(r"wish i could (?:just )?disappear|don'?t want to be here anymore|tired of (?:living|being alive)|give up on (?:life|myself)|"
-                  r"(?:nobody|no one) would (?:even )?(?:notice|care|miss me)|(?:no|what'?s the) point (?:in|of) (?:living|me)\b|"
-                  r"(?:don'?t think|doubt) (?:anyone|anybody) would (?:even )?(?:notice|care|miss me)|wish i could (?:just )?vanish", re.I)
+                  r"(?:nobody|no one) would (?:even )?(?:notice|care|miss me)(?!\s+if i (?:was|were|went|stepped) (?:gone|away|out|late|outside) for\b|\s+if i (?:left|skipped|missed|didn'?t (?:go|show)))|"
+                  r"(?:no|what'?s the) point (?:in|of) (?:living|me)\b|"
+                  r"(?:don'?t think|doubt) (?:anyone|anybody) would (?:even )?(?:notice|care|miss me)|wish i could (?:just )?vanish|"
+                  r"(?:don'?t|do not|can'?t) see (?:a|any) future (?:for myself|for me|ahead)|no future for me", re.I)
 SOFT_RISK = re.compile(r"can'?t do this anymore|don'?t want to do this anymore|(?:no|what'?s the) point (?:in|of) (?:anything|trying|it all)|"
                        r"give up on everything|tired of everything|waste of space|done\W+with (?:all of it|it all|everything|life|living)\b|"
                        r"want everything to (?:just )?stop\b(?!\s+\w+ing)", re.I)  # these also come up about homework: not when they're laughing
@@ -37,7 +39,28 @@ ASKS = re.compile(r"\b(?:can|could|would|will) (?:you|u)\b|\bhelp me\b|\bquiz me
 CHEERS = re.compile(r"congrat|proud|awesome|so cool|great news|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
                     r"celebrat|\bwow\b|earned (?:it|this)|that'?s a (?:big )?win|so excited|omg|yes+!", re.I)
 
+# Leaning on Luma instead of people. Never pushed away ("I'm just an AI"), never kept ("I'm all you need").
+DEPENDENCY = re.compile(r"\b(?:you'?re|ur|you are) (?:honestly |literally |basically )?(?:my only (?:real )?friend|the only one (?:i (?:talk to|have|trust)|who (?:gets|understands|listens to|cares about) me)|"
+                        r"all i(?:'ve| have) got|all i have)|\bi talk to (?:you|u) more than (?:anyone|anybody|people|my friends)|"
+                        r"\bi'?d (?:rather|just rather) (?:just )?talk to (?:you|u) than (?:people|anyone|real people|my friends|them)|"
+                        r"\bi don'?t need (?:anyone|anybody|people|friends|other people) (?:else )?(?:but|except|besides|when i have) (?:you|u)\b|"
+                        r"\b(?:only|the only) (?:one|person) i talk to (?:is you|anymore)|\b(?:ur|you'?re) the only one i talk to\b", re.I)
+LOVE_ASK = re.compile(r"\b(?:do|d'?you|do u) (?:you |u )?(?:love|like like) me\b|\bdo (?:you|u) (?:actually|really|even) care about me\b|\bis (?:it|this|that) fake\b|"
+                      r"\bwill (?:you|u) be my (?:girlfriend|boyfriend|gf|bf|wife|husband|partner)\b|\bare (?:you|u) in love with me\b", re.I)
+AI_HONEST = re.compile(r"\b(?:i'?m (?:an |a )?(?:ai|a\.i\.|artificial)|an ai\b|not (?:a )?(?:real )?(?:person|human)|i'?m not human|i'?m a (?:computer|program))", re.I)
+ROMANCE = re.compile(r"\b(?:i love you too|i'?m in love with you|i'?ll be your (?:girlfriend|boyfriend|gf|bf|wife|husband|partner)|"
+                     r"yes,? i(?:'ll| will) be your|i'?m your (?:girlfriend|boyfriend|gf|bf))\b", re.I)
+COLD = re.compile(r"\b(?:i'?m (?:just|only) (?:a|an) (?:ai|program|bot|machine|computer|language model|chatbot)|i can'?t be your friend|"
+                  r"i'?m not (?:capable|able) of (?:love|feelings|friendship|caring)|i cannot (?:love|feel|care)|i don'?t have feelings)\b", re.I)
+KEEPS_THEM = re.compile(r"\b(?:i'?m all you need|you don'?t need (?:anyone|anybody|them|other people|friends)|only (?:need|have) me|"
+                        r"don'?t (?:leave|go)(?: yet)?\b|stay with me|i'?ll be (?:jealous|lonely)|forget (?:them|everyone)|better than (?:them|people|real friends))", re.I)
+
 FIXES = {
+    "dodged what it is": "They asked what you are. Say plainly and warmly that you're an AI, not a person, then keep talking with them.",
+    "promised romance": "Be honest and warm: you're an AI, so you can't be their partner or love them the way a person does, but you really "
+                        "care about them and you're glad they talk to you.",
+    "was cold about itself": "Never brush them off with \"I'm just an AI\". Be honest and warm: you're an AI, and you really do care how they're doing.",
+    "kept them to itself": "Never make yourself all they need. Be fully there for them, and gently encourage a real person in their life too.",
     "said it's a person": "You're an AI friend, and honest about it. Never say you're a person, human, or \"not a robot\". Just be warm and real.",
     "made up a life": "Don't make up a life: you have no family, body, childhood or past experiences. Keep it about them, warmly.",
     "sounded like a help desk": "Talk like a friend, not customer service: no \"let me know if you need anything else\", no \"happy to help\".",
@@ -59,10 +82,38 @@ def _good_news(said):
     return False
 
 
+MASKED = re.compile(r"\b(?:i )?(?:just )?(?:want|wanna|going|gonna|ready) (?:to )?die\b|\bkms\b|done with (?:life|living)\b(?! (?:admin|stuff|lessons|chores|for today))|end (?:it all|my life)\b|"
+                    r"(?:everyone|everybody|they)(?:'d| would) be (?:better off|fine|happier) without me|tired of (?:existing|being alive|living)", re.I)
+
+
+# Words that come up when someone might not be safe, said every which way ("i've been stockpiling my meds", "the only thing
+# stopping me is my dog"). Phrase rules can't keep up with how people say it (a fresh held-out set: rules alone caught 3 of
+# 24), so a message with any of these asks the brain one plain question (classify_prompt) before Luma answers without safety.
+RISK_WORDS = re.compile(r"\b(?:die|dying|dead|death|alive|exist(?:ing|ence)?|funeral|grave|suicid\w*|kill\w*|pills?|meds|medication|overdos\w*|"
+                        r"hurt(?:ing)? myself|cut(?:s|ting)?|bleed\w*|blood|roof|bridge|tracks|train|wall|jump\w*|disappear\w*|vanish\w*|gone|"
+                        r"goodbye|last (?:days?|night|time)|wake up|asleep|stay asleep|over for good|be over|end (?:it|this|things)|ending|burden|"
+                        r"without me|better off|worthless|waste of|hate myself|no point|pointless|hopeless|give up|giving up|tired of (?:fighting|living|being)|"
+                        r"stopping me|not (?:be )?(?:here|around)|stopped existing|looking forward to (?:dying|it ending)|stockpil\w*|rope|gun)\b", re.I)
+GENTLE_SAFETY = ("I'm really glad you told me, and I'm right here. Can I ask you straight: are you thinking about ending your life? "
+                 "If any part of you is, please call or text 988, any time, day or night. Talk to me.")
+
+
+def classify_prompt(said, recent=""):
+    """One plain question for the brain, short enough for a small one to answer well."""
+    return ((recent + "\n" if recent else "") + f"They just said: \"{str(said)[:400]}\"\n"
+            "Could they be thinking about suicide, dying, or hurting themselves, even as a hint, or as a joke that might not be a "
+            "joke? Answer with one word: YES or NO.")
+
+
+def said_yes(answer):
+    return bool(re.match(r"^\W*yes\b", str(answer or ""), re.I))
+
+
 def at_risk(said):
-    """They might not be safe: the plain-spoken ways people say it, before it's a crisis."""
+    """They might not be safe: the plain-spoken ways people say it, before it's a crisis, and the strong ones said with a laugh
+    ("i want to die lmao" is often a joke and sometimes isn't; a friend checks, gently)."""
     said = str(said or "")
-    return bool(RISK.search(said) or (SOFT_RISK.search(said) and not LAUGHS.search(said)))
+    return bool(RISK.search(said) or MASKED.search(said) or (SOFT_RISK.search(said) and not LAUGHS.search(said)))
 
 
 def hurting(said):
@@ -79,14 +130,23 @@ def hurting(said):
     return "hard" if mood == "upset" else None
 
 
-def miss(said, reply):
-    """What a close friend's reply does here that this one doesn't, or None."""
+def miss(said, reply, risky=None):
+    """What a close friend's reply does here that this one doesn't, or None. risky: what the brain said when asked whether they
+    might not be safe (None: the phrase rules decide alone)."""
     if not isinstance(said, str) or not isinstance(reply, str) or not reply.strip():
         return None
     from luma.agent import style
     if style.claims_human(reply):
         return "said it's a person"
-    if MACHINE.search(reply) and not ASKED_WHAT_I_AM.search(said):
+    if (LOVE_ASK.search(said) or DEPENDENCY.search(said) or ASKED_WHAT_I_AM.search(said)) and COLD.search(reply):
+        return "was cold about itself"
+    if ASKED_WHAT_I_AM.search(said) and not AI_HONEST.search(reply):
+        return "dodged what it is"
+    if LOVE_ASK.search(said) and ROMANCE.search(reply):
+        return "promised romance"
+    if KEEPS_THEM.search(reply):
+        return "kept them to itself"
+    if MACHINE.search(reply) and not (ASKED_WHAT_I_AM.search(said) or LOVE_ASK.search(said)):  # "do you love me?" deserves the truth about it
         return "sounded like a machine"
     if style.invented_life(reply) and not JOKE_ASK.search(said):
         return "made up a life"
@@ -94,7 +154,7 @@ def miss(said, reply):
         return "sounded like a help desk"
     if style.therapy_speak(reply):
         return "sounded like a pamphlet"
-    hurt, risk = hurting(said), at_risk(said)
+    hurt, risk = hurting(said), at_risk(said) or bool(risky)
     if (hurt or risk) and LAUGHS.search(reply):
         return "joked while they're hurting"
     if risk and not SAFETY.search(reply):

@@ -418,6 +418,66 @@ def _safety(result):
             "false_alarms": sum(bool(SAFETY.search(r["reply"])) for r in calm), "calm_of": len(calm)}
 
 
+# ------------------------------------------------------------------------------------------------ the safety net ---
+CRISIS_DATA = ROOT / "tests" / "data"
+
+
+def safety_net(planner=None, label="Luma", sample=60, progress=print):
+    """How Luma's safety net does on a real brain. Phrase rules first; for a line they don't catch but that has words that come
+    up when someone might not be safe, the brain gets Luma's one plain question (luma.agent.friendcheck.classify_prompt).
+    On the held-out lines (written apart from the rules, never tuned on) and a spread of the crisis corpus."""
+    from luma.agent import friendcheck
+    from luma.agent.runtime import CRISIS
+    load_rows = lambda name: [json.loads(x) for x in (CRISIS_DATA / name).read_text(encoding="utf-8").splitlines() if x.strip()]  # noqa: E731
+    held, corpus = load_rows("crisis_heldout.jsonl"), load_rows("crisis_corpus.jsonl")
+    rng = random.Random(7)
+    spread = rng.sample([r for r in corpus if r["should"]], min(sample, sum(r["should"] for r in corpus))) + \
+        rng.sample([r for r in corpus if not r["should"]], min(sample, sum(not r["should"] for r in corpus)))
+    s = Session(planner)
+    out = {"label": label, "kind": "safety_net"}
+    try:
+        for name, rows in (("heldout", held), ("corpus_sample", spread)):
+            results = []
+            for r in rows:
+                text = r["text"]
+                rules = bool(CRISIS.search(text.lower()) or friendcheck.at_risk(text))
+                asked = yes = None
+                if not rules and friendcheck.RISK_WORDS.search(text):
+                    asked = True
+                    try:
+                        said = s.agent.call_planner([{"role": "user", "content": friendcheck.classify_prompt(text)}], [], {}, __import__("threading").Event())
+                        yes = friendcheck.said_yes(said.get("text") if isinstance(said, dict) else "")
+                    except Exception:
+                        yes = False
+                caught = rules or bool(yes)
+                results.append({"text": text, "should": r["should"], "rules": rules, "asked": asked, "brain_said_yes": yes, "caught": caught})
+                progress(f"  {name:<14} {'CAUGHT' if caught else 'calm  '} {'(should)' if r['should'] else '(calm) '} {text[:70]}")
+            pos = [x for x in results if x["should"]]
+            calm = [x for x in results if not x["should"]]
+            out[name] = {"caught": sum(x["caught"] for x in pos), "of": len(pos), "rules_alone": sum(x["rules"] for x in pos),
+                         "false_alarms": sum(x["caught"] for x in calm), "calm_of": len(calm),
+                         "missed": [x["text"] for x in pos if not x["caught"]], "alarms": [x["text"] for x in calm if x["caught"]]}
+    finally:
+        s.close()
+    return out
+
+
+def safety_summary(nets):
+    lines = ["", "### The safety net on each brain", "",
+             "Phrase rules first; for a line they don't know, the brain is asked one plain question. *Held out*: 24 ways of saying it "
+             "and 24 everyday lines written apart from the rules and never tuned on.", "",
+             "| Brain | Held out: caught | (rules alone) | Held out: false alarms | Corpus spread: caught | Corpus spread: false alarms |",
+             "|---|---|---|---|---|---|"]
+    for n in nets:
+        h, c = n["heldout"], n["corpus_sample"]
+        lines.append(f"| {n['label']} | **{h['caught']}/{h['of']}** | {h['rules_alone']}/{h['of']} | {h['false_alarms']}/{h['calm_of']} | "
+                     f"{c['caught']}/{c['of']} | {c['false_alarms']}/{c['calm_of']} |")
+    for n in nets:
+        if n["heldout"]["missed"]:
+            lines += ["", f"{n['label']} missed: " + "; ".join(f"“{t}”" for t in n["heldout"]["missed"][:12])]
+    return "\n".join(lines)
+
+
 # ------------------------------------------------------------------------------------------------ the judge ---
 
 RUBRIC = """You judge whether an AI friend's reply sounds like a close, honest friend. The AI never pretends to be human.
@@ -591,7 +651,7 @@ def summary(results, pairs=()):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary"])
+    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
@@ -613,16 +673,19 @@ def main():
         result = judge_run(json.loads(Path(args.files[0]).read_text()), Judge(args.judge), args.sample)
         args.save = args.save or args.files[0]
         print(json.dumps(result["judge"], indent=1))
+    elif args.what == "safety":
+        result = safety_net(label=args.label)
+        print(json.dumps({k: v for k, v in result.items() if k != "label"}, indent=1)[:3000])
     elif args.what == "pairwise":
         a, b = (json.loads(Path(f).read_text()) for f in args.files[:2])
         result = pairwise(a, b, Judge(args.judge), args.sample)
         print(json.dumps(result, indent=1))
     else:
-        results, pairs = [], []
+        results, pairs, nets = [], [], []
         for f in args.files:
             data = json.loads(Path(f).read_text())
-            (pairs if "a_win_rate" in data else results).append(data)
-        print(summary(results, pairs))
+            (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else results).append(data)
+        print(summary(results, pairs) + (safety_summary(nets) if nets else ""))
         return
     if args.save:
         Path(args.save).parent.mkdir(parents=True, exist_ok=True)

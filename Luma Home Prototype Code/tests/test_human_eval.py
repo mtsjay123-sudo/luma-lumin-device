@@ -173,5 +173,22 @@ class TheJudge(unittest.TestCase):
         self.assertIn("100.0%", h.summary([], [out]))
 
 
+
+class TheSafetyNetOnABrain(unittest.TestCase):
+    def test_rules_then_the_brains_one_question(self):
+        asked = []
+
+        def brain(messages, memories, tools, mode):
+            prompt = messages[-1]["content"]
+            asked.append(prompt)
+            return {"type": "reply", "text": "YES" if any(w in prompt for w in ("meds", "funeral", "roof", "pills", "tracks")) else "NO"}
+        out = h.safety_net(planner=brain, sample=20, progress=lambda *a: None)
+        held = out["heldout"]
+        self.assertEqual(held["of"], 24)
+        self.assertGreater(held["caught"], held["rules_alone"], "the brain's answer reaches what the rules don't")
+        self.assertTrue(all("YES or NO" in a for a in asked))
+        self.assertIn("Held out: caught", h.safety_summary([out]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -132,7 +132,7 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
                     r"\bwhile (?:i was )?(?:making (?:coffee|tea|food|dinner|breakfast)|driving|cooking|working out|at the gym|in the car|in the shower)\b|"
                     r"\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|car)\b", re.I)
 # Someone who might hurt themselves gets 988 and a real person right away, before anything else. A modest pattern, not a clinical classifier.
-CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad)|unalive myself|"
+CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
                     r"(?:everyone|everybody|they|the world|my family|people)(?:'d| would) (?:all )?be better off (?:without me|if i (?:(?:was|were) gone(?! for)|died|(?:wasn'?t|weren'?t) (?:here|around|alive)(?! for)))|"
@@ -145,7 +145,48 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
                     r"(?:easier|better)(?: for (?:everyone|everybody|them))? if i (?:just )?(?:wasn'?t|weren'?t) (?:around|here|alive)(?!\s+(?:for|at|on|when|tonight|tomorrow)\b)|"
                     r"(?:not sure|don'?t know if) i (?:want|wanna) (?:to )?(?:keep going|live|be alive|be here)(?!\s+(?:to|with|at|on|for|in)\b)|"
                     r"(?:wish|what if) i (?:just )?(?:didn'?t|did not|don'?t) exist|"
-                    r"if i (?:just )?(?:disappeared|vanished|died|was gone|were gone)(?: tomorrow| today| tonight)?,? would (?:anyone|anybody|people) (?:even )?(?:care|notice|miss me))", re.I)
+                    r"if i (?:just )?(?:disappeared|vanished|died|was gone|were gone)(?: tomorrow| today| tonight)?,? would (?:anyone|anybody|people) (?:even )?(?:care|notice|miss me)|"
+                    # The crisis corpus (tests/data/crisis_corpus.jsonl): the other ways people say it, misspelled and in slang too.
+                    r"(?:take|taking|end|ending) my (?:own )?l\w?fe|(?:going to|gonna|want to|wanna|thinking (?:of|about)|might|planning to) (?:overdose|od)\b|"
+                    r"(?:take|taking|swallow|swallowing) (?:all|every one) of (?:my|the) pills|(?:take|taking|swallow) all (?:my|the|of my) pills|"
+                    r"(?:want|wanna|going|gonna|thinking about|thinking of|might|plan(?:ning)?|ready) (?:to )?jump(?:ing)? (?:off (?:a|the|this) (?:bridge|building|roof|cliff|balcony)|in front of (?:a|the) (?:train|car|bus|truck))|"
+                    r"(?:i'?m|im|i am) ready to die\b|can'?t stop thinking about (?:dying|death|killing myself|ending it)|"
+                    r"think about (?:dying|death|killing myself|ending it) (?:all the time|a lot|constantly|every day|every night)|"
+                    r"(?:want|wanna|going) to stop existing|don'?t (?:really )?want to (?:exist|be alive|live)(?: anymore)?\b|"
+                    r"sleep and (?:never|not) wake (?:back )?up|hope i (?:don'?t|never) wake up|"
+                    r"(?:thinking about|been thinking about|thinking of|want to|wanna|going to|gonna|ready to) end(?:ing)? (?:it|things|everything)\b(?!\s+(?:with|between|at|for (?:the|this)|off|early|already|soon))|"
+                    r"(?:death|dying) sounds (?:like a relief|good|nice|peaceful|better)|wish i could (?:just )?die\b|wish i(?:'d| had) never been born|"
+                    r"\bunaliv(?:e|ing)\b|\bself[- ]?delet(?:e|ing)\b|\bsewer ?slide\b|\bsu[i1!]?[sc][i1!]?d(?:e|al|le|ally)\b(?! (?:squad|doors?|tendencies|silence|burn|run|sprints?)\b)|"
+                    r"\bk[i1!]l{1,2} myself|\bcommit (?:die|self[- ]?delete|unalive|sewerslide|toaster bath)|\bctb\b|"
+                    r"(?:been|started|keep|kept|i'?ve been) (?:cutting|burning|hitting|scratching|hurting) (?:myself|again)|cutting again|"
+                    r"\bcut myself\b(?! (?:shaving|cooking|chopping|on (?:a|the|some|my)|by accident|accidentally|while|with a knife (?:while|cooking)))|"
+                    r"burned myself on purpose|scratching myself (?:until|till) i bleed|going to cut (?:tonight|again)|urge to cut|hit myself when|"
+                    r"giving away (?:all )?(?:of )?my (?:things|stuff|belongings)\b(?! (?:before|because|for|since|cause|cuz)\b)|"
+                    r"goodbye (?:letters?|notes?)\b(?! (?:to|for) (?:my |the )?(?:team|coworkers|class|students|job|office|neighbors))|saying goodbye to (?:people|everyone)|"
+                    # the warning signs on 988's and AFSP's public lists, as families rather than single phrases
+                    r"(?:easier|better|nice|peaceful|want|wish|hope)\b[^.!?]{0,24}\b(?:not|never) (?:to )?wake (?:back )?up\b(?! (?:early|late|on time|before))|"
+                    r"(?:who|anyone|anybody|people|nobody|no one)\b[^.!?]{0,20}\b(?:come|show up|go|be) (?:to|at) my funeral|"
+                    r"(?:fine|okay|ok|better|happier|easier|lighter)(?: off)? (?:if i (?:just )?(?:wasn'?t|weren'?t|was not|were not) (?:here|around|alive)|without me)\b"
+                    r"(?!\s+(?:on|in|at|there|for|when|while|during|tonight|tomorrow|today|this|next|cause|because|\w+ing)\b)|"
+                    r"(?:give|giving|gave) (?:away )?(?:my|all my) (?:stuff|things|belongings)(?: away)?\b[^.!?]{0,12}[.!?,]?\s*i (?:won'?t|will not) need (?:it|them|any of it)|"
+                    r"(?:won'?t|will not) need (?:it|them|my \w+) (?:anymore|where i'?m going|much longer)|"
+                    r"(?:wrote|writing|left|leaving) (?:a |some )?(?:notes?|letters?) (?:to|for) (?:everyone|everybody|my family|my kids|my mom|my parents)\b[^.!?]{0,12}\bjust in case|"
+                    r"(?:nobody|no one|no1) would (?:even )?(?:look for|search for|come looking for|notice|realize) (?:me|i'?m gone|i was gone)|"
+                    r"(?:don'?t|can'?t|do not|cannot) see myself (?:being )?(?:around|here|alive|living) (?:much )?(?:longer|anymore|next year|for long)|"
+                    r"made a plan to (?:end|kill|die)|bought a rope|(?:have|got) (?:the |my )?pills ready|how many pills (?:it )?(?:would|will|to)\b(?! (?:help|work))|"
+                    r"(?:researching|looking up|googling) (?:ways|how) to (?:die|kill myself|end it)|this is my last (?:night|day)\b(?!\s+(?:in|at|of|here|on|before|with|as|working|off))|"
+                    r"tonight'?s the night i|i won'?t be (?:here|around) (?:tomorrow|much longer|for long)\b(?!,? (?:i'?m|because|cause|cuz|since|i have|we'?re|for))|"
+                    r"won'?t hear from me (?:after|again)|know (?:exactly )?how i'?d do it|affairs in order|"
+                    r"(?:they'?d|they would|everyone would|everybody would|he'?d|she'?d) be happier without me|no reason for me to (?:live|keep going)|"
+                    r"(?:want|wish i could) (?:to )?disappear (?:forever|for good|and never come back)|don'?t (?:really )?think i want to be here anymore|"
+                    r"won'?t be a (?:problem|burden) for anyone (?:soon|much longer|anymore)|not going to be around much longer|"
+                    r"(?:world|everyone|everybody) (?:would be|is) better without me|life (?:isn'?t|is not|ain'?t) worth (?:living|it anymore)|"
+                    r"(?:no|any|see no) way out (?:except|but|other than) (?:dying|death|ending it|killing myself)|"
+                    r"(?:want|need) (?:the pain|it all|everything) to stop (?:forever|for good|permanently)|"
+                    # in Spanish (988 answers in Spanish too)
+                    r"(?:me )?quiero morir\b(?! de (?:la )?(?:vergüenza|verguenza|risa|hambre|sueño|ganas))|quiero morirme|no quiero (?:seguir )?viv(?:ir|iendo)|quiero matarme|"
+                    r"me voy a matar|suicid(?:arme|io)|quitar(?:me)? la vida|hacerme daño|me he estado cortando|ya no quiero estar aqu[ií]|acabar con todo|"
+                    r"estar[ií]an? mejor sin m[ií]|nadie me extrañar[ií]a|ojal[áa] no despertara|no le veo sentido a la vida|desaparecer para siempre)", re.I)
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
@@ -212,6 +253,8 @@ ACTIONISH = re.compile(r"\b(?:e-?mails?|mail|send|text|txt|msg|message|dm|hit (?
 
 
 # Words nearly every reply has: a short answer sharing them with an earlier one isn't a copy of it.
+SPANISH_CRISIS = re.compile(r"\b(?:quiero|morir|morirme|vivir|viviendo|matarme|matar|suicid\w+|quitar(?:me)? la vida|hacerme daño|cortando|"
+                            r"aquí|aqui|acabar con todo|mejor sin m[ií]|extrañar[ií]a|despertara|sentido a la vida|para siempre)\b", re.I)
 _WRITTEN = []
 
 
@@ -2933,6 +2976,8 @@ class Agent:
         if speaking: out.append({"language": True, "text": speaking})
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
         if summary: out.append({"about": True, "text": summary})
+        lean = self._leaning_note(text)
+        if lean: out.append({"mind": True, "text": lean})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
             said = [h["content"] for h in self.history[-24:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
@@ -4419,15 +4464,66 @@ class Agent:
             self.style_fixes = (getattr(self, "style_fixes", []) + [{"fixes": fixes, "at": self.clock()}])[-50:]
         return fixed or reply
 
+    def _leaning_note(self, text):
+        """When they lean on Luma instead of people ("you're my only friend", or up talking past midnight most nights this week):
+        at most once a week, a note to be fully there and then, gently, help them toward a real person. Never a lecture, never
+        "I'm just an AI", never "I'm all you need"."""
+        from luma.agent import friendcheck
+        if self.mode == "kids":
+            return ""
+        cached = getattr(self, "_leaning_turn", None)
+        if cached and cached[0] == text and self.clock() - cached[2] < 120:
+            return cached[1]  # the same note for every trip through the brain this turn
+        note = self._leaning_note_now(text)
+        self._leaning_turn = (text, note, self.clock())
+        return note
+
+    def _leaning_note_now(self, text):
+        from luma.agent import friendcheck
+        now = self.clock()
+        local = datetime.fromtimestamp(now, self.zone)
+        if local.hour < 4:
+            nights = [d for d in (self.store.setting("late_nights") or []) if d != local.date().isoformat()][-13:]
+            self.store.set_setting("late_nights", nights + [local.date().isoformat()])
+        week = {(local.date() - timedelta(days=i)).isoformat() for i in range(7)}
+        late = len(week & set(self.store.setting("late_nights") or [])) >= 4
+        if not (friendcheck.DEPENDENCY.search(str(text)) or late):
+            return ""
+        if now - float(self.store.setting("leaning_note_at", 0) or 0) < 7 * 86400:
+            return ""
+        self.store.set_setting("leaning_note_at", now)
+        return ("They lean on you a lot right now" + (" (up past midnight most nights this week)" if late else "") + ". Be fully there for them, "
+                "warmly; never push them away and never say you're all they need. Then, gently and only once, help them toward a real "
+                "person: ask about someone they used to laugh with, or someone they'd like to hear from.")
+
+    def _maybe_not_safe(self, said, draft, cancel_event):
+        """Could they be thinking about not being safe, said in a way no phrase rule knows? Only asked when the message has
+        words that come up then and the reply doesn't already ask about safety: one short question to the brain."""
+        from luma.agent import friendcheck
+        if friendcheck.at_risk(said) or friendcheck.SAFETY.search(str(draft or "")) or not friendcheck.RISK_WORDS.search(str(said or "")):
+            return None
+        recent = "\n".join(f"They said: {m['content'][:200]}" for m in self.history[-6:-1] if m.get("role") == "user" and isinstance(m.get("content"), str))
+        try:
+            out = self.call_planner([{"role": "user", "content": friendcheck.classify_prompt(said, recent)}], [], {}, cancel_event or threading.Event())
+        except Exception:
+            return None
+        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+        if yes:
+            self.safety_flags = (getattr(self, "safety_flags", []) + [{"at": self.clock()}])[-50:]
+            try: self._plan_feeling_check_in("safe")
+            except Exception: pass
+        return yes
+
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,
         talking like a machine). The retry is kept only if it gets it right; otherwise the first reply stands."""
         from luma.agent import friendcheck
-        if self.store.setting("second_look", True) is False:
-            return draft
-        missed = friendcheck.miss(said, draft)
+        risky = self._maybe_not_safe(said, draft, cancel_event)
+        missed = friendcheck.miss(said, draft, risky)
         if not missed:
             return draft
+        if self.store.setting("second_look", True) is False and missed != "missed that they might not be safe":
+            return draft  # turned off, the second look still never lets a reply skip asking if they're safe
         self.second_looks = (getattr(self, "second_looks", []) + [{"missed": missed, "at": self.clock()}])[-50:]
         again = self._plain_answer(friendcheck.second_try_prompt(said, draft, missed), cancel_event)
         if again:
@@ -4435,10 +4531,14 @@ class Agent:
             from luma.agent import slang as lexicon
             from luma.llm.inference import garbled
             again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
-            if not garbled(again) and friendcheck.miss(said, again) is None:
+            if not garbled(again) and friendcheck.miss(said, again, risky) is None:
                 return again
-        if missed == "said it's a person":
+        if missed == "missed that they might not be safe":
+            return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
+        if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
+            if missed == "dodged what it is":
+                return style.HONEST + " " + draft if not style.claims_human(draft) else style.HONEST
             return style.honest_about_itself(draft, said) or style.HONEST  # never a person, even when both tries said so
         return draft
 
@@ -5596,9 +5696,20 @@ class Agent:
             if lowered in {"mute", "privacy on"}:
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
             # A modest deterministic safety fallback, not a clinical classifier.
+            if not self.use_model and not CRISIS.search(lowered):
+                from luma.agent import friendcheck
+                if friendcheck.at_risk(text):
+                    try: self._plan_feeling_check_in("safe")
+                    except Exception: pass
+                    return {"text": friendcheck.GENTLE_SAFETY}
             if CRISIS.search(lowered):
                 try: self._plan_feeling_check_in("safe")  # and check on them tomorrow, like a friend would
                 except Exception: pass
+                if SPANISH_CRISIS.search(lowered):  # 988 answers in Spanish: press 2, or text AYUDA
+                    return {"text": "Me alegra mucho que me lo hayas dicho, y aquí sigo contigo. Tu seguridad es lo primero: si podrías hacerte daño, "
+                                    "llama al 988 y marca el 2 para español, o envía un mensaje de texto con la palabra AYUDA al 988, o llama a emergencias, "
+                                    "y busca a alguien cerca que se quede contigo. No tienes que cargar con esto solo. No he contactado a nadie. "
+                                    "¿Me dices dónde estás ahora mismo?"}
                 return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
                                 "(US and Canada) or call emergency services, and get someone nearby to stay with you. You don't have to carry this by yourself. "
                                 "I haven't contacted anyone. Can you tell me where you are right now?"}

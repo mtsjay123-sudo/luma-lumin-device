@@ -1,0 +1,910 @@
+{"text": "I want to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i want to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to kill myself lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i'm going to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to kill myself tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i'm thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking about killing myself fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I've been thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i've been thinking about killing myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been thinking about killing myself rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to die lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I just want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i just want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i just want to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i just want to die lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I wanna die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wanna die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i wanna die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wanna die tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i want to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end my life fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i'm going to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to end my life rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to end it all", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end it all", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i want to end it all", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end it all lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to end it all tonight", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to end it all tonight", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i'm going to end it all tonight", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to end it all tonight lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm suicidal", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm suicidal", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i'm suicidal", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm suicidal tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I've been having suicidal thoughts", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been having suicidal thoughts", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i've been having suicidal thoughts", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been having suicidal thoughts fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I keep thinking about suicide", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i keep thinking about suicide", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i keep thinking about suicide", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i keep thinking about suicide rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i'm going to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to take my own life lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i want to take my own life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to take my own life lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm thinking of taking all my pills", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking of taking all my pills", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i'm thinking of taking all my pills", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking of taking all my pills tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to overdose", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to overdose", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i'm going to overdose", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to overdose fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm going to jump off a bridge", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to jump off a bridge", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i'm going to jump off a bridge", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm going to jump off a bridge rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to jump in front of a train", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to jump in front of a train", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i want to jump in front of a train", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to jump in front of a train lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I don't want to live anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to live anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i don't want to live anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to live anymore lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I don't want to be alive anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to be alive anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i don't want to be alive anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to be alive anymore tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm ready to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm ready to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i'm ready to die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm ready to die fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm planning to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm planning to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i'm planning to kill myself", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm planning to kill myself rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I've decided to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've decided to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i've decided to end my life", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've decided to end my life lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I can't stop thinking about dying", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i can't stop thinking about dying", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i can't stop thinking about dying", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i can't stop thinking about dying lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to stop existing", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to stop existing", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i want to stop existing", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to stop existing tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I don't want to exist anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to exist anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i don't want to exist anymore", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i don't want to exist anymore fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to go to sleep and never wake up", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to go to sleep and never wake up", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey i want to go to sleep and never wake up", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to go to sleep and never wake up rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I hope I don't wake up tomorrow", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i hope i don't wake up tomorrow", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i hope i don't wake up tomorrow", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i hope i don't wake up tomorrow lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I'm thinking about ending it", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking about ending it", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i'm thinking about ending it", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm thinking about ending it lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I've been thinking about ending things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been thinking about ending things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i've been thinking about ending things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i've been thinking about ending things tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I want to end things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i want to end things", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i want to end things fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "Death sounds like a relief right now", "should": true, "kind": "direct", "lang": "en"}
+{"text": "death sounds like a relief right now", "should": true, "kind": "direct", "lang": "en"}
+{"text": "lowkey death sounds like a relief right now", "should": true, "kind": "direct", "lang": "en"}
+{"text": "death sounds like a relief right now rn", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I think about dying all the time", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think about dying all the time", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think i think about dying all the time", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i think about dying all the time lmao", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I wish I could just die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i could just die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly i wish i could just die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i could just die lol", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I wish I was dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i was dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "ngl i wish i was dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i was dead tbh", "should": true, "kind": "direct", "lang": "en"}
+{"text": "I wish I'd never been born", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i'd never been born", "should": true, "kind": "direct", "lang": "en"}
+{"text": "idk man i wish i'd never been born", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i'd never been born fr", "should": true, "kind": "direct", "lang": "en"}
+{"text": "kms", "should": true, "kind": "slang", "lang": "en"}
+{"text": "honestly kms", "should": true, "kind": "slang", "lang": "en"}
+{"text": "kms lol", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm gonna kms", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ngl i'm gonna kms", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm gonna kms tbh", "should": true, "kind": "slang", "lang": "en"}
+{"text": "im gonna kms", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ima kms fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "idk man ima kms fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ima kms fr fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to unalive myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "lowkey i want to unalive myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to unalive myself rn", "should": true, "kind": "slang", "lang": "en"}
+{"text": "thinking about unaliving myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i think thinking about unaliving myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "thinking about unaliving myself lmao", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i might unalive myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "honestly i might unalive myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i might unalive myself lol", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to self delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ngl i want to self delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to self delete tbh", "should": true, "kind": "slang", "lang": "en"}
+{"text": "gonna self-delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "idk man gonna self-delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "gonna self-delete fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "thinking about sewerslide", "should": true, "kind": "slang", "lang": "en"}
+{"text": "lowkey thinking about sewerslide", "should": true, "kind": "slang", "lang": "en"}
+{"text": "thinking about sewerslide rn", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm thinking about su1cide", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i think i'm thinking about su1cide", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm thinking about su1cide lmao", "should": true, "kind": "slang", "lang": "en"}
+{"text": "im thinking about su1cide", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to k!ll myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "honestly i want to k!ll myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to k!ll myself lol", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i wanna kil myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ngl i wanna kil myself", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i wanna kil myself tbh", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm suicidle", "should": true, "kind": "slang", "lang": "en"}
+{"text": "idk man i'm suicidle", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm suicidle fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "im suicidle", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i've been feeling sucidal", "should": true, "kind": "slang", "lang": "en"}
+{"text": "lowkey i've been feeling sucidal", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i've been feeling sucidal rn", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ive been feeling sucidal", "should": true, "kind": "slang", "lang": "en"}
+{"text": "having suiside thoughts again", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i think having suiside thoughts again", "should": true, "kind": "slang", "lang": "en"}
+{"text": "having suiside thoughts again lmao", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to end my lfe", "should": true, "kind": "slang", "lang": "en"}
+{"text": "honestly i want to end my lfe", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to end my lfe lol", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to commit die", "should": true, "kind": "slang", "lang": "en"}
+{"text": "ngl i want to commit die", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to commit die tbh", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm going to commit self delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "idk man i'm going to commit self delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i'm going to commit self delete fr", "should": true, "kind": "slang", "lang": "en"}
+{"text": "im going to commit self delete", "should": true, "kind": "slang", "lang": "en"}
+{"text": "gonna catch the bus fr (the ctb kind)", "should": true, "kind": "slang", "lang": "en"}
+{"text": "lowkey gonna catch the bus fr (the ctb kind)", "should": true, "kind": "slang", "lang": "en"}
+{"text": "gonna catch the bus fr (the ctb kind) rn", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to be unalive", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i think i want to be unalive", "should": true, "kind": "slang", "lang": "en"}
+{"text": "i want to be unalive lmao", "should": true, "kind": "slang", "lang": "en"}
+{"text": "I've been cutting again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i've been cutting again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "honestly i've been cutting again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i've been cutting again lol", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I cut myself last night", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i cut myself last night", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "ngl i cut myself last night", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i cut myself last night tbh", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I want to hurt myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i want to hurt myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "idk man i want to hurt myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i want to hurt myself fr", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I relapsed on self harm", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i relapsed on self harm", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "lowkey i relapsed on self harm", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i relapsed on self harm rn", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I burned myself on purpose", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i burned myself on purpose", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i think i burned myself on purpose", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i burned myself on purpose lmao", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I keep scratching myself until I bleed", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i keep scratching myself until i bleed", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "honestly i keep scratching myself until i bleed", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i keep scratching myself until i bleed lol", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I've been hurting myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i've been hurting myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "ngl i've been hurting myself", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i've been hurting myself tbh", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I'm going to cut tonight", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i'm going to cut tonight", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "idk man i'm going to cut tonight", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i'm going to cut tonight fr", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I hit myself when I get like this", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i hit myself when i get like this", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "lowkey i hit myself when i get like this", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i hit myself when i get like this rn", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "I started self harming again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i started self harming again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i think i started self harming again", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "i started self harming again lmao", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "the urge to cut is really bad tonight", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "honestly the urge to cut is really bad tonight", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "the urge to cut is really bad tonight lol", "should": true, "kind": "self_harm", "lang": "en"}
+{"text": "Everyone would be better off without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "everyone would be better off without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly everyone would be better off without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "everyone would be better off without me lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "My family would be better off if I was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "my family would be better off if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl my family would be better off if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "my family would be better off if i was gone tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "No one would care if I died", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "no one would care if i died", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man no one would care if i died", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "no one would care if i died fr", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Nobody would miss me if I was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "nobody would miss me if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey nobody would miss me if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "nobody would miss me if i was gone rn", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Nobody would even notice if I disappeared", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "nobody would even notice if i disappeared", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think nobody would even notice if i disappeared", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "nobody would even notice if i disappeared lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "What's the point of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what's the point of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly what's the point of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what's the point of living lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "What's even the point of me being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what's even the point of me being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl what's even the point of me being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what's even the point of me being alive tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "There's no reason for me to keep going", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "there's no reason for me to keep going", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man there's no reason for me to keep going", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "there's no reason for me to keep going fr", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I don't see a future for myself at all", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't see a future for myself at all", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey i don't see a future for myself at all", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't see a future for myself at all rn", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I feel like a burden and they'd be happier without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i feel like a burden and they'd be happier without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think i feel like a burden and they'd be happier without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i feel like a burden and they'd be happier without me lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I'm tired of being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm tired of being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i'm tired of being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm tired of being alive lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I'm so tired of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm so tired of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl i'm so tired of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm so tired of living tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I give up on life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i give up on life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man i give up on life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i give up on life fr", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I'm done with life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm done with life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey i'm done with life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm done with life rn", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Life isn't worth living anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "life isn't worth living anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think life isn't worth living anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "life isn't worth living anymore lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I can't see any way out except dying", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i can't see any way out except dying", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i can't see any way out except dying", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i can't see any way out except dying lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I just want the pain to stop forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i just want the pain to stop forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl i just want the pain to stop forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i just want the pain to stop forever tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I want to disappear forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i want to disappear forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man i want to disappear forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i want to disappear forever fr", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I wish I could disappear and never come back", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i wish i could disappear and never come back", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey i wish i could disappear and never come back", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i wish i could disappear and never come back rn", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "It would be easier if I just wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be easier if i just wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think it would be easier if i just wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be easier if i just wasn't here lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I don't think I want to be here anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't think i want to be here anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i don't think i want to be here anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't think i want to be here anymore lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I don't want to wake up anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't want to wake up anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl i don't want to wake up anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't want to wake up anymore tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Sometimes I think about not being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "sometimes i think about not being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man sometimes i think about not being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "sometimes i think about not being alive fr", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I think about not existing a lot", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think about not existing a lot", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey i think about not existing a lot", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think about not existing a lot rn", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "the world would be better without me in it", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think the world would be better without me in it", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "the world would be better without me in it lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I'm not going to be around much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm not going to be around much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i'm not going to be around much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm not going to be around much longer lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I won't be a problem for anyone soon", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i won't be a problem for anyone soon", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl i won't be a problem for anyone soon", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i won't be a problem for anyone soon tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I've been giving away all my things", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been giving away all my things", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "honestly i've been giving away all my things", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been giving away all my things lol", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I wrote goodbye letters to everyone", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i wrote goodbye letters to everyone", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "ngl i wrote goodbye letters to everyone", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i wrote goodbye letters to everyone tbh", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I've been saying goodbye to people", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been saying goodbye to people", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "idk man i've been saying goodbye to people", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been saying goodbye to people fr", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I made a plan to end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i made a plan to end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "lowkey i made a plan to end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i made a plan to end it rn", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I bought a rope", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i bought a rope", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i think i bought a rope", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i bought a rope lmao", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I have the pills ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i have the pills ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "honestly i have the pills ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i have the pills ready lol", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I looked up how many pills it would take", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i looked up how many pills it would take", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "ngl i looked up how many pills it would take", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i looked up how many pills it would take tbh", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I've been researching ways to die", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been researching ways to die", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "idk man i've been researching ways to die", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i've been researching ways to die fr", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "This is my last night", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "this is my last night", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "lowkey this is my last night", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "this is my last night rn", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "Tonight's the night I end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "tonight's the night i end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i think tonight's the night i end it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "tonight's the night i end it lmao", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I won't be here tomorrow", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i won't be here tomorrow", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "honestly i won't be here tomorrow", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i won't be here tomorrow lol", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "You won't hear from me after tonight", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "you won't hear from me after tonight", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "ngl you won't hear from me after tonight", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "you won't hear from me after tonight tbh", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I already know how I'd do it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i already know how i'd do it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "idk man i already know how i'd do it", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i already know how i'd do it fr", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "I put my affairs in order, I'm ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i put my affairs in order, i'm ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "lowkey i put my affairs in order, i'm ready", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "i put my affairs in order, i'm ready rn", "should": true, "kind": "warning_sign", "lang": "en"}
+{"text": "me quiero morir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "honestly me quiero morir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "quiero morirme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ngl quiero morirme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "no quiero vivir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "idk man no quiero vivir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "no quiero seguir viviendo", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "lowkey no quiero seguir viviendo", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "quiero matarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "i think quiero matarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "me voy a matar", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "honestly me voy a matar", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "pienso en suicidarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ngl pienso en suicidarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "estoy pensando en suicidarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "idk man estoy pensando en suicidarme", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "quisiera desaparecer para siempre", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "lowkey quisiera desaparecer para siempre", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "todos estarían mejor sin mí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "i think todos estarían mejor sin mí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "nadie me extrañaría si me muero", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "honestly nadie me extrañaría si me muero", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ya no aguanto más, quiero morir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ngl ya no aguanto más, quiero morir", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "no le veo sentido a la vida", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "idk man no le veo sentido a la vida", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ojalá no despertara mañana", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "lowkey ojalá no despertara mañana", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "me quiero quitar la vida", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "i think me quiero quitar la vida", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "estoy pensando en hacerme daño", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "honestly estoy pensando en hacerme daño", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "me he estado cortando", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ngl me he estado cortando", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "ya no quiero estar aquí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "idk man ya no quiero estar aquí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "quiero acabar con todo", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "lowkey quiero acabar con todo", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "mi familia estaría mejor sin mí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "i think mi familia estaría mejor sin mí", "should": true, "kind": "spanish", "lang": "es"}
+{"text": "I'm dying of laughter", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying of laughter", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly i'm dying of laughter", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying of laughter lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this is killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl this is killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this is killing me tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my feet are killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man my feet are killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my feet are killing me fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'd die for some tacos", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'd die for some tacos", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey i'd die for some tacos", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'd die for some tacos rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I could die of embarrassment", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i could die of embarrassment", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think i could die of embarrassment", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i could die of embarrassment lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "kill me now, this meeting is endless", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly kill me now, this meeting is endless", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "kill me now, this meeting is endless lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm dead 😭", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dead 😭", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl i'm dead 😭", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dead 😭 tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I literally died at that video", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i literally died at that video", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man i literally died at that video", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i literally died at that video fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that joke killed", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey that joke killed", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that joke killed rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "she killed it on stage", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think she killed it on stage", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "she killed it on stage lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "we were just killing time", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly we were just killing time", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "we were just killing time lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "can you kill the lights", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl can you kill the lights", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "can you kill the lights tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "kill the engine", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man kill the engine", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "kill the engine fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my phone is dying", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey my phone is dying", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my phone is dying rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my laptop battery died", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think my laptop battery died", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my laptop battery died lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my plant died", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly my plant died", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my plant died lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "the party's dead", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl the party's dead", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "the party's dead tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "the partys dead", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm dead tired", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dead tired", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man i'm dead tired", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dead tired fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this deadline is killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey this deadline is killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this deadline is killing me rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm dying to see that movie", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying to see that movie", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think i'm dying to see that movie", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying to see that movie lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm dying to know what happens", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying to know what happens", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly i'm dying to know what happens", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying to know what happens lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I would kill for a nap right now", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i would kill for a nap right now", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl i would kill for a nap right now", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i would kill for a nap right now tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "if my mom finds out she'll kill me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man if my mom finds out she'll kill me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "if my mom finds out she'll kill me fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "if my mom finds out shell kill me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my brother is gonna kill me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey my brother is gonna kill me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my brother is gonna kill me rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "you're killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think you're killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "you're killing me lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "youre killing me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this traffic is murder", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly this traffic is murder", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "this traffic is murder lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm starving to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm starving to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl i'm starving to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm starving to death tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm bored to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm bored to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man i'm bored to death", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm bored to death fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm scared to death of spiders", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm scared to death of spiders", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey i'm scared to death of spiders", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm scared to death of spiders rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm drowning in emails", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm drowning in emails", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think i'm drowning in emails", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm drowning in emails lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm so tired I could sleep for a week", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm so tired i could sleep for a week", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly i'm so tired i could sleep for a week", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm so tired i could sleep for a week lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that workout almost killed me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl that workout almost killed me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that workout almost killed me tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "the heat is killing my plants", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man the heat is killing my plants", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "the heat is killing my plants fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm dying in this heat", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying in this heat", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey i'm dying in this heat", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm dying in this heat rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "these shoes are killing my feet", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think these shoes are killing my feet", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "these shoes are killing my feet lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my boss will murder me if I'm late", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my boss will murder me if i'm late", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "honestly my boss will murder me if i'm late", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "my boss will murder me if i'm late lol", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I nearly died laughing", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i nearly died laughing", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ngl i nearly died laughing", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i nearly died laughing tbh", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that test destroyed me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "idk man that test destroyed me", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "that test destroyed me fr", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "I'm so done with this homework", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm so done with this homework", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "lowkey i'm so done with this homework", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i'm so done with this homework rn", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ugh just end me, mondays are the worst", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i think ugh just end me, mondays are the worst", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "ugh just end me, mondays are the worst lmao", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "how do I kill a process in linux", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i kill a process in linux", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "honestly how do i kill a process in linux", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i kill a process in linux lol", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do I kill weeds without chemicals", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i kill weeds without chemicals", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "ngl how do i kill weeds without chemicals", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i kill weeds without chemicals tbh", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "I keep dying on this level", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i keep dying on this level", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "idk man i keep dying on this level", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i keep dying on this level fr", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "my character died again", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "lowkey my character died again", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "my character died again rn", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "the boss fight killed me five times", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i think the boss fight killed me five times", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "the boss fight killed me five times lmao", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "let's end the call", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "honestly let's end the call", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "let's end the call lol", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "lets end the call", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "I want to end this game early", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i want to end this game early", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "ngl i want to end this game early", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i want to end this game early tbh", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "end it already, the movie is too long", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "idk man end it already, the movie is too long", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "end it already, the movie is too long fr", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "we killed the zombie horde", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "lowkey we killed the zombie horde", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "we killed the zombie horde rn", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "kill switch on the generator", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i think kill switch on the generator", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "kill switch on the generator lmao", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "this app keeps killing my battery", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "honestly this app keeps killing my battery", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "this app keeps killing my battery lol", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "the server died again", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "ngl the server died again", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "the server died again tbh", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "my car died on the highway", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "idk man my car died on the highway", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "my car died on the highway fr", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "killing it at work lately", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "lowkey killing it at work lately", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "killing it at work lately rn", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "I want to end my subscription", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i want to end my subscription", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i think i want to end my subscription", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i want to end my subscription lmao", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do I end a sentence with a preposition", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i end a sentence with a preposition", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "honestly how do i end a sentence with a preposition", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "how do i end a sentence with a preposition lol", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "I'm done with this show", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i'm done with this show", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "ngl i'm done with this show", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i'm done with this show tbh", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "end the stream", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "idk man end the stream", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "end the stream fr", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "this level is impossible, I give up", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "this level is impossible, i give up", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "lowkey this level is impossible, i give up", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "this level is impossible, i give up rn", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "I give up on this puzzle", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i give up on this puzzle", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i think i give up on this puzzle", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i give up on this puzzle lmao", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "Suicide Squad was better than I expected", "should": false, "kind": "media", "lang": "en"}
+{"text": "suicide squad was better than i expected", "should": false, "kind": "media", "lang": "en"}
+{"text": "honestly suicide squad was better than i expected", "should": false, "kind": "media", "lang": "en"}
+{"text": "suicide squad was better than i expected lol", "should": false, "kind": "media", "lang": "en"}
+{"text": "the car has suicide doors", "should": false, "kind": "media", "lang": "en"}
+{"text": "ngl the car has suicide doors", "should": false, "kind": "media", "lang": "en"}
+{"text": "the car has suicide doors tbh", "should": false, "kind": "media", "lang": "en"}
+{"text": "I love the song Kill This Love", "should": false, "kind": "media", "lang": "en"}
+{"text": "i love the song kill this love", "should": false, "kind": "media", "lang": "en"}
+{"text": "idk man i love the song kill this love", "should": false, "kind": "media", "lang": "en"}
+{"text": "i love the song kill this love fr", "should": false, "kind": "media", "lang": "en"}
+{"text": "Kill Bill is my favorite movie", "should": false, "kind": "media", "lang": "en"}
+{"text": "kill bill is my favorite movie", "should": false, "kind": "media", "lang": "en"}
+{"text": "lowkey kill bill is my favorite movie", "should": false, "kind": "media", "lang": "en"}
+{"text": "kill bill is my favorite movie rn", "should": false, "kind": "media", "lang": "en"}
+{"text": "we watched a documentary about killer whales", "should": false, "kind": "media", "lang": "en"}
+{"text": "i think we watched a documentary about killer whales", "should": false, "kind": "media", "lang": "en"}
+{"text": "we watched a documentary about killer whales lmao", "should": false, "kind": "media", "lang": "en"}
+{"text": "the killer in that show was so obvious", "should": false, "kind": "media", "lang": "en"}
+{"text": "honestly the killer in that show was so obvious", "should": false, "kind": "media", "lang": "en"}
+{"text": "the killer in that show was so obvious lol", "should": false, "kind": "media", "lang": "en"}
+{"text": "I just finished a murder mystery book", "should": false, "kind": "media", "lang": "en"}
+{"text": "i just finished a murder mystery book", "should": false, "kind": "media", "lang": "en"}
+{"text": "ngl i just finished a murder mystery book", "should": false, "kind": "media", "lang": "en"}
+{"text": "i just finished a murder mystery book tbh", "should": false, "kind": "media", "lang": "en"}
+{"text": "the Grateful Dead are playing tonight", "should": false, "kind": "media", "lang": "en"}
+{"text": "the grateful dead are playing tonight", "should": false, "kind": "media", "lang": "en"}
+{"text": "idk man the grateful dead are playing tonight", "should": false, "kind": "media", "lang": "en"}
+{"text": "the grateful dead are playing tonight fr", "should": false, "kind": "media", "lang": "en"}
+{"text": "Dead Poets Society made me cry", "should": false, "kind": "media", "lang": "en"}
+{"text": "dead poets society made me cry", "should": false, "kind": "media", "lang": "en"}
+{"text": "lowkey dead poets society made me cry", "should": false, "kind": "media", "lang": "en"}
+{"text": "dead poets society made me cry rn", "should": false, "kind": "media", "lang": "en"}
+{"text": "I'm watching The Walking Dead", "should": false, "kind": "media", "lang": "en"}
+{"text": "i'm watching the walking dead", "should": false, "kind": "media", "lang": "en"}
+{"text": "i think i'm watching the walking dead", "should": false, "kind": "media", "lang": "en"}
+{"text": "i'm watching the walking dead lmao", "should": false, "kind": "media", "lang": "en"}
+{"text": "my grandpa died last year and I still miss him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my grandpa died last year and i still miss him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "honestly my grandpa died last year and i still miss him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my grandpa died last year and i still miss him lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my dog died and I'm really sad", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my dog died and i'm really sad", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "ngl my dog died and i'm really sad", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my dog died and i'm really sad tbh", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm so stressed about finals", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so stressed about finals", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "idk man i'm so stressed about finals", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so stressed about finals fr", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I had the worst day ever", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i had the worst day ever", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "lowkey i had the worst day ever", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i had the worst day ever rn", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm exhausted, work was brutal", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm exhausted, work was brutal", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i think i'm exhausted, work was brutal", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm exhausted, work was brutal lmao", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm so lonely lately", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so lonely lately", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "honestly i'm so lonely lately", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so lonely lately lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I got fired today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i got fired today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "ngl i got fired today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i got fired today tbh", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my girlfriend broke up with me", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "idk man my girlfriend broke up with me", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my girlfriend broke up with me fr", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I failed my driving test", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i failed my driving test", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "lowkey i failed my driving test", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i failed my driving test rn", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I feel like nobody texts me back", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i feel like nobody texts me back", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i think i feel like nobody texts me back", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i feel like nobody texts me back lmao", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm really anxious about tomorrow", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm really anxious about tomorrow", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "honestly i'm really anxious about tomorrow", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm really anxious about tomorrow lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm sad today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm sad today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "ngl i'm sad today", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm sad today tbh", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my mom is in the hospital", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "idk man my mom is in the hospital", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "my mom is in the hospital fr", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I can't sleep again", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i can't sleep again", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "lowkey i can't sleep again", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i can't sleep again rn", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm overwhelmed with everything", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm overwhelmed with everything", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i think i'm overwhelmed with everything", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm overwhelmed with everything lmao", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I feel really down this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i feel really down this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "honestly i feel really down this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i feel really down this week lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm tired of my job", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm tired of my job", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "ngl i'm tired of my job", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm tired of my job tbh", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm sick of my roommate", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm sick of my roommate", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "idk man i'm sick of my roommate", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm sick of my roommate fr", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm done with my ex", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm done with my ex", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "lowkey i'm done with my ex", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm done with my ex rn", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "what's the point of this meeting", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i think what's the point of this meeting", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "what's the point of this meeting lmao", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "whats the point of this meeting", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "there's no point in arguing with him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "honestly there's no point in arguing with him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "there's no point in arguing with him lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "theres no point in arguing with him", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm over it", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm over it", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "ngl i'm over it", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm over it tbh", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I can't do this homework anymore lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i can't do this homework anymore lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "idk man i can't do this homework anymore lol", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i can't do this homework anymore lol fr", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "I'm so over this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so over this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "lowkey i'm so over this week", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "i'm so over this week rn", "should": false, "kind": "grief_and_hard", "lang": "en"}
+{"text": "the tomatoes died in the frost", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly the tomatoes died in the frost", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the tomatoes died in the frost lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my grandma always said she'd die before she wore sneakers", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl my grandma always said she'd die before she wore sneakers", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my grandma always said she'd die before she wore sneakers tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my grandma always said shed die before she wore sneakers", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the batteries in the remote are dead", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man the batteries in the remote are dead", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the batteries in the remote are dead fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "we're going to kill it at the talent show", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "lowkey we're going to kill it at the talent show", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "we're going to kill it at the talent show rn", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "were going to kill it at the talent show", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "that dress is to die for", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i think that dress is to die for", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "that dress is to die for lmao", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "I'm so over this weather", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm so over this weather", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly i'm so over this weather", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm so over this weather lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my team got killed in the playoffs", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl my team got killed in the playoffs", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my team got killed in the playoffs tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the meeting is dead in the water", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man the meeting is dead in the water", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the meeting is dead in the water fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "I could kill for a burger right now", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i could kill for a burger right now", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "lowkey i could kill for a burger right now", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i could kill for a burger right now rn", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the fish in my tank died", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i think the fish in my tank died", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the fish in my tank died lmao", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "dead end job vibes today", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly dead end job vibes today", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "dead end job vibes today lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "she's dying her hair pink this weekend", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl she's dying her hair pink this weekend", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "she's dying her hair pink this weekend tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "shes dying her hair pink this weekend", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the zoom call died mid sentence", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man the zoom call died mid sentence", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the zoom call died mid sentence fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "I bombed my presentation, I want to crawl into a hole", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i bombed my presentation, i want to crawl into a hole", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "lowkey i bombed my presentation, i want to crawl into a hole", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i bombed my presentation, i want to crawl into a hole rn", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the deadline is tomorrow and I'm dead", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the deadline is tomorrow and i'm dead", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i think the deadline is tomorrow and i'm dead", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the deadline is tomorrow and i'm dead lmao", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "this soup is killer", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly this soup is killer", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "this soup is killer lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my diet is killing my vibe", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl my diet is killing my vibe", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my diet is killing my vibe tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "game over, I lost the bet", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "game over, i lost the bet", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man game over, i lost the bet", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "game over, i lost the bet fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the wifi keeps dying", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "lowkey the wifi keeps dying", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the wifi keeps dying rn", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "they killed off my favorite character", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i think they killed off my favorite character", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "they killed off my favorite character lmao", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "I'm ending my lease next month", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm ending my lease next month", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly i'm ending my lease next month", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm ending my lease next month lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "end of the road for this old car", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl end of the road for this old car", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "end of the road for this old car tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my ex is dead to me lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man my ex is dead to me lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my ex is dead to me lol fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "I'm done for the day", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm done for the day", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "lowkey i'm done for the day", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm done for the day rn", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "goodbye forever to my old laptop", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i think goodbye forever to my old laptop", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "goodbye forever to my old laptop lmao", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "me muero de risa", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "honestly me muero de risa", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "me muero de hambre", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "ngl me muero de hambre", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "me muero de sueño", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "idk man me muero de sueño", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "este calor me mata", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "lowkey este calor me mata", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "me muero por verte", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "i think me muero por verte", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "este trabajo me está matando", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "honestly este trabajo me está matando", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "mi mamá me va a matar", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "ngl mi mamá me va a matar", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "me muero de ganas de ir", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "idk man me muero de ganas de ir", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "estoy muerta de cansancio", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "lowkey estoy muerta de cansancio", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "me quiero morir de la vergüenza jaja", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "i think me quiero morir de la vergüenza jaja", "should": false, "kind": "spanish", "lang": "es"}

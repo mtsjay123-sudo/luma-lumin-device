@@ -86,6 +86,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           python scripts/human_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+      - name: The safety net, with this brain answering Luma's one plain question
+        run: python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -170,7 +172,7 @@ jobs:
           for key in stock-4b own-4b stock-1.7b own-1.7b; do
             if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
           done
-          files="$files $(ls pair-*.json 2>/dev/null | tr '\n' ' ')"
+          files="$files $(ls pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
           cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
           (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

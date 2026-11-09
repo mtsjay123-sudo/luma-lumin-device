@@ -69,7 +69,8 @@ class MissTests(unittest.TestCase):
         self.assertTrue(friendcheck.at_risk("what's the point of living"))
         self.assertTrue(friendcheck.at_risk("i'm done. with all of it."))
         self.assertTrue(friendcheck.at_risk("I don't think anyone would even miss me."))
-        self.assertFalse(friendcheck.at_risk("i'm so done with life lmao my mom saw my texts"))
+        self.assertTrue(friendcheck.at_risk("i'm so done with life lmao my mom saw my texts"),
+                        "masked with a laugh, a friend still checks, gently (the crisis corpus)")
         self.assertFalse(friendcheck.at_risk("i just want everything to stop beeping"))
         self.assertFalse(friendcheck.at_risk("what's the point of trying lol this game is rigged"))
 
