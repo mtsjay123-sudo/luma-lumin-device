@@ -60,6 +60,19 @@ class TheFixes(unittest.TestCase):
         self.assertEqual(self.fix("Let me know if you need anything else. That's what I'm here for."),
                          "Let me know if you need anything else. That's what I'm here for.")
 
+    def test_an_example_from_lumas_instructions_comes_out(self):
+        """Human Test v2, runs 2 and 5: the stock 1.7B answered news about a house with the sneaker example in Luma's
+        instructions, and someone whose dad had just died with "You got cut off after 'idk'."."""
+        self.assertEqual(self.fix("That's amazing, congrats! Jordans if you're actually gonna wear them out. If comfort's the move, "
+                                  "New Balances all day.", "we just got the keys to our first apartment!!"), "That's amazing, congrats!")
+        self.assertTrue(style.copied_example("You got cut off after 'idk'.", "my grandpa passed this morning idk how to feel"))
+        self.assertTrue(style.copied_example("If you're nervous, practice 'tell me about yourself' and you'll be fine.", "should i call him first or wait"))
+        self.assertIsNone(style.copied_example("You got cut off there. Remind you to what?", "remind me to"), "really cut off")
+        self.assertIsNone(style.copied_example("So you want to practice tell me about yourself again?",
+                                               "can we practice tell me about yourself again"), "their own words")
+        self.assertIsNone(style.copied_example("Black goes with everything, and it'll still look sharp next year.", "black or white hoodie"))
+        self.assertNotIn("You got cut off after", prompts.IDENTITY, "no ready-made line to copy")
+
     def test_no_joke_in_the_bank_invents_a_family_or_a_body(self):
         made_up = [b for items in humor_bank.BANK.values() for _, b in items if style.invented_life(b) or style.claims_human(b)]
         self.assertEqual(made_up, [])
@@ -174,6 +187,57 @@ class InLuma(unittest.TestCase):
         out = self.agent.chat("under 50 bucks")["text"]
         self.assertNotIn("lost my train of thought", out)
         self.assertIn("climbing tape", out)
+
+    def test_a_reply_that_only_copies_an_example_gets_one_more_try(self):
+        for extra in ("think_first", "deliberate", "deep_mind"):
+            self.store.set_setting(extra, False)  # one trip per reply, as on a $250 device
+        self.brain("You got cut off after 'idk'.", "Oh no. I'm so sorry about your grandpa. I'm right here with you.")
+        out = self.agent.chat("my grandpa passed this morning and idk how to feel")["text"]
+        self.assertNotIn("cut off", out)
+        self.assertIn("grandpa", out)
+
+    def test_told_something_or_asked_for_a_take_nothing_gets_made_or_sent(self):
+        """Human Test v2, run 5: Luma's own 4B met a widower eating alone with "Done. I'll send you your day every day", and
+        "should i text him first" with a draft text."""
+        offered = self.agent.available_tools
+        for said in ["I make coffee for one every morning now since she left.", "its 2am and i have nobody to text",
+                     "should i text her back tonight or wait till tomorrow", "be honest, is it weird to email my old boss"]:
+            self.assertFalse({"helpers.create", "messages.prepare", "mail.draft", "tasks.create", "tasks.in"} & set(offered(said)), said)
+        self.assertIn("messages.prepare", offered("text my sister that i'm running late"))
+        self.assertIn("messages.prepare", offered("should i text him? actually just write one for me"), "a take, then a request")
+        self.assertIn("tasks.in", offered("remind me in 20 minutes to take the bread out"))
+        self.assertNotIn("web.search", offered("sat in traffic for three hours and missed the whole thing"))
+        self.assertIn("web.search", offered("what are the store hours for the target on main street"))
+
+    def test_a_look_up_nobody_asked_for_that_fails_is_never_read_out(self):
+        """Human Test v2, run 5: a vent about the DMV got "I need my browser tools to look things up." as the whole reply."""
+        from luma.integrations.providers import ProviderError
+
+        def broken(query):
+            raise ProviderError("I need my browser tools to look things up. Reinstall Luma's tools from Settings.")
+        self.agent.search_web = broken
+
+        def planner(messages, context, allowed, mode):
+            if "web.search" in allowed:
+                return {"type": "tool", "name": "web.search", "arguments": {"query": "best mattress reviews"}}
+            return {"type": "reply", "text": "Ugh, mattress shopping is the worst. What's bugging you most?"}
+        self.agent.planner = planner
+        out = self.agent.chat("i read like fifty mattress reviews tonight and i'm more confused than before")["text"]
+        self.assertNotIn("browser tools", out)
+        self.assertIn("mattress shopping", out)
+
+    def test_a_question_copied_from_the_rewrite_examples_isnt_asked(self):
+        """Human Test v2: the stock 1.7B rewrote "no wait stop" into "What time do you want to stop, so I can remind you then?",
+        its own example's question."""
+        def planner(messages, context, allowed, mode):
+            if str(messages[-1].get("content")).startswith("Rewrite the LAST message"):
+                return {"type": "reply", "text": "ASK: What time is the meeting, so I can remind you then?"}
+            return {"type": "reply", "text": "Oh nice, more time to get ready then."}
+        planner.understands = True
+        self.agent.planner = planner
+        self.assertEqual(self.agent.chat("the meeting got moved to tomorrow")["text"], "Oh nice, more time to get ready then.")
+        self.assertTrue(self.agent._copied_ask("What time do you want to stop, so I can remind you then?", "no wait stop"))
+        self.assertFalse(self.agent._copied_ask("What time do you get off, so I can remind you then?", "remind me to grab milk when i get off work"))
 
     def test_going_back_over_it_can_use_the_same_words(self):
         from luma.agent.runtime import ASKED_AGAIN

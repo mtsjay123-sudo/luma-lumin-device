@@ -4,6 +4,7 @@ machine away, in one place. The human test (scripts/human_eval.py) counts them i
 """
 from __future__ import annotations
 
+import functools
 import re
 
 # Customer-service lines: what makes someone feel they're talking to a help desk.
@@ -77,6 +78,54 @@ def invented_life(text):
 
 def markdown(text):
     return bool(MARKDOWN.search(str(text or "")))
+
+
+# Lifted from Luma's own instructions. Small brains copy the examples whole: the stock 1.7B answered "we finally closed on the
+# house" with the sneaker example ("Jordans if you're actually gonna wear them out...") and told someone whose dad had just
+# died "You got cut off after 'idk'." (Human Test v2, runs 2 and 5). Five words in a row is a copy, not a coincidence.
+CUT_OFF_CLAIM = re.compile(r"\b(?:you|u) (?:got|get|were|was) cut off\b", re.I)
+RUN = 5
+
+
+def _plain_words(text):
+    """Lowercase words, with quote marks taken off ('tell me about yourself' is the same words as "tell me about yourself")."""
+    return [w for w in (w.strip("'") for w in WORD.findall(str(text or "").replace("’", "'").lower())) if w]
+
+
+def _runs(found, n=RUN):
+    return {tuple(found[i:i + n]) for i in range(len(found) - n + 1)}
+
+
+def lifted(text, examples, said="", n=RUN):
+    """The example a reply took n or more words in a row from, or None. A run counts when at least two of its longer words
+    aren't theirs: "you want to practice tell me about yourself" is fine when they asked to practice it."""
+    theirs = set(_plain_words(said))
+    mine = {run for run in _runs(_plain_words(text), n) if sum(len(w) >= 4 and w not in theirs for w in run) >= 2}
+    if not mine:
+        return None
+    return next((example.strip() for example in examples if mine & _runs(_plain_words(example), n)), None)
+
+
+@functools.lru_cache(maxsize=1)
+def _instruction_examples():
+    from luma.llm import prompts
+    return tuple(line.split(":", 1)[1] for line in prompts.IDENTITY.splitlines() if line.startswith("Luma:"))
+
+
+def copied_example(text, said=""):
+    """What a reply copied from the examples in Luma's instructions, or "you got cut off" when nothing was cut off; None if
+    it's its own words."""
+    found = CUT_OFF_CLAIM.search(str(text or ""))
+    if found:
+        from luma.agent import understanding
+        if not understanding.cut_off(said):
+            return found.group(0)
+    return lifted(text, _instruction_examples(), said)
+
+
+def without_copies(text, said=""):
+    """The reply without the sentences it copied ("" when that was all of it)."""
+    return _join(p for p in split_sentences(text) if not copied_example(p, said))
 
 
 def questions(text):
@@ -211,7 +260,7 @@ def friend_style(reply, said="", hurt_recently=False, depth=None):
     if honest is not None:
         text, fixes = honest, fixes + ["claimed human"]
     rules = [("help desk", lambda s: bool(assistantisms(s))), ("pamphlet", lambda s: bool(therapy_speak(s))),
-             ("made-up life", lambda s: bool(invented_life(s)))]
+             ("made-up life", lambda s: bool(invented_life(s))), ("copied an example", lambda s: bool(copied_example(s, said)))]
     for name, bad in rules:
         parts = split_sentences(text)
         kept = _drop(parts, bad)

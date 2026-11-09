@@ -389,6 +389,50 @@ STORY = re.compile(r"\b(?:my|our) (?:\w+ ){0,2}?(?:boss|manager|mom|mama|mother|
                    r"\b(?:died|passed away|yesterday|last (?:night|week|month|year)|at work|this morning)\b", re.I)
 
 
+# What makes, sends or sets something up for them. Told something ("I eat dinner by myself every night now") or asked for an
+# opinion ("should i text him first"), the brain doesn't get these: a friend answers, it doesn't start a job. (Human Test v2,
+# run 5: Luma's own 4B answered a widower eating alone with "Done. I'll send you your day every day".)
+MAKES = {"app.create", "deck.create", "doc.create", "helpers.create", "routines.create", "tasks.create", "tasks.in", "messages.prepare",
+         "mail.draft", "computer.open_app", "computer.run", "computer.shortcut", "computer.shortcuts", "computer.ui_press",
+         "computer.ui_type", "browser.click", "browser.type"}
+OPINION = re.compile(r"^(?:should (?:i|we)|is it (?:weird|rude|bad|wrong|normal|ok(?:ay)?|crazy|dumb|stupid|too|worth)|"
+                     r"am i (?:wrong|crazy|overreacting|being|the)|would you rather|do you think|what do you think|what would you do|"
+                     r"which (?:one|is better)|(?:be )?(?:honest(?:ly)?|real(?: talk)?|straight)(?: with me)?)\b", re.I)
+REQUEST = re.compile(r"\b(?:i (?:want|need|would like|'?d like|wanna|'?d love)|(?:give|send|get|show|tell|brief|update|ping|remind|help|"
+                     r"make|text|email|let) me\b|keep me posted|for me\b)", re.I)
+
+
+def asks_for_something(text):
+    """A question or a request, in any form people use ("remind me", "can you", "i want a daily summary", "send me the news
+    every morning"). "I eat dinner by myself every night now" asks for nothing."""
+    from luma.agent.scenarios import IMPERATIVE
+    said = str(text or "")
+    if "?" in said:
+        return True
+    plain = CHATTER.sub("", understanding.normalize(said))
+    return bool(IMPERATIVE.match(plain) or ASKING.search(plain) or ASKING.search(said.lower()) or REQUEST.search(plain))
+
+
+# How telling starts: about themselves, someone in their life, or what happened ("i eat dinner by myself every night now",
+# "waited two hours at the dmv"). "in notes click new note" is a job, however it starts.
+TELLING = re.compile(r"^(?:i|i'?m|i'?ve|i'?d|i'?ll|im|ive|my|me|we|we'?re|we'?ve|our|he|she|they|his|her|their|it'?s|its|there'?s|that'?s|"
+                     r"nobody|no one|everyone|everybody|somebody|someone|today|tonight|yesterday|this (?:morning|week|year)|"
+                     r"last (?:night|week|month|year)|been|just|got|had|was|waited|spent|ate|went|lost|forgot|missed|finally)\b", re.I)
+
+
+def just_telling(text):
+    """Telling Luma something, not asking it for anything (lead-ins like "ugh" and "ngl" don't count)."""
+    plain = CHATTER.sub("", understanding.normalize(str(text or "")))
+    return bool(TELLING.match(plain)) and not asks_for_something(text)
+
+
+def wants_a_take(text):
+    """Asking what Luma thinks ("should i text him first", "be honest, is it weird..."), not asking it to do anything
+    ("should i text him? just write one for me" asks for both)."""
+    plain = CHATTER.sub("", understanding.normalize(str(text or "")))
+    return bool(OPINION.match(plain)) and not REQUEST.search(plain)
+
+
 def just_talking(text):
     """Laughing, venting or grieving about something and not asking for anything: a friend just talks back. "lmao my boss
     scheduled a meeting at 4:59 on a friday" is a story, not a calendar question, and nobody needs a stock price in it."""
@@ -629,7 +673,7 @@ class Agent:
             (r"\b(?:recipe|cooking|next step|previous step)\b", {"cooking.step"}),
             (r"\b(?:household|pantry|manual|warranty|maintenance|save|where)\b", {"household.save", "household.find"}),
             (r"\b(?:briefing|my day|today's plans)\b", {"briefing.today", "tasks.list"}),
-            (r"\b(?:search|look (?:it |that )?up|google|find online|research|latest|current|news|weather|forecast|scores?|who won|stock price|open now|hours|near me|reviews?|release date|what happened|price of|how much)\b", {"web.search"}),
+            (r"\b(?:search|look (?:it |that )?up|google|find online|research|latest|current|news|weather|forecast|scores?|who won|stock price|open now|(?:opening|store|business|office) hours|hours (?:today|tomorrow|tonight|this weekend|on \w+day)|what are (?:the|their|its) hours|near me|reviews?|release date|what happened|price of|how much)\b", {"web.search"}),
             (r"\b(?:appointment|availability|book|booking)\b", {"booking.availability"}),
             (r"\b(?:lights?|brightness)\b", {"home.light"}),
             (r"\b(?:talk|speak|style|tone|reply|replies)\b", {"personality.set_style"}),
@@ -663,6 +707,8 @@ class Agent:
         relevant.update(self._connector_tools_for(lowered))
         if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type", "computer.run", "computer.shortcuts", "computer.shortcut"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
+        if not agent_mode and (just_telling(text) or wants_a_take(text)):
+            allowed = {name: spec for name, spec in allowed.items() if name not in MAKES}
         if not wants_message(text): allowed.pop("messages.prepare", None)
         if "messages.prepare" in allowed:
             allowed["messages.prepare"]["saved_contact_names"] = [c["name"] for c in sorted(self.contacts.list(), key=lambda c: c["name"].casefold() not in text.casefold())[:24]]
@@ -2437,6 +2483,34 @@ class Agent:
         head = f"On it — {len(steps)} things." + (f" {waiting} {'is' if waiting == 1 else 'are'} waiting for your OK below." if waiting else "")
         return {"text": head + "\n\n" + "\n".join(lines), "steps": done}
 
+    UNDERSTAND_EXAMPLES = ("shceudle me an emial tmrw 9am saying call the bank -> Schedule an email to me tomorrow at 9am saying call the bank.\n"
+                           "wat r the big headlnes last 6 hrs -> Tell me the news from the last 6 hours.\n"
+                           "how do i hook up my gmail -> Connect my email.\n"
+                           "hit up jay about the thing -> ASK: Want me to text Jay or email him, and what should it say?\n"
+                           "remnd me to grab milk wen i get off -> ASK: What time do you get off, so I can remind you then?\n"
+                           "ugh today was so long -> CHAT\n"
+                           "findd cheapest airpods -> Find the cheapest AirPods.\n"
+                           "txt mom im omw then remind me at 5 to call sam -> 1. Text Mom: I'm on my way. 2. Remind me at 5pm to call Sam.\n")
+
+    ASK_ACTS = re.compile(r"\b(?:remind|text|e-?mail|message|call)", re.I)
+
+    def _copied_ask(self, asked, text):
+        """A clarifying question lifted from one of the rewrite's examples when their message is nothing like that example's:
+        "no wait stop" got "What time do you want to stop, so I can remind you then?" (the stock 1.7B, Human Test v2)."""
+        from luma.agent import style
+        said = understanding.normalize(text)
+        for line in self.UNDERSTAND_EXAMPLES.splitlines():
+            if "-> ASK:" not in line:
+                continue
+            theirs, back = line.split("-> ASK:", 1)
+            if not style.lifted(asked, [back], text):
+                continue
+            alike = {w for w in _words(understanding.normalize(theirs)).split() if len(w) >= 4} & set(_words(said).split())
+            same_act = {m.group(0).lower() for m in self.ASK_ACTS.finditer(back)} & {m.group(0).lower() for m in self.ASK_ACTS.finditer(said)}
+            if not alike and not same_act:
+                return True
+        return False
+
     def understand(self, text, cancel_event=None):
         """What they really mean, in one clear line. People type fast, misspell, ramble and talk to speech-to-text;
         the small model turns any of it into a plain instruction Luma's actions understand. 'CHAT' for conversation,
@@ -2448,15 +2522,7 @@ class Agent:
                   "If the last message is chatting, venting, joking or asking an opinion, answer exactly: CHAT\n"
                   "If it's a request but you can't tell what they want, answer ASK: and one short, friendly question.\n"
                   "If they ask for several things, write each as its own numbered line, in the order they said them.\n"
-                  "Examples:\n"
-                  "shceudle me an emial tmrw 9am saying call the bank -> Schedule an email to me tomorrow at 9am saying call the bank.\n"
-                  "wat r the big headlnes last 6 hrs -> Tell me the news from the last 6 hours.\n"
-                  "how do i hook up my gmail -> Connect my email.\n"
-                  "hit up jay about the thing -> ASK: Want me to text Jay or email him, and what should it say?\n"
-                  "remnd me to grab milk wen i get off -> ASK: What time do you get off, so I can remind you then?\n"
-                  "ugh today was so long -> CHAT\n"
-                  "findd cheapest airpods -> Find the cheapest AirPods.\n"
-                  "txt mom im omw then remind me at 5 to call sam -> 1. Text Mom: I'm on my way. 2. Remind me at 5pm to call Sam.\n"
+                  "Examples:\n" + self.UNDERSTAND_EXAMPLES
                   + ("Earlier:\n" + "\n".join(recent) + "\n" if recent else "") + f"Last message: {text}\nAnswer:")
         try:
             with self.lock:
@@ -4389,12 +4455,15 @@ class Agent:
                         return {"text": {"loss": "I'm so sorry. I'm here with you. Take all the time you need.",
                                          "lonely": "I'm really glad you're talking to me. I'm here. What's been going on?"}.get(
                                              hurt, "I'm sorry, that sounds really hard. I'm here. Tell me what happened?")}
-                    if "earlier reply again" in str(error):
-                        # Told once that it already said that, the brain said it again. One more try, plainly, before
-                        # asking them to repeat themselves (Human Test v2: "what should i get him" right after a gift idea).
-                        fresh = self._plain_answer(f"They just said: \"{text[:300]}\". You already answered something like that; answer "
-                                                   "this newest message with something new, in a line or two, like a friend would.", cancel_event)
-                        if fresh and not self._said_before(fresh) and not fresh.lstrip().startswith("{"):
+                    if "earlier reply again" in str(error) or "copied an example" in str(error):
+                        # Told once that it already said that (or that it copied an example), the brain did it again. One more
+                        # try, plainly, before asking them to repeat themselves (Human Test v2: "what should i get him" right after
+                        # a gift idea).
+                        from luma.agent import style
+                        ask = ("Answer it in your own words" if "copied an example" in str(error) else
+                               "You already answered something like that; answer this newest message with something new")
+                        fresh = self._plain_answer(f"They just said: \"{text[:300]}\". {ask}, in a line or two, like a friend would.", cancel_event)
+                        if fresh and not self._said_before(fresh) and not fresh.lstrip().startswith("{") and style.without_copies(fresh, text):
                             return {"text": self._friend_style(text, fresh)}
                     return {"text": "I lost my train of thought on that one. Say it again?"}
                 raise
@@ -6022,6 +6091,8 @@ class Agent:
                 if isinstance(clear, str) and _garbled(clear): clear = None
                 if isinstance(clear, str) and clear.upper().startswith("ASK:") and _words(clear[4:]).split()[:3] == _words(text).split()[:3]:
                     clear = None  # their own question handed back ("what should i cook tonight?") isn't asking what they meant
+                if isinstance(clear, str) and clear.upper().startswith("ASK:") and self._copied_ask(clear[4:], text):
+                    clear = None  # the example's question, not theirs ("no wait stop" got "What time do you want to stop, so I can remind you then?")
                 if isinstance(clear, list):
                     return self.run_steps(clear, cancel_event)
                 if clear and clear.upper().startswith("ASK:") and len(clear) > 6:
@@ -6063,6 +6134,12 @@ class Agent:
                         # The words are the point: show the draft, and how to send it once they're saved.
                         return {"text": f"Here's one for {who}:\n\n{body}\n\nWant me to text it? Add {who}'s number under People, then say \"text it to {who}\".", "section": "people"}
                     return {"text": str(error) + " Tell me their name and number, or add them under People.", "section": "people"}
+                if result.get("state") == "failed" and self._reads(name, arguments) and not asks_for_something(text) and not cancel_event.is_set():
+                    # Nobody asked to look anything up, and the look-up didn't work (no browser tools here): talk, never read an
+                    # error out. (Human Test v2: a DMV vent got "I need my browser tools to look things up.")
+                    talk = self._plain_answer(text, cancel_event)
+                    if talk and not talk.lstrip().startswith("{"):
+                        return {"text": self._friend_style(text, talk)}
                 # Do not include confirmation token or raw provider content in the LLM context.
                 if self._reads(name, arguments) and not cancel_event.is_set():
                     return self._follow_up(text, name, result, allowed, cancel_event)
@@ -6077,6 +6154,13 @@ class Agent:
                 # answer. One more try, told what it already said; the voice hasn't said it, so nobody hears it twice.
                 self._repeat_note = f"You already said this earlier in the talk: “{again[:160]}”. Answer their newest message, in new words."
                 raise ValueError("Local model returned no usable reply (it said an earlier reply again).")
+            from luma.agent import style
+            if style.copied_example(reply, text) and not style.without_copies(reply, text) \
+                    and not (getattr(self, "_streamed", None) or {}).get("spoken"):
+                # All of it lifted from the examples in its instructions (the stock 1.7B: "You got cut off after 'idk'." to someone
+                # whose dad had just died). Not an answer: one more try, told so, without the example in front of it again.
+                self._repeat_note = "Your last answer copied an example from your instructions. Answer their newest message in your own words."
+                raise ValueError("Local model returned no usable reply (it copied an example from its instructions).")
             reply = self._without_tics(reply)  # the same trim the voice made as it streamed
             if self.mode != "kids" and DENIES.search(reply):
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.
@@ -6090,7 +6174,11 @@ class Agent:
                     try:
                         return self.look_it_up(text, cancel_event)
                     except (ValueError, ProviderError) as error:
-                        return {"text": str(error)}
+                        from luma.agent import style
+                        rest = style._join(p for p in style.split_sentences(reply) if not (CANT_DO.search(p) or CLAIMED_LOOKUP.search(p)))
+                        if asks_for_something(text) or not rest:
+                            return {"text": str(error)}
+                        reply = rest  # they didn't ask to look anything up: keep talking, without the claim
             from luma.agent.mind import MATTERS, without_disclaimers
             if self._extra_look("deep_mind") and self.mode != "kids" and MATTERS.search(lowered) and not cancel_event.is_set():
                 reply = self.correct(reply, text, cancel_event)  # look again, catch a wrong or overconfident guess
