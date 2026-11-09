@@ -53,6 +53,8 @@ False alarms on the four everyday lines that must not get a safety reply: 0/4 be
 
 Where it got worse, by category (after vs before): Luma's own 4B on opinions (9 → 7 of 10), sarcasm (4 → 2 of 6), disagreement (2 → 1 of 8) and one-word replies (6 → 5 of 6); Luma's own small on loneliness (12 → 9 of 16), repair (4 → 2 of 6), grief anniversaries (4 → 2 of 4) and venting (4 → 3 of 10). Repair is low everywhere (0 to 4 of 6); the turn-shape note for it came after run 2.
 
+**The judge picks the stock brains** (Qwen3 8B, pairwise, a pick counts only when it holds with the order swapped). Luma's own 4B vs the stock 4B: 2 wins, 37 losses, 11 ties before (15%); 0, 37, 13 after (13%). Luma's own small vs the stock 1.7B: 14, 22, 14 before (42%); 11, 27, 12 after (34%). The deterministic checks favor Luma's own brains; the judge favors the stock ones' longer, livelier replies, and the cheap fixes cleaned up the stock brains' worst habits too. The target was 70% for Luma's own.
+
 ### The 10-moment test in the device lab
 
 | Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) |
