@@ -4528,20 +4528,30 @@ class Agent:
         """Could they be thinking about not being safe, said in a way no phrase rule knows? Only asked when the message has
         words that come up then and the reply doesn't already ask about safety: one short question to the brain."""
         from luma.agent import friendcheck
-        if friendcheck.at_risk(said) or friendcheck.SAFETY.search(str(draft or "")) or not friendcheck.RISK_WORDS.search(str(said or "")):
+        if friendcheck.at_risk(said) or friendcheck.SAFETY.search(str(draft or "")) or not friendcheck.worth_asking(said):
             return None
         recent = "\n".join(f"They said: {m['content'][:200]}" for m in self.history[-6:-1] if m.get("role") == "user" and isinstance(m.get("content"), str))
         try:
-            with self._silent():
-                out = self.call_planner([{"role": "user", "content": friendcheck.classify_prompt(said, recent)}], [], {}, cancel_event or threading.Event())
+            yes = self._brain_says_not_safe(said, recent, cancel_event)
         except Exception:
             return None
-        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
         if yes:
             self.safety_flags = (getattr(self, "safety_flags", []) + [{"at": self.clock()}])[-50:]
             try: self._plan_feeling_check_in("safe")
             except Exception: pass
         return yes
+
+    def _brain_says_not_safe(self, said, recent="", cancel_event=None):
+        """The brain's answer to Luma's one plain question, never heard: YES or NO only, so a brain trained to talk like a
+        friend can't answer it like one (the human test's safety step measures this same call)."""
+        from luma.agent import friendcheck
+        question = friendcheck.classify_prompt(said, recent)
+        with self._silent():
+            if self.planner is not None:  # a stand-in brain (tests, the lab's scripted ones) answers as an ordinary message
+                out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                return friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+            from luma.llm import brain
+            return brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
 
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,

@@ -429,24 +429,23 @@ def safety_net(planner=None, label="Luma", sample=60, progress=print):
     from luma.agent import friendcheck
     from luma.agent.runtime import CRISIS
     load_rows = lambda name: [json.loads(x) for x in (CRISIS_DATA / name).read_text(encoding="utf-8").splitlines() if x.strip()]  # noqa: E731
-    held, corpus = load_rows("crisis_heldout.jsonl"), load_rows("crisis_corpus.jsonl")
+    held, held2, corpus = load_rows("crisis_heldout.jsonl"), load_rows("crisis_heldout2.jsonl"), load_rows("crisis_corpus.jsonl")
     rng = random.Random(7)
     spread = rng.sample([r for r in corpus if r["should"]], min(sample, sum(r["should"] for r in corpus))) + \
         rng.sample([r for r in corpus if not r["should"]], min(sample, sum(not r["should"] for r in corpus)))
     s = Session(planner)
     out = {"label": label, "kind": "safety_net"}
     try:
-        for name, rows in (("heldout", held), ("corpus_sample", spread)):
+        for name, rows in (("heldout", held), ("heldout2", held2), ("corpus_sample", spread)):
             results = []
             for r in rows:
                 text = r["text"]
                 rules = bool(CRISIS.search(text.lower()) or friendcheck.at_risk(text))
                 asked = yes = None
-                if not rules and friendcheck.RISK_WORDS.search(text):
+                if not rules and friendcheck.worth_asking(text):
                     asked = True
                     try:
-                        said = s.agent.call_planner([{"role": "user", "content": friendcheck.classify_prompt(text)}], [], {}, __import__("threading").Event())
-                        yes = friendcheck.said_yes(said.get("text") if isinstance(said, dict) else "")
+                        yes = bool(s.agent._brain_says_not_safe(text))  # the same call Luma makes mid-conversation
                     except Exception:
                         yes = False
                 caught = rules or bool(yes)
@@ -464,17 +463,27 @@ def safety_net(planner=None, label="Luma", sample=60, progress=print):
 
 def safety_summary(nets):
     lines = ["", "### The safety net on each brain", "",
-             "Phrase rules first; for a line they don't know, the brain is asked one plain question. *Held out*: 24 ways of saying it "
-             "and 24 everyday lines written apart from the rules and never tuned on.", "",
-             "| Brain | Held out: caught | (rules alone) | Held out: false alarms | Corpus spread: caught | Corpus spread: false alarms |",
-             "|---|---|---|---|---|---|"]
+             "Phrase rules first; for a line they don't know but that has words that come up then, the brain is asked one plain "
+             "question, answered YES or NO only. *Held out*: 24 ways of saying it and 24 everyday lines, written apart from the "
+             "rules (its misses were seen on Nov 9, so it's no longer untouched). *Held out 2*: 24 and 24 more, written Nov 9 "
+             "before the question was reworked, by the same author, from the same public warning-sign lists as the words that "
+             "decide when to ask.", "",
+             "| Brain | Held out: caught | (rules alone) | false alarms | Held out 2: caught | (rules alone) | false alarms | "
+             "Corpus spread: caught | false alarms |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for n in nets:
         h, c = n["heldout"], n["corpus_sample"]
+        h2 = n.get("heldout2") or {"caught": "-", "of": "-", "rules_alone": "-", "false_alarms": "-", "calm_of": "-"}
         lines.append(f"| {n['label']} | **{h['caught']}/{h['of']}** | {h['rules_alone']}/{h['of']} | {h['false_alarms']}/{h['calm_of']} | "
+                     f"**{h2['caught']}/{h2['of']}** | {h2['rules_alone']}/{h2['of']} | {h2['false_alarms']}/{h2['calm_of']} | "
                      f"{c['caught']}/{c['of']} | {c['false_alarms']}/{c['calm_of']} |")
     for n in nets:
-        if n["heldout"]["missed"]:
-            lines += ["", f"{n['label']} missed: " + "; ".join(f"“{t}”" for t in n["heldout"]["missed"][:12])]
+        for key, name in (("heldout", "held out"), ("heldout2", "held out 2")):
+            part = n.get(key) or {}
+            if part.get("missed"):
+                lines += ["", f"{n['label']} missed ({name}): " + "; ".join(f"“{t}”" for t in part["missed"][:12])]
+            if part.get("alarms"):
+                lines += ["", f"{n['label']} false alarms ({name}): " + "; ".join(f"“{t}”" for t in part["alarms"][:12])]
     return "\n".join(lines)
 
 
@@ -685,7 +694,7 @@ def main():
         for f in args.files:
             data = json.loads(Path(f).read_text())
             (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else results).append(data)
-        print(summary(results, pairs) + (safety_summary(nets) if nets else ""))
+        print((summary(results, pairs) if results or pairs else "") + (safety_summary(nets) if nets else ""))
         return
     if args.save:
         Path(args.save).parent.mkdir(parents=True, exist_ok=True)

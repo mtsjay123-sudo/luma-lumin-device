@@ -89,6 +89,7 @@ MASKED = re.compile(r"\b(?:i )?(?:just )?(?:want|wanna|going|gonna|ready) (?:to 
 # Words that come up when someone might not be safe, said every which way ("i've been stockpiling my meds", "the only thing
 # stopping me is my dog"). Phrase rules can't keep up with how people say it (a fresh held-out set: rules alone caught 3 of
 # 24), so a message with any of these asks the brain one plain question (classify_prompt) before Luma answers without safety.
+# Never remove a word: the brain decides, these only decide when it's asked.
 RISK_WORDS = re.compile(r"\b(?:die|dying|dead|death|alive|exist(?:ing|ence)?|funeral|grave|suicid\w*|kill\w*|pills?|meds|medication|overdos\w*|"
                         r"hurt(?:ing)? myself|cut(?:s|ting)?|bleed\w*|blood|roof|bridge|tracks|train|wall|jump\w*|disappear\w*|vanish\w*|gone|"
                         r"goodbye|last (?:days?|night|time)|wake up|asleep|stay asleep|over for good|be over|end (?:it|this|things)|ending|burden|"
@@ -100,11 +101,46 @@ GENTLE_SAFETY = ("I'm really glad you told me, and I'm right here. Can I ask you
                  "If any part of you is, please call or text 988, any time, day or night. Talk to me.")
 
 
+# The warning signs on 988's and AFSP's public lists, in everyday words: a way to do it (and looking for one), goodbyes and
+# putting things in order, not being around later, feeling trapped or a burden. A second held-out set (Nov 9) had 20 risky
+# lines the phrase rules miss; RISK_WORDS reached 4 of them. These words come from the same public lists that set was written
+# from, so they reach all 20, and that number isn't independent. On Human Test v2's everyday lines they ask no more often than
+# before (11 of 242).
+WARNING_SIGNS = re.compile(
+    r"\b(?:razors?|blades?|ledge|edge of|balcony|platform|ocean|drown\w*|hang(?:ing)? myself|noose|painless|lethal|"
+    r"how (?:many|much)\b[^.?!]{0,30}\bwould (?:it )?take|(?:researching|looked up|looking up|googl\w+) (?:ways|how to)|"
+    r"letters? (?:to|for) (?:everyone|my)|(?:a |my )?notes? (?:to|for) (?:everyone|my)|my will\b|passwords|"
+    r"gave (?:away|my \w+ (?:away|to))|giving (?:away|my \w+ (?:away|to))|sorted (?:out )?(?:all )?my (?:stuff|things)|"
+    r"saying goodbye|said (?:my )?goodbyes?|thanks for (?:listening|everything)|"
+    r"won'?t (?:need|be (?:here|around|a problem|a burden))|much longer|getting (?:any )?older|"
+    r"sleep forever|for good|permanent(?:ly)?|find(?:ing)? me\b|at peace with|done fighting|"
+    r"trapped|unbearable|no way out|no reason to|burden|give(?:s)? out|nothing left|can'?t go on)", re.I)
+
+
+def worth_asking(said):
+    """Words that come up when someone might not be safe: the brain gets the plain question."""
+    said = str(said or "")
+    return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said))
+
+
+# A small brain asked straight out says YES to "this homework is killing me" (the stock 1.7B did to 20 of 60 everyday corpus
+# lines) or never says it at all (Luma's own small one, trained to talk like a friend, didn't once). So the question shows a
+# few of each, written for this and found in no test, and the brain's answer is held to YES or NO (luma.llm.inference.yes_or_no).
+NOT_A_HINT = ["this traffic is killing me", "my laptop died in the middle of a call", "lol i'm dead, that video got me",
+              "can this shift be over already", "first christmas without my dad is coming up"]
+A_HINT = ["i've been giving my things away", "i don't plan on being around much longer", "they'd all be relieved if i was gone",
+          "i've been researching ways to do it", "haha what if i just vanished for good"]
+
+
 def classify_prompt(said, recent=""):
-    """One plain question for the brain, short enough for a small one to answer well."""
-    return ((recent + "\n" if recent else "") + f"They just said: \"{str(said)[:400]}\"\n"
-            "Could they be thinking about suicide, dying, or hurting themselves, even as a hint, or as a joke that might not be a "
-            "joke? Answer with one word: YES or NO.")
+    """One plain question for the brain, short enough for a small one to answer well, with a few of each kind to go by."""
+    shown = lambda lines: " / ".join(f'"{x}"' for x in lines)  # noqa: E731
+    return ("Is this person hinting that they might end their life or hurt themselves? Quiet hints count: a plan, a way, goodbyes, "
+            "giving things away, not being around later, a dark joke that might not be a joke. Everyday exaggeration about a day, a "
+            "thing or a chore doesn't, and neither does missing someone who died.\n"
+            f"NO: {shown(NOT_A_HINT)}\nYES: {shown(A_HINT)}\n"
+            + (recent + "\n" if recent else "") + f"They just said: \"{str(said)[:400]}\"\n"
+            "Answer with one word: YES or NO.")
 
 
 def said_yes(answer):

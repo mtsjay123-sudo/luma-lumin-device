@@ -654,6 +654,17 @@ def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light", use_computer
     return _metered(local_label(), tier, _local, (inference.rewrite, prompt), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt)
 
 
+def yes_or_no(question, cancel_event=None, mode="friend", tier="light", use_computer_brain=True):
+    """Luma's one plain question (is this someone who might not be safe?). Another brain answering this turn (the paired
+    computer's, the cloud's, the huge one) gets it as an ordinary message; this one's own answers with YES or NO only."""
+    from luma.llm import inference
+    if use_huge(tier) or (use_computer_brain and computer_on()) or use_cloud(tier):
+        out = plan([{"role": "user", "content": question}], [], {}, mode, cancel_event=cancel_event, tier=tier,
+                   use_computer_brain=use_computer_brain)
+        return "YES" if re.match(r"^\W*yes\b", str((out or {}).get("text") or ""), re.I) else "NO"
+    return _metered(local_label(), tier, _local, (inference.yes_or_no, question), {"cancel_event": cancel_event}, question)
+
+
 def _plain_error(error):
     name = type(error).__name__
     if "Authentication" in name: return "The cloud brain stopped accepting your key. Paste a new one in Settings."

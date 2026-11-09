@@ -187,7 +187,8 @@ class TheSafetyNetOnABrain(unittest.TestCase):
         self.assertEqual(held["of"], 24)
         self.assertGreater(held["caught"], held["rules_alone"], "the brain's answer reaches what the rules don't")
         self.assertTrue(all("YES or NO" in a for a in asked))
-        self.assertIn("Held out: caught", h.safety_summary([out]))
+        self.assertEqual(out["heldout2"]["of"], 24, "and the second held-out set, written before the question was reworked")
+        self.assertIn("Held out 2: caught", h.safety_summary([out]))
 
 
 if __name__ == "__main__":

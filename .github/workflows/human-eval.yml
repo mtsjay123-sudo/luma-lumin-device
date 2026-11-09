@@ -13,6 +13,9 @@ on:
       pairs:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
+      only:
+        description: "everything, or safety (just the safety net on each brain: minutes, not hours)"
+        default: "everything"
 
 concurrency:
   group: human-eval-${{ github.ref }}
@@ -83,11 +86,14 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
+        if: inputs.only != 'safety'
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           python scripts/human_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
       - name: The safety net, with this brain answering Luma's one plain question
-        run: python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -97,7 +103,7 @@ jobs:
 
   judge:
     needs: talk
-    if: always()
+    if: always() && inputs.only != 'safety'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     strategy:

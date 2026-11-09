@@ -487,6 +487,38 @@ def _rewrite_here(prompt: str, max_tokens: int = 90, cancel_event=None, on_text=
     return said
 
 
+YES_NO = {"type": "object", "properties": {"answer": {"type": "string", "enum": ["YES", "NO"]}}, "required": ["answer"]}
+
+
+def yes_or_no(question: str, cancel_event=None) -> str:
+    """One plain question answered with YES or NO and nothing else (Luma's safety question). Asked as an ordinary message, a
+    brain trained to talk like a friend answered it like a friend, never with a YES; held to the two words, it has to choose."""
+    from luma.llm import worker
+    if worker.enabled():
+        return worker.brain().call("yes_or_no", {"question": question}, cancel_event=cancel_event)
+    return _yes_or_no_here(question, cancel_event)
+
+
+def _yes_or_no_here(question: str, cancel_event=None, on_text=None) -> str:
+    own = [{"role": "system", "content": "You answer one question about a message with YES or NO."},
+           {"role": "user", "content": question}]
+    settings = dict(max_tokens=16, temperature=0, response_format={"type": "json_object", "schema": YES_NO})
+    with _model_access(cancel_event):
+        model = _load_model()
+        messages = _keeping_steady(own)  # a $250 device keeps Luma's steady instructions in memory for the next reply
+        try:
+            raw = _complete(model, cancel_event, messages=messages, **settings)
+        except Exception as error:
+            if messages is own or not _template_refused(error):
+                raise
+            raw = _complete(model, cancel_event, messages=own, **settings)
+    try:
+        answer = str(json.loads(raw).get("answer", ""))
+    except (ValueError, AttributeError, TypeError):
+        answer = str(raw or "")
+    return "YES" if re.match(r"^\W*yes\b", answer, re.I) else "NO"
+
+
 def generate(messages: list[dict], max_tokens: int = 180, system_prompt: Optional[str] = None, cancel_event=None) -> str:
     """Send a chat-formatted message list to the LLM and return the reply text."""
     from luma.llm import worker

@@ -189,6 +189,33 @@ class SmallBoardTests(unittest.TestCase):
             self.assertEqual([m["role"] for m in seen[-1]], ["system", "user"], "a fast computer keeps the rewrite short")
 
 
+    def test_the_safety_question_is_answered_yes_or_no_and_keeps_the_steady_part(self):
+        """Luma's own small brain answered the plain question like a friend and never said YES; held to the two words, it chooses.
+        On a $250 device the question sits behind the steady instructions it already read, like any side request."""
+        seen = []
+
+        class Model:
+            def tokenize(self, data, add_bos=False): return data.split()
+            def create_chat_completion(self, **kwargs):
+                seen.append(kwargs)
+                return {"choices": [{"message": {"content": json.dumps({"answer": "YES"})}}]}
+
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget", "LUMA_TIMEZONE": "UTC"}):
+            steady, _ = prompts.build_plan_parts([], {}, "friend", prompts.normalize_profile(None), "", compact=True)
+            inference.warm(steady)
+            self.assertEqual(inference._yes_or_no_here("They just said: \"i've been stockpiling my meds\"\nAnswer with one word: YES or NO."), "YES")
+        asked = seen[-1]
+        self.assertEqual(asked["messages"][0]["content"], steady, "the next reply doesn't read it all again")
+        self.assertEqual(asked["response_format"]["schema"]["properties"]["answer"]["enum"], ["YES", "NO"])
+        self.assertEqual(asked["temperature"], 0)
+
+        class Wordy(Model):
+            def create_chat_completion(self, **kwargs):
+                return {"choices": [{"message": {"content": "I'm here for you, always."}}]}
+
+        with mock.patch.object(inference, "_load_model", return_value=Wordy()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": ""}):
+            self.assertEqual(inference._yes_or_no_here("They just said: \"the bus is late\""), "NO", "anything but a yes is a no")
+
 class DeviceLabTests(unittest.TestCase):
     """The device lab picks the brain that answers every message in time, not the fastest one that doesn't."""
 
