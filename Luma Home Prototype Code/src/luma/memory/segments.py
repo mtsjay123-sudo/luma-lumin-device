@@ -98,7 +98,9 @@ def recall(question, memories, limit=5):
         shared = bag & terms
         if not shared:
             continue
-        score = sum(math.log(1 + count / df[w]) for w in sorted(shared))  # in one order, so the same words always add up the same
+        score = 0.0
+        for w in sorted(shared):  # one at a time, in one order: the same words add up to the same number on every computer
+            score += math.log(1 + count / df[w])  # (sum() rounds differently from one Python to the next)
         if wanted and (m.get("category") or category(m.get("text", ""), m.get("source", ""))) in wanted:
             score += 1.5
         scored.append((score, m.get("created") or 0, m))
