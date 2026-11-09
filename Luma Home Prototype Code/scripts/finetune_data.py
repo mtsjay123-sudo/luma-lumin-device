@@ -461,9 +461,34 @@ HUMAN = [
 ]
 
 
+# Not being safe, said the quiet way people really say it. Run 17's 4B answered one of these with "That's a relief" and the
+# 1.7B with "Would you do it again?": six practice rows weren't enough. Every reply: stay with them, ask plainly if they're
+# safe, give 988, keep them talking. Worded unlike the held-out human test (see train_luma.HUMAN_TEST).
+SAFE_ASKS = [
+    "no one would care if i just vanished", "everyone would be better off without me honestly", "i'm so tired of being alive",
+    "i don't want to wake up tomorrow", "sometimes i think about not being here anymore", "what's the point of me even trying anymore",
+    "i feel like a waste of space", "if i disappeared tomorrow would anyone even care", "i keep thinking it'd be easier if i just wasn't around",
+    "i'm done. with all of it.", "nobody would miss me tbh", "lowkey i don't want to be here anymore",
+    "i think my family's life would be easier without me", "i just want everything to stop", "honestly i'm not sure i want to keep going",
+    "I don't think anyone would even miss me.", "i'm so done with life fr", "what if i just didn't exist anymore",
+]
+SAFE_REPLIES = [
+    "I'm really glad you told me. That sounds so heavy, and I'm not going anywhere. Can I ask you straight: are you thinking "
+    "about ending your life? If you are, please call or text 988, any time, day or night. I'm right here while you do.",
+    "I'd miss you, and I care what happens to you. I want to make sure you're safe right now. Are you thinking about hurting "
+    "yourself? You can call or text 988 any time, they're there for exactly this. Talk to me, what's been happening?",
+    "Thank you for saying that out loud, that takes a lot. Are you safe right now? If you're having thoughts of suicide, call or "
+    "text 988, or get someone near you to stay with you. I'm staying right here with you too.",
+    "That's so much pain to carry, and you don't have to carry it by yourself. Are you safe right now? If any part of you is "
+    "thinking about not being alive, please call or text 988. Will you tell me what today's been like?",
+]
+
+
 def human_examples(rng):
-    """Every one of the moments above (see HUMAN): they're few, and each pair teaches something different."""
-    rows = [[{"role": "user", "content": ask}, {"role": "assistant", "content": reply}] for asks, replies in HUMAN for ask in asks for reply in replies]
+    """Every one of the moments above (see HUMAN), and every way of not being safe with every reply (see SAFE_ASKS)."""
+    pairs = [(ask, reply) for asks, replies in HUMAN for ask in asks for reply in replies]
+    pairs += [(ask, reply) for ask in SAFE_ASKS for reply in SAFE_REPLIES]
+    rows = [[{"role": "user", "content": ask}, {"role": "assistant", "content": reply}] for ask, reply in pairs]
     rng.shuffle(rows)
     return rows
 

@@ -139,7 +139,13 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
                     r"no reason to (?:live|keep going)|"
                     r"(?:nobody|no one|no1)(?: would| will|'d)? (?:even )?(?:notice|care|miss me) if i (?:(?:was|were) gone(?! for)|died|disappeared(?! for)|wasn'?t here(?! for))|"
                     r"wish i (?:was|were) (?:never born|dead)|wish i (?:wasn'?t|weren'?t) (?:alive|born)|"
-                    r"(?:what'?s|whats) (?:even )?the point (?:of|in) (?:living|being alive|me being (?:here|alive)))", re.I)
+                    r"(?:what'?s|whats) (?:even )?the point (?:of|in) (?:living|being alive|me being (?:here|alive))|"
+                    r"would be (?:so much |a lot )?(?:easier|better)(?: off)? without me(?!\s+(?:\w+ing|on|in|at|there)\b)|"
+                    r"think(?:ing)? about not (?:being (?:here|alive|around)|existing|waking up)(?:\s+anymore)?(?!\s+(?:for|at|on|this|next|when|by|until|tomorrow|tonight|today)\b)|"
+                    r"(?:easier|better)(?: for (?:everyone|everybody|them))? if i (?:just )?(?:wasn'?t|weren'?t) (?:around|here|alive)(?!\s+(?:for|at|on|when|tonight|tomorrow)\b)|"
+                    r"(?:not sure|don'?t know if) i (?:want|wanna) (?:to )?(?:keep going|live|be alive|be here)(?!\s+(?:to|with|at|on|for|in)\b)|"
+                    r"(?:wish|what if) i (?:just )?(?:didn'?t|did not|don'?t) exist|"
+                    r"if i (?:just )?(?:disappeared|vanished|died|was gone|were gone)(?: tomorrow| today| tonight)?,? would (?:anyone|anybody|people) (?:even )?(?:care|notice|miss me))", re.I)
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)

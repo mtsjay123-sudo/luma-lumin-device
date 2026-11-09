@@ -56,6 +56,10 @@ class MissTests(unittest.TestCase):
         self.assertIsNone(friendcheck.hurting("rip my phone battery"))
         self.assertIsNone(friendcheck.hurting("what's the weather"))
         self.assertTrue(friendcheck.at_risk("what's the point of living"))
+        self.assertTrue(friendcheck.at_risk("i'm done. with all of it."))
+        self.assertTrue(friendcheck.at_risk("I don't think anyone would even miss me."))
+        self.assertFalse(friendcheck.at_risk("i'm so done with life lmao my mom saw my texts"))
+        self.assertFalse(friendcheck.at_risk("i just want everything to stop beeping"))
         self.assertFalse(friendcheck.at_risk("what's the point of trying lol this game is rigged"))
 
 
@@ -163,7 +167,14 @@ class CheckInAfterAHardDayTests(unittest.TestCase):
         for said in ["my family would be better off without me", "they'd all be better off if i wasn't around",
                      "everyone would be better off if i was gone"]:
             self.assertTrue(CRISIS.search(said), said)
-        for said in ["everyone would be better off if i was gone for the weekend lol", "we'd be better off without him"]:
+        for said in ["sometimes i think about not being here anymore", "i keep thinking it'd be easier if i just wasn't around",
+                     "i think my family's life would be easier without me", "honestly i'm not sure i want to keep going",
+                     "what if i just didn't exist anymore", "if i disappeared tomorrow would anyone even care"]:
+            self.assertTrue(CRISIS.search(said), said)
+        for said in ["everyone would be better off if i was gone for the weekend lol", "we'd be better off without him",
+                     "i'm thinking about not being here for thanksgiving", "it'd be easier if i wasn't around when they move the couch",
+                     "not sure i want to keep going to this gym", "the team would be better without me micromanaging",
+                     "if i disappeared for an hour would anyone notice lol"]:
             self.assertFalse(CRISIS.search(said), said)
 
     def test_late_at_night_counts_as_the_day_before(self):

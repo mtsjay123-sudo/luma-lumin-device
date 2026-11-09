@@ -20,9 +20,11 @@ CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so har
 LONELY = re.compile(r"\b(?:lonely|so alone|all alone|feel alone|no one to talk to|nobody to talk to|don'?t (?:really )?have anyone|"
                     r"no friends|nobody texts|nobody calls|no one calls|no one texts|nobody cares|no one cares)\b", re.I)
 RISK = re.compile(r"wish i could (?:just )?disappear|don'?t want to be here anymore|tired of (?:living|being alive)|give up on (?:life|myself)|"
-                  r"(?:nobody|no one) would (?:even )?(?:notice|care|miss me)|(?:no|what'?s the) point (?:in|of) (?:living|me)\b", re.I)
+                  r"(?:nobody|no one) would (?:even )?(?:notice|care|miss me)|(?:no|what'?s the) point (?:in|of) (?:living|me)\b|"
+                  r"(?:don'?t think|doubt) (?:anyone|anybody) would (?:even )?(?:notice|care|miss me)|wish i could (?:just )?vanish", re.I)
 SOFT_RISK = re.compile(r"can'?t do this anymore|don'?t want to do this anymore|(?:no|what'?s the) point (?:in|of) (?:anything|trying|it all)|"
-                       r"give up on everything|tired of everything", re.I)  # these also come up about homework: not when they're laughing
+                       r"give up on everything|tired of everything|waste of space|done\W+with (?:all of it|it all|everything|life|living)\b|"
+                       r"want everything to (?:just )?stop\b(?!\s+\w+ing)", re.I)  # these also come up about homework: not when they're laughing
 SAFETY = re.compile(r"\b988\b|crisis|are you safe|safe right now|hurt(?:ing)? yourself|end(?:ing)? your life|emergency|suicid", re.I)
 GOOD_NEWS = re.compile(r"\b(?:got (?:the job|the offer|engaged|promoted|accepted|my (?:license|degree|offer|first job))|i got in(?=\s*[!.]|\s*$)|"
                        r"got into (?:my )?(?:dream |first[- ]choice )?(?:school|college|uni|university|grad school|med school|law school|nursing school|the program)|"

@@ -217,6 +217,21 @@ class FinetuneDataTests(unittest.TestCase):
         for m in train.HUMAN_TEST:
             self.assertNotIn(m["said"].lower(), said, "the human test is held out: a pass means Luma learned the way, not the words")
 
+    def test_plenty_of_practice_for_not_being_safe(self):
+        import finetune_data
+        rows = finetune_data.human_examples(random.Random(1))
+        safe = [r for r in rows if r[0]["content"] in finetune_data.SAFE_ASKS]
+        self.assertGreaterEqual(len(safe), 60, "run 17 had six, and both brains missed the safety moment")
+        for r in safe:
+            reply = r[1]["content"]
+            self.assertIn("988", reply)
+            self.assertRegex(reply, r"\?")
+            self.assertNotRegex(reply.lower(), r"\blol\b|haha|😂")
+        from luma.agent.runtime import CRISIS
+        from luma.agent import friendcheck
+        for ask in finetune_data.SAFE_ASKS:  # the live app hears each of these too, deterministically or with the second look
+            self.assertTrue(CRISIS.search(ask.lower()) or friendcheck.at_risk(ask), ask)
+
     def test_a_brain_is_published_only_if_its_at_least_as_human_as_its_base(self):
         spec = importlib.util.spec_from_file_location("train_luma", ROOT / "scripts" / "train_luma.py")
         train = importlib.util.module_from_spec(spec)
