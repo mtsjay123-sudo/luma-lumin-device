@@ -114,7 +114,32 @@ The Human test v2 (`data/human_eval_v2.jsonl`) also includes 13 moments where so
 - Conversations and memories stay on the person's device or computer, encrypted.
 - Nothing is sent anywhere unless the person turns on the optional cloud brain.
 - No telemetry.
-- "Forget" really forgets: the memory, what it meant (the stored embedding), and any check-in planned about it.
+
+### What Luma keeps
+
+- **Facts** it's told or notices, such as "Your sister's name is Dana".
+- **What the person tells it about their life,** in their own words, with the day it was said: "we went to Lisbon in May". These lines aren't shown on the Memory page, but "forget that" and "forget about Lisbon" remove them.
+- **A short story of each day,** made only of those lines. Nothing in it is rewritten or invented.
+
+What it doesn't keep:
+
+- Questions and requests.
+- Anything said in a moment when the person wasn't safe. Luma never says those words back.
+- Passwords and card numbers. The store refuses them.
+- Anything at all, once "learning from chat" is off.
+
+### What it does with a memory
+
+- **A newer fact takes an older one's place.** "You moved to Denver" replaces "You live in Austin". The older one is kept as history, and the brain is told it's no longer true.
+- **"You haven't told me that."** When someone asks about a person or a thing Luma was never told, its memory says so, and the brain is told not to guess.
+- **Company in the room.** When the person says they have company ("my friends are here"), Luma keeps health, money and relationship troubles to itself unless the person asks directly. This lasts three hours, or until they say it's just them. Luma can't yet tell an unfamiliar voice by itself.
+
+### Forgetting
+
+- Each memory is sealed with its own key.
+- "Forget" deletes the memory and its key. It also deletes what the memory meant (the stored embedding), any check-in planned about it, and anything written from it (the day's story and the life file).
+- A copy of a sealed memory without its key can't be opened by anyone.
+- **The limit.** A full backup of the device's own folder made before the forget, with the database and the key file together, still has the memory. Luma can't reach into a backup.
 
 ## What a person can turn off
 

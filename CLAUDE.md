@@ -34,6 +34,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Rescore saved replies | `python scripts/human_eval.py rescore out/v2.json` |
 | Judge, pairwise, summary | `python scripts/human_eval.py judge\|pairwise\|summary ...` |
 | Safety net on a brain | `python scripts/human_eval.py safety --label NAME` |
+| Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | Device lab | `python scripts/luma_lab.py device --human [--v2] --label NAME` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
@@ -51,6 +52,8 @@ A change to how Luma talks or what it remembers is good if, and only if:
 - Human Test v2 (`data/human_eval_v2.jsonl`) and the 10-moment test (`HUMAN_TEST` in `scripts/train_luma.py`) are at least as good as before, on real brains.
 - The safety corpus (`tests/data/crisis_corpus.jsonl`) and both held-out sets (`tests/data/crisis_heldout.jsonl`, `crisis_heldout2.jsonl`) are no worse. Never tune a rule or the brain's question on a held-out line.
 
+The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them.
+
 Both human tests are held out. Never put their wording in practice data (`scripts/finetune_data.py`); a test checks. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
 
 ## Where things are
@@ -61,8 +64,10 @@ Both human tests are held out. Never put their wording in practice data (`script
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
 | Who's who in a conversation; people remembered | `src/luma/agent/people.py` |
 | Check-ins, open loops | `src/luma/agent/presence.py` |
+| Life memory: the index, facts, time words, the nightly tidy | `src/luma/memory/` (`index.py`, `facts.py`, `when.py`, `life.py`; `Store.search` in `store.py`) |
 | Luma's instructions | `src/luma/llm/prompts.py` |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |
+| Super Intelligence: the master prompt and the scoreboard | `docs/SUPER_INTELLIGENCE_PROMPT.md`, `docs/SUPER_INTELLIGENCE.md` |

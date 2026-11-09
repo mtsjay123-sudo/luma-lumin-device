@@ -498,6 +498,7 @@ class Agent:
             pass
         self.last_asked = False
         self._last_diary_prune = 0
+        self._sleeper = None  # the nightly tidy of what Luma remembers (luma.memory.life), when it's running
         self._owner_queue = __import__("queue").Queue()
         self._owner_worker = None
         self._last_reply_poll = 0
@@ -1268,13 +1269,11 @@ class Agent:
             profile=self.set_profile({**self.profile,**args})
             return {"profile":profile,"summary":"Got it, I'll talk like that from now on."}
         if name == "memory.remember":
-            existing = next((m for m in self.store.all("memory", 100000) if m["text"].strip().casefold() == args["text"].strip().casefold()), None)
-            if not existing and self.memory_quota()["full"]:
-                return {"summary": f"My memory's full on the free plan ({self.FREE_MEMORIES} things). Get Luma Plus and I'll remember everything, backed up "
-                                   "and private. Or clear a few old ones under Identity.", "memory_full": True, "section": "identity"}
+            said = args["text"].strip().casefold()
+            existing = next((m for m in self.store.same_as(args["text"]) if m["text"].strip().casefold() == said), None)
             row = existing or self.store.put("memory", {"text": args["text"], "source": "explicit_user_request", "created": self.clock()})
             return {"summary": "Got it, I'll remember that.", "memory": row}
-        if name == "memory.recall": return {"memories": self.store.recall(args["query"])}
+        if name == "memory.recall": return self._recall_tool(args["query"])
         if name == "tasks.in":
             due = datetime.fromtimestamp(self.clock()+args["minutes"]*60,self.zone).isoformat()
             return self._run("tasks.create", {"title":args["title"],"due":due})
@@ -4264,6 +4263,7 @@ class Agent:
         """
         self._poll_replies()
         self._prune_diary()
+        self._sleep_if_night()
         if self.mode != "kids":
             self.helpers.start_due()
             self._send_mail_soon()
@@ -4309,6 +4309,32 @@ class Agent:
                 titles.append(row["title"])
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
+
+    SLEEP_HOUR = 3  # local time: the tidy runs once a day, at the first quiet moment from here on
+
+    def _sleep_if_night(self):
+        """Once a night, when nobody's talking: a fact kept twice becomes one, older memories get a key of their own,
+        yesterday gets its story and the life file is refreshed (luma.memory.life). It runs in the background, says nothing
+        and sends nothing; a computer that was asleep at 3 does it at the first quiet moment after."""
+        if self._sleeper is not None and self._sleeper.is_alive():
+            return
+        now = self.clock()
+        local = datetime.fromtimestamp(now, self.zone)
+        if local.hour < self.SLEEP_HOUR or self.busy or self.speaking or now - (self.last_reply_at or 0) < 600:
+            return
+        day = local.date().isoformat()
+        if self.store.setting("last_sleep") == day:
+            return
+        self.store.set_setting("last_sleep", day)
+
+        def tidy():
+            from luma.memory import life
+            try:
+                life.sleep(self.store, now, self.zone)
+            except Exception:
+                pass  # a tidy that didn't finish is tried again tomorrow night; nothing is lost
+        self._sleeper = threading.Thread(target=tidy, name="luma-sleep", daemon=True)
+        self._sleeper.start()
 
     def chat(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None, channel="local", thread="main"):
         """on_text receives a reply's words as the model writes them (for speaking early).
@@ -4438,10 +4464,8 @@ class Agent:
                     picks = presence.options_in(reply)
                     if picks: result["choices"] = picks
                 if self.mode != "kids" and not agent_mode and not result.get("forgotten"):
-                    self.memory_full = False
                     noticed = [] if result.get("noticed") else self._notice(text)
                     if noticed: result["noticed"] = noticed
-                    if getattr(self, "memory_full", False): result["memory_full"] = True
                     self._learn_style(text)
                     self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
@@ -4801,32 +4825,122 @@ class Agent:
         return {"text": f"{name} it is. I like it.", "renamed": name}
 
     # -- memory that just catches things ---------------------------------------------------
-    FREE_MEMORIES = 200
-
     def memory_quota(self):
         """How much Luma remembers here: everything, on every plan. Memory lives on the device, so the only limit is its
-        storage. (Luma Plus is the cloud: the cloud brain's own memory and usage, which is what's paid for.)"""
+        storage. (Luma Plus is the cloud: the cloud brain's own memory and usage, which is what's paid for.) `used` is
+        the facts it keeps; `lines` is what they've told it about their life, kept as they said it."""
         account = self.cloud.cached_account() or {}
         plus = str(account.get("plan") or "").lower() in {"plus", "pro", "premium"} or bool(account.get("plus"))
-        used = len(self.store.memories())
-        return {"used": used, "limit": None, "plan": "plus" if plus else "free", "full": False}
+        used, lines = self.store.kept_counts()
+        return {"used": used, "lines": lines, "limit": None, "plan": "plus" if plus else "free", "full": False}
 
     def remember_fact(self, fact, source="noticed_in_conversation", **extra):
-        """Keep one fact. A newer 'where my keys are' replaces the old one. Returns the row, None if already known, or 'full'."""
-        existing = self.store.all("memory", 100000)
+        """Keep one fact. A newer 'where my keys are' replaces the old one. Returns the row, or None if it's already known.
+        Only the few memories that share its words are read, however many there are."""
+        from luma.memory import segments
         low = fact.casefold()
-        if any(low in m["text"].casefold() or m["text"].casefold() in low for m in existing):
+        # already kept, unless a newer fact took its place since: said again, it's true again ("You live in Austin", Denver, Austin)
+        if any(not m.get("ended") and (low in m["text"].casefold() or m["text"].casefold() in low) for m in self.store.same_as(fact)):
             return None
         where = presence.location_fact(fact.replace("Your ", "my ", 1)) if fact.startswith("Your ") else None
         if where:
-            for m in existing:
+            for m in self.store.mentioning(sorted(segments.words(where[0]))) or []:
                 old = presence.location_fact(m["text"].replace("Your ", "my ", 1)) if m["text"].startswith("Your ") else None
                 if old and old[0] == where[0]:
                     self.store.delete("memory", m["id"])  # the keys moved
-        elif self.memory_quota()["full"]:
-            return "full"
-        from luma.memory import segments
         return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), "category": segments.category(fact, source), **extra})
+
+    def _keep_line(self, text):
+        """What they told Luma about their life, kept as they said it: the ground truth the facts are read from, and what
+        "what did I do last spring" is answered from. Not a question or a request, and never a moment they weren't safe:
+        Luma doesn't say those back. Stops with "learning from chat"."""
+        from luma.agent import friendcheck
+        from luma.memory import segments
+        line = " ".join(str(text or "").split())
+        if not 4 <= len(line.split()) <= 60 or len(line) > 400 or not just_telling(line):
+            return None
+        if CRISIS.search(line.lower()) or SPANISH_CRISIS.search(line.lower()) or friendcheck.at_risk(line):
+            return None
+        low = line.casefold()
+        if any(m["text"].casefold() == low for m in self.store.same_as(line, lines=True)):
+            return None
+        try:
+            return self.store.put("memory", {"text": line, "source": "said", "created": self.clock(), "category": segments.category(line, "said")})
+        except ValueError:  # a password or a card number: never kept
+            return None
+
+    COMPANY_HOURS = 3
+    COMPANY_ON = re.compile(r"^\W*(?:(?:hey|yo|ok(?:ay)?|luma|heads up|fyi|btw|so)\W+)*(?:i(?:'ve| have)? (?:got |have )?(?:company|guests|people over|friends over|someone (?:here|over))|"
+                            r"(?:we have|we've got) (?:company|guests)|(?:my )?(?:friends|guests|family|parents|in-laws|coworkers|people) (?:are|r) (?:here|over)|"
+                            r"someone(?:'s| is) (?:here|over)|there(?:'s| are) (?:people|someone) (?:here|in the room))\b[^?]*$", re.I)
+    COMPANY_OFF = re.compile(r"^\W*(?:(?:hey|yo|ok(?:ay)?|luma|so)\W+)*(?:(?:they|everyone|everybody|(?:my )?(?:friends|guests|family|parents|company))(?:'ve|'s| have| has)? "
+                             r"(?:all )?(?:left|gone|went home|headed out)|it'?s just (?:me|us)(?: again| now)?)\b[^?]*$", re.I)
+
+    def _hear_company(self, text):
+        """ "I have company" / "they left": remembered for a few hours, or until they say it's just them again. Nothing is
+        said about it here; the reply stays the brain's own."""
+        if self.mode == "kids":
+            return
+        if self.COMPANY_ON.match(text):
+            self.store.set_setting("company_until", self.clock() + self.COMPANY_HOURS * 3600)
+        elif self._company() and self.COMPANY_OFF.match(text):
+            self.store.set_setting("company_until", 0)
+    RECALL_Q = re.compile(r"\?|^\W*(?:(?:hey|yo|ok(?:ay)?|so|luma)\W+)*(?:who|what|when|where|which|whose|how|do you (?:remember|know)|did i|have i|remind me)\b", re.I)
+
+    def _company(self):
+        """Someone else is in the room (they said so): private things wait until they ask."""
+        return float(self.store.setting("company_until", 0) or 0) > self.clock()
+
+    def _remembered(self, text, room=5):
+        """What Luma remembers that fits this message, for the brain: what's true now before what used to be, lines of
+        talk with the day they were said, and, when they ask about something it was never told, a note saying so."""
+        from luma.memory import facts
+        try:
+            found = self.store.search(text, limit=room, now=self.clock(), zone=self.zone)
+        except Exception:
+            return self.store.recall(text)
+        asking = bool(self.RECALL_Q.search(str(text or "")))
+        self._hear_company(str(text or ""))
+        company = self._company() and not asking
+        out = []
+        if self._company():
+            out.append({"note": True, "text": "They have company in the room right now. Keep anything private (health, money, relationships) to yourself "
+                                              "unless they ask you about it directly."})
+        for m in found["memories"] or found["related"][:3]:
+            words = str(m.get("text", ""))
+            if company and facts.private(words, m.get("category") or ""):
+                continue
+            if m.get("ended"):
+                words = "(Used to be true, not anymore) " + words
+            elif m.get("source") == "said" and m.get("created"):
+                words = f"(They said, {datetime.fromtimestamp(m['created'], self.zone).strftime('%b %-d, %Y')}) {words}"
+            out.append({**m, "text": words})
+        if asking and not found["known"]:
+            out.append({"note": True, "text": f"Your memory, checked for this message: {found['why']}. If that's what they're asking about, say you "
+                                              "haven't been told, warmly, and offer to remember it. Never guess."})
+        elif asking and found["unseen"] and out:
+            out.append({"note": True, "text": "Your memory, checked for this message: no memory mentions " + ", ".join(found["unseen"][:4])
+                                              + ". If the saved facts above don't answer what they asked, say you haven't been told that part. Never guess."})
+        return out
+
+    def _true_now(self, question):
+        """The saved fact that states the very thing asked, and is still true; or None."""
+        try:
+            found = self.store.search(question, limit=5, now=self.clock(), zone=self.zone)
+        except Exception:
+            return None
+        return next((m for m in found["memories"] if m.get("answers") and not m.get("ended")), None)
+
+    def _recall_tool(self, query):
+        """memory.recall, for the brain: what answers the question, each with when it was said."""
+        found = self.store.search(query, limit=8, now=self.clock(), zone=self.zone)
+        when = lambda m: datetime.fromtimestamp(m["created"], self.zone).strftime("%b %-d, %Y") if m.get("created") else None  # noqa: E731
+        rows = [{k: v for k, v in {"id": m.get("id"), "text": m.get("text"), "said_on": when(m), "no_longer_true": m.get("ended")}.items() if v}
+                for m in (found["memories"] or found["related"][:3])]
+        out = {"memories": rows}
+        if not found["known"]:
+            out["not_saved"] = found["why"]
+        return out
 
     # ------------------------------------------------------------------
     # Understanding: however they say it, wherever the conversation is
@@ -4957,7 +5071,7 @@ class Agent:
                           r"make a note(?: of)?|fyi|store this|for the record|jot (?:this|that) down)\W*(?:that\s+)?", "", original or "", flags=re.I).strip(" .!?")
             if len(said.split()) >= 2:
                 facts = presence.notice_facts(said)
-                kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row not in (None, "full")]
+                kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row]
                 if kept:
                     self.last_noticed = [row["id"] for _, row in kept]
                     return {"text": "Got it. " + " ".join(self._yours(f) + "." for f, _ in kept), "noticed": [{"id": row["id"], "text": f} for f, row in kept]}
@@ -5538,8 +5652,9 @@ class Agent:
         want = {stem(w) for w in re.findall(r"[a-z0-9]+", about.lower()) if len(w) > 2 and w not in stop}
         if not want:
             return None
-        best = None
-        for row in self.store.recall(m["about"], limit=8):
+        best = self._true_now(text)  # the fact that states it, the newest one ("You moved to Denver" over "You live in Austin")
+        best = (0, best) if best else None
+        for row in ([] if best else self.store.recall(m["about"], limit=8)):
             have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(row.get("text", "")).lower())}
             if want <= have and (best is None or len(have) < best[0]):  # every word they asked about, in the shortest memory that has them
                 best = (len(have), row)
@@ -5576,9 +5691,10 @@ class Agent:
         want = {stem(w) for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 2 and w not in self.KEPT_STOP}
         if not want:
             return None
-        for row in self.store.recall(text, limit=8):
+        now = self._true_now(text)
+        for row in ([now] if now else self.store.recall(text, limit=8)):
             have = {stem(w) for w in re.findall(r"[a-z]+", str(row.get("text", "")).lower())}
-            if want & have:
+            if now or want & have:
                 said = self._yours(row["text"]).rstrip(". ")
                 return {"text": "You told me " + said[:1].lower() + said[1:] + ".", "memory": row["id"]}
         return None
@@ -5660,9 +5776,6 @@ class Agent:
         about = re.sub(r"^our\b", "Our", re.sub(r"^my\b", "My", asked["about"], flags=re.I), flags=re.I)
         fact = f"{about} is {answer}"
         saved = self.remember_fact(fact, source="asked_and_answered")
-        if saved == "full":
-            return {"text": f"I'd love to remember that, but my memory's full on the free plan ({self.FREE_MEMORIES} things). Clear a few old ones in your "
-                            "memory folder (on your phone or here) and tell me again, or get Luma Plus.", "memory_full": True, "section": "identity"}
         return {"text": f"Got it. {self._yours(fact)}. I won't forget.", **({"noticed": [saved]} if isinstance(saved, dict) else {})}
 
     FIND_ON_COMPUTER = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:can|could) (?:you|u)\s+|please\s+|pls\s+)?(?:find|look for|search for|where'?s|where is|pull up)\s+"
@@ -5736,12 +5849,12 @@ class Agent:
             from luma.agent import people
             for fact in presence.notice_facts(text) + people.facts(text):  # "Lily (their daughter) is obsessed with dinosaurs"
                 row = self.remember_fact(fact)
-                if row == "full":
-                    self.memory_full = True
-                    continue
                 if not row: continue
                 self.last_noticed.append(row["id"])
                 saved.append({"id": row["id"], "text": fact})
+            line = self._keep_line(text)  # and what they said, as they said it
+            if line:
+                self.last_noticed.append(line["id"])
         if self.store.setting("check_ins", True):
             now = datetime.fromtimestamp(self.clock(), self.zone)
             planned = {(c["topic"], c["day"]) for c in self.store.all("checkin", 200)}
@@ -5804,7 +5917,8 @@ class Agent:
         if not keys:
             return {"forgotten": True, "text": "Tell me what to forget, like “forget about the interview”."}
         matches = lambda t: all(re.search(rf"\b{re.escape(k)}", str(t).lower()) for k in keys)  # noqa: E731
-        gone = [self.store.delete("memory", m["id"]) for m in self.store.all("memory", 100000) if matches(m.get("text"))]
+        pool = self.store.mentioning(keys)  # the few that could mention it; every one of them when the index can't tell
+        gone = [self.store.delete("memory", m["id"]) for m in (pool if pool is not None else self.store.all("memory", 10 ** 9)) if matches(m.get("text"))]
         gone += [self.store.delete("checkin", c["id"]) for c in self.store.all("checkin", 500) if not c.get("asked") and matches(c.get("topic"))]
         n = sum(bool(g) for g in gone)
         return {"forgotten": True, "text": "Done, it's forgotten." if n else "I didn't have anything saved about that."}
@@ -6131,7 +6245,7 @@ class Agent:
                         self._rerouting = False
                     if routed is not None:
                         return routed
-            context = [] if self.mode == "kids" else (self.store.recall(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]]
+            context = [] if self.mode == "kids" else (self._remembered(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]]
                                                       + self._news_context(text) + self._mind_context(text, cancel_event))
             allowed = self.available_tools(text)
             answer = self.call_planner(self.history, context, allowed, cancel_event)

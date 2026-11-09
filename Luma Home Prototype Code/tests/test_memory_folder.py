@@ -88,7 +88,7 @@ class MemoryFolderTests(unittest.TestCase):
             memory_folder.forget(self.agent, kind="Secrets")
 
     def test_memory_never_fills_up_and_old_ones_still_go_when_asked(self):
-        for i in range(self.agent.FREE_MEMORIES):
+        for i in range(200):  # what the free plan's cap used to be
             self.remember(f"note number {i}", days_ago=400)
         self.agent.chat("what's my cousin's name?")
         self.assertIn("Your cousin's name is Tasha", self.agent.chat("tasha")["text"], "no limit on the device: nothing is turned away")

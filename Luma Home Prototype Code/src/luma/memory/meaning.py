@@ -24,6 +24,7 @@ DIMS = 256          # the model is trained so its first numbers carry the most m
 CLOSE = 0.5         # how close a memory's meaning has to be to count (cosine; unrelated things land well below)
 EXTRA = 2           # memories found by meaning on top of the ones words found
 MIN_RAM_GB = 16     # computers big enough to keep it loaded next to the brain
+CACHE = 20000       # meanings kept opened here; the index (luma.memory.index) holds them all, smaller
 QUERY = "Instruct: Given something a person said to their AI friend, find the memories about them it refers to\nQuery:"
 
 _lock = threading.Lock()
@@ -45,6 +46,27 @@ def model_path():
 
 def _fingerprint(text):
     return hashlib.sha256(str(text or "").encode()).hexdigest()[:16]
+
+
+def pack(vector):
+    """A meaning, small enough to keep a million of: half-size numbers, as text."""
+    import base64
+    import numpy as np
+    return base64.b64encode(np.asarray(vector, dtype=np.float16).tobytes()).decode()
+
+
+def unpack(record):
+    """The numbers of a kept meaning, in either form it's been stored in; None when there aren't any."""
+    if not isinstance(record, dict):
+        return None
+    if record.get("h"):
+        import base64
+        import numpy as np
+        try:
+            return np.frombuffer(base64.b64decode(record["h"]), dtype=np.float16).astype(np.float32)
+        except Exception:
+            return None
+    return record.get("v") or None
 
 
 def _unit(values):
@@ -106,8 +128,10 @@ def _vector(store, memory):
         return hit[1]
     kept = store.get("vector", "vector:" + mid)
     if kept and kept.get("for") == mark and kept.get("model") == FILE:
-        v = _unit(kept.get("v") or [])
+        v = _unit(unpack(kept) if unpack(kept) is not None else [])
         if v is not None:
+            if len(_cache) > CACHE:
+                _cache.clear()
             _cache[mid] = (mark, v)
             return v
     return None
@@ -124,7 +148,9 @@ def _work_out(store, memories):
                 if v is None:
                     continue
                 mark = _fingerprint(memory.get("text", ""))
-                store.put("vector", {"model": FILE, "for": mark, "v": [round(float(x), 5) for x in v]}, "vector:" + memory["id"])
+                store.put("vector", {"model": FILE, "for": mark, "h": pack(v)}, "vector:" + memory["id"])
+                if len(_cache) > CACHE:
+                    _cache.clear()
                 _cache[memory["id"]] = (mark, v)
     finally:
         _catching_up["running"] = False

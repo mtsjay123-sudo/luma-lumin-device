@@ -25,7 +25,7 @@ def _bytes(value):
 
 def folder(agent, per_kind=200):
     """Every memory, sorted into kinds, newest first, with how much room they take."""
-    rows = agent.store.all("memory", 100000)
+    rows = agent.store.kept(100000)  # the facts; what they said in passing is in their chats
     kinds = {k: [] for k in KINDS}
     for m in rows:
         text = " ".join(str(m.get("text", "")).split())
@@ -47,13 +47,13 @@ def forget(agent, ids=None, kind=None, older_than_days=None):
         raise ValueError("Say how many days old, like 90.")
     wanted = {str(i) for i in (ids or [])}
     cutoff = agent.clock() - older_than_days * DAY if older_than_days else None
-    gone = 0
-    for m in agent.store.all("memory", 100000):
-        text = str(m.get("text", ""))
-        hit = (str(m.get("id")) in wanted or (kind and kind_of(text) == kind)
-               or (cutoff is not None and (m.get("created") or agent.clock()) < cutoff))
-        if hit and agent.store.delete("memory", m["id"]):
-            gone += 1
+    gone = sum(bool(agent.store.delete("memory", i)) for i in wanted)
+    if cutoff is not None:  # everything from before then: the facts and the talk around them
+        gone += sum(bool(agent.store.delete("memory", i)) for i in agent.store.said_before(cutoff) if str(i) not in wanted)
+    if kind:
+        for m in agent.store.kept(10 ** 9):
+            if kind_of(str(m.get("text", ""))) == kind and agent.store.delete("memory", m["id"]):
+                gone += 1
     return {"forgotten": gone, **agent.memory_quota()}
 
 
@@ -105,7 +105,7 @@ def space(agent):
     ]
     options = [o for o in options if o["bytes"] > 0]
     options.sort(key=lambda o: -o["bytes"])
-    return {"options": options, "memories": {**agent.memory_quota(), "bytes": sum(_bytes(m) for m in agent.store.all("memory", 100000))}}
+    return {"options": options, "memories": {**agent.memory_quota(), "bytes": sum(_bytes(m) for m in agent.store.kept(100000))}}
 
 
 def clean(agent, key):

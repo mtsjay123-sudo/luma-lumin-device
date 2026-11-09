@@ -43,14 +43,18 @@ shall may might must just so very really too also not no yes yeah ok okay hey lu
 know knew think thought said say says put left get got go went""".split())
 
 
+_ANY_RULE = re.compile("|".join(f"(?:{rule.pattern})" for _, rule in _RULES), re.I)   # one look, before the seven
+
+
 def category(text, source=""):
     """The bucket a memory goes in."""
     if source == "grill":
         return "you"
     t = str(text or "")
-    for name, rule in _RULES:
-        if rule.search(t):
-            return name
+    if _ANY_RULE.search(t):
+        for name, rule in _RULES:
+            if rule.search(t):
+                return name
     if source in ("signup", "about_you"):
         return "you"
     return "notes"
@@ -94,7 +98,7 @@ def recall(question, memories, limit=5):
         shared = bag & terms
         if not shared:
             continue
-        score = sum(math.log(1 + count / df[w]) for w in shared)
+        score = sum(math.log(1 + count / df[w]) for w in sorted(shared))  # in one order, so the same words always add up the same
         if wanted and (m.get("category") or category(m.get("text", ""), m.get("source", ""))) in wanted:
             score += 1.5
         scored.append((score, m.get("created") or 0, m))

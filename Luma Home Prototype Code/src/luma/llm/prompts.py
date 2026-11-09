@@ -186,7 +186,7 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     re-reading was most of the wait: the time, to the microsecond, used to sit near the top, so everything after it (the
     tools, the notes and the whole conversation) was read again on every reply."""
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape")
+    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape", "note", "life")
     # A $250 device reads every word of this part on every turn, so it gets the gist of each note (compact).
     cap = (lambda full, small: small if compact else full)
     clip = (lambda text, full, small: _gist(text, small) if compact else text[:full])
@@ -196,6 +196,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     # who's who in this conversation: its own room, so a $250 device doesn't cut it (luma.agent.people)
     people = next((m["text"][:cap(600, 420)] for m in usable if m.get("people")), "")
     shape = next((m["text"][:300] for m in usable if m.get("shape")), "")  # corrected, cut off, answered in a word (luma.agent.style.turn_note)
+    # what Luma's memory says about this message: never told, or company in the room (luma.agent.runtime._remembered)
+    notes = " ".join(m["text"][:400] for m in usable if m.get("note"))[:cap(800, 400)]
     # Who Luma has become (it changes when Luma reflects, not every turn): with the rest of how it feels, or on a $250 device
     # with the steady part, so it isn't read again on every turn.
     self_note = next((m["text"][:900] for m in usable if m.get("self")), "")
@@ -232,6 +234,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     turn = ["Current local date and time: " + current_time]
     if facts or not compact:
         turn.append("Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False))
+    if notes:
+        turn.append(notes)
     if compact:
         turn += listed
     if speaking:

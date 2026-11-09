@@ -69,8 +69,8 @@ class CatchesItTests(Base):
         self.assertEqual(reply["noticed"][0]["text"], "Your glasses are by the sink")
 
     def test_memory_has_no_limit_on_the_device(self):
-        # Memory lives on the device, so every plan keeps everything; the old free-plan cap no longer applies.
-        self.agent.FREE_MEMORIES = 2
+        # Memory lives on the device, so every plan keeps everything: there is no cap to set, and nothing says "full".
+        self.assertFalse(hasattr(self.agent, "FREE_MEMORIES"))
         self.agent.chat("I left my keys on the counter")
         self.agent.chat("I hate cilantro")
         reply = self.agent.chat("I'm allergic to peanuts")
