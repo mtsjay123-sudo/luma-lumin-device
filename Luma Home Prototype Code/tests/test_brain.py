@@ -20,16 +20,21 @@ class FakeAnthropic(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a): pass
 
+    def _key(self):
+        """The key the request carries: newer versions of the SDK send it as a bearer token."""
+        bearer = self.headers.get("authorization") or ""
+        return self.headers.get("x-api-key") or (bearer[7:] if bearer.lower().startswith("bearer ") else "")
+
     def do_GET(self):
         if self.path.startswith("/v1/models/"):
-            if self.headers.get("x-api-key") != "sk-ant-good":
+            if self._key() != "sk-ant-good":
                 return self._json({"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}, 401)
             return self._json({"type": "model", "id": self.path.rsplit("/", 1)[1], "display_name": "Claude", "created_at": "2026-01-01T00:00:00Z"})
         self._json({}, 404)
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        FakeAnthropic.seen.append({"body": body, "beta": self.headers.get("anthropic-beta"), "key": self.headers.get("x-api-key")})
+        FakeAnthropic.seen.append({"body": body, "beta": self.headers.get("anthropic-beta"), "key": self._key()})
         if FakeAnthropic.status != 200:
             return self._json({"type": "error", "error": {"type": "overloaded_error", "message": "busy"}}, FakeAnthropic.status)
         text = json.dumps(FakeAnthropic.reply)

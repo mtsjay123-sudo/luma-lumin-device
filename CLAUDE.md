@@ -35,16 +35,19 @@ All commands run from `Luma Home Prototype Code/`.
 | Judge, pairwise, summary | `python scripts/human_eval.py judge\|pairwise\|summary ...` |
 | Safety net on a brain | `python scripts/human_eval.py safety --label NAME` |
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
+| Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
+| Router, on turns it never saw | `python scripts/train_router.py test` |
 | Device lab | `python scripts/luma_lab.py device --human [--v2] --label NAME` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
 
-In the cloud, the suite has 17 failures that are only the environment: `test_agent_acts` web tests (8), `CloudBrainTests` (5), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
+In the cloud, the suite has 12 failures that are only the environment: `test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
 GitHub workflows:
 - `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours).
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
+- `si-lab.yml`: the memory test, the router and the cloud lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
 
 ## The human test decides
 
@@ -66,6 +69,7 @@ Both human tests are held out. Never put their wording in practice data (`script
 | Check-ins, open loops | `src/luma/agent/presence.py` |
 | Life memory: the index, facts, time words, the nightly tidy | `src/luma/memory/` (`index.py`, `facts.py`, `when.py`, `life.py`; `Store.search` in `store.py`) |
 | Luma's instructions | `src/luma/llm/prompts.py` |
+| The cloud brain's request, the router, which brain answers | `src/luma/llm/cloud.py`, `router.py`, `brain.py` |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |

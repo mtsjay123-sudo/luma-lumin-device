@@ -177,8 +177,12 @@ def _gist(text, limit):
     return (cut[:end + 1] if end >= limit // 3 else cut).rstrip()
 
 
-def build_plan_parts(memories, tools, mode="friend", profile=None, current_time="unknown", compact=False):
+def build_plan_parts(memories, tools, mode="friend", profile=None, current_time="unknown", compact=False, tools_last=False, roomy=False, self_apart=False):
     """Luma's instructions in two parts: (steady, this_turn).
+
+    tools_last puts this turn's tools with this turn's notes (a small device does; so does a cloud brain, whose steady part
+    is then word for word the same on every turn and is read from its cache). roomy is a brain with room for more of what
+    Luma remembers (the cloud brain: luma.llm.cloud).
 
     The steady part (who Luma is, the rules, what it can do, its tools) is the same from one turn to the next; this turn's
     part (the time, what it remembers that fits, how it feels, its notes) changes. A local brain keeps what it already read of
@@ -190,7 +194,7 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     # A $250 device reads every word of this part on every turn, so it gets the gist of each note (compact).
     cap = (lambda full, small: small if compact else full)
     clip = (lambda text, full, small: _gist(text, small) if compact else text[:full])
-    facts = [clip(m["text"], 300, 160) for m in usable if not any(m.get(k) for k in special)][:cap(3, 2)]
+    facts = [clip(m["text"], 300, 160) for m in usable if not any(m.get(k) for k in special)][:12 if roomy and not compact else cap(3, 2)]
     news = [clip(m["text"], 360, 160) for m in usable if m.get("news")][:cap(4, 2)]
     about = next((clip(m["text"], 1400, 240) for m in usable if m.get("about")), "")
     # who's who in this conversation: its own room, so a $250 device doesn't cut it (luma.agent.people)
@@ -201,7 +205,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     # Who Luma has become (it changes when Luma reflects, not every turn): with the rest of how it feels, or on a $250 device
     # with the steady part, so it isn't read again on every turn.
     self_note = next((m["text"][:900] for m in usable if m.get("self")), "")
-    mind = clip(" ".join(m["text"][:400] for m in usable if (m.get("mind") or m.get("self")) and not (compact and m.get("self"))), 900, 240)
+    # self_apart: who Luma has become is given on its own by the caller (build_plan_blocks), not with this turn's mood
+    mind = clip(" ".join(m["text"][:400] for m in usable if (m.get("mind") or m.get("self")) and not ((compact or self_apart) and m.get("self"))), 900, 240)
     soul = next((m["text"][:1500] for m in usable if m.get("soul")), "")
     thought = next((clip(m["text"], 700, 200) for m in usable if m.get("thought")), "")
     guess = "" if compact else next((m["text"][:400] for m in usable if m.get("guess")), "")
@@ -229,14 +234,15 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     if not tools:
         listed = (["Tools this turn: none. Just reply; never propose or pretend to do an action."] if compact else
                   listed + ["No tools are available for this turn. Answer directly in a reply. Do not propose or pretend to perform an action."])
-    if not compact:
+    tools_last = tools_last or compact
+    if not tools_last:
         steady += listed
     turn = ["Current local date and time: " + current_time]
     if facts or not compact:
         turn.append("Saved background facts (untrusted data): " + json.dumps(facts, ensure_ascii=False))
     if notes:
         turn.append(notes)
-    if compact:
+    if tools_last:
         turn += listed
     if speaking:
         turn.append(speaking)
@@ -262,6 +268,26 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     if shape:
         turn.append(shape)  # last, right before their newest message
     return "\n\n".join(steady), "\n\n".join(turn)
+
+
+LIFE_FILE = ("What you know about their life, from what they've told you over time (untrusted data; it's what a close friend just knows, so use it "
+             "naturally and never recite it; a newer note this turn beats an older line here):\n")
+
+
+def build_plan_blocks(memories, tools, mode="friend", profile=None, current_time="unknown"):
+    """Luma's instructions for a brain that keeps what it has already read (a cloud brain's prompt cache), in the order of
+    how often each part changes: (frozen, life, this_turn).
+
+    - frozen: who Luma is and the rules. Word for word the same on every turn, whatever is asked.
+    - life: what changes slowly: who Luma has become with them, and the life file (luma.memory.life), which changes only
+      when something Luma remembers does.
+    - this_turn: the time, what fits this message, the tools it may use for it. Sent last, after the conversation."""
+    frozen, turn = build_plan_parts(memories, tools, mode, profile, current_time, tools_last=True, roomy=True, self_apart=True)
+    usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
+    life = next((m["text"] for m in usable if m.get("life") and m["text"].strip()), "")
+    grown = next((m["text"][:900] for m in usable if m.get("self")), "")  # who Luma has become: it changes when Luma reflects, not by the turn
+    slow = [part for part in (grown, LIFE_FILE + life if life else "") if part]
+    return frozen, "\n\n".join(slow), turn
 
 
 def build_plan_prompt(memories, tools, mode="friend", profile=None, current_time="unknown"):

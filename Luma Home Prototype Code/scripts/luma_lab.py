@@ -5,6 +5,7 @@
     python scripts/luma_lab.py voice                                            # talking back in 12 communities' registers, nothing borrowed
     python scripts/luma_lab.py jobs --repeats 10                                # the 10 everyday jobs, each run again and again
     python scripts/luma_lab.py all --save lab.json
+    python scripts/luma_lab.py cloud [--turns 15] [--model claude-sonnet-5-5]   # the cloud brain: what it re-reads, first words, cost (scripts/si_lab.py)
 
 The brain comes from LUMA_MODEL_PATH. Everything runs in a throwaway profile: your real memories, contacts and
 settings are untouched, nothing is sent and nothing is bought. Jobs that need your accounts (email) run against a
@@ -841,7 +842,8 @@ def summary(paths):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary"])
+    parser.add_argument("what", choices=["speed", "honesty", "humor", "voice", "jobs", "pulse", "all", "summary", "device", "device-summary", "cloud"])
+    parser.add_argument("--turns", type=int, default=15, help="turns of the made-up conversation; cloud only")
     parser.add_argument("--threads", type=int, default=4, help="processor cores the brain may use; device only")
     parser.add_argument("--label", help="what to call this brain in the report; device only")
     parser.add_argument("--human", action="store_true", help="also run the human test (ten moments); device only")
@@ -859,6 +861,19 @@ def main():
         return
     if args.what == "device-summary":
         print(device_summary(args.reports))
+        return
+    if args.what == "cloud":
+        import si_lab
+        models = args.model or ["claude-sonnet-5-5"]
+        reports = [si_lab.cloud(args.turns, model, legacy=legacy) for model in models for legacy in (True, False)]  # as before, then cache first: the same run
+        print(si_lab.cloud_table(reports))
+        if not reports[0]["real"]:
+            print("\nStand-in numbers: no key in LUMA_LAB_ANTHROPIC_KEY, so nothing was sent to Anthropic. They show what would be read "
+                  "from the cache by its published rules. Times and real costs need the real API.")
+        if args.save:
+            Path(args.save).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.save).write_text(json.dumps({"when": time.strftime("%Y-%m-%d %H:%M"), "cloud": reports}, indent=2))
+            print("saved", args.save)
         return
     report = {"when": time.strftime("%Y-%m-%d %H:%M"), "brain": os.environ.get("LUMA_MODEL_PATH", "")}
 

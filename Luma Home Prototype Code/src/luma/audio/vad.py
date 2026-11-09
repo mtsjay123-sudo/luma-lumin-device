@@ -37,7 +37,8 @@ def _save_wav(audio, path):
         wf.writeframes(audio.astype(np.int16).tobytes())
 
 
-def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None, on_barge_in=None):
+def start_listening(callback: Callable[[str], None], stop_event=None, should_stop=None, allow_barge_in=False, on_pause=None, on_barge_in=None,
+                    on_maybe_done=None, on_carried_on=None):
     """Capture local utterances; barge-in requires playback the mic can't hear, or echo cancellation.
 
     With the echo canceller (luma.audio.echo, WebRTC AEC3), every chunk of mic audio has Luma's own voice taken out
@@ -46,6 +47,8 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
     that opts in should dispatch callback work to a worker so this loop can capture an interruption during speech.
     on_pause, if given, is called at a short pause inside a long turn (where a listener says "mm-hm"); it must return quickly.
     on_barge_in, if given, is called the moment someone starts talking while Luma is talking (a friend goes quiet then).
+    on_maybe_done(audio), if given, is called when they pause and the turn is held open for the rest: they may be done
+    (a caller can start on the words so far). on_carried_on() is called if they then keep talking. Both must return quickly.
     """
     if not isinstance(allow_barge_in, bool):
         raise ValueError("Barge-in must be an explicit true or false value.")
@@ -94,6 +97,9 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
                     except Exception: pass
                 if ending.holding is not None:
                     ending.resumed()  # they kept going after the pause: the same turn
+                    if on_carried_on is not None:
+                        try: on_carried_on()
+                        except Exception: pass
                 else:
                     in_speech = True
                     utterance = list(pre)
@@ -107,6 +113,9 @@ def start_listening(callback: Callable[[str], None], stop_event=None, should_sto
             too_long = len(utterance) >= int(30*SAMPLE_RATE/_CHUNK)
             if in_speech and ended and smart and not too_long:
                 ended = ending.paused(np.concatenate(utterance))  # mid-thought ("call... um... my sister"): hold on for the rest
+                if not ended and on_maybe_done is not None:
+                    try: on_maybe_done(np.concatenate(utterance))
+                    except Exception: pass  # a missed early start never stops listening
                 # That's exactly when a friend says "mm-hm": they paused, they're not done, and they've been talking a while.
                 if (not ended and watch is not None and on_pause is not None and not _speaking.is_set()
                         and len(utterance) * _CHUNK / SAMPLE_RATE >= turn.MMHM_AFTER_S and watch.clock() - watch.last >= watch.gap):

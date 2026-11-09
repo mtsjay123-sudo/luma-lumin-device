@@ -499,6 +499,7 @@ class Agent:
         self.last_asked = False
         self._last_diary_prune = 0
         self._sleeper = None  # the nightly tidy of what Luma remembers (luma.memory.life), when it's running
+        self._ahead = None    # a reply started before they'd finished talking (think_ahead), until the turn takes it or drops it
         self._owner_queue = __import__("queue").Queue()
         self._owner_worker = None
         self._last_reply_poll = 0
@@ -858,7 +859,7 @@ class Agent:
             return True
         try:
             from luma.llm import brain
-            if not brain.slow_here():
+            if not brain.slow_here() and not self._one_trip():
                 return True
         except Exception:
             return True
@@ -873,11 +874,26 @@ class Agent:
             return bool(chosen)
         if not self.use_model or self.planner is not None:
             return True
+        if key in ("think_first", "deliberate") and self._one_trip():
+            return False  # the cloud brain thinks before it speaks, in the same trip
         try:
             from luma.llm import brain
             return not brain.slow_here()
         except Exception:
             return True
+
+    def _one_trip(self):
+        """The cloud brain answers a turn in one trip. It thinks for itself before it speaks, so the separate think-first
+        and weigh-it-out trips (built to stretch a small brain on this computer: "what should I eat" took five) would only
+        make the person wait: every trip is a round trip to the cloud before the first word. A hard ask gets more of the
+        brain's own thinking instead (_effort). On unless the owner turned it off (cloud_one_trip)."""
+        if not self.use_model or self.planner is not None:
+            return False
+        try:
+            from luma.llm import brain
+            return brain.use_cloud() and self.store.setting("cloud_one_trip", True) is not False
+        except Exception:
+            return False
 
     def _silent(self):
         """Thinking that isn't the reply (a private thought, a take to weigh, Luma's safety question): never streamed to the voice.
@@ -894,20 +910,35 @@ class Agent:
                 return False
         return Silent()
 
-    def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
-        out = self._call_planner(messages, context, allowed, cancel_event, profile, tier)
+    def call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None, effort=None):
+        out = self._call_planner(messages, context, allowed, cancel_event, profile, tier, effort)
         if isinstance(out, dict) and isinstance(out.get("text"), str):  # what the brain wrote this turn (the cheap fixes are for it only)
             self._brain_texts = (getattr(self, "_brain_texts", []) + [out["text"]])[-12:]
         return out
 
-    def _call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None):
+    def _call_planner(self, messages, context, allowed, cancel_event, profile=None, tier=None, effort=None):
         if self.planner is not None: return self.planner(messages, context, allowed, self.mode)
         from luma.llm import brain  # the local model, a bigger local one, or the cloud brain if they turned it on
         on_text = getattr(self, "_on_text", None)
         self._streamed = None
         feed = self._unless_said_before(on_text) if on_text else None
-        result = brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
-                            on_text=feed, tier=tier)
+        ahead = self._take_ahead(messages, context, allowed, profile, tier)
+        result = None
+        if ahead is not None:  # the reply was started while the turn was held open: what's come so far is said now, the rest as it comes
+            with ahead["lock"]:
+                for chunk in ahead["chunks"] if feed is not None else ():
+                    feed(chunk)
+                ahead["sink"] = feed or (lambda chunk: None)
+            while not ahead["done"].wait(0.02):
+                if cancel_event is not None and cancel_event.is_set():
+                    ahead["event"].set()
+            result = ahead.get("result")
+            if result is None and cancel_event is not None and cancel_event.is_set():
+                from luma.llm import inference
+                raise inference.GenerationCancelled("The owner interrupted this turn.")
+        if result is None:
+            result = brain.plan(messages, context, allowed, self.mode, profile=profile or self.profile, cancel_event=cancel_event,
+                                on_text=feed, tier=tier, effort=effort)
         if feed is not None:
             feed.flush()  # the last words, unless the reply repeats an earlier one
         return result
@@ -4352,6 +4383,9 @@ class Agent:
         language.for_turn(text)
         # The owner always comes first: a helper working in the background gives way.
         if self.activity.background_running(): self.activity.stop()
+        ahead = getattr(self, "_ahead", None)
+        if ahead is not None and (ahead["said"] != " ".join(text.split()) or thread != "main"):
+            self.forget_ahead()  # a reply was started on other words: it's never used
         with self.lock:
             self._brain_texts = []  # what the brain writes this turn
             main, self.history = self.history, self.threads[thread]
@@ -4365,6 +4399,7 @@ class Agent:
                 except Exception:
                     pass
             finally:
+                self.forget_ahead()  # started early and not used (the turn was answered another way): thrown away
                 self.threads[thread] = self.history
                 self.history = main if thread != "main" else self.history
                 self.threads["main"] = self.history if thread == "main" else self.threads["main"]
@@ -4416,7 +4451,7 @@ class Agent:
             self._repeat_note, self._asked_again = None, bool(ASKED_AGAIN.search(text))  # "say that again": then the same words are right
             self._turn_text = text
             self.history.append({"role":"user", "content":text.strip()})
-            self.history = self.history[-20:]
+            self.history = self._window(self.history)
             if self.mode != "kids" and self.last_reply and not agent_mode:
                 from luma.agent import banter
                 if banter.laughed(text):
@@ -4869,6 +4904,142 @@ class Agent:
         except ValueError:  # a password or a card number: never kept
             return None
 
+    def _talk_context(self, text, cancel_event, hear=True):
+        """Everything the brain is told for this message besides the conversation: what Luma remembers that fits, the life
+        file, the household's records, headlines, and how Luma feels. hear=False only looks (the early start: nothing they
+        said is acted on until they've finished saying it)."""
+        if self.mode == "kids":
+            return []
+        return (self._remembered(text, room=12 if self._roomy() else 5, hear=hear) + self._life_context()
+                + [{"text": r["title"] + ": " + r["details"]} for r in self.household.records(query=text, mode=self.mode)[:3]]
+                + self._news_context(text) + self._mind_context(text, cancel_event))
+
+    # -- starting before they've finished --------------------------------------------------------------------------------
+    def think_ahead(self, text):
+        """They've paused and may be done; the turn is held open a moment longer in case there's more. Start the cloud
+        brain on the words so far. If they say more, forget_ahead() throws the start away. If the turn ends with exactly
+        these words and nothing else has changed, the reply is already on its way (_take_ahead).
+
+        The crisis net reads the words first: if it would answer, nothing is started, and it answers as always when the
+        turn ends. Nothing is kept, noticed or done from a start: only the reply is thought about. Off unless the owner
+        turned it on (early_start); never in kids mode; only with the cloud brain (a brain on this computer can't think
+        about two things at once). Returns True if it started."""
+        from luma.agent import friendcheck
+        from luma.llm import brain
+        text = " ".join(str(text or "").split())
+        if (not text or self.mode == "kids" or not self.use_model or self.planner is not None or self.busy
+                or not self.store.setting("early_start", False) or not brain.use_cloud()):
+            return False
+        low = text.lower()
+        if CRISIS.search(low) or SPANISH_CRISIS.search(low) or friendcheck.at_risk(text):
+            return False
+        self.forget_ahead()
+        ahead = {"said": text, "event": threading.Event(), "chunks": [], "sink": None, "lock": threading.Lock(), "done": threading.Event(),
+                 "began": time.monotonic()}
+        with self.lock:
+            if self.busy:
+                return False
+            from luma.agent import language
+            language.for_turn(text)
+            before = self.history
+            self.history = self._window(before + [{"role": "user", "content": text}])  # as the turn itself will see it
+            try:
+                ahead.update(messages=list(self.history), context=self._talk_context(text, ahead["event"], hear=False),
+                             allowed=self.available_tools(text), effort=self._effort(text))
+            except Exception:
+                return False
+            finally:
+                self.history = before
+
+        def relay(chunk):
+            with ahead["lock"]:
+                if ahead["sink"] is not None:
+                    ahead["sink"](chunk)
+                else:
+                    ahead["chunks"].append(chunk)
+
+        def run():
+            try:
+                ahead["result"] = brain.plan(ahead["messages"], ahead["context"], ahead["allowed"], self.mode, profile=self.profile,
+                                             cancel_event=ahead["event"], on_text=relay, effort=ahead["effort"])
+            except BaseException as error:  # stopped, or the brain couldn't: the turn asks again the usual way
+                ahead["error"] = error
+            finally:
+                ahead["done"].set()
+        self._ahead = ahead
+        self._count_ahead("started")
+        threading.Thread(target=run, name="luma-think-ahead", daemon=True).start()
+        return True
+
+    def forget_ahead(self):
+        """They kept talking, or the turn went another way: the start is thrown away, and counted."""
+        ahead, self._ahead = getattr(self, "_ahead", None), None
+        if ahead is None:
+            return False
+        ahead["event"].set()
+        self._count_ahead("wasted", seconds=time.monotonic() - ahead["began"])
+        return True
+
+    def _count_ahead(self, what, seconds=0.0):
+        try:
+            counts = dict(self.store.setting("early_starts") or {})
+            counts[what] = counts.get(what, 0) + 1
+            if seconds:
+                counts["wasted_seconds"] = round(counts.get("wasted_seconds", 0.0) + seconds, 1)
+            self.store.set_setting("early_starts", counts)
+        except Exception:
+            pass
+
+    def _take_ahead(self, messages, context, allowed, profile, tier):
+        """The start made on these very words, if this is the call it was made for: the same conversation, the same notes,
+        the same tools. Anything different and it's left alone (and thrown away when the turn ends)."""
+        ahead = getattr(self, "_ahead", None)
+        if ahead is None or profile is not None or tier is not None:
+            return None
+        told = lambda notes: [m for m in notes if not (isinstance(m, dict) and m.get("humor"))]  # noqa: E731  (which jokes show its humor is drawn fresh each time)
+        if ahead["messages"] != messages or ahead["allowed"] != allowed or told(ahead["context"]) != told(context):
+            return None
+        self._ahead = None
+        self._count_ahead("used")
+        return ahead
+
+    def _window(self, history):
+        """The conversation the brain is given. A brain on this computer reads the last 20 messages. A cloud brain has room
+        for far more and reads nothing again that it has already read, as long as the beginning holds still: so its window
+        grows to 64 messages and then steps back to 48, instead of sliding by one every turn."""
+        from luma.llm import brain
+        if not brain.use_cloud():
+            return history[-brain.LOCAL_WINDOW:]
+        return history[-48:] if len(history) > 64 else history
+
+    def _roomy(self):
+        """More of what Luma remembers goes to the brain each turn: the cloud brain is on, and the owner said the life file
+        may go to it (off until they do)."""
+        from luma.llm import brain
+        return self.mode != "kids" and bool(self.store.setting("cloud_life", False)) and brain.use_cloud()
+
+    def _life_context(self):
+        """The life file, for a brain with room to know them the way a close friend does. The cloud brain reads it once and
+        keeps it until something Luma remembers changes. With company in the room, the private things are left out."""
+        if not self._roomy():
+            return []
+        from luma.memory import life
+        try:
+            text = life.file(self.store, private=not self._company())
+        except Exception:
+            return []
+        return [{"life": True, "text": text}] if text else []
+
+    def _effort(self, text):
+        """ "high" when this is a hard ask (a plan, a comparison, a calculation: luma.llm.router), so the cloud brain thinks
+        longer on it. Everyday talk stays at one level, which keeps what the brain has cached of the conversation."""
+        from luma.agent import mind
+        from luma.llm import brain, router
+        try:
+            return "high" if brain.use_cloud() and (router.tier(text) == "hard" or mind.DEEP.search(str(text).lower())) else None
+        except Exception:
+            return None
+
     COMPANY_HOURS = 3
     COMPANY_ON = re.compile(r"^\W*(?:(?:hey|yo|ok(?:ay)?|luma|heads up|fyi|btw|so)\W+)*(?:i(?:'ve| have)? (?:got |have )?(?:company|guests|people over|friends over|someone (?:here|over))|"
                             r"(?:we have|we've got) (?:company|guests)|(?:my )?(?:friends|guests|family|parents|in-laws|coworkers|people) (?:are|r) (?:here|over)|"
@@ -4891,7 +5062,20 @@ class Agent:
         """Someone else is in the room (they said so): private things wait until they ask."""
         return float(self.store.setting("company_until", 0) or 0) > self.clock()
 
-    def _remembered(self, text, room=5):
+    MEMORY_Q = re.compile(r"\b(?:do you (?:remember|know)|did i (?:ever )?(?:tell|mention|say)|have i (?:ever )?(?:told|mentioned)|"
+                          r"remind me (?:what|who|when|where|which|how)|(?:what|who|when|where|which)(?:'s|’s| is| are| was| were)? (?:my|our)\b|"
+                          r"(?:what|where|when|who|how long|how much|how many) (?:did|do|have|had) (?:i|we)\b)", re.I)
+
+    def _asks_memory(self, text):
+        """A question only what they've told Luma can answer: "where does my sister live", "what did I do last spring",
+        "do you remember my landlord's name". Not "what should I eat": that one's asking for help, and a note saying Luma
+        was never told what to eat would only get in the way."""
+        from luma.memory import facts
+        from luma.memory.index import OWNER
+        ask = facts.asked(text)
+        return bool(ask["rels"] or (ask["what"] and OWNER.search(str(text))) or self.MEMORY_Q.search(str(text)))
+
+    def _remembered(self, text, room=5, hear=True):
         """What Luma remembers that fits this message, for the brain: what's true now before what used to be, lines of
         talk with the day they were said, and, when they ask about something it was never told, a note saying so."""
         from luma.memory import facts
@@ -4900,7 +5084,8 @@ class Agent:
         except Exception:
             return self.store.recall(text)
         asking = bool(self.RECALL_Q.search(str(text or "")))
-        self._hear_company(str(text or ""))
+        if hear:
+            self._hear_company(str(text or ""))
         company = self._company() and not asking
         out = []
         if self._company():
@@ -4915,10 +5100,11 @@ class Agent:
             elif m.get("source") == "said" and m.get("created"):
                 words = f"(They said, {datetime.fromtimestamp(m['created'], self.zone).strftime('%b %-d, %Y')}) {words}"
             out.append({**m, "text": words})
-        if asking and not found["known"]:
+        about_memory = asking and self._asks_memory(text)
+        if about_memory and not found["known"]:
             out.append({"note": True, "text": f"Your memory, checked for this message: {found['why']}. If that's what they're asking about, say you "
                                               "haven't been told, warmly, and offer to remember it. Never guess."})
-        elif asking and found["unseen"] and out:
+        elif about_memory and found["unseen"] and out:
             out.append({"note": True, "text": "Your memory, checked for this message: no memory mentions " + ", ".join(found["unseen"][:4])
                                               + ". If the saved facts above don't answer what they asked, say you haven't been told that part. Never guess."})
         return out
@@ -6134,7 +6320,7 @@ class Agent:
             if checked is not None: return checked
             from luma.agent import mind
             if self.use_model and self.mode != "kids" and not checkable:
-                if mind.DEEP.search(lowered):
+                if mind.DEEP.search(lowered) and not self._one_trip():  # "think hard about this": the cloud brain does, in one trip (_effort)
                     return self.deliberate(text, cancel_event)
                 if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) \
                         and not wants_message(text) and getattr(self, "_depth_mode", None) != "quick":
@@ -6245,10 +6431,10 @@ class Agent:
                         self._rerouting = False
                     if routed is not None:
                         return routed
-            context = [] if self.mode == "kids" else (self._remembered(text) + [{"text":r["title"] + ": " + r["details"]} for r in self.household.records(query=text,mode=self.mode)[:3]]
-                                                      + self._news_context(text) + self._mind_context(text, cancel_event))
+            context = self._talk_context(text, cancel_event)
             allowed = self.available_tools(text)
-            answer = self.call_planner(self.history, context, allowed, cancel_event)
+            effort = self._effort(text)  # only said when there is one: an everyday turn is asked exactly as it always was
+            answer = self.call_planner(self.history, context, allowed, cancel_event, **({"effort": effort} if effort else {}))
             if cancel_event.is_set(): return {"state":"interrupted", "text":"Stopped before taking another action."}
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")

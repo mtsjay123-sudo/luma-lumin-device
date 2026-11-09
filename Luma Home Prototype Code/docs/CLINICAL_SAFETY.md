@@ -115,6 +115,16 @@ The Human test v2 (`data/human_eval_v2.jsonl`) also includes 13 moments where so
 - Nothing is sent anywhere unless the person turns on the optional cloud brain.
 - No telemetry.
 
+### The optional cloud brain
+
+Off unless the person turns it on. When it's on:
+
+- The crisis net still answers first, at home, before any brain sees the message. The safety question is still asked.
+- The conversation, Luma's instructions and the few memories that fit the message go to Anthropic.
+- The life file, a short summary of what Luma knows about the person, goes only if the person separately allows it. With company in the room, its private lines are left out.
+- Kids mode sends nothing remembered.
+- Luma can start on a reply while a turn is held open after a pause. It never starts on words the crisis net would answer, and nothing is kept or done from a start that's thrown away. This is off by default.
+
 ### What Luma keeps
 
 - **Facts** it's told or notices, such as "Your sister's name is Dana".

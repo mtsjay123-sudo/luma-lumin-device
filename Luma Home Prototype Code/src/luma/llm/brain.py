@@ -302,9 +302,22 @@ def use_small(small=True):
 KEY_SETTING = {"anthropic": "brain_cloud_key", "kimi": "brain_kimi_key"}  # each company's key is kept on its own
 
 
+AUTO = "auto"  # opt-in: the everyday model for talk, the strongest for a hard ask (luma.llm.router)
+LOCAL_WINDOW = 20  # messages of conversation a brain on this computer reads; a cloud brain reads more (luma.agent.runtime._window)
+
+
 def cloud_models():
     from luma.llm import cloud, kimi
-    return {**cloud.MODELS, **kimi.MODELS}
+    return {**cloud.MODELS, AUTO: "Auto (Claude Sonnet 5.5 to talk, Opus 5.5 for hard asks)", **kimi.MODELS}
+
+
+def cloud_pick(effort=None):
+    """The model this turn runs on: the owner's choice, or with Auto the everyday one unless the ask is hard."""
+    from luma.llm import cloud
+    chosen = cloud_model()
+    if chosen != AUTO:
+        return chosen
+    return cloud.DEFAULT_MODEL if effort == cloud.HARD_EFFORT else "claude-sonnet-5-5"
 
 
 def cloud_model():
@@ -415,7 +428,7 @@ def set_cloud(on, key=None, model=None):
             raise ValueError("Choose Claude Opus 5.5, Claude Sonnet 5.5 or Kimi K3.1 Pro.")
         which = provider(model)
         key = (key or cloud_key(which)).strip()
-        _provider_module(which).check_key(key, model)
+        _provider_module(which).check_key(key, *(() if model == AUTO else (model,)))
         _store.set_setting(KEY_SETTING[which], key)
         _store.set_setting("brain_cloud_model", model)
     _store.set_setting("brain_cloud", bool(on))
@@ -450,6 +463,7 @@ def status():
         "own": own_status(),
         "health": health(),
         "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
+        "cache": cache_share(),
     }
 
 
@@ -481,12 +495,113 @@ def _metered(label, tier, call, args, kwargs, sent):
     try:
         result = call(*args, **kwargs)
     except Exception:
-        usage.record(_store, label, usage.tokens(sent), 0, timer.seconds, ok=False, tier=tier)
+        usage.record(_store, label, usage.tokens(sent), 0, timer.seconds, ok=False, tier=tier, real=_real_numbers())
         raise
-    usage.record(_store, label, usage.tokens(sent), usage.tokens(result), timer.seconds, ok=True, tier=tier)
+    usage.record(_store, label, usage.tokens(sent), usage.tokens(result), timer.seconds, ok=True, tier=tier, real=_real_numbers())
     if label.endswith("(local)"):
         note_speed(usage.tokens(result), timer.seconds)
     return result
+
+
+def cloud_patience(effort=None):
+    """Seconds to wait for the cloud brain's first words before the next brain answers the turn instead. A hard ask is
+    given longer (the brain is thinking). A device with no computer to lean on waits longer too: its own brain would take
+    as long just to start. The owner can set it (brain_cloud_patience)."""
+    chosen = _store.setting("brain_cloud_patience", None) if _store is not None else None
+    if isinstance(chosen, (int, float)) and not isinstance(chosen, bool) and chosen > 0:
+        return float(chosen)
+    if effort == "high":
+        return 45.0
+    alone = os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget" and not computer_on()
+    return 20.0 if alone else 12.0
+
+
+def _within(seconds, call, args, kwargs):
+    """A cloud call whose first words must come within `seconds`. If they don't, this stops waiting and raises, so the
+    next brain answers the turn; the slow call is told to stop and nothing it says later is heard. Only a call whose words
+    are being said as they come is boxed this way (the others have the connection's own timeout)."""
+    import time as clock
+    on_text, outer = kwargs.get("on_text"), kwargs.get("cancel_event")
+    if on_text is None or not seconds:
+        return call(*args, **kwargs)
+    began, done, inner, box, hearing = threading.Event(), threading.Event(), threading.Event(), {}, {"on": True}
+
+    def heard(chunk):
+        began.set()
+        if hearing["on"]:
+            on_text(chunk)
+
+    def run():
+        try:
+            box["result"] = call(*args, **{**kwargs, "on_text": heard, "cancel_event": inner})
+        except BaseException as error:
+            box["error"] = error
+        finally:
+            box["real"] = _real_numbers()  # the numbers were noted on this thread: carried over to the one that's counting
+            began.set()
+            done.set()
+    threading.Thread(target=run, daemon=True, name="luma-cloud-turn").start()
+    deadline = clock.monotonic() + seconds
+    while not began.wait(0.02):
+        if outer is not None and outer.is_set():
+            inner.set()
+        if clock.monotonic() > deadline:
+            hearing["on"] = False
+            inner.set()
+            raise TimeoutError("The cloud brain took too long to start answering.")
+    while not done.wait(0.02):
+        if outer is not None and outer.is_set():
+            inner.set()
+    if box.get("real"):
+        from luma.llm import cloud
+        cloud._turn.last = box["real"]
+    if "error" in box:
+        raise box["error"]
+    return box["result"]
+
+
+def _real_numbers():
+    """What the cloud brain's last call really used on this thread (tokens read from its cache, time to the first words)."""
+    try:
+        from luma.llm import cloud
+        return cloud.last_turn()
+    except Exception:
+        return None
+
+
+def cache_share(days=1):
+    """Of everything the cloud brain was sent lately, how much it had already read (its prompt cache): 0.0 to 1.0, or None
+    before the first call. Low means something early in what Luma sends keeps changing."""
+    from luma.llm import usage
+    if _store is None:
+        return None
+    return usage.cache_share(_store, days)
+
+
+def warm_cloud():
+    """Before the first word (the wake word, the app opening): have the cloud brain read Luma's instructions and the life
+    file, so the first reply doesn't wait on them. Off unless the owner turned it on (it costs a little each time), and at
+    most once every few minutes: a conversation keeps its own cache warm."""
+    import time as clock
+    from luma.llm import cloud
+    if _store is None or not cloud_on() or provider() != "anthropic" or not _store.setting("cloud_warm", False):
+        return None
+    now = clock.time()
+    if now - float(_store.setting("cloud_warmed_at", 0) or 0) < 240:
+        return None
+    _store.set_setting("cloud_warmed_at", now)
+    memories = []
+    if _store.setting("cloud_life", False):
+        try:
+            from luma.memory import life
+            text = life.file(_store)
+            memories = [{"life": True, "text": text}] if text else []
+        except Exception:
+            memories = []
+    soul = _store.setting("soul")
+    if soul:
+        memories.append({"soul": True, "text": str(soul)[:1500]})
+    return cloud.warm(cloud_key(), memories, "friend", _store.setting("personality"), model=cloud_pick())
 
 
 # -- how fast it really is on this computer -----------------------------------------
@@ -596,11 +711,12 @@ def install_huge():
     return colibri.install(ram_gb())
 
 
-def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None, use_computer_brain=True):
+def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None, tier=None, use_computer_brain=True, effort=None):
     """One turn's proposal from the best brain that can answer: the huge one for heavy work, the paired computer's (on the
     device), the cloud brain if it's on, then this one's own. use_computer_brain=False: a computer lending its brain to the
-    device never hands the turn on again."""
+    device never hands the turn on again. effort: "high" for a hard ask (the cloud brain thinks longer on it)."""
     from luma.llm import inference
+    whole, messages = messages, messages[-LOCAL_WINDOW:]  # a brain on this computer reads the last 20; the cloud brain, all it's given
     sent = [messages, memories, tools]
     if use_huge(tier):
         try:
@@ -619,9 +735,11 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
             return result
     if use_cloud(tier):
         try:
-            result = _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).plan,
-                              (cloud_key(), messages, memories, tools, mode),
-                              {"profile": profile, "cancel_event": cancel_event, "on_text": on_text, "model": cloud_model()}, sent)
+            model = cloud_pick(effort)
+            more = {"effort": effort} if effort and provider() == "anthropic" else {}
+            result = _metered(cloud_models().get(model, model), tier, _within,
+                              (cloud_patience(effort), _provider_module(provider()).plan, (cloud_key(), whole, memories, tools, mode),
+                               {"profile": profile, "cancel_event": cancel_event, "on_text": on_text, "model": model, **more}), {}, [whole, memories, tools])
             if _store.setting("brain_cloud_error"): _store.set_setting("brain_cloud_error", None)
             return result
         except inference.GenerationCancelled:
@@ -647,8 +765,8 @@ def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light", use_computer
             return said
     if use_cloud(tier):
         try:
-            return _metered(cloud_models().get(cloud_model(), cloud_model()), tier, _provider_module(provider()).rewrite,
-                            (cloud_key(), prompt), {"max_tokens": max_tokens, "model": cloud_model()}, prompt)
+            return _metered(cloud_models().get(cloud_pick(), cloud_pick()), tier, _provider_module(provider()).rewrite,
+                            (cloud_key(), prompt), {"max_tokens": max_tokens, "model": cloud_pick()}, prompt)
         except Exception as error:
             _store.set_setting("brain_cloud_error", _plain_error(error))
     return _metered(local_label(), tier, _local, (inference.rewrite, prompt), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt)

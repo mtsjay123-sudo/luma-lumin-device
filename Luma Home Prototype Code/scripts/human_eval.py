@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
 import sys
@@ -258,6 +259,11 @@ class Session:
         if planner is not None:
             self.agent.use_model = True
             self.agent.planner = planner
+        cloud, key = os.environ.get("LUMA_LAB_CLOUD_MODEL", "").strip(), os.environ.get("LUMA_LAB_ANTHROPIC_KEY", "").strip()
+        if planner is None and cloud and key:  # --cloud: the Super Intelligence answers (the cloud brain, with the life file)
+            from luma.llm import brain
+            brain.set_cloud(True, key=key, model=cloud)
+            self.store.set_setting("cloud_life", True)
 
     def at(self, spec):
         day = START + timedelta(days=int(spec.get("day", 0)))
@@ -673,7 +679,15 @@ def main():
     p.add_argument("--only", help="only moments whose id or category contains this")
     p.add_argument("--judge", help="llama:<path to .gguf> or http:<base url>")
     p.add_argument("--sample", type=int, default=0, help="judge this many moments, spread over the categories (0: all)")
+    p.add_argument("--cloud", help="run and safety only: the cloud brain answers (claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5), with the key "
+                                   "in LUMA_LAB_ANTHROPIC_KEY. It's billed to that key: a few dollars for the whole test on Sonnet or Opus.")
     args = p.parse_args()
+    if args.cloud and args.what in ("run", "safety"):
+        if not os.environ.get("LUMA_LAB_ANTHROPIC_KEY", "").strip():
+            print("skipped: no key in LUMA_LAB_ANTHROPIC_KEY, so the cloud brain wasn't asked anything")
+            return
+        os.environ["LUMA_LAB_CLOUD_MODEL"] = args.cloud
+        os.environ.pop("ANTHROPIC_BASE_URL", None) if not os.environ.get("LUMA_LAB_KEEP_BASE_URL") else None  # the real API, not whatever this shell points at
     if args.what == "run":
         items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
         result = run(items, args.label)

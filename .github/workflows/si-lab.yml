@@ -1,0 +1,89 @@
+# The Super Intelligence labs that need no key and no brain (a few minutes on a plain Linux machine):
+#   - the memory test on made-up lives, the dev half and the held-out half (held-out misses are never printed);
+#   - the router on turns it never learned from;
+#   - the cloud brain's request, through the real Luma, against a stand-in for Anthropic's API that follows the prompt
+#     cache's published rules: how much of each turn would be read from the cache, and how many trips a turn makes.
+# Run by hand with `real: true` and the secret LUMA_LAB_ANTHROPIC_KEY, the cloud lab talks to the real API instead, and
+# Human Test v2 and the safety sample run on the cloud brain. That is billed to that key: about 30 cents for the cloud
+# lab on Sonnet, and a few dollars for the human test.
+name: Super Intelligence labs
+
+on:
+  push:
+    paths:
+      - "Luma Home Prototype Code/src/luma/memory/**"
+      - "Luma Home Prototype Code/src/luma/llm/cloud.py"
+      - "Luma Home Prototype Code/src/luma/llm/router.py"
+      - "Luma Home Prototype Code/src/luma/llm/prompts.py"
+      - "Luma Home Prototype Code/scripts/memory_eval.py"
+      - "Luma Home Prototype Code/scripts/si_lab.py"
+      - "Luma Home Prototype Code/scripts/train_router.py"
+      - "Luma Home Prototype Code/data/router_turns.jsonl"
+      - ".github/workflows/si-lab.yml"
+  workflow_dispatch:
+    inputs:
+      real:
+        description: "true: the cloud lab uses the real API with the secret LUMA_LAB_ANTHROPIC_KEY (billed to that key)"
+        default: "false"
+      sizes:
+        description: "How many memories each made-up life has"
+        default: "1000,10000,100000"
+      model:
+        description: "The cloud model for the cloud lab"
+        default: "claude-sonnet-5-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: si-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  labs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    env:
+      PYTHONPATH: src:tests:scripts
+      SIZES: ${{ github.event.inputs.sizes || '1000,10000,100000' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata anthropic pytest "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
+      - name: The tests for the life memory and the real-time brain
+        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py
+      - name: Memory, the dev half
+        run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
+      - name: Memory, the held-out half
+        run: python scripts/memory_eval.py run --sizes "$SIZES" --split heldout --lives 3 --save "$RUNNER_TEMP/lab/memory-heldout.json"
+      - name: The router, on turns it never saw
+        run: python scripts/train_router.py test | tee "$RUNNER_TEMP/lab/router.txt"
+      - name: The cloud brain's request (a stand-in for the API unless run by hand with real=true)
+        env:
+          LUMA_LAB_ANTHROPIC_KEY: ${{ github.event.inputs.real == 'true' && secrets.LUMA_LAB_ANTHROPIC_KEY || '' }}
+        run: python scripts/luma_lab.py cloud --turns 15 --model "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --save "$RUNNER_TEMP/lab/cloud.json" | tee "$RUNNER_TEMP/lab/cloud.txt"
+      - name: Human Test v2 and the safety sample on the cloud brain (only when run by hand with real=true)
+        if: github.event.inputs.real == 'true'
+        env:
+          LUMA_LAB_ANTHROPIC_KEY: ${{ secrets.LUMA_LAB_ANTHROPIC_KEY }}
+        run: |
+          python scripts/human_eval.py run --cloud "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --label "Cloud brain" --save "$RUNNER_TEMP/lab/human-cloud.json"
+          python scripts/human_eval.py safety --cloud "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --label "Cloud brain" --save "$RUNNER_TEMP/lab/safety-cloud.json"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Memory"; python scripts/memory_eval.py summary "$RUNNER_TEMP"/lab/memory-*.json
+            echo; echo "## Router"; echo '```'; cat "$RUNNER_TEMP/lab/router.txt"; echo '```'
+            echo; echo "## Cloud brain"; cat "$RUNNER_TEMP/lab/cloud.txt"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: si-lab
+          path: ${{ runner.temp }}/lab

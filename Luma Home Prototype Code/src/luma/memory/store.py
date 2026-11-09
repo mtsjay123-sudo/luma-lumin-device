@@ -327,19 +327,18 @@ class Store:
             try:
                 with self.lock:
                     seen = self._count_changes()
-                index, after = LifeIndex(meaning.DIMS), (-1e300, -1)
+                index, after = LifeIndex(meaning.DIMS), -1
                 while True:
-                    with self.lock:
-                        rows = self.db.execute("SELECT r.payload, k.wrapped, r.created, r.rowid FROM records r LEFT JOIN keys k ON k.id = r.id "
-                                               "WHERE r.kind='memory' AND (r.created > ? OR (r.created = ? AND r.rowid > ?)) "
-                                               "ORDER BY r.created ASC, r.rowid ASC LIMIT 4000", (after[0], after[0], after[1])).fetchall()
+                    with self.lock:  # in the order they were written (the table's own order), so each read picks up where the last ended
+                        rows = self.db.execute("SELECT r.payload, k.wrapped, r.rowid FROM records r LEFT JOIN keys k ON k.id = r.id "
+                                               "WHERE r.kind='memory' AND r.rowid > ? ORDER BY r.rowid ASC LIMIT 4000", (after,)).fetchall()
                     if not rows:
                         break
                     for row in rows:
                         memory = self._decode(row[:2])
                         if memory is not None:
                             index.add(memory)
-                    after = (rows[-1][2] if rows[-1][2] is not None else after[0], rows[-1][3])
+                    after = rows[-1][2]
                 with self.lock:
                     if self._index is not None:
                         return self._index

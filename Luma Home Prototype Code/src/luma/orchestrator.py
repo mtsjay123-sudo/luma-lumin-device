@@ -188,6 +188,53 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
     heard = {"text": None}           # what they said that Luma's answering now
     barge = {"spoke_for": None}      # how long Luma had been talking when they started talking over it
 
+    ahead = {"turn": 0, "text": None, "for": None, "done": None}  # the words so far, heard while a turn was held open
+
+    def named_text(raw):
+        """What they said, after Luma's name if they said it: (text, whether they named it)."""
+        text = backchannel.clean(raw.strip())
+        named = re.search(r'\b(?:luma|luna)\b', text, re.I) if text else None
+        return ((text[named.end():].lstrip(' ,.:!?') or 'Hello') if named else text), bool(named)
+
+    def maybe_done(audio):
+        """They paused and the turn is held open in case there's more. Hear the words so far and start on a reply
+        (Agent.think_ahead): if that's all they say, it's ready sooner. Off unless the owner turned it on."""
+        if not agent.store.setting('early_start', False) or capture_blocked(agent) or agent.busy or agent.speaking:
+            return
+        ahead["turn"] += 1
+        turn, done = ahead["turn"], threading.Event()
+        ahead.update(text=None, done=done)
+        ahead["for"] = turn
+
+        def work():
+            path = None
+            try:
+                if not transcribing.acquire(blocking=False): return
+                try:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp: path = tmp.name
+                    vad._save_wav(audio, path)
+                    text, named = named_text(transcribe(path))
+                finally: transcribing.release()
+                if turn != ahead["turn"] or not text: return  # they carried on while this was being heard
+                ahead["text"] = (text, named)
+                if (named or time.monotonic() < followup_until) and not interruption_intent(text):
+                    agent.think_ahead(text)
+            except Exception:
+                pass
+            finally:
+                done.set()
+                if path:
+                    try: os.unlink(path)
+                    except FileNotFoundError: pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def carried_on():
+        ahead["turn"] += 1  # what was heard so far isn't the whole turn
+        ahead["text"] = None
+        try: agent.forget_ahead()
+        except Exception: pass
+
     def talked_over():
         # They started talking while Luma talks: go quiet now, like a friend, and remember how early it was.
         if agent.speaking:
@@ -200,12 +247,17 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
             try:
                 if capture_blocked(agent) or stop_event.is_set(): return
                 # A bounded single transcription worker avoids accumulating recordings.
-                if not transcribing.acquire(blocking=False): return
-                try: text = backchannel.clean(transcribe(path).strip())  # Luma's own "mm-hm" isn't part of what they said
-                finally: transcribing.release()
+                early = None
+                if ahead["for"] == ahead["turn"] and ahead["done"] is not None:  # the turn ended on the words already heard
+                    ahead["done"].wait(4)
+                    early, ahead["for"] = ahead["text"], None
+                if early:
+                    text, named = early
+                else:
+                    if not transcribing.acquire(blocking=False): return
+                    try: text, named = named_text(transcribe(path))  # Luma's own "mm-hm" isn't part of what they said
+                    finally: transcribing.release()
                 if not text or capture_blocked(agent) or stop_event.is_set(): return
-                named = re.search(r'\b(?:luma|luna)\b', text, re.I)
-                if named: text = text[named.end():].lstrip(' ,.:!?') or 'Hello'
                 intent = interruption_intent(text)
                 addressed = bool(named) or time.monotonic() < followup_until
                 if intent and (agent.busy or agent.speaking): addressed = True
@@ -256,7 +308,8 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
             barge_in = chosen if isinstance(chosen, bool) else (backchannel.safe_to_talk_over(*backchannel.device_names()) or echo.ready())
             vad.start_listening(received, stop_event,
                                 should_stop=lambda: capture_blocked(agent) or agent.store.setting('barge_in', None) != chosen,
-                                allow_barge_in=barge_in, on_pause=listening, on_barge_in=talked_over if barge_in else None)
+                                allow_barge_in=barge_in, on_pause=listening, on_barge_in=talked_over if barge_in else None,
+                                on_maybe_done=maybe_done, on_carried_on=carried_on)
         except Exception as error:
             agent.set_muted(True)
             if getattr(agent, 'on_result', None): agent.on_result({'text':'Microphone stopped: ' + str(error)[:250]})
