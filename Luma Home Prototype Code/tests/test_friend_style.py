@@ -174,5 +174,22 @@ class RoomForTheConversation(unittest.TestCase):
         self.assertEqual(default_context_size(tier="budget", ram_gb=36), 4096, "a $250 device reads less every turn")
 
 
+
+class TheShapeOfTheTurn(unittest.TestCase):
+    def test_corrected_cut_off_or_answered_in_a_word(self):
+        self.assertIn("my bad", style.turn_note("no I meant something to watch with my kids"))
+        self.assertIn("my bad", style.turn_note("that's not what i asked"))
+        self.assertIn("floor", style.turn_note("wait hold on", "So a credit score is basically"))
+        self.assertIn("one short line", style.turn_note("k", "Split it into needs, wants and savings."))
+        self.assertEqual(style.turn_note("k"), "", "nothing to answer in a word to")
+        self.assertEqual(style.turn_note("thanks", "Anytime."), "")
+        self.assertEqual(style.turn_note("what should i cook tonight", "Hey!"), "")
+        self.assertEqual(style.turn_note("wait, what time is the game tonight?", "Hey!"), "", "a question isn't a cut-in")
+
+    def test_the_device_keeps_it_right_before_their_message(self):
+        _, turn = prompts.build_plan_parts([{"shape": True, "text": style.turn_note("k", "Long reply.")}], {}, "friend", {}, "now", compact=True)
+        self.assertTrue(turn.rstrip().endswith("No lecture, no list."))
+
+
 if __name__ == "__main__":
     unittest.main()

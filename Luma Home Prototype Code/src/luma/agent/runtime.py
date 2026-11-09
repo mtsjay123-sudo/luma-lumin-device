@@ -3000,6 +3000,9 @@ class Agent:
         if summary: out.append({"about": True, "text": summary})
         lean = self._leaning_note(text)
         if lean: out.append({"mind": True, "text": lean})
+        from luma.agent import style as talk
+        shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
+        if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
             said = [h["content"] for h in self.history[-24:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]

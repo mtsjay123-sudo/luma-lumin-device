@@ -233,3 +233,23 @@ def friend_style(reply, said="", hurt_recently=False, depth=None):
         if shorter != text:
             text, fixes = shorter, fixes + ["length"]
     return text, fixes
+
+
+# ------------------------------------------------------------------------------------------------ the shape of the turn ---
+REPAIR = re.compile(r"^\W*(?:(?:no|nah|nope|wait|not|uh no)\b[^.!?]{0,40}\b(?:i meant|i mean|not that|that'?s not)|that'?s not what i (?:asked|meant|said)|"
+                    r"(?:no|nah),? i meant|not (?:that|what i meant)|you misunderstood)", re.I)
+CUT_IN = re.compile(r"^\W*(?:wait|hold on|hold up|hang on|stop|no wait|one sec|sec|pause)\b[^?]{0,32}$", re.I)
+GREETINGS = re.compile(r"^\W*(?:hi|hey|hello|yo|sup|morning|night|gn|gm|bye|thanks|thank you|ty|thx)\W*$", re.I)
+
+
+def turn_note(said, last_reply=""):
+    """How a friend handles this kind of moment, for the brain: corrected, cut off, answered in a word. "" for everything else."""
+    said = str(said or "").strip()
+    if REPAIR.search(said):
+        return ("They're correcting you. Start with a quick \"ah, my bad\" or \"got it\", then give the right answer. "
+                "No formal apology, no \"could you clarify\".")
+    if last_reply and CUT_IN.search(said):
+        return "They cut in while you were talking. Stop, and give them the floor in a few words, like \"Yeah? I'm listening.\" Don't go on."
+    if last_reply and 0 < len(WORD.findall(said)) <= 2 and "?" not in said and not GREETINGS.match(said):
+        return "They answered in a word. Keep yours to one short line, easy and warm. No lecture, no list."
+    return ""
