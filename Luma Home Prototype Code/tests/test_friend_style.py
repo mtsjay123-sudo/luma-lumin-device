@@ -203,6 +203,20 @@ class InLuma(unittest.TestCase):
         self.assertNotIn("lost my train of thought", out)
         self.assertIn("climbing tape", out)
 
+    def test_venting_about_their_day_doesnt_bring_the_briefing(self):
+        """A bare "my day" offered the day's briefing to someone telling Luma how theirs went."""
+        self.assertNotIn("briefing.today", self.agent.available_tools("my day was rough honestly"))
+        self.assertIn("briefing.today", self.agent.available_tools("what's my day look like"))
+        self.assertIn("briefing.today", self.agent.available_tools("walk me through my day"))
+
+    def test_corrected_in_a_real_turn_luma_owns_it_and_varies_its_start(self):
+        for extra in ("think_first", "deliberate", "deep_mind"):
+            self.store.set_setting(extra, False)
+        self.brain("The red one's my pick, it's lighter.", "The green one's quieter, so that one.")
+        self.agent.chat("which kettle should i get, the red or the green")
+        out = self.agent.chat("nope, not the red one, the green one. is it any good")["text"]
+        self.assertTrue(out.startswith("Ah, my bad."), out)
+
     def test_a_reply_that_only_copies_an_example_gets_one_more_try(self):
         for extra in ("think_first", "deliberate", "deep_mind"):
             self.store.set_setting(extra, False)  # one trip per reply, as on a $250 device
@@ -350,6 +364,36 @@ class RoomForTheConversation(unittest.TestCase):
         self.assertEqual(default_context_size(tier="", ram_gb=8), 4096)
         self.assertEqual(default_context_size(tier="budget", ram_gb=36), 4096, "a $250 device reads less every turn")
 
+
+
+class AfterRunSix(unittest.TestCase):
+    """Fixes for what Human Test v2 run 6 showed, in other words than the test's own."""
+
+    def test_told_no_luma_owns_it_first(self):
+        got, fixes = style.friend_style("The green one's quieter, so that one.", "nope, not the red one, the green one", corrected=True)
+        self.assertEqual(got, "Ah, my bad. The green one's quieter, so that one.")
+        self.assertIn("owned the mistake", fixes)
+        self.assertEqual(style.friend_style("Oh, got it. The green one's quieter.", "nope, not the red one", corrected=True)[0],
+                         "Oh, got it. The green one's quieter.", "already owned")
+        self.assertEqual(style.friend_style("The green one's quieter.", "nope, not the red one", corrected=False)[0], "The green one's quieter.")
+        self.assertTrue(style.REPAIR.search("nah, not that one, the other one"))
+        self.assertFalse(style.REPAIR.search("not bad at all"))
+        self.assertFalse(style.REPAIR.search("no not really, just tired"), "a plain no isn't a correction")
+
+    def test_the_same_opener_a_third_time_is_said_another_way(self):
+        recent = ["I'm here, take your time.", "I'm glad you said something."]
+        self.assertEqual(style.vary_opener("I'm so sorry, that sounds exhausting.", recent), "So sorry, that sounds exhausting.")
+        self.assertEqual(style.vary_opener("I'm really glad you called.", recent), "Really glad you called.")
+        self.assertEqual(style.vary_opener("I'm so sorry, that sounds exhausting.", recent[:1]), "I'm so sorry, that sounds exhausting.",
+                         "twice isn't a habit")
+        self.assertEqual(style.vary_opener("I'm thinking tacos.", recent), "I'm thinking tacos.", "no natural swap: left alone")
+        self.assertEqual(style.vary_opener("Honestly, go for it.", ["Honestly no.", "Honestly yes."]), "Go for it.")
+
+    def test_no_made_up_past_together(self):
+        self.assertTrue(style.invented_life("Haha remember when we got lost driving to the lake?"))
+        self.assertTrue(style.invented_life("That one time we went to the fair was the best."))
+        self.assertIsNone(style.invented_life("Remember when you told me about the lake? How'd that go?"))
+        self.assertIsNone(style.invented_life("Remember when we talked about your sister's wedding? Is it this weekend?"))
 
 
 class TheShapeOfTheTurn(unittest.TestCase):

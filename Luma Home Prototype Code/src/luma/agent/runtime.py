@@ -684,7 +684,8 @@ class Agent:
             (r"\b(?:timers?|countdown)\b", {"timers.start", "timers.list", "timers.control"}),
             (r"\b(?:recipe|cooking|next step|previous step)\b", {"cooking.step"}),
             (r"\b(?:household|pantry|manual|warranty|maintenance|save|where)\b", {"household.save", "household.find"}),
-            (r"\b(?:briefing|my day|today's plans)\b", {"briefing.today", "tasks.list"}),
+            (r"\b(?:briefing|today's plans|(?:what'?s|what is|how'?s|how is|plan|brief me on|go over|walk me through) (?:on )?my day)\b",
+             {"briefing.today", "tasks.list"}),  # "ask me about MY day" wants to be asked, not briefed
             (r"\b(?:search|look (?:it |that )?up|google|find online|research|latest|current|news|weather|forecast|scores?|who won|stock price|open now|(?:opening|store|business|office) hours|hours (?:today|tomorrow|tonight|this weekend|on \w+day)|what are (?:the|their|its) hours|near me|reviews?|release date|what happened|price of|how much)\b", {"web.search"}),
             (r"\b(?:appointment|availability|book|booking)\b", {"booking.availability"}),
             (r"\b(?:lights?|brightness)\b", {"home.light"}),
@@ -4581,7 +4582,12 @@ class Agent:
             return reply  # Luma's own lines (the crisis reply, "which album?", a joke) are said as written
         from luma.agent import style
         depth = None if self.profile.get("verbosity") != "detailed" else True
-        fixed, fixes = style.friend_style(reply, said, hurt_recently=self._hurt_recently(said), depth=depth)
+        earlier = self._earlier_replies()
+        corrected = bool(style.REPAIR.search(str(said or ""))) and bool(earlier)  # a correction needs something to correct
+        fixed, fixes = style.friend_style(reply, said, hurt_recently=self._hurt_recently(said), depth=depth, corrected=corrected)
+        varied = style.vary_opener(fixed, earlier[-8:]) if fixed else fixed
+        if varied != fixed:
+            fixed, fixes = varied, fixes + ["opener"]
         if fixes:
             self.style_fixes = (getattr(self, "style_fixes", []) + [{"fixes": fixes, "at": self.clock()}])[-50:]
         return fixed or reply

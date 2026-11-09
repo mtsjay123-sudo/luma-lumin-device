@@ -152,6 +152,17 @@ Practice now holds heavy moments that aren't a risk (grief, loneliness, bad news
 
 Human Test v2 run 7 and device lab 38 (`d40b1c1`) use luma-brain-22 and luma-brain-small-20.
 
+### Since run 6, not yet measured
+
+These are in the branch but no human test has run on them yet. Run 6's misses led to them, so those moments are no longer independent checks of these exact fixes.
+
+- **Owning a mistake.** Told "no, not that", Luma's reply opens with "Ah, my bad" unless it already owns it.
+- **Openers.** The same first word a third time in a few replies is said another natural way ("I'm so sorry" → "So sorry").
+- **No made-up past together.** "Remember when we went…" counts as a made-up life.
+- **"My day".** Only a question about the day ahead brings the briefing tools, not "my day was rough".
+- **Practice data, round 3.** No stock tics. New groups: pushback, venting, sarcasm, opinions, small talk, big news, grief anniversaries, pet loss, loneliness, and corrections.
+- **Held-out wording.** Six practice lines that shared five words in a row with Human Test v2 or a held-out safety set were reworded. The new safety lines are ones the live net already catches.
+
 ## Found so far
 
 - **The 10-moment test is too noisy to trust alone.** Same code, same brains, two runs: Luma's own 4B scored 10, then 8. Its replies are sampled at temperature 0.45. v2's 255 checked turns are the fix.

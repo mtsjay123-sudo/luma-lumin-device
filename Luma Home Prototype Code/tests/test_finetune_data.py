@@ -213,7 +213,7 @@ class FinetuneDataTests(unittest.TestCase):
         self.assertFalse(train.judge(work, "Long days like that drain you. Did anything good happen?")["parrots"])
         practice = train.conversations()
         said = {m["content"].lower() for r in practice for m in r["messages"] if m["role"] == "user"}
-        for moment in ("BRO I GOT THE JOB 😭😭", "be honest, is it weird to text my ex happy birthday?", "nobody really texts me anymore",
+        for moment in ("BRO I GOT THE JOB 😭😭", "real talk, would it be strange if i texted my ex happy birthday?", "nobody really texts me anymore",
                        "i don't see the point in anything anymore"):
             self.assertIn(moment.lower(), said, "practice for moments like the human test's")
         for m in train.HUMAN_TEST:

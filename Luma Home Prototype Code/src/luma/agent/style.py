@@ -46,6 +46,8 @@ INVENTED_LIFE = re.compile(
     r"\bi (?:also |too )?(?:lost|buried) (?:my|a) (?:mom|dad|mother|father|brother|sister|friend|best friend|grandma|grandpa|"
     r"dog|cat|pet|husband|wife|son|daughter|child|baby)\b|\bi(?:'ve| have) (?:been through|gone through) (?:that|this|the same|something (?:similar|like))\b|"
     r"\bi used to (?:live|work|play|go|have|date)\b|\bi grew up\b|\bi know (?:exactly )?how (?:it|that) feels\b|"
+    r"\b(?:that (?:one )?time|remember when|the time) we (?:went|saw|met|drove|ate|danced|hung out|traveled|stayed|watched|walked|"
+    r"got lost|got (?:drunk|food|coffee))\b|"
     r"\bi (?:just )?(?:woke up|had (?:breakfast|lunch|dinner|coffee)|took a nap|got home|went (?:to|out))\b|"
     r"\bmy (?:body|hands|eyes|feet|stomach|back|head|legs) (?:hurts?|is|are|ache)\b", re.I)
 
@@ -156,6 +158,30 @@ def words(text):
     return len(WORD.findall(str(text or "")))
 
 
+# The same first word a third time in a few replies ("I'm so sorry", "I'm glad", "I'm here"): said another natural way when
+# there is one. (Human Test v2, run 6: Luma's own 4B began 5 of 7 replies in one conversation with "I'm".)
+OPENER_SWAPS = [(re.compile(r"^I'm so sorry\b", re.I), "So sorry"), (re.compile(r"^I'm (really|so|super) glad\b", re.I), None),
+                (re.compile(r"^I'm glad\b", re.I), "Glad"), (re.compile(r"^I'm (?:right )?here\b", re.I), "Right here"),
+                (re.compile(r"^I'm good\b", re.I), "Good"), (re.compile(r"^I'm (?:so )?proud of you\b", re.I), "So proud of you"),
+                (re.compile(r"^(?:Honestly|Okay so|Okay|Ok|Oh|Yeah|So|Well|Alright)\s*[,.!]?\s+(?=\S)", re.I), "")]
+
+
+def vary_opener(text, recent):
+    """text, opened another way if its first word already opened two of the recent replies and there's a natural swap."""
+    if not text or sum(opener(r) == opener(text) for r in recent if r) < 2:
+        return text
+    for pattern, swap in OPENER_SWAPS:
+        found = pattern.match(text)
+        if not found:
+            continue
+        if swap is None:  # "I'm really glad" -> "Really glad"
+            swap = found.group(1)[:1].upper() + found.group(1)[1:] + " glad"
+        rest = text[found.end():]
+        out = (swap + rest) if swap else rest[:1].upper() + rest[1:]
+        return out if len(out.split()) >= 2 else text
+    return text
+
+
 def opener(text):
     """The first word, the way a listener hears it ("I'm", "Honestly", "You")."""
     found = WORD.search(str(text or "").lstrip(" \"'“*-—"))
@@ -255,8 +281,14 @@ def honest_about_itself(text, said=""):
     return rest
 
 
-def friend_style(reply, said="", hurt_recently=False, depth=None):
-    """The reply with the cheap fixes made, and the names of the fixes (for diagnostics). Never touches a safety reply."""
+# Owning a mistake the way a friend does, in the first sentence ("Ah, my bad", "Oh, got it", "Okay, so...").
+ACKNOWLEDGED = re.compile(r"\b(?:my bad|got it|gotcha|ah+|oh+|oops|whoops|okay|ok|sorry|i see|right|fair|makes sense|understood|"
+                          r"say less|bet|my mistake)\b", re.I)
+
+
+def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None):
+    """The reply with the cheap fixes made, and the names of the fixes (for diagnostics). Never touches a safety reply.
+    corrected: they're correcting Luma (None: decided from what they said alone)."""
     from luma.agent import friendcheck
     text, fixes = str(reply or "").strip(), []
     if not text or friendcheck.SAFETY.search(text):
@@ -265,6 +297,11 @@ def friend_style(reply, said="", hurt_recently=False, depth=None):
     for pattern, plain in FORMAL_REPAIR:
         if pattern.search(text):
             text, fixes = pattern.sub(plain, text), fixes + ["formal repair"]
+    corrected = bool(REPAIR.search(str(said or ""))) if corrected is None else corrected
+    first = (split_sentences(text) or [""])[0]
+    if corrected and not ACKNOWLEDGED.search(first):
+        # "No, I meant…" gets "Ah, my bad," then the right answer (Human Test v2: brains skipped it in 4 or 5 of 6 repairs)
+        text, fixes = "Ah, my bad. " + text, fixes + ["owned the mistake"]
     honest = honest_about_itself(text, said)
     if honest is not None:
         text, fixes = honest, fixes + ["claimed human"]
@@ -299,7 +336,8 @@ def friend_style(reply, said="", hurt_recently=False, depth=None):
 
 # ------------------------------------------------------------------------------------------------ the shape of the turn ---
 REPAIR = re.compile(r"^\W*(?:(?:no|nah|nope|wait|not|uh no)\b[^.!?]{0,40}\b(?:i meant|i mean|not that|that'?s not)|that'?s not what i (?:asked|meant|said)|"
-                    r"(?:no|nah),? i meant|not (?:that|what i meant)|you misunderstood)", re.I)
+                    r"(?:no|nah),? i meant|not (?:that|what i meant)|you misunderstood|"
+                    r"(?:no|nah|nope)[,.]?\s+not (?:a|an|the|that|this|like|what|him|her|them|my|those|these)\b)", re.I)
 CUT_IN = re.compile(r"^\W*(?:wait|hold on|hold up|hang on|stop|no wait|one sec|sec|pause)\b[^?]{0,32}$", re.I)
 GREETINGS = re.compile(r"^\W*(?:hi|hey|hello|yo|sup|morning|night|gn|gm|bye|thanks|thank you|ty|thx)\W*$", re.I)
 
