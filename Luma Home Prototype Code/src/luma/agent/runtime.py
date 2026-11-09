@@ -280,7 +280,11 @@ TIC_OPENERS = {"ngl", "nah", "lol", "lmao", "honestly", "aight", "ayy", "bet", "
 
 # They asked to hear it again: the same words are the right answer, not a repeat to stop.
 ASKED_AGAIN = re.compile(r"\b(?:say (?:that|it|this) again|repeat (?:that|it|yourself|what you said)|come again|what did you (?:just )?say|"
-                         r"what was that|(?:can|could) you say that|say it one more time|one more time)\b", re.I)
+                         r"what was that|(?:can|could) you say that|say it one more time|one more time|"
+                         # going back over it: some of the same words are the right answer (Human Test v2: "what was the part about
+                         # interest again" and "ok go on" after an explanation got "I lost my train of thought")
+                         r"what was the (?:part|bit|thing) (?:about|with)|what did you say (?:about|before)|you were saying|"
+                         r"tell me again|remind me what you said)\b|^\W*(?:(?:ok|okay|yeah|yes|sure|so|and)\W+)*(?:go on|keep going|continue)\W*$", re.I)
 
 # When something happens, not what to do: on its own ("ngl today was long", "what should i cook tonight") it isn't a job.
 WHEN_WORDS = re.compile(r"\b(?:past \d+|last \d+|\d+ ?(?:hrs?|hours?|mins?)|tomorrow|tonight|today|at \d|in \d+|\d+ ?(?:am|pm)|"
@@ -4385,6 +4389,13 @@ class Agent:
                         return {"text": {"loss": "I'm so sorry. I'm here with you. Take all the time you need.",
                                          "lonely": "I'm really glad you're talking to me. I'm here. What's been going on?"}.get(
                                              hurt, "I'm sorry, that sounds really hard. I'm here. Tell me what happened?")}
+                    if "earlier reply again" in str(error):
+                        # Told once that it already said that, the brain said it again. One more try, plainly, before
+                        # asking them to repeat themselves (Human Test v2: "what should i get him" right after a gift idea).
+                        fresh = self._plain_answer(f"They just said: \"{text[:300]}\". You already answered something like that; answer "
+                                                   "this newest message with something new, in a line or two, like a friend would.", cancel_event)
+                        if fresh and not self._said_before(fresh) and not fresh.lstrip().startswith("{"):
+                            return {"text": self._friend_style(text, fresh)}
                     return {"text": "I lost my train of thought on that one. Say it again?"}
                 raise
             finally:

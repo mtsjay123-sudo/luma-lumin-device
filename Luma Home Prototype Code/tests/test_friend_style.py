@@ -156,6 +156,31 @@ class InLuma(unittest.TestCase):
         self.agent.chat("My daughter Lily is obsessed with dinosaurs right now.")
         self.assertIn("Lily (their daughter) is obsessed with dinosaurs right now", [m["text"] for m in self.store.all("memory")])
 
+    def test_told_it_repeated_itself_and_it_did_again_one_plain_try_before_giving_up(self):
+        """Human Test v2: Luma's own 4B fell back to "I lost my train of thought" 8 times in 255 turns, mostly right after it had
+        answered the same thing ("under 50 bucks" right after a gift idea)."""
+        idea = "Get him a chalk bag and a gym day pass, both under 50."
+
+        def planner(messages, context, allowed, mode):
+            said = str(messages[-1].get("content")) if messages else ""
+            if "You already answered something like that" in said:
+                return {"type": "reply", "text": "Or a new pair of climbing tape and a snack he loves."}
+            if "gift" in said or "50" in said:
+                return {"type": "reply", "text": idea}  # the same idea, however it's asked
+            return {"type": "reply", "text": "Chalk is the climber's best friend, ha."}
+        self.agent.planner = planner
+        self.agent.chat("my brother is really into climbing lately")
+        self.agent.chat("any gift ideas for him?")
+        out = self.agent.chat("under 50 bucks")["text"]
+        self.assertNotIn("lost my train of thought", out)
+        self.assertIn("climbing tape", out)
+
+    def test_going_back_over_it_can_use_the_same_words(self):
+        from luma.agent.runtime import ASKED_AGAIN
+        for said in ["what was the part about interest again", "ok go on", "keep going", "wait what did you say about fees"]:
+            self.assertTrue(ASKED_AGAIN.search(said), said)
+        self.assertIsNone(ASKED_AGAIN.search("what should i get him"))
+
     def test_a_plan_question_is_talk_not_a_page(self):
         """Human Test v2: "What should we do on Saturday?" (her sister visiting) got "A few ideas: Let me handle your inbox · Put
         your calendar on Today". With a brain to talk it through, a guess never opens one of Luma's pages unasked."""

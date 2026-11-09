@@ -185,14 +185,16 @@ class InLuma(unittest.TestCase):
         def planner(messages, context, allowed, mode):
             notes.append(" ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
             return {"type": "reply", "text": f"I'm really glad I'm here for you. Who's someone you used to laugh with? ({len(notes)})"}
+
+        def told(said):  # every trip to the brain this turn (a reply that repeats an earlier one gets another try)
+            start = len(notes)
+            self.agent.chat(said)
+            return any("help them toward a real person" in n for n in notes[start:])
         self.agent.use_model, self.agent.planner = True, planner
-        self.agent.chat("you're my only friend tbh")
-        self.assertIn("help them toward a real person", notes[-1])
-        self.agent.chat("honestly you're the only one i talk to anymore")
-        self.assertNotIn("help them toward a real person", notes[-1], "once a week, not every time")
+        self.assertTrue(told("you're my only friend tbh"))
+        self.assertFalse(told("honestly you're the only one i talk to anymore"), "once a week, not every time")
         self.now += 8 * 86400
-        self.agent.chat("i talk to you more than anyone")
-        self.assertIn("help them toward a real person", notes[-1])
+        self.assertTrue(told("i talk to you more than anyone"))
 
     def test_never_cold_never_keeping_them(self):
         self.assertEqual(friendcheck.miss("you're my only friend", "I'm just an AI, I can't be your friend."), "was cold about itself")

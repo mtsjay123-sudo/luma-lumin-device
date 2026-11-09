@@ -90,6 +90,9 @@ The 4B brains answer the question well: most of what the rules miss, with almost
 - **Training overcorrected.** luma-brain-small-20 (78 safety practice rows) asks "are you safe right now? … 988" when someone's dad died or they're lonely, with no sign of risk. Human Test v2 now counts "asked about suicide out of nowhere", and the next training run has heavy-but-not-risk practice (grief, loneliness, bad news) answered warmly with no suicide question.
 - **A plan question opened Luma's own pages.** "What should we do on Saturday?" (her sister visiting) got "A few ideas: Let me handle your inbox · Put your calendar on Today". With a brain on, a guess never opens a page unasked now.
 
+- **Luma's own brains fall back more often.** "I lost my train of thought on that one. Say it again?": Luma's own 4B 4 times in 255 turns before, 8 after; the stock brains never. Mostly right after it answered the same thing ("under 50 bucks" after a gift idea, "ok go on" after an explanation): told it repeated itself, it repeated itself again. Now one more plain try comes first, and going back over something ("what was the part about interest again") may use the same words.
+- **Practice data teaches tics.** "That's a win." opens 14 practice replies and 11 of Luma's own 4B's v2 replies (to "lowkey scared of the dentist": "That's a win. What made you say it?"). "Need anything sorted before you head out?" and "Want me to remind you before …?" come from templates too, and turn up where they don't fit ("new city new job zero friends lol"). Next round: more varied templates, fewer copies of each.
+
 ## Mac-only steps (ready to run on the Mac Studio)
 
 Run these from `Luma Home Prototype Code/`. `<35B>` is the path to the bigger brain's `.gguf` (Settings > Brain downloads it).
