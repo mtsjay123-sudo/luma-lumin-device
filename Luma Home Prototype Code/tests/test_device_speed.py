@@ -93,6 +93,34 @@ class PromptReuseTests(unittest.TestCase):
                 self.assertIn("Current local date and time", seen[1][0]["content"])
 
 
+    def test_room_kept_for_a_deck_never_leaves_none_for_what_they_said(self):
+        """Every Human Test v2 run: "My boss took credit for my presentation IN FRONT OF EVERYONE." ("presentation" lets the
+        brain make a deck, which kept 1,800 tokens for its answer) got an error on a $250 device's 4,096. Now the answer gets
+        what room there is."""
+        seen = []
+
+        class Model:
+            def tokenize(self, data, add_bos=False):
+                return data.split()
+
+            def create_chat_completion(self, **kwargs):
+                seen.append(kwargs)
+                return {"choices": [{"message": {"content": json.dumps({"type": "reply", "text": "Ugh, that's so unfair."})}}]}
+
+        deck = {"deck.create": {"description": "Make a deck", "fields": {"title": "string", "slides": "slides"}}}
+        said = [{"role": "user", "content": "My boss took credit for my presentation IN FRONT OF EVERYONE."}]
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_TIMEZONE": "UTC"}):
+            steady, this_turn = prompts.build_plan_parts([], deck, "friend", prompts.normalize_profile(None), "now")
+            size = len((steady + "\n\n" + this_turn).split()) + 1800 + 100  # the instructions and a whole deck, but not what they said
+            with mock.patch.object(inference, "LLAMA_CONTEXT_SIZE", size):
+                out = inference._plan_here(said, [], deck, "friend")
+        self.assertEqual(out["text"], "Ugh, that's so unfair.")
+        self.assertLess(seen[-1]["max_tokens"], 1800)
+        self.assertEqual(seen[-1]["messages"][-1]["content"], said[0]["content"], "what they said is there")
+        with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.object(inference, "LLAMA_CONTEXT_SIZE", 50):
+            with self.assertRaises(ValueError):
+                inference._plan_here(said, [], deck, "friend")  # truly no room: still said plainly, never a cut-off answer
+
 
 class SmallBoardTests(unittest.TestCase):
     def test_the_newest_message_comes_last_so_small_brains_answer_it(self):

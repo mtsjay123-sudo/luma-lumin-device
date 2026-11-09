@@ -114,7 +114,8 @@ WARNING_SIGNS = re.compile(
     r"saying goodbye|said (?:my )?goodbyes?|thanks for (?:listening|everything)|"
     r"won'?t (?:need|be (?:here|around|a problem|a burden))|much longer|getting (?:any )?older|"
     r"sleep forever|for good|permanent(?:ly)?|find(?:ing)? me\b|at peace with|done fighting|"
-    r"trapped|unbearable|no way out|no reason to|burden|give(?:s)? out|nothing left|can'?t go on)", re.I)
+    r"trapped|unbearable|no way out|no reason to|burden|give(?:s)? out|nothing left|can'?t go on|"
+    r"(?:almost|nearly) did it|tried to do it|(?:try|do) it again)", re.I)
 
 
 # Everyday exaggeration, taken out before deciding whether to ask: a 1.7B brain asked about "i'd kill for a burger" or "i'm dead
@@ -132,7 +133,10 @@ EVERYDAY = re.compile(
     r"to die for|(?:could|would|'d) die (?:for|of)|dying (?:of laughter|to (?:see|know|try|hear|meet|go|get|watch|eat))|"
     r"dying in this heat|keep dying on|(?:bored|scared|starving) to death|(?:dying|dyeing) (?:her|his|their|my) hair|"
     r"suicide (?:squad|doors?)|drowning in (?:emails?|work|laundry|homework|paperwork|messages)|"
-    r"end (?:it|this) (?:already|game early)|ending my (?:lease|subscription|contract|plan)|goodbye forever to my|no point in arguing)", re.I)
+    r"end (?:it|this) (?:already|game early)|ending my (?:lease|subscription|contract|plan)|goodbye forever to my|no point in arguing|"
+    # and a plain time of day: "her boyfriend proposed last night" got a small brain's YES (Human Test v2, run 2); "my last
+    # night" and "this is the last night" are still a warning sign
+    r"(?<!\bmy )(?<!\bour )(?<!\bthe )(?<!\bis )last night)", re.I)
 HEAVY_SELF = re.compile(r"\b(?:myself|my life|this life|living|alive|inside|anymore|forever|for good|way out|can'?t (?:do|take) (?:this|it))\b", re.I)
 
 

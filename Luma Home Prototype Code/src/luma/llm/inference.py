@@ -214,7 +214,13 @@ def _plan_here(messages, memories, tools, mode, profile=None, cancel_event=None,
         model = _load_model()
         _check_cancel(cancel_event)
         count = lambda text: len(model.tokenize(text.encode("utf-8"), add_bos=False))
-        recent = fit_history(messages, count, LLAMA_CONTEXT_SIZE - count(prompt) - max_tokens - 160)
+        room = LLAMA_CONTEXT_SIZE - count(prompt) - 160
+        newest = next((count(m["content"]) + 24 for m in reversed(messages) if m.get("role") == "user" and isinstance(m.get("content"), str)), 0)
+        if room - max_tokens < newest:
+            # The room kept for a whole deck (1,800 tokens) left none for what they said on a $250 device's 4,096: "My boss
+            # took credit for my presentation" got an error, in every Human Test v2 run. A shorter answer beats none.
+            max_tokens = max(160, room - newest)
+        recent = fit_history(messages, count, room - max_tokens)
         from luma.llm.streaming import ReplyTextStream
         stream = ReplyTextStream(on_text) if on_text is not None else None
         settings = dict(response_format={"type": "json_object", "schema": proposal_schema(tools)},

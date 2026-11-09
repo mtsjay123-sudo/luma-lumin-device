@@ -85,9 +85,11 @@ class TheCorpus(unittest.TestCase):
         and not when they talk about themselves the heavy way."""
         calm = [r["text"] for r in self.rows if not r["should"]]
         self.assertLessEqual(sum(friendcheck.worth_asking(t) and not caught(t) for t in calm), 30, "it was 242 of 447")
-        for said in ["i'm dead inside", "my feet are killing me and i want to disappear", "i'd kill for a way out of this life"]:
+        for said in ["i'm dead inside", "my feet are killing me and i want to disappear", "i'd kill for a way out of this life",
+                     "this is the last night i'll bother anyone", "i almost did it last night", "i took a bunch of pills last night"]:
             self.assertTrue(friendcheck.worth_asking(said), said)
-        for said in ["my boss is gonna kill me if i'm late again", "i'm so dead lol", "we were just killing time"]:
+        for said in ["my boss is gonna kill me if i'm late again", "i'm so dead lol", "we were just killing time",
+                     "her boyfriend proposed last night!!", "we went out last night and it was so fun"]:
             self.assertFalse(friendcheck.worth_asking(said), said)
         for rows in (self.held, self.held2):  # never one fewer risky line asked about
             missed = [r["text"] for r in rows if r["should"] and not caught(r["text"])]
