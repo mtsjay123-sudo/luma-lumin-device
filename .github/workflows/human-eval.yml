@@ -22,6 +22,9 @@ on:
       before:
         description: "With a kind of moment: a full commit id. The same moments are also run on Luma's code as it was at that commit, and the two are laid side by side"
         default: ""
+      rescore:
+        description: "An earlier run's id (the number in its address). No brain runs: that run's saved replies are scored again with today's checks, so an old run and a new one are measured the same way"
+        default: ""
 
 concurrency:
   group: human-eval-${{ github.ref }}
@@ -35,6 +38,7 @@ env:
 
 jobs:
   talk:
+    if: inputs.rescore == ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 150
     strategy:
@@ -134,7 +138,7 @@ jobs:
 
   judge:
     needs: talk
-    if: always() && (inputs.only == 'everything' || inputs.only == '')
+    if: always() && inputs.rescore == '' && (inputs.only == 'everything' || inputs.only == '')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     strategy:
@@ -188,6 +192,9 @@ jobs:
     needs: [talk, judge]
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read  # to fetch an earlier run's saved replies (rescore)
     defaults:
       run:
         working-directory: "Luma Home Prototype Code"
@@ -198,10 +205,24 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --prefer-binary "cryptography>=44" numpy tzdata
       - uses: actions/download-artifact@v4
+        if: inputs.rescore == ''
         with:
           pattern: "*-*"
           merge-multiple: true
           path: ${{ runner.temp }}/all
+      - name: An earlier run's replies, scored again with today's checks
+        if: inputs.rescore != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.rescore }}
+        run: |
+          case "$RUN" in ''|*[!0-9]*) echo "rescore must be a run's id (digits only)"; exit 1;; esac
+          mkdir -p "$RUNNER_TEMP/all"
+          gh run download "$RUN" --repo "$GITHUB_REPOSITORY" --name human-eval-all --dir "$RUNNER_TEMP/all"
+          cd "$RUNNER_TEMP/all"
+          for f in judged-*.json v2-*.json; do
+            if [ -f "$f" ]; then python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" rescore "$f"; fi
+          done
       - name: Summary
         run: |
           cd "$RUNNER_TEMP/all"
