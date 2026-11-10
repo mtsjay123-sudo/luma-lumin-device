@@ -23,6 +23,12 @@ export function memoryDb(clock = null) {
     insertAccount: async (row) => { const a = { id: id(), plan: "free", subscription_status: null, assigned_number: null, ...row }; t.accounts.push(a); return a; },
     updateAccount: async (x, patch) => { const a = t.accounts.find((r) => r.id === x); Object.assign(a, patch); return a; },
     usage: async (a, p) => t.usage.get(a + p) || 0,
+    brainUsage: async (a, p) => ({ micros: 0, calls: 0, tokens_in: 0, tokens_out: 0, cache_read: 0, ms: 0, ...(t.brain?.get(a + p) || {}) }),
+    addBrainUsage: async (a, p, row) => {
+      t.brain = t.brain || new Map();
+      const have = t.brain.get(a + p) || {};
+      t.brain.set(a + p, Object.fromEntries(["micros", "calls", "tokens_in", "tokens_out", "cache_read", "ms"].map((k) => [k, (have[k] || 0) + (row[k] || 0)])));
+    },
     reserveText: async (a, p, limit) => { const n = t.usage.get(a + p) || 0; if (n >= limit) return null; t.usage.set(a + p, n + 1); return n + 1; },
     releaseText: async (a, p) => { const n = t.usage.get(a + p) || 0; if (n > 0) t.usage.set(a + p, n - 1); },
     findMessageByRef: async (d, r) => t.messages.find((m) => m.device_id === d && m.client_ref === r) || null,

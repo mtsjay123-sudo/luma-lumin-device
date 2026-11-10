@@ -62,6 +62,118 @@ export function settings(env) {
     releaseNumbers: env.LUMA_RELEASE_NUMBERS_ON_CANCEL === "1",
     portalConfig: env.LUMA_STRIPE_PORTAL_CONFIG || "",
     vapid: { publicKey: env.LUMA_VAPID_PUBLIC_KEY || "", privateKey: env.LUMA_VAPID_PRIVATE_KEY || "", subject: env.LUMA_VAPID_SUBJECT || "" },
+    // The Super Intelligence (Luma Plus): the cloud brain, asked through this relay with Luma's own key.
+    anthropicKey: env.ANTHROPIC_API_KEY || "",
+    // Zero data retention is an agreement with Anthropic for the organization the key belongs to, not something a request
+    // can ask for. Whoever runs this relay sets LUMA_BRAIN_ZERO_RETENTION=1 once that agreement is in place for this key.
+    // Until then the brain stays off: private talk never goes where it could be kept.
+    brainZeroRetention: env.LUMA_BRAIN_ZERO_RETENTION === "1",
+    // Retrying on another model after a decline isn't on Anthropic's list of what zero retention covers, so it's off
+    // until whoever runs this has confirmed it (LUMA_BRAIN_FALLBACKS=1). Off, a decline just comes back and home answers.
+    brainFallbacks: env.LUMA_BRAIN_FALLBACKS === "1",
+    brainUpstream: (env.LUMA_BRAIN_UPSTREAM || "https://api.anthropic.com").replace(/\/+$/, ""),
+    // Only models that run with zero retention. (Claude Fable and Mythos need 30 days of retention, so they're never here.)
+    brainModels: (env.LUMA_BRAIN_MODELS || "claude-sonnet-5-5,claude-opus-5-5,claude-haiku-5-5").split(",").map((m) => m.trim()).filter(Boolean),
+    brainBudgetMicros: int(env.LUMA_PLUS_BRAIN_BUDGET_CENTS, 400) * 10_000, // a month's spend per Plus member, in millionths of a dollar
+    brainCallsPerMinute: int(env.LUMA_BRAIN_CALLS_PER_MINUTE, 60),
+    brainWords: int(env.LUMA_BRAIN_WORDS, 1), // the yes screen's wording; raise it when what leaves the home changes, and everyone is asked again
+    brainPrices: brainPrices(env.LUMA_BRAIN_PRICES),
+  };
+}
+
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+// Dollars per million tokens: [fresh input, output, read from cache]. Writing to the five-minute cache is 1.25 times fresh
+// input. These are the published prices of October 2026; set LUMA_BRAIN_PRICES (JSON, the same shape) when they change.
+const BRAIN_PRICES = { "claude-opus-5-5": [4, 20, 0.2], "claude-sonnet-5-5": [2, 10, 0.2], "claude-haiku-5-5": [0.1, 0.5, 0.01] };
+const CACHE_WRITE = 1.25;
+
+function brainPrices(raw) {
+  try {
+    const given = raw ? JSON.parse(raw) : {};
+    return { ...BRAIN_PRICES, ...(given && typeof given === "object" ? given : {}) };
+  } catch {
+    return BRAIN_PRICES;
+  }
+}
+
+// What one call cost, in millionths of a dollar, from the token counts the brain reported. A model with no price is
+// charged as the dearest one, so a new model can never run for free by mistake.
+export function brainCost(prices, model, used) {
+  const dearest = Object.values(prices).reduce((a, b) => (b[1] > a[1] ? b : a));
+  const [fresh, out, read] = prices[model] || dearest;
+  return Math.ceil((used.fresh || 0) * fresh + (used.written || 0) * fresh * CACHE_WRITE + (used.read || 0) * read + (used.out || 0) * out);
+}
+
+// The token counts in the brain's answer, read as it passes through. Of the words themselves only how many letters went
+// by is noticed (never kept), for the one case where the final count never comes: the device hung up mid-answer.
+export function usageCounter() {
+  const top = { fresh: 0, read: 0, written: 0, out: 0 };
+  let rest = "";
+  let answeredBy = "";
+  let finished = false;
+  let letters = 0;
+  let iterations = null;
+  const some = (used) => Boolean(used.fresh || used.read || used.written || used.out);
+  const counts = (usage) => {
+    const n = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
+    return { fresh: n(usage.input_tokens), read: n(usage.cache_read_input_tokens), written: n(usage.cache_creation_input_tokens), out: n(usage.output_tokens) };
+  };
+  const take = (usage) => {
+    if (!usage || typeof usage !== "object") return;
+    if (Number.isFinite(usage.input_tokens)) top.fresh = usage.input_tokens;
+    if (Number.isFinite(usage.cache_read_input_tokens)) top.read = usage.cache_read_input_tokens;
+    if (Number.isFinite(usage.cache_creation_input_tokens)) top.written = usage.cache_creation_input_tokens;
+    if (Number.isFinite(usage.output_tokens)) top.out = usage.output_tokens;
+    if (Array.isArray(usage.iterations) && usage.iterations.length) iterations = usage.iterations;
+  };
+  const line = (text) => {
+    if (!text.startsWith("data:")) return;
+    let event;
+    try { event = JSON.parse(text.slice(5)); } catch { return; } // a line that isn't JSON carries no count
+    if (!event || typeof event !== "object") return;
+    if (event.type === "message_start") {
+      answeredBy = typeof event.message?.model === "string" ? event.message.model : "";
+      take(event.message?.usage);
+    } else if (event.type === "message_delta") {
+      take(event.usage);
+      finished = true;
+    } else if (event.type === "content_block_delta") {
+      const delta = event.delta || {};
+      letters += String(delta.text || delta.partial_json || delta.thinking || "").length;
+    }
+  };
+  // One entry for each attempt at the answer. When a decline was retried on another model, Anthropic reports every attempt
+  // (usage.iterations) and each is billed, so each is counted; otherwise there's the one.
+  const attempts = () => {
+    if (iterations) {
+      const each = iterations.filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({ model: typeof entry.model === "string" ? entry.model : "", fallback: entry.type === "fallback_message", used: counts(entry) }))
+        .filter((attempt) => some(attempt.used));
+      if (each.length) return each;
+    }
+    const used = { ...top };
+    if (!finished && letters) used.out = Math.max(used.out, Math.ceil(letters / 4)); // an estimate: about four letters a token
+    return some(used) ? [{ model: "", fallback: false, used }] : [];
+  };
+  return {
+    feed(chunk) {
+      rest += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+      let end;
+      while ((end = rest.indexOf("\n")) >= 0) {
+        line(rest.slice(0, end).trim());
+        rest = rest.slice(end + 1);
+      }
+    },
+    whole(json) {
+      answeredBy = typeof json?.model === "string" ? json.model : "";
+      take(json?.usage);
+      finished = true;
+    },
+    model: () => answeredBy,
+    attempts,
+    total: () => attempts().reduce((sum, { used }) => ({ fresh: sum.fresh + used.fresh, read: sum.read + used.read, written: sum.written + used.written, out: sum.out + used.out }),
+      { fresh: 0, read: 0, written: 0, out: 0 }),
   };
 }
 
@@ -388,7 +500,54 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       verified: Boolean(account.owner_phone),
       owner_name: account.owner_name,
       plus: { price: cfg.plusPriceLabel, texts_limit: cfg.plusTexts, available: stripe.configured() },
+      brain: await brainView(account),
     };
+  }
+
+  // The Super Intelligence for this account: whether it can be used, whether the owner said yes, and what's left this month.
+  async function brainView(account) {
+    const used = db.brainUsage ? await db.brainUsage(account.id, period(now())) : { micros: 0, calls: 0 };
+    return {
+      available: brainReady() && isPlus(account),
+      consent: saidYes(account),
+      words: cfg.brainWords,
+      budget_cents: Math.round(cfg.brainBudgetMicros / 10_000),
+      used_cents: Math.round(used.micros / 100) / 100,
+      left_share: cfg.brainBudgetMicros > 0 ? Math.round(Math.max(0, 1 - used.micros / cfg.brainBudgetMicros) * 10_000) / 10_000 : 0,
+      calls: used.calls || 0,
+      resets: periodEnd(now()),
+    };
+  }
+
+  const brainReady = () => Boolean(cfg.anthropicKey) && cfg.brainZeroRetention;
+  // The owner's yes counts only for the words they were shown: if what leaves the home has changed since, Luma asks again.
+  const saidYes = (account) => Boolean(account.brain_consent_at) && (account.brain_consent_words || 0) >= cfg.brainWords;
+
+  // Only what the brain needs is passed on, and only to a model Luma offers. Anything else a request carries is dropped:
+  // tools that run on Anthropic's side, files, connectors and labels for the person are never sent from here.
+  function brainRequest(body) {
+    if (!cfg.brainModels.includes(body.model)) throw new HttpError(400, "model", "That isn't a brain Luma Plus offers.");
+    if (!Array.isArray(body.messages) || !body.messages.length) throw new HttpError(400, "messages", "Nothing to answer.");
+    if (body.fallbacks !== undefined && body.fallbacks !== "default") throw new HttpError(400, "fallbacks", "Luma chooses the brains, not the request.");
+    const out = { model: body.model, max_tokens: Math.max(0, Math.min(16000, int(body.max_tokens, 16000))), messages: body.messages };
+    for (const key of ["system", "output_config", "thinking"]) if (body[key] !== undefined) out[key] = body[key];
+    if (body.stream === true) out.stream = true;
+    if (body.fallbacks === "default" && cfg.brainFallbacks) out.fallbacks = "default";
+    return out;
+  }
+
+  // What one call cost and held, from the counts the brain reported: every attempt at its own brain's price.
+  function brainBill(asked, counter) {
+    const bill = { micros: 0, calls: 1, tokens_in: 0, tokens_out: 0, cache_read: 0 };
+    const attempts = counter.attempts();
+    for (const { model, fallback, used } of attempts) {
+      const by = model || (fallback || attempts.length === 1 ? counter.model() : "") || asked;
+      bill.micros += brainCost(cfg.brainPrices, by, used);
+      bill.tokens_in += used.fresh + used.read + used.written;
+      bill.tokens_out += used.out;
+      bill.cache_read += used.read;
+    }
+    return attempts.length ? bill : null;
   }
 
   const routes = {
@@ -468,6 +627,79 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     async account({ headers }) {
       const { account } = await authDevice(headers);
       return { status: 200, json: await accountView(account) };
+    },
+
+    // The owner's yes (or no) to the Super Intelligence, said on their Luma after it showed what leaves the home, where it
+    // goes, what's kept and how to turn it off. Paying isn't the yes, and the yes is to those words (their number is kept).
+    async "brain-consent"({ headers, body }) {
+      const { account } = await authDevice(headers);
+      let patch = { brain_consent_at: null, brain_consent_words: null };
+      if (body.yes === true) {
+        if (!isPlus(account)) throw new HttpError(402, "plus", "The Super Intelligence is part of Luma Plus.");
+        const words = Number(body.words);
+        if (!Number.isInteger(words) || words < 1 || words > 100000) throw new HttpError(400, "words", "Update Luma to turn this on.");
+        patch = { brain_consent_at: new Date(now()).toISOString(), brain_consent_words: words };
+      }
+      return { status: 200, json: await accountView(await db.updateAccount(account.id, patch)) };
+    },
+
+    // One turn for the cloud brain. The request is passed through and the answer streamed back; nothing of either is
+    // stored or logged. Only the counts are kept (tokens, time, cost), per account per month.
+    async brain({ headers, body, signal }) {
+      const signIn = headers.authorization || !headers["x-api-key"] ? headers : { ...headers, authorization: "Bearer " + headers["x-api-key"] };
+      const { account } = await authDevice(signIn);
+      if (!brainReady()) throw new HttpError(503, "not_configured", "The Super Intelligence isn't set up yet.");
+      if (!isPlus(account)) throw new HttpError(402, "plus", "The Super Intelligence is part of Luma Plus.");
+      if (!saidYes(account)) {
+        throw new HttpError(403, "consent", "Say yes on your Luma first. It shows what leaves your home and how to turn it off.", { words: cfg.brainWords });
+      }
+      if (!ipAllowed("brain:" + account.id, cfg.brainCallsPerMinute, 60_000, now())) {
+        throw new HttpError(429, "slow_down", "That's a lot of thinking at once. Give it a minute.");
+      }
+      const month = period(now());
+      const spent = await db.brainUsage(account.id, month);
+      if (spent.micros >= cfg.brainBudgetMicros) {
+        throw new HttpError(402, "budget", "This month's Super Intelligence time is used up. Luma will think with its own brain until it resets.",
+          { resets: periodEnd(now()) });
+      }
+      const request = brainRequest(body);
+      const began = now();
+      const betas = String(headers["anthropic-beta"] || "").split(",").map((beta) => beta.trim())
+        .filter((beta) => beta === FALLBACK_BETA && request.fallbacks); // no other beta is passed on: some keep what they're sent
+      const upstream = await fetchImpl(cfg.brainUpstream + "/v1/messages?beta=true", {
+        method: "POST",
+        headers: {
+          "x-api-key": cfg.anthropicKey, "content-type": "application/json",
+          "anthropic-version": /^\d{4}-\d{2}-\d{2}$/.test(headers["anthropic-version"] || "") ? headers["anthropic-version"] : "2023-06-01",
+          ...(betas.length ? { "anthropic-beta": betas.join(",") } : {}),
+        },
+        body: JSON.stringify(request),
+        signal,
+      });
+      const counter = usageCounter();
+      const record = async () => {
+        const bill = brainBill(request.model, counter);
+        if (bill) await db.addBrainUsage(account.id, month, { ...bill, ms: Math.max(0, now() - began) });
+      };
+      if (!upstream.ok || !request.stream) {
+        const text = await upstream.text();
+        if (upstream.ok) {
+          try { counter.whole(JSON.parse(text)); } catch { /* nothing to count */ }
+          await record();
+        }
+        return { status: upstream.status, text, contentType: "application/json" };
+      }
+      async function* through() {
+        try {
+          for await (const chunk of upstream.body) {
+            counter.feed(chunk);
+            yield chunk;
+          }
+        } finally {
+          await record().catch(() => {}); // what was used is counted even when the device hung up
+        }
+      }
+      return { status: 200, stream: through(), contentType: "text/event-stream" };
     },
 
     // Send one reviewed text from Luma's number. client_ref makes retries safe.
@@ -844,7 +1076,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
 
 // ------------------------------------------------------------ HTTP wrapper ---
 
-async function readRaw(req) {
+async function readRaw(req, limit = 64_000) {
   if (typeof req.rawBody === "string") return req.rawBody;
   if (Buffer.isBuffer(req.rawBody)) return req.rawBody.toString("utf8");
   if (req.readable !== false && typeof req[Symbol.asyncIterator] === "function") {
@@ -852,7 +1084,7 @@ async function readRaw(req) {
     let size = 0;
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > 64_000) throw new HttpError(413, "too_large", "Request too large.");
+      if (size > limit) throw new HttpError(413, "too_large", "Request too large.");
       chunks.push(Buffer.from(chunk));
     }
     return Buffer.concat(chunks).toString("utf8");
@@ -882,7 +1114,7 @@ export function createHandler(makeDeps) {
       if (!run) return reply(404, { error: "not_found" });
       if (getRoutes.has(route) ? req.method !== "GET" : req.method !== "POST") return reply(405, { error: "method" });
       const headers = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));
-      const raw = req.method === "POST" ? await readRaw(req) : "";
+      const raw = req.method === "POST" ? await readRaw(req, route === "brain" ? 2_000_000 : 64_000) : ""; // a conversation is bigger than a text
       const contentType = headers["content-type"] || "";
       let body = {};
       let form = {};
@@ -892,13 +1124,27 @@ export function createHandler(makeDeps) {
         if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { error: "bad_json" });
       }
       const ip = String(headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
-      const result = await run({ headers, body, form, raw, query: req.query || {}, ip });
+      const gone = new AbortController(); // the device hung up before the answer was over (they talked over Luma, say)
+      if (typeof res.on === "function") res.on("close", () => { if (!res.writableEnded) gone.abort(); });
+      const result = await run({ headers, body, form, raw, query: req.query || {}, ip, signal: gone.signal });
       if ("twiml" in result) return reply(result.status, result.twiml, true);
+      if ("stream" in result || "text" in result) { // the brain's answer, passed through as it comes
+        res.statusCode = result.status;
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Content-Type", result.contentType || "application/json");
+        if ("text" in result) return res.end(result.text);
+        try {
+          for await (const chunk of result.stream) res.write(chunk);
+        } catch (error) {
+          if (!gone.signal.aborted) console.error("luma-cloud", route, error?.name); // the answer broke off partway; the device falls back by itself
+        }
+        return res.end();
+      }
       return reply(result.status, result.json);
     } catch (error) {
       if (error instanceof HttpError) return reply(error.status, { error: error.code, message: error.message, ...error.extra });
       if (error?.notConfigured) return reply(503, { error: "not_configured", message: "Luma Cloud isn't set up yet." });
-      console.error("luma-cloud", route, error?.message);
+      console.error("luma-cloud", route, route === "brain" ? error?.name : error?.message); // never a word of a conversation in a log
       return reply(500, { error: "server", message: "Luma Cloud hit a problem. Nothing was charged." });
     }
   };
