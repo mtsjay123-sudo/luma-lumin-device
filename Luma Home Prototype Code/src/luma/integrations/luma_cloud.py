@@ -89,7 +89,7 @@ class LumaCloud:
             raise CloudError("Set up Luma's number first: verify your phone in People & Texts.", "auth", 401)
         return {"Authorization": "Bearer " + base64.b64decode(creds["token_b64"]).decode()}
 
-    def _call(self, method, path, payload=None, auth=True, side_effect=False, timeout=None):
+    def _call(self, method, path, payload=None, auth=True, side_effect=False, timeout=None, quota=True):
         headers = self._auth() if auth else {}
         try:
             if timeout is None:
@@ -102,7 +102,7 @@ class LumaCloud:
             raise ProviderError("I can't reach Luma Cloud right now. Check the internet connection.") from None
         if status == 401 and auth:
             self.store.set_setting("luma_cloud_device", None)
-        if status == 402:
+        if status == 402 and quota:  # out of texts this month (anything else that needs Plus says so itself)
             self._cache({**(self.store.setting("luma_cloud_account") or {}), "plan": body.get("plan", "free"), "texts_limit": body.get("texts_limit", 0),
                          "texts_left": 0, **({"plus": body["plus"]} if body.get("plus") else {})})
             raise QuotaReached(body.get("message", "You're out of texts this month."), plan=body.get("plan", "free"),
@@ -299,6 +299,20 @@ class LumaCloud:
     def app_unpair(self, link_id):
         _, body = self._call("POST", "/api/luma/app-unpair", {"link_id": link_id})
         return body
+
+    # -- the Super Intelligence (Luma Plus): luma.llm.plus ------------------------
+    def brain_relay(self):
+        """(Where Anthropic's own library is pointed for Luma Plus, this Luma's sign-in), or None before it has one."""
+        creds = self.credentials
+        if not creds:
+            return None
+        return self.base_url + "/api/luma/brain", base64.b64decode(creds["token_b64"]).decode()
+
+    def brain_consent(self, yes, words=None):
+        """The owner's yes (to the yes screen's words, by number) or no, recorded at Luma Cloud. Paying isn't the yes."""
+        _, body = self._call("POST", "/api/luma/brain-consent", {"yes": bool(yes), **({"words": words} if yes else {})}, quota=False)
+        self._cache(body)
+        return self.store.setting("luma_cloud_account")
 
     # -- account -------------------------------------------------------------
     def _cache(self, account):

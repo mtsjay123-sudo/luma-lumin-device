@@ -19,6 +19,7 @@ const lab = {
   ahead_ms: 0,       // the clock, moved forward (to cross into next month)
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let signups = 0;
 const event = (name, data) => `event: ${name}\ndata: ${JSON.stringify({ type: name, ...data })}\n\n`;
 
 // The made-up Claude: answers in Luma's proposal shape, a few letters at a time, the way the real one streams.
@@ -85,6 +86,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/luma/brain/v1/messages") req.query = { route: "brain" };
     else if (url.pathname.startsWith("/api/luma/")) req.query = { ...Object.fromEntries(url.searchParams), route: url.pathname.slice("/api/luma/".length) };
     else return json(404, { error: "not_found" });
+    // Every test signs up from this one computer; the relay's limit on new accounts from one address is tested elsewhere.
+    if (req.query.route === "account-create") req.headers["x-forwarded-for"] = `10.9.${(signups >> 8) & 255}.${signups++ & 255}`;
     await handler(req, res);
   } catch (error) {
     if (!res.headersSent) json(500, { error: "lab", message: String(error?.message || error) });

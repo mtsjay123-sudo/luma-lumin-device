@@ -146,12 +146,18 @@ test("off until they say yes: a sign-in, Plus and the owner's yes are all needed
 test("a yes is to the words that were shown: when what leaves the home changes, Luma asks again", async () => {
   const ctx = setup({ LUMA_BRAIN_WORDS: "2" });
   const who = await member(ctx, { yes: false });
-  await ctx.call("brain-consent", { headers: who.headers, body: { yes: true, words: 1 } });
+  await rejects(ctx.call("brain-consent", { headers: who.headers, body: { yes: true, words: 1 } }), 409, "words");
   assert.equal((await brainOf(ctx, who)).consent, false);
   assert.equal((await brainOf(ctx, who)).words, 2);
-  await rejects(ctx.call("brain", { headers: who.headers, body: ASK }), 403, "consent");
   await ctx.call("brain-consent", { headers: who.headers, body: { yes: true, words: 2 } });
   assert.equal((await ctx.call("brain", { headers: who.headers, body: ASK })).status, 200);
+  // A yes given before the words changed stops counting the day they change.
+  const later = createService({ ...ctx.deps, env: { ...ctx.deps.env, LUMA_BRAIN_WORDS: "3" } });
+  const again = (route, args) => later.routes[route]({ headers: who.headers, body: {}, form: {}, raw: "", query: {}, ip: "10.1.1.1", ...args });
+  assert.equal((await again("account", {})).json.brain.consent, false);
+  const refused = await again("brain", { body: ASK }).catch((e) => e);
+  assert.equal(refused.code, "consent");
+  assert.equal(refused.extra.words, 3, "and the device is told which words to show");
 });
 
 test("it stays off until Luma's own key is set and zero data retention is confirmed for it", async () => {
@@ -310,6 +316,35 @@ test("when the device hangs up the brain is stopped, and what was heard is still
   assert.equal(used.calls, 1);
   assert.equal(used.tokens_in, 3520);
   assert.equal(used.tokens_out, Math.ceil("That silence must sting,".length / 4), "with no final count, the words that passed are counted at four letters a token");
+});
+
+test("the first words wait on one trip to the database, not four", async () => {
+  const ctx = setup();
+  const who = await member(ctx);
+  const trips = [];
+  const counted = new Proxy(ctx.db, {
+    get(target, name) {
+      const value = target[name];
+      return typeof value !== "function" ? value : (...args) => { trips.push(name); return value.apply(target, args); };
+    },
+  });
+  let before = null;
+  const service = createService({ ...ctx.deps, db: counted, fetch: async (url, init) => { before = [...trips]; return ctx.net.fetch(url, init); } });
+  const out = await service.routes.brain({ headers: who.headers, body: ASK, form: {}, raw: "", query: {}, ip: "10.1.1.1" });
+  await heard(out);
+  assert.deepEqual(before, ["brainGate"], "sign-in, plan, the yes and this month's use, read together");
+  assert.deepEqual(trips, ["brainGate", "addBrainUsage"], "and one more, after the answer, to keep the count");
+  assert.equal(ctx.db.t.devices.at(-1).last_seen_at, new Date(ctx.now()).toISOString(), "the same trip notes that this Luma was here");
+  // A database without the one-trip read still works, the slower way.
+  const { brainGate: _, ...older } = ctx.db;
+  const slow = createService({ ...ctx.deps, db: older });
+  assert.equal((await slow.routes.brain({ headers: who.headers, body: ASK, form: {}, raw: "", query: {}, ip: "10.1.1.1" })).status, 200);
+  // The one trip turns away what the slow way turned away.
+  const sign = (token) => service.routes.brain({ headers: { authorization: "Bearer " + token }, body: ASK, form: {}, raw: "", query: {}, ip: "10.1.1.1" });
+  await rejects(sign(who.token.slice(0, -3) + "abc"), 401, "auth");
+  await rejects(sign("00000000-0000-0000-0000-000000000000." + "a".repeat(32)), 401, "auth");
+  ctx.db.t.devices.at(-1).revoked_at = new Date(ctx.now()).toISOString();
+  await rejects(sign(who.token), 401, "auth");
 });
 
 test("a brain that's busy comes back as it is, and nothing is charged", async () => {

@@ -52,9 +52,19 @@ class CloudRefused(Exception):
     """Claude declined the request (stop_reason "refusal")."""
 
 
+class Relay(str):
+    """This Luma's sign-in to Luma Cloud, used where an API key would be (Luma Plus). The request goes to Luma's relay,
+    which adds Luma's own key and passes it on, so the owner needs no key of their own (luma.llm.plus)."""
+    def __new__(cls, token, base_url):
+        relay = super().__new__(cls, token)
+        relay.base_url = base_url
+        return relay
+
+
 def _client(key):
     import anthropic
-    return anthropic.Anthropic(api_key=key, timeout=120.0, max_retries=2)
+    through = {"base_url": key.base_url} if isinstance(key, Relay) else {}
+    return anthropic.Anthropic(api_key=str(key), timeout=120.0, max_retries=2, **through)
 
 
 def check_key(key, model=DEFAULT_MODEL):

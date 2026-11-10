@@ -110,11 +110,14 @@ def device(agent):
     peers = host.peers() if host else []
     paired = agent.link.device() if getattr(agent, "link", None) else None
     try:
-        thinking = brain.status().get("thinking_with")
+        state = brain.status()
+        thinking, plus = state.get("thinking_with"), state.get("plus") or {}
     except Exception:
-        thinking = None
+        thinking, plus = None, {}
+    # Luma Plus's Super Intelligence, for someone who has it: whether it's on, and how much of the month is left.
+    plus = {k: plus.get(k) for k in ("on", "used_up", "left_share", "resets", "can_turn_on")} if plus.get("member") and plus.get("available") else None
     return {"storage": storage(agent), "mic": "off" if agent.muted else "on", "speaking": bool(agent.speaking), "busy": bool(agent.busy),
-            "brain": thinking, "computer": {"paired": bool(peers), "here": bool(host and host.connected()), "name": (peers[0].get("name") if peers else None),
+            "brain": thinking, "plus": plus, "computer": {"paired": bool(peers), "here": bool(host and host.connected()), "name": (peers[0].get("name") if peers else None),
                          "recent": host.recent(3) if host else []},
             "device": {"name": (paired or {}).get("name")} if paired else None}
 

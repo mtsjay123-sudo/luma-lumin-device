@@ -320,10 +320,84 @@ def cloud_pick(effort=None):
     return cloud.DEFAULT_MODEL if effort == cloud.HARD_EFFORT else "claude-sonnet-5-5"
 
 
-def cloud_model():
+def _own_model():
+    """The cloud brain the owner chose for their own key."""
     from luma.llm import cloud
     model = _store.setting("brain_cloud_model", cloud.DEFAULT_MODEL) if _store is not None else cloud.DEFAULT_MODEL
     return model if model in cloud_models() else cloud.DEFAULT_MODEL
+
+
+def _own_provider():
+    from luma.llm import kimi
+    return "kimi" if _own_model() in kimi.MODELS else "anthropic"
+
+
+def _own_key(which=None):
+    return (_store.setting(KEY_SETTING[which or _own_provider()]) or "") if _store is not None else ""
+
+
+def _own_on():
+    return bool(_store is not None and _store.setting("brain_cloud", False) and _own_key())
+
+
+# -- Luma Plus: the Super Intelligence, through Luma Cloud, with no key of the owner's (luma.llm.plus) ----------------
+_plus = {"cloud": None, "mode": None}
+
+
+def use_plus(luma_cloud, mode=None):
+    """At startup the runtime hands over its Luma Cloud sign-in, and a way to ask which mode Luma is in."""
+    _plus.update(cloud=luma_cloud, mode=mode)
+
+
+def plus_on():
+    """The Super Intelligence answers right now: they have Plus, they said yes on the yes screen and haven't taken it
+    back, and this month's time isn't used up. In kids mode it's off unless a parent turned it on."""
+    from luma.llm import plus
+    if _store is None or _plus["cloud"] is None or not _store.setting(plus.SETTING, False):
+        return False
+    if _plus["mode"] is not None and _plus["mode"]() == "kids" and not _store.setting(plus.KIDS, False):
+        return False
+    try:
+        return plus.ready(_store, _plus["cloud"])
+    except Exception:
+        return False
+
+
+def cloud_route():
+    """Which cloud brain answers: "plus" (through Luma Cloud), "own" (the owner's own key), or None (Luma thinks at home).
+    Plus goes first; when its month is used up, their own key takes over if they have one on."""
+    if plus_on():
+        return "plus"
+    return "own" if _own_on() else None
+
+
+def set_plus(on=None, kids=None, model=None):
+    """The owner's answer on the yes screen (on=True: yes; False: no, or turned off later), whether kids mode may use it
+    (a parent's choice, off unless they make it), and which brain. Raises if Luma Cloud won't take the yes."""
+    from luma.llm import cloud, plus
+    if _store is None or _plus["cloud"] is None:
+        raise ValueError("Sign in to your Luma account first.")
+    if kids is not None:
+        _store.set_setting(plus.KIDS, bool(kids))
+    if model is not None:
+        if model != AUTO and model not in cloud.MODELS:
+            raise ValueError("Choose Auto, Claude Opus 5.5 or Claude Sonnet 5.5.")
+        _store.set_setting(plus.MODEL, model)
+    if on is True:
+        plus.say_yes(_store, _plus["cloud"])
+        _store.set_setting("brain_cloud_error", None)
+    elif on is False:
+        plus.say_no(_store, _plus["cloud"])
+    return status()
+
+
+def cloud_model():
+    """The cloud brain's model: with Plus on, Auto unless they picked one; otherwise the one chosen for their own key."""
+    if plus_on():
+        from luma.llm import cloud, plus
+        model = _store.setting(plus.MODEL, AUTO)
+        return model if model == AUTO or model in cloud.MODELS else AUTO
+    return _own_model()
 
 
 def provider(model=None):
@@ -337,11 +411,39 @@ def _provider_module(name):
 
 
 def cloud_key(which=None):
-    return (_store.setting(KEY_SETTING[which or provider()]) or "") if _store is not None else ""
+    """What the cloud brain is asked with: the owner's own key, or with Plus this Luma's sign-in to Luma Cloud (a
+    cloud.Relay, which carries where to send it)."""
+    if which is None and plus_on():
+        from luma.llm import cloud
+        url, token = _plus["cloud"].brain_relay()
+        return cloud.Relay(token, url)
+    return _own_key(which)
 
 
 def cloud_on():
-    return bool(_store is not None and _store.setting("brain_cloud", False) and cloud_key())
+    return cloud_route() is not None
+
+
+def _cloud_brain(effort=None):
+    """The cloud brain for this turn, behind the one interface every cloud brain has (luma.llm.cloudbrain)."""
+    from luma.llm import cloudbrain
+    return cloudbrain.pick(cloud_route() or "own", cloud_pick(effort), cloud_key())
+
+
+def _cloud_label(chosen):
+    return chosen.label + (" (Luma Plus)" if chosen.via == "plus" else "")
+
+
+def _cloud_trouble(error, via):
+    """A cloud brain couldn't answer: the plain reason is kept for the app, and the next brain answers this turn."""
+    said = None
+    if via == "plus":
+        try:
+            from luma.llm import plus
+            said = plus.trouble(_store, error, _plus["cloud"].clock())
+        except Exception:
+            said = None
+    _store.set_setting("brain_cloud_error", said or _plain_error(error))
 
 
 # -- the paired computer's brain, on the device ------------------------------------------
@@ -423,11 +525,11 @@ def _from_computer(call, args, kwargs, sent, tier):
 
 def set_cloud(on, key=None, model=None):
     if on:
-        model = model or cloud_model()
+        model = model or _own_model()
         if model not in cloud_models():
             raise ValueError("Choose Claude Opus 5.5, Claude Sonnet 5.5 or Kimi K3.1 Pro.")
         which = provider(model)
-        key = (key or cloud_key(which)).strip()
+        key = (key or _own_key(which)).strip()
         _provider_module(which).check_key(key, *(() if model == AUTO else (model,)))
         _store.set_setting(KEY_SETTING[which], key)
         _store.set_setting("brain_cloud_model", model)
@@ -437,7 +539,7 @@ def set_cloud(on, key=None, model=None):
 
 def forget_key():
     _store.set_setting("brain_cloud", False)
-    _store.set_setting(KEY_SETTING[provider()], None)
+    _store.set_setting(KEY_SETTING[_own_provider()], None)
     return status()
 
 
@@ -449,10 +551,23 @@ def status():
     using_big = bool(big) and (_store is None or _store.setting("brain_local", "auto") not in ("small", "auto_fast"))
     local_name = f"{big_label(big)} (bigger)" if using_big else "Qwen3 4B"
     measured = speed()
+    route = cloud_route()
+    try:
+        from luma.llm import plus
+        plus_view = plus.view(_store, _plus["cloud"]) if _store is not None and _plus["cloud"] is not None else None
+    except Exception:
+        plus_view = None
+    thinking_with = local_name
+    if route == "plus":
+        thinking_with = "the Super Intelligence" + ("" if cloud_model() == AUTO else f" ({cloud_models().get(cloud_model(), 'Claude')})")
+    elif route == "own":
+        thinking_with = cloud_models().get(cloud_model(), "the cloud brain")
     return {
-        "cloud": {"on": cloud_on(), "has_key": bool(cloud_key()), "keys": {which: bool(cloud_key(which)) for which in KEY_SETTING},
-                  "model": cloud_model(), "provider": provider(), "models": cloud_models(),
+        # The cloud brain on the owner's own key. Luma Plus's (no key of theirs) is "plus", below.
+        "cloud": {"on": _own_on(), "has_key": bool(_own_key()), "keys": {which: bool(_own_key(which)) for which in KEY_SETTING},
+                  "model": _own_model(), "provider": _own_provider(), "models": cloud_models(),
                   "last_error": (_store.setting("brain_cloud_error") if _store else None)},
+        "plus": plus_view,
         "local": {"name": local_name, "big_ready": bool(big), "big_fits": gb >= MIN_RAM_GB, "ram_gb": round(gb), "using_big": using_big,
                   "big_name": big_label(big) if big else ("a Mac Studio-size brain" if gb >= STUDIO_RAM_GB else bigger_name()),
                   "studio": bool(studio_name(gb)) and not any_studio, "studio_name": studio_name(gb),
@@ -462,7 +577,7 @@ def status():
         "huge": huge_status(),
         "own": own_status(),
         "health": health(),
-        "thinking_with": cloud_models().get(cloud_model(), "the cloud brain") if cloud_on() else local_name,
+        "thinking_with": thinking_with,
         "cache": cache_share(),
     }
 
@@ -591,7 +706,7 @@ def warm_cloud():
         return None
     _store.set_setting("cloud_warmed_at", now)
     memories = []
-    if _store.setting("cloud_life", False):
+    if cloud_route() == "plus" or _store.setting("cloud_life", False):
         try:
             from luma.memory import life
             text = life.file(_store)
@@ -601,7 +716,7 @@ def warm_cloud():
     soul = _store.setting("soul")
     if soul:
         memories.append({"soul": True, "text": str(soul)[:1500]})
-    return cloud.warm(cloud_key(), memories, "friend", _store.setting("personality"), model=cloud_pick())
+    return _cloud_brain().warm(memories, "friend", _store.setting("personality"))
 
 
 # -- how fast it really is on this computer -----------------------------------------
@@ -734,18 +849,19 @@ def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_te
         if result is not None:
             return result
     if use_cloud(tier):
+        via = cloud_route()
         try:
-            model = cloud_pick(effort)
-            more = {"effort": effort} if effort and provider() == "anthropic" else {}
-            result = _metered(cloud_models().get(model, model), tier, _within,
-                              (cloud_patience(effort), _provider_module(provider()).plan, (cloud_key(), whole, memories, tools, mode),
-                               {"profile": profile, "cancel_event": cancel_event, "on_text": on_text, "model": model, **more}), {}, [whole, memories, tools])
+            chosen = _cloud_brain(effort)
+            more = {"effort": effort} if effort and effort in chosen.abilities.thinking else {}
+            result = _metered(_cloud_label(chosen), tier, _within,
+                              (cloud_patience(effort), chosen.plan, (whole, memories, tools, mode),
+                               {"profile": profile, "cancel_event": cancel_event, "on_text": on_text, **more}), {}, [whole, memories, tools])
             if _store.setting("brain_cloud_error"): _store.set_setting("brain_cloud_error", None)
             return result
         except inference.GenerationCancelled:
             raise
-        except Exception as error:  # offline, out of credit, a refusal: the local brain answers this turn
-            _store.set_setting("brain_cloud_error", _plain_error(error))
+        except Exception as error:  # offline, out of credit, a refusal, the month's time used up: the next brain answers this turn
+            _cloud_trouble(error, via)
     return _metered(local_label(), tier, _local, (inference.plan, messages, memories, tools, mode),
                     {"profile": profile, "cancel_event": cancel_event, "on_text": on_text}, sent)
 
@@ -764,11 +880,12 @@ def rewrite(prompt, max_tokens=90, cancel_event=None, tier="light", use_computer
         if said is not None:
             return said
     if use_cloud(tier):
+        via = cloud_route()
         try:
-            return _metered(cloud_models().get(cloud_pick(), cloud_pick()), tier, _provider_module(provider()).rewrite,
-                            (cloud_key(), prompt), {"max_tokens": max_tokens, "model": cloud_pick()}, prompt)
+            chosen = _cloud_brain()
+            return _metered(_cloud_label(chosen), tier, chosen.rewrite, (prompt,), {"max_tokens": max_tokens}, prompt)
         except Exception as error:
-            _store.set_setting("brain_cloud_error", _plain_error(error))
+            _cloud_trouble(error, via)
     return _metered(local_label(), tier, _local, (inference.rewrite, prompt), {"max_tokens": max_tokens, "cancel_event": cancel_event}, prompt)
 
 

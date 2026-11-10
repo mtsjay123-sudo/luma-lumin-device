@@ -534,6 +534,7 @@ class Agent:
             threading.Thread(target=self.connectors.start_all, name="luma-connectors", daemon=True).start()
         from luma.llm import brain
         brain.init(self.store)  # a bigger local brain if it's here; the cloud brain if they turned it on
+        brain.use_plus(self.cloud, mode=lambda: self.mode)  # Luma Plus's Super Intelligence, once they've said yes (luma.llm.plus)
         if os.environ.get("LUMA_DEVICE_TIER", "").strip().lower() == "budget" and self.use_model and self.planner is None:
             threading.Thread(target=self._warm_brain, daemon=True, name="luma-brain-warm").start()
         from luma.audio import speakable
@@ -3316,7 +3317,7 @@ class Agent:
         if brain.cloud_on() and brain.provider() == "anthropic":  # photos go to the cloud only with Claude; Kimi's brain sees with Luma's own eyes
             try:
                 from luma.llm import cloud
-                said = cloud.look(brain.cloud_key(), image_bytes, question, model=brain.cloud_model())
+                said = cloud.look(brain.cloud_key(), image_bytes, question, model=brain.cloud_pick())
             except Exception:
                 said = None
         reading = bool(vision.READING.search(question or ""))
@@ -4445,6 +4446,9 @@ class Agent:
                 helper_event = self.helpers.pop_event()
                 if helper_event:
                     return {**helper_event, "silent": quiet or self.speaking or now < self.store.setting("hush_until", 0)}
+                plus_notice = self._plus_notice(now, quiet)
+                if plus_notice:
+                    return plus_notice
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
             presence_event = self._presence_event(now, local)
             if presence_event: return presence_event
@@ -4469,6 +4473,21 @@ class Agent:
                 titles.append(row["title"])
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
+
+    def _plus_notice(self, now, quiet):
+        """When this month's Super Intelligence time runs out, Luma says so once, plainly, and goes on thinking at home.
+        It's news, never a pitch. It waits while they're hurting or Luma is talking, and it's never said in kids mode."""
+        from luma.agent import friendcheck
+        from luma.llm import brain, plus
+        note = self.store.setting(plus.NOTE)
+        if not note or note.get("said") or self.speaking:
+            return None
+        lately = [h["content"] for h in self.history[-8:] if h.get("role") == "user" and isinstance(h.get("content"), str)][-3:]
+        if any(friendcheck.hurting(m) or friendcheck.at_risk(m) or CRISIS.search(m.lower()) for m in lately):
+            return None
+        self.store.set_setting(plus.NOTE, {**note, "said": True})
+        return {"type": "notice", "text": plus.budget_line(note, own_key=brain.cloud_route() == "own"), "created": now,
+                "silent": quiet or now < self.store.setting("hush_until", 0)}
 
     def _news_alert(self, now, local):
         """One brand-new story, told unasked. Only if they turned alerts on (off by default); never in kids mode; never at
@@ -5170,9 +5189,12 @@ class Agent:
 
     def _roomy(self):
         """More of what Luma remembers goes to the brain each turn: the cloud brain is on, and the owner said the life file
-        may go to it (off until they do)."""
+        may go to it. With Luma Plus that's what the yes screen asked; on their own key it's a switch, off until they flip
+        it. Never in kids mode."""
         from luma.llm import brain
-        return self.mode != "kids" and bool(self.store.setting("cloud_life", False)) and brain.use_cloud()
+        if self.mode == "kids" or not brain.use_cloud():
+            return False
+        return brain.cloud_route() == "plus" or bool(self.store.setting("cloud_life", False))
 
     def _life_context(self):
         """The life file, for a brain with room to know them the way a close friend does. The cloud brain reads it once and

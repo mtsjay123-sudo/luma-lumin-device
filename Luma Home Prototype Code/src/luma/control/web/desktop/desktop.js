@@ -3778,9 +3778,66 @@
       if (O.error) ot.append(el("div", "sub warn", O.error));
       ownRow.append(ot, btn("Get it", "pill primary small", () => redo({ action: "own_get" }, "Downloading Luma's own brain.")));
     }
-    g.append(...[local, ownRow, hugeRow, cloud].filter(Boolean));
+    // Luma Plus: the Super Intelligence, through Luma Cloud, with no key of theirs. Off until they say yes on the yes
+    // screen. Shown only to someone who has Plus: nothing is sold here.
+    const P = b.plus || {};
+    let plusRow = null;
+    if (P.member && (P.available || P.update)) {
+      plusRow = el("div", "brain-row");
+      const pt = el("div", "grow");
+      pt.append(el("div", "t", "Super Intelligence"));
+      const until = P.resets ? ` until ${new Date(new Date(P.resets).getTime() + 864e5).toLocaleDateString(undefined, { month: "long", timeZone: "UTC" })}` : "";
+      if (P.on) {
+        const left = P.left_share == null ? "" : ` About ${Math.round(P.left_share * 100)}% of this month's thinking is left.`;
+        pt.append(el("div", "sub", `On. Luma thinks with Claude through Luma Cloud, as part of your Luma Plus.${left}`));
+        if (C.last_error) pt.append(el("div", "sub warn", C.last_error));
+        const kids = el("label", "plus-kids");
+        const box = el("input"); box.type = "checkbox"; box.checked = !!P.kids;
+        box.addEventListener("change", () => redo({ action: "plus_kids", on: box.checked }, box.checked ? "Kids mode can use it too." : "Kids mode thinks at home."));
+        kids.append(box, document.createTextNode(" Use it in kids mode too"));
+        pt.append(kids);
+        plusRow.append(pt, btn("Turn off", "pill soft small", () => redo({ action: "plus_no" }, "Off. Luma is thinking at home again.")));
+      } else if (P.used_up) {
+        pt.append(el("div", "sub", `This month's thinking is used up, so Luma is thinking at home${until}. It comes back by itself.`));
+        plusRow.append(pt, btn("Turn off", "pill quiet small", () => redo({ action: "plus_no" }, "Off. Luma is thinking at home.")));
+      } else if (P.update) {
+        pt.append(el("div", "sub", "Update Luma to turn this on. What it shows you before you say yes has changed."));
+        plusRow.append(pt);
+      } else {
+        pt.append(el("div", "sub", "Part of your Luma Plus. It's off until you say yes, and it shows you what leaves your home first."));
+        plusRow.append(pt, btn("See what it does", "pill primary small", () => plusYesScreen(P.screen)));
+      }
+    }
+    g.append(...[local, ownRow, hugeRow, plusRow, cloud].filter(Boolean));
     item.append(g);
     return item;
+  }
+
+  // The yes screen for the Super Intelligence: what leaves the home, where it goes, what's kept and how to turn it off.
+  // The words come from Luma itself (luma.llm.plus), so this page can't promise something the code doesn't do.
+  // asked: Luma brought it up by itself (once, after they subscribed), so closing it counts as "not now".
+  let plusAsked = false;
+  function plusYesScreen(screen, asked) {
+    if (!screen) return;
+    const body = el("div", "plus-yes");
+    body.append(el("p", "plus-intro", screen.intro));
+    for (const part of screen.parts || []) {
+      const block = el("div", "plus-part");
+      block.append(el("div", "t", part.head), el("div", "sub", part.text));
+      body.append(block);
+    }
+    body.append(el("p", "plus-more", screen.more));
+    const answer = async (action, said) => {
+      sheetOnClose = null;
+      try { await api("/api/brain", { action }); closeSheet(); await refreshHome(); if (said) toast(said); if (state.view === "settings") renderSettings(); }
+      catch (e) { toast(e.message); }
+    };
+    const row = el("div", "plus-answers");
+    row.append(btn(screen.no, "pill soft", () => answer("plus_no", "Okay. Luma keeps thinking at home. It's in Settings if you change your mind.")),
+      btn(screen.yes, "pill primary", () => answer("plus_yes", "The Super Intelligence is on.")));
+    body.append(row);
+    openSheet(screen.title, body);
+    sheetOnClose = asked ? () => answer("plus_no") : null;
   }
 
   async function renderSettings() {
@@ -4314,7 +4371,13 @@
     $("sheet").classList.toggle("wide", !!wide);
     $("sheet").hidden = false;
   }
-  function closeSheet() { $("sheet").hidden = true; }
+  let sheetOnClose = null; // what closing the sheet means, for the one sheet where it's an answer (the yes screen)
+  function closeSheet() {
+    $("sheet").hidden = true;
+    const then = sheetOnClose;
+    sheetOnClose = null;
+    if (then) then();
+  }
   $("sheet-close").addEventListener("click", closeSheet);
   $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) closeSheet(); });
 
@@ -4377,6 +4440,12 @@
       state.home = h;
       if (h.status) state.status = h.status;
       state.activity = h.activity;
+      // After they subscribe to Plus, Luma asks once, on a plain screen, before anything leaves the home. Never in kids mode.
+      const settled = $("welcome").hidden && h.signup?.done !== false; // not on top of the first-run welcome: it waits its turn
+      if (h.brain?.plus?.ask && !plusAsked && settled && $("sheet").hidden && state.status?.mode !== "kids") {
+        plusAsked = true;
+        plusYesScreen(h.brain.plus.screen, true);
+      }
       handleEvents(h.events || []);
       renderThreads();
       renderWidgets();

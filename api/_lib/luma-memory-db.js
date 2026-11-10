@@ -23,6 +23,12 @@ export function memoryDb(clock = null) {
     insertAccount: async (row) => { const a = { id: id(), plan: "free", subscription_status: null, assigned_number: null, ...row }; t.accounts.push(a); return a; },
     updateAccount: async (x, patch) => { const a = t.accounts.find((r) => r.id === x); Object.assign(a, patch); return a; },
     usage: async (a, p) => t.usage.get(a + p) || 0,
+    brainGate: async (deviceId, p, seen) => {
+      const device = t.devices.find((d) => d.id === deviceId) || null;
+      if (device) device.last_seen_at = seen;
+      const account = device ? t.accounts.find((a) => a.id === device.account_id) || null : null;
+      return { device, account, usage: account ? t.brain?.get(account.id + p) || null : null };
+    },
     brainUsage: async (a, p) => ({ micros: 0, calls: 0, tokens_in: 0, tokens_out: 0, cache_read: 0, ms: 0, ...(t.brain?.get(a + p) || {}) }),
     addBrainUsage: async (a, p, row) => {
       t.brain = t.brain || new Map();

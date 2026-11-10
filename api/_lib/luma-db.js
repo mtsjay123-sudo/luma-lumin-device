@@ -46,6 +46,8 @@ export function makeSupabaseDb(env, fetchImpl) {
       return row ? row.texts_sent : 0;
     },
     reserveText: (accountId, period, limit) => request("POST", "rpc/luma_reserve_text", { p_account: accountId, p_period: period, p_limit: limit }),
+    // The device, its account and the month's use of the brain, read together (and the device marked as seen).
+    brainGate: (deviceId, period) => request("POST", "rpc/luma_brain_gate", { p_device: deviceId, p_period: period }),
     async brainUsage(accountId, period) {
       const row = await one(`luma_brain_usage?account_id=eq.${enc(accountId)}&period=eq.${enc(period)}&select=micros,calls,tokens_in,tokens_out,cache_read,ms`);
       return { micros: 0, calls: 0, tokens_in: 0, tokens_out: 0, cache_read: 0, ms: 0, ...(row || {}) };

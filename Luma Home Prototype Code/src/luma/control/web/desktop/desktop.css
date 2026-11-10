@@ -1222,6 +1222,13 @@ body.thinking .status small { background: linear-gradient(90deg, var(--muted), #
 .brain-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
 .brain-form input { flex: 1 1 220px; min-width: 0; }
 .brain-form .help { flex-basis: 100%; }
+.plus-kids { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted, inherit); margin-top: 6px; cursor: pointer; }
+.plus-yes { display: grid; gap: 12px; }
+.plus-yes .plus-intro, .plus-yes .plus-more { margin: 0; font-size: 13.5px; line-height: 1.5; }
+.plus-part { padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--card) 60%, transparent); box-shadow: inset 0 0 0 1px var(--line); }
+.plus-part .t { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+.plus-part .sub { font-size: 13px; line-height: 1.5; }
+.plus-answers { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
 .brain-model { border-radius: 10px; padding: 6px 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 13px; }
 
 /* Things Luma made: documents and apps */

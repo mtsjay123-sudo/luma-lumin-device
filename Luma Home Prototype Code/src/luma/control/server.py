@@ -173,10 +173,30 @@ def _finish_account_later(agent):
     threading.Thread(target=run, name='luma-account-retry', daemon=True).start()
 
 
+_plus_retry = {'at': 0.0, 'running': False}
+
+
+def _finish_plus_later(agent):
+    """A yes to the Super Intelligence that was taken back while Luma Cloud couldn't be reached is taken back there
+    too, tried every few minutes until it answers. (It was off at home from the moment they turned it off.)"""
+    from luma.llm import plus
+    if _plus_retry['running'] or not agent.store.setting(plus.TAKE_BACK) or agent.clock() - _plus_retry['at'] < 300:
+        return
+    _plus_retry.update(at=agent.clock(), running=True)
+
+    def run():
+        try: plus.finish(agent.store, agent.cloud)
+        except Exception: pass
+        finally: _plus_retry['running'] = False
+    threading.Thread(target=run, name='luma-plus-retry', daemon=True).start()
+
+
 def home_payload(agent, owner=True):
     """Everything the Luma Desktop home screen shows, in one request."""
     now = agent.clock()
-    if owner: _finish_account_later(agent)
+    if owner:
+        _finish_account_later(agent)
+        _finish_plus_later(agent)
     approvals = []
     for row in agent.store.all('action', 40):
         if row.get('state') != 'pending' or row.get('expires', 0) < now: continue
@@ -941,12 +961,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         else: return self.send({'error':'Not found'},404)
                     elif path=='/api/brain':
                         # Which brain Luma thinks with: the local one, a bigger local one, or Claude with the owner's own key.
-                        if companion or agent.mode=='kids': return self.send({'error':'Change Luma\'s brain on the Mac.'},403)
-                        from luma.llm import brain
+                        # The owner's phone can turn the Super Intelligence off, the way it can turn the mic off, and never on:
+                        # from the phone, what leaves the home can only get smaller.
                         action=data.get('action')
+                        if agent.mode=='kids' or (companion and action!='plus_no'): return self.send({'error':'Change Luma\'s brain on the Mac.'},403)
+                        from luma.llm import brain
                         if action=='cloud_on': result=brain.set_cloud(True,key=data.get('key'),model=data.get('model'))
                         elif action=='cloud_off': result=brain.set_cloud(False)
                         elif action=='forget_key': result=brain.forget_key()
+                        # Luma Plus's Super Intelligence: the owner's answer on the yes screen, and turning it off again.
+                        elif action=='plus_yes': result=brain.set_plus(True)
+                        elif action=='plus_no': result=brain.set_plus(False)
+                        elif action=='plus_kids': result=brain.set_plus(kids=bool(data.get('on')))
+                        elif action=='plus_model': result=brain.set_plus(model=str(data.get('model') or ''))
                         elif action=='get_bigger': result=brain.fetch_bigger()
                         elif action=='get_studio': result=brain.fetch_bigger(studio=True)
                         elif action in {'use_small','use_big'}: brain.use_small(action=='use_small'); result=brain.status()

@@ -200,6 +200,17 @@
     mic.setAttribute("aria-checked", String(on));
     $("mic-sub").textContent = on ? "On. Luma can hear the room." : "Off. Luma can't hear anything.";
     $("brain").textContent = dev.brain || "Starting up";
+    // Luma Plus's Super Intelligence, for someone who has it. From the phone it can be turned off, never on: the yes
+    // screen (what leaves your home, where it goes, what's kept) is shown by Luma on the computer.
+    const plus = dev.plus;
+    $("plus-row").hidden = !plus;
+    if (plus) {
+      const left = plus.left_share == null ? "" : ` About ${Math.round(plus.left_share * 100)}% of this month's thinking is left.`;
+      $("plus-sub").textContent = plus.on ? `On. Luma thinks with Claude through Luma Cloud.${left}`
+        : plus.used_up ? "This month's thinking is used up, so Luma is thinking at home. It comes back by itself."
+        : "Off. Luma is thinking at home. Turn it on from Luma on your computer, where it shows you what leaves your home first.";
+      $("plus-off").hidden = !plus.on;
+    }
     const pc = dev.computer || {};
     const last = (pc.recent || [])[0];
     const t = last ? when(last.at) : "";
@@ -389,6 +400,10 @@
   $("mic").addEventListener("click", async () => {
     const on = $("mic").getAttribute("aria-checked") === "true";
     try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma can't hear anything now." : "Mic on. Luma's listening."); refresh(); }
+    catch (e) { toast(e.message); }
+  });
+  $("plus-off").addEventListener("click", async () => {
+    try { await api("/api/brain", { action: "plus_no" }); toast("Off. Luma is thinking at home again."); refresh(); }
     catch (e) { toast(e.message); }
   });
   $("state").addEventListener("click", () => document.getElementById("device").scrollIntoView({ behavior: "smooth" }));

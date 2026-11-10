@@ -30,3 +30,16 @@ returns void language sql security definer set search_path = public as $$
 $$;
 revoke all on function luma_add_brain_usage(uuid, text, bigint, integer, bigint, bigint, bigint, bigint) from public, anon, authenticated;
 grant execute on function luma_add_brain_usage(uuid, text, bigint, integer, bigint, bigint, bigint, bigint) to service_role;
+
+-- Who's asking the brain: the device, its account and this month's use in one trip, because every trip is time before
+-- the first words. It also notes that the device was here.
+create or replace function luma_brain_gate(p_device uuid, p_period text)
+returns json language sql security definer set search_path = public as $$
+  with seen as (update luma_devices set last_seen_at = now() where id = p_device returning *)
+  select json_build_object(
+    'device', (select row_to_json(d) from seen d),
+    'account', (select row_to_json(a) from luma_accounts a where a.id = (select account_id from seen)),
+    'usage', (select row_to_json(u) from luma_brain_usage u where u.account_id = (select account_id from seen) and u.period = p_period));
+$$;
+revoke all on function luma_brain_gate(uuid, text) from public, anon, authenticated;
+grant execute on function luma_brain_gate(uuid, text) to service_role;

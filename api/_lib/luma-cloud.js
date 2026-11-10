@@ -520,6 +520,26 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
   }
 
   const brainReady = () => Boolean(cfg.anthropicKey) && cfg.brainZeroRetention;
+
+  // Who's asking the brain, and how much of the month they've used: the device, its account and the month's count in one
+  // trip to the database, because every trip here is time before the first words. (The older three-trip way still works
+  // on a database that doesn't have the one-trip read yet.) Anthropic's library sends the sign-in as x-api-key or as a
+  // bearer token depending on its version; either is taken.
+  async function brainGate(headers, month) {
+    const signIn = headers.authorization || !headers["x-api-key"] ? headers : { ...headers, authorization: "Bearer " + headers["x-api-key"] };
+    const none = { micros: 0, calls: 0, tokens_in: 0, tokens_out: 0, cache_read: 0, ms: 0 };
+    if (!db.brainGate) {
+      const { account } = await authDevice(signIn);
+      return { account, spent: { ...none, ...(await db.brainUsage(account.id, month)) } };
+    }
+    const denied = () => new HttpError(401, "auth", "This Luma isn't signed in to Luma Cloud.");
+    const match = /^Bearer\s+([0-9a-f-]{36})\.([A-Za-z0-9_-]{20,})$/.exec(signIn.authorization || "");
+    if (!match) throw denied();
+    const found = (await db.brainGate(match[1], month, new Date(now()).toISOString())) || {};
+    const { device, account } = found;
+    if (!device || device.revoked_at || !safeEqual(device.secret_hash, sha256(match[2])) || !account) throw denied();
+    return { account, spent: { ...none, ...(found.usage || {}) } };
+  }
   // The owner's yes counts only for the words they were shown: if what leaves the home has changed since, Luma asks again.
   const saidYes = (account) => Boolean(account.brain_consent_at) && (account.brain_consent_words || 0) >= cfg.brainWords;
 
@@ -638,6 +658,9 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
         if (!isPlus(account)) throw new HttpError(402, "plus", "The Super Intelligence is part of Luma Plus.");
         const words = Number(body.words);
         if (!Number.isInteger(words) || words < 1 || words > 100000) throw new HttpError(400, "words", "Update Luma to turn this on.");
+        if (words < cfg.brainWords) { // they were shown older words than today's: that isn't a yes to what leaves the home now
+          throw new HttpError(409, "words", "Update Luma to turn this on. What it shows you before you say yes has changed.", { words: cfg.brainWords });
+        }
         patch = { brain_consent_at: new Date(now()).toISOString(), brain_consent_words: words };
       }
       return { status: 200, json: await accountView(await db.updateAccount(account.id, patch)) };
@@ -646,8 +669,8 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
     // One turn for the cloud brain. The request is passed through and the answer streamed back; nothing of either is
     // stored or logged. Only the counts are kept (tokens, time, cost), per account per month.
     async brain({ headers, body, signal }) {
-      const signIn = headers.authorization || !headers["x-api-key"] ? headers : { ...headers, authorization: "Bearer " + headers["x-api-key"] };
-      const { account } = await authDevice(signIn);
+      const month = period(now());
+      const { account, spent } = await brainGate(headers, month);
       if (!brainReady()) throw new HttpError(503, "not_configured", "The Super Intelligence isn't set up yet.");
       if (!isPlus(account)) throw new HttpError(402, "plus", "The Super Intelligence is part of Luma Plus.");
       if (!saidYes(account)) {
@@ -656,8 +679,6 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       if (!ipAllowed("brain:" + account.id, cfg.brainCallsPerMinute, 60_000, now())) {
         throw new HttpError(429, "slow_down", "That's a lot of thinking at once. Give it a minute.");
       }
-      const month = period(now());
-      const spent = await db.brainUsage(account.id, month);
       if (spent.micros >= cfg.brainBudgetMicros) {
         throw new HttpError(402, "budget", "This month's Super Intelligence time is used up. Luma will think with its own brain until it resets.",
           { resets: periodEnd(now()) });
