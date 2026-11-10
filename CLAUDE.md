@@ -55,7 +55,7 @@ All commands run from `Luma Home Prototype Code/`.
 In the cloud, the suite has 12 failures that are only the environment: `test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
 GitHub workflows:
-- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain.
+- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes).
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
 - `si-lab.yml`: the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
