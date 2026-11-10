@@ -125,6 +125,8 @@ class WhosWho(unittest.TestCase):
         self.assertEqual([m[0] for m in people.mentions("and this is my friend jordan")], ["Jordan"])
         self.assertEqual([m[0] for m in people.mentions("Does my sister Maya know?")], ["Maya"])
         self.assertEqual([m[0] for m in people.mentions("and my brother theo just got into climbing")], ["Theo"])
+        self.assertEqual([m[0] for m in people.mentions("My dog Happy loves the park")], ["Happy"], "a capital letter still makes it a name")
+        self.assertEqual(people.mentions("my dog happy to see me every time"), [])
 
     def test_what_lasts_is_kept_and_what_passes_isnt(self):
         self.assertEqual(people.facts("My daughter Lily is obsessed with dinosaurs right now."), ["Lily (their daughter) is obsessed with dinosaurs right now"])

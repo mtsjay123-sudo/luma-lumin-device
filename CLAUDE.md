@@ -39,6 +39,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Judge, pairwise, summary | `python scripts/human_eval.py judge\|pairwise\|summary ...` |
 | Safety net on a brain | `python scripts/human_eval.py safety --label NAME` |
 | What a home brain is told on every turn of Human Test v2 and of the device lab's conversation (the 10-moment test), with no brain (save it before a change and after, then compare) | `python scripts/human_eval.py told --save out/told.json`, `python scripts/human_eval.py told-diff before.json after.json` |
+| The turns a change touches, many times over (a reply is sampled), then before against after | `python scripts/human_eval.py run --only pet_loss-01 --times 20 --save out/after.json`, `python scripts/human_eval.py ab out/before.json out/after.json` (`LUMA_EVAL_SRC=<an earlier checkout>/src` runs the same test on that code) |
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
@@ -55,7 +56,7 @@ All commands run from `Luma Home Prototype Code/`.
 In the cloud, the suite has 12 failures that are only the environment: `test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
 GitHub workflows:
-- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes).
+- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes). With `times: 20` each is run 20 times, and with `before: <full commit id>` the same moments are also run on the code at that commit and laid side by side.
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
 - `si-lab.yml`: the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.

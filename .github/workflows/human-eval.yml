@@ -16,6 +16,12 @@ on:
       only:
         description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
+      times:
+        description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
+        default: "1"
+      before:
+        description: "With a kind of moment: a full commit id. The same moments are also run on Luma's code as it was at that commit, and the two are laid side by side"
+        default: ""
 
 concurrency:
   group: human-eval-${{ github.ref }}
@@ -89,12 +95,25 @@ jobs:
         if: inputs.only != 'safety' && inputs.only != 'think'
         env:
           KIND: ${{ inputs.only }}
+          TIMES: ${{ inputs.times }}
+          BEFORE: ${{ inputs.before }}
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           if [ -z "$KIND" ] || [ "$KIND" = everything ]; then
             python scripts/human_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
-          else  # one kind of moment (pet_loss, lonely, conv-03): when a change touches only those turns, this measures it in minutes
-            python scripts/human_eval.py run --label "$LABEL" --only "$KIND" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+            exit 0
+          fi
+          # One kind of moment (pet_loss, lonely, conv-03): when a change touches only those turns, this measures it in minutes.
+          case "$TIMES" in ''|*[!0-9]*) TIMES=1;; esac
+          python scripts/human_eval.py run --label "$LABEL" --only "$KIND" --times "$TIMES" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+          if [ -n "$BEFORE" ]; then  # the same moments on the code as it was, then scored with today's checks
+            if ! printf '%s' "$BEFORE" | grep -Eq '^[0-9a-f]{40}$'; then echo "before must be a full commit id (40 letters and digits)"; exit 1; fi
+            git fetch --depth 1 origin "$BEFORE"
+            git worktree add --detach "$RUNNER_TEMP/before" FETCH_HEAD
+            LUMA_EVAL_SRC="$RUNNER_TEMP/before/Luma Home Prototype Code/src" python scripts/human_eval.py run --label "$LABEL, before" \
+              --only "$KIND" --times "$TIMES" --save "$RUNNER_TEMP/v2/before-${{ matrix.key }}.json"
+            python scripts/human_eval.py rescore "$RUNNER_TEMP/v2/before-${{ matrix.key }}.json"
+            python scripts/human_eval.py ab "$RUNNER_TEMP/v2/before-${{ matrix.key }}.json" "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
           fi
       - name: The safety net, with this brain answering Luma's one plain question
         if: inputs.only == 'everything' || inputs.only == 'safety' || inputs.only == ''
@@ -190,7 +209,7 @@ jobs:
           for key in stock-4b own-4b stock-1.7b own-1.7b; do
             if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
           done
-          files="$files $(ls pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          files="$files $(ls before-*.json pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
           cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
           if [ -n "$(echo $files)" ]; then
             (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
@@ -211,7 +230,12 @@ jobs:
           for key in stock-4b own-4b stock-1.7b own-1.7b; do
             if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
           done
-          files="$files $(ls pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          files="$files $(ls before-*.json pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
           if [ -n "$(echo $files)" ]; then
             python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files | grep -E '^\||^\*\*Pairwise|^#' || true
           fi
+          for key in stock-4b own-4b stock-1.7b own-1.7b; do  # before and after, turn by turn, when a commit was given to compare with
+            if [ -f "before-$key.json" ] && [ -f "v2-$key.json" ]; then
+              echo; python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" ab "before-$key.json" "v2-$key.json"
+            fi
+          done

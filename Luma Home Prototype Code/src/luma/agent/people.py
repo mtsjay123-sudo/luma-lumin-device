@@ -29,9 +29,9 @@ still also lol lmao rn tho though even didn't doesn't won't can't isn't wasn't u
 asked asks ate eats broke fell moved moves found lost won became becomes turned turns gets getting got's literally lowkey honestly
 basically kinda sorta again already almost actually only ever recently suddenly constantly probably definitely totally barely
 who's that's he's she's they're i'm is's""".split())
-# In lowercase there's no capital letter to go on, so these are never taken as a name after "my sister": what someone
-# does ("my mom work nights") or is ("my dad mad at me"). None of them is a common first name.
-NOT_NAMES |= set("""live work love want need think say tell call text come go make take give buy send ask eat break fall move find lose
+# What someone does ("my mom work nights") or is ("my dad mad at me"). Without a capital letter these aren't taken as a
+# name after "my sister". With one they are: "My dog Happy". None of them is a common first name.
+WHAT_THEY_DO = set("""live work love want need think say tell call text come go make take give buy send ask eat break fall move find lose
 win become turn keep leave stay visit feel look seem sound hear see talk speak try help care mind remember forget understand believe
 drive play use start stop drink sleep wake cook pay read write run walk sit stand wear bring meet miss hurt cry laugh smile worry wish
 plan own stays stayed acts act hit hits mad sad sick crazy tired mean nice cool funny weird right wrong fine good bad great old young
@@ -55,6 +55,8 @@ PRONOUN_START = re.compile(r"^\s*(?:and\s+|but\s+|so\s+|like\s+)?(?:he|she|they|
 def _name_ok(name, text):
     low = name.lower()
     if low in NOT_NAMES or len(low) < 2:
+        return False
+    if low in WHAT_THEY_DO and not name[:1].isupper():
         return False
     if re.search(r"(?:ing|ly)$", low) and len(low) > 4 or (low.endswith("ed") and len(low) > 4):
         return False

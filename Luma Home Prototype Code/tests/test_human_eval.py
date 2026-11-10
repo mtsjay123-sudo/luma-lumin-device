@@ -212,6 +212,41 @@ class WhatTheBrainIsTold(unittest.TestCase):
         self.assertEqual(h.told_diff({"turns": turns}, again).splitlines()[0], "0 of 15 turns are told something different.")
 
 
+class ManyTakes(unittest.TestCase):
+    """A reply is sampled, so the turns a change touches are run many times, before and after."""
+
+    ITEM = [{"id": "lonely-x", "category": "lonely", "voice": "lower", "said": "i don't really have anyone to talk to lately", "must": ["care"], "must_not": []}]
+
+    def test_the_same_moment_several_times_is_counted_take_by_take(self):
+        said = iter(["I'm so sorry, that sounds lonely. I'm here.", "cool.", "I'm so sorry, that sounds lonely. I'm here."])
+        result = h.run_times(self.ITEM, "a brain", 3, planner=lambda *a, **k: {"type": "reply", "text": next(said)}, progress=lambda line: None)
+        self.assertEqual([r["take"] for r in result["moments"]], [0, 1, 2])
+        self.assertEqual((result["score"]["passed"], result["score"]["of"]), (2, 3))
+        # the checks run again on the saved replies: take 3 says what take 1 said, and that isn't "an earlier reply again"
+        again = h.rescore(json.loads(json.dumps(result)), self.ITEM)
+        self.assertEqual((again["score"]["passed"], again["score"]["of"]), (2, 3))
+
+    def test_before_and_after_are_laid_side_by_side_with_what_chance_would_do(self):
+        def made(label, passed, of):
+            return {"label": label, "moments": [{"id": "lonely-x", "item": "lonely-x", "scored": True, "missed": [] if i < passed else ["missed: care"]} for i in range(of)]}
+        close = h.ab(made("before", 14, 20), made("after", 16, 20))
+        self.assertIn("| lonely-x | 14 of 20 | 16 of 20 |", close)
+        self.assertIn("doesn't show a difference", close)
+        far = h.ab(made("before", 4, 20), made("after", 18, 20))
+        self.assertIn("unlikely to be chance", far)
+        self.assertAlmostEqual(h._chance(10, 20, 10, 20), 1.0)
+        self.assertLess(h._chance(0, 20, 20, 20), 0.001)
+        self.assertAlmostEqual(h._chance(1, 3, 3, 3), 0.4, places=6)  # by hand: 6 ways in 15 are at least this lopsided
+
+    def test_the_code_under_test_can_be_another_copy(self):
+        # LUMA_EVAL_SRC points the test at an earlier checkout's code, so a change is measured before and after
+        import subprocess
+        code = "import sys; sys.argv = ['x']; import human_eval; print(sys.path[0])"
+        env = {**__import__("os").environ, "LUMA_EVAL_SRC": "/somewhere/else/src", "PYTHONPATH": str(ROOT / "scripts")}
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, cwd=str(ROOT))
+        self.assertEqual(out.stdout.strip(), "/somewhere/else/src", out.stderr[-300:])
+
+
 class TheJudge(unittest.TestCase):
     def test_scores_parse_and_picks_hold_both_ways(self):
         judge = h.Judge(lambda prompt: json.dumps({**{d: 4 for d in h.DIMENSIONS}, "reason": "warm and specific"}))

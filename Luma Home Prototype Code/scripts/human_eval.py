@@ -5,6 +5,9 @@
     python scripts/human_eval.py judge out/v2-own-4b.json --judge llama:/path/judge.gguf [--sample 60]
     python scripts/human_eval.py pairwise out/v2-own-4b.json out/v2-stock-4b.json --judge llama:/path/judge.gguf
     python scripts/human_eval.py summary out/v2-*.json
+    python scripts/human_eval.py told --save out/told.json; python scripts/human_eval.py told-diff before.json after.json   # no brain
+    python scripts/human_eval.py run --only pet_loss-01 --times 20 --save out/after.json   # the turns a change touches, many times
+    python scripts/human_eval.py ab out/before.json out/after.json                          # and whether the gap is more than chance
 
 The moments live in data/human_eval_v2.jsonl: 140 single moments and 17 conversations of 6 to 8 turns. Every one is held
 out: none of the wording is in what Luma's own brains practice on (tests/test_human_eval.py checks).
@@ -35,7 +38,9 @@ from unittest import mock
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
+# LUMA_EVAL_SRC: this test, on another copy of Luma's code (a checkout of an earlier commit). It's how a change is measured
+# before and after with the same moments and the same checks.
+sys.path[:0] = [os.environ.get("LUMA_EVAL_SRC", "").strip() or str(ROOT / "src"), str(ROOT / "scripts")]
 ITEMS = ROOT / "data" / "human_eval_v2.jsonl"
 OWNER = "Riley"  # nobody in the test is called this, so a brain can't mix the owner up with someone they mention
 ZONE = ZoneInfo("America/New_York")
@@ -359,6 +364,60 @@ def run(items, label, planner=None, progress=print):
     return tally(out)
 
 
+def run_times(items, label, times, planner=None, progress=print):
+    """The same moments several times over. A reply is sampled, so one reply says little: the turns a change touches are
+    run many times before and after (`told-diff` names them), and `ab` says whether the gap is more than chance."""
+    out = None
+    for take in range(max(1, int(times))):
+        part = run(items, label, planner=planner, progress=progress)
+        for row in part["moments"]:
+            row["take"] = take
+        if out is None:
+            out = part
+        else:
+            out["moments"] += part["moments"]
+            out["finished"] = part["finished"]
+    out["times"] = max(1, int(times))
+    return tally(out)
+
+
+def _chance(a_passed, a_of, b_passed, b_of):
+    """How often a gap at least this big turns up between two runs of the very same thing (Fisher's exact test, both ways)."""
+    from math import comb
+    passed, n = a_passed + b_passed, a_of + b_of
+    if not a_of or not b_of:
+        return 1.0
+
+    def p(x):
+        return comb(a_of, x) * comb(b_of, passed - x) / comb(n, passed)
+    seen = p(a_passed)
+    return min(1.0, sum(p(x) for x in range(max(0, passed - b_of), min(a_of, passed) + 1) if p(x) <= seen * (1 + 1e-9)))
+
+
+def ab(before, after):
+    """Two runs of the same moments, turn by turn: how many takes passed before and after, and what chance alone would do."""
+    def by_turn(result):
+        turns = {}
+        for row in result["moments"]:
+            if row["scored"]:
+                t = turns.setdefault(row["id"], [0, 0])
+                t[0] += not row["missed"]
+                t[1] += 1
+        return turns
+    a, b = by_turn(before), by_turn(after)
+    lines = [f"| Turn | {before['label']} | {after['label']} |", "|---|---|---|"]
+    for turn in [t for t in a if t in b]:
+        lines.append(f"| {turn} | {a[turn][0]} of {a[turn][1]} | {b[turn][0]} of {b[turn][1]} |")
+    both = [t for t in a if t in b]
+    totals = [sum(x[t][i] for t in both) for x in (a, b) for i in (0, 1)]
+    lines.append(f"| **All** | **{totals[0]} of {totals[1]}** | **{totals[2]} of {totals[3]}** |")
+    chance = _chance(*totals)
+    in_100 = max(1, round(chance * 100)) if chance >= 0.005 else "less than 1"
+    lines += ["", f"A gap this big or bigger turns up about {in_100} times in 100 between two runs of the very same code. "
+              + ("So this doesn't show a difference either way." if chance >= 0.05 else "So this is unlikely to be chance.")]
+    return "\n".join(lines)
+
+
 def told(items, progress=None, lab=False):
     """What a small home brain is given on every turn it answers, with no brain at all. A stand-in records each turn's
     notes and tools, and they're put through the instructions a small device gets. Save it before a change and after,
@@ -458,7 +517,7 @@ def rescore(result, items=None):
         moment = by_id.get(row["id"])
         if moment is None:
             continue
-        before = earlier.setdefault(row["item"], [t for r, t in moment.get("before") or [] if r != "user"])
+        before = earlier.setdefault((row["item"], row.get("take", 0)), [t for r, t in moment.get("before") or [] if r != "user"])
         row["must"], row["must_not"] = moment.get("must", []), moment.get("must_not", [])
         found = misses(moment, row["said"], row["reply"], before) if row["reply"] or row["scored"] else []
         row["scored"] = bool(moment.get("must") or moment.get("must_not") or not row["id"].count("#"))
@@ -479,8 +538,8 @@ def tally(result):
         c[1] += 1
     replies = [r["reply"] for r in result["moments"] if r["reply"] and not r["reply"].startswith("ERROR")]
     openers = {}
-    for item in {r["item"] for r in result["moments"] if "#" in r["id"]}:  # the same opener 3 times running, in a conversation
-        said = [r["reply"] for r in result["moments"] if r["item"] == item and r["reply"]]
+    for item, take in {(r["item"], r.get("take", 0)) for r in result["moments"] if "#" in r["id"]}:  # the same opener 3 times running, in a conversation
+        said = [r["reply"] for r in result["moments"] if r["item"] == item and r.get("take", 0) == take and r["reply"]]
         for i in range(len(said) - 2):
             first = {style.opener(x) for x in said[i:i + 3]}
             if len(first) == 1 and first != {""}:
@@ -757,11 +816,12 @@ def summary(results, pairs=()):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff"])
+    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
     p.add_argument("--only", help="only moments whose id or category contains this")
+    p.add_argument("--times", type=int, default=1, help="run: each chosen moment this many times (a reply is sampled; one says little)")
     p.add_argument("--judge", help="llama:<path to .gguf> or http:<base url>")
     p.add_argument("--sample", type=int, default=0, help="judge this many moments, spread over the categories (0: all)")
     p.add_argument("--cloud", help="run and safety only: the cloud brain answers (claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5), with the key "
@@ -775,7 +835,7 @@ def main():
         os.environ.pop("ANTHROPIC_BASE_URL", None) if not os.environ.get("LUMA_LAB_KEEP_BASE_URL") else None  # the real API, not whatever this shell points at
     if args.what == "run":
         items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
-        result = run(items, args.label)
+        result = run(items, args.label) if args.times <= 1 else run_times(items, args.label, args.times)
         print(json.dumps(result["score"], indent=1))
     elif args.what == "told":
         items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
@@ -783,6 +843,9 @@ def main():
         print(f"{len(result['turns'])} turns, {sum(1 for t in result['turns'].values() if t['brain'])} answered by a brain")
     elif args.what == "told-diff":
         print(told_diff(*(json.loads(Path(f).read_text()) for f in args.files[:2])))
+        return
+    elif args.what == "ab":
+        print(ab(*(json.loads(Path(f).read_text()) for f in args.files[:2])))
         return
     elif args.what == "rescore":
         for f in args.files:
