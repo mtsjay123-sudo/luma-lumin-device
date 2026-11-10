@@ -88,7 +88,7 @@ def read_tone(text, recent=None):
         return {"mood": "serious", "register": _register(said), "why": "they said they're being serious"}
     if LAUGH.search(lowered) or (said.strip() and "😭" in said and not TASK.match(lowered)):
         return {"mood": "laughing", "register": _register(said), "why": "they're laughing"}
-    if VENT.search(lowered):
+    if VENT.search(lowered) or (felt and felt["family"] == "fed up"):
         return {"mood": "venting", "register": _register(said), "why": "they're venting"}
     if PLAYFUL.search(lowered):
         return {"mood": "playful", "register": _register(said), "why": "they're joking around"}
@@ -165,9 +165,18 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
             return ("They told you about a loss a few messages ago: stay gentle and warm. No jokes unless they start laughing about a memory, "
                     "then laugh with them softly.")
         how = "light"
+    from luma.agent import feelings, friendcheck
+    felt = feelings.read(text)
+    line = feelings.note(felt, asked=bool(feelings.ASKS_FOR.search(str(text or ""))))  # what this feeling needs first
+    if line and not line.startswith("Read the room") and (friendcheck.at_risk(text) or friendcheck.worth_asking(text)):
+        line = ""  # nobody who might not be safe is ever read as having good news
     if how == "none":
         if tone["mood"] in ("grief", "upset"):
-            return "Read the room: " + tone["why"] + ". No jokes, no teasing, no emoji laughs this turn. Be warm, plain and present, like a good friend."
+            return line if line.startswith("Read the room") else ("Read the room: " + tone["why"] + ". No jokes, no teasing, no emoji laughs this turn. "
+                                                                 "Be warm, plain and present, like a good friend.")
+    if line and tone["mood"] not in ("laughing", "serious", "grief", "upset"):
+        return line  # good news, pride, relief, missing someone: a friend is glad or gentle first; it isn't a cue for a joke
+    if how == "none":
         if tone["mood"] == "serious":
             return "They're being serious: answer straight, no jokes this turn."
         if tone["mood"] == "venting":

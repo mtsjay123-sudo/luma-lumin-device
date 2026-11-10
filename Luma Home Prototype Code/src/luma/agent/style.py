@@ -51,7 +51,12 @@ INVENTED_LIFE = re.compile(
     r"\bi (?:just )?(?:woke up|had (?:breakfast|lunch|dinner|coffee)|took a nap|got home|went (?:to|out))\b|"
     r"\bi(?:'d| would|'ll| will|'m gonna| am going to) (?:totally |definitely |gladly |happily |love to )?(?:go|come|tag along) with (?:you|u)\b"
     r"(?! (?:on (?:that|this|it)\b|if i could))|"
-    r"\bmy (?:body|hands|eyes|feet|stomach|back|head|legs) (?:hurts?|is|are|ache)\b", re.I)
+    r"\bmy (?:body|hands|eyes|feet|stomach|back|head|legs) (?:hurts?|is|are|ache)\b|"
+    # relating from a life it didn't live: "I can relate", "I've been there", "I get lonely too"
+    r"\bi (?:can )?(?:totally |really |definitely |completely |so |honestly )?relate\b|\bi(?:'ve| have) (?:definitely |totally |so |all )?been there\b|"
+    r"\bi know (?:that|the) feeling\b(?! you)|\bi know what (?:that'?s|it'?s|that is|it is) like\b|"
+    r"\bi(?:'ve| have) felt (?:that|this|the same)(?: way)?\b|\bi (?:get|feel|felt) (?:so |really |pretty )?(?:lonely|alone|homesick|anxious|nervous|scared|sad|that way|"
+    r"the same(?: way)?) (?:too|sometimes|as well|all the time)\b|\b(?:the )?same thing happened to me\b|\b(?:that|it) happened to me (?:too|once)\b", re.I)
 
 MARKDOWN = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+\S|\*\*[^*\n]+\*\*|^#{1,6}\s", re.M)
 QUESTION = re.compile(r"\?+[!?]*")

@@ -435,5 +435,29 @@ class TheShapeOfTheTurn(unittest.TestCase):
         self.assertTrue(turn.rstrip().endswith("No lecture, no list."))
 
 
+class NoBorrowedExperience(unittest.TestCase):
+    """Luma hasn't lived a life, so it can't relate from one. "I can relate" used to pass every check."""
+
+    def test_relating_from_a_life_it_didnt_live(self):
+        for reply in ["I can relate. Moving somewhere new is hard.", "I can totally relate to that.", "I've been there, it gets easier.", "Oh I know that feeling.",
+                      "I know what that's like.", "I get lonely too sometimes.", "The same thing happened to me once.", "I feel that way too sometimes.",
+                      "I relate to that so much.", "Honestly, I've felt that way before.", "I know the feeling all too well."]:
+            self.assertTrue(style.invented_life(reply), reply)
+
+    def test_understanding_isnt_a_claim(self):
+        for reply in ["That sounds really lonely.", "I get it. That's a lot.", "I hear you.", "That makes sense to me.", "Have you been there before?",
+                      "I can see why that hurts.", "A lot of people can relate to that.", "I can only imagine how hard that is.", "Been there before? What's it like?",
+                      "I've been thinking about you.", "I feel for you.", "You've been there for her so many times.", "I'm so happy for you!"]:
+            self.assertIsNone(style.invented_life(reply), reply)
+
+    def test_the_sentence_goes_and_the_rest_stays(self):
+        text, fixes = style.friend_style("I can relate. Moving somewhere new is hard. What's been the hardest part?", "i moved here and i don't know anyone")
+        self.assertEqual(text, "Moving somewhere new is hard. What's been the hardest part?")
+        self.assertIn("made-up life", fixes)
+
+    def test_when_its_all_there_is_the_second_look_asks_again(self):
+        self.assertEqual(friendcheck.miss("i feel so alone here", "I can relate."), "made up a life")
+
+
 if __name__ == "__main__":
     unittest.main()
