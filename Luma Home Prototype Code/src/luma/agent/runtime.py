@@ -3563,8 +3563,12 @@ class Agent:
         who = people.note(longer, text) if self.mode != "kids" else ""  # who's who from further back than the last few lines
         kept = []
         if self.mode != "kids":
+            def plain(words):
+                return " ".join(str(words)[:240].split()).casefold()
+            shown = {plain(line[6:]) for line in lines[-turns:] if line.startswith("Them: ")}  # what this prompt already shows them saying
             try:
-                kept = [m["text"][:200] for m in self.store.recall(text)[:3] if isinstance(m, dict) and m.get("text")]
+                kept = [m["text"][:200] for m in self.store.recall(text) if isinstance(m, dict) and m.get("text")
+                        and not (m.get("source") == "said" and plain(m["text"]) in shown)][:3]
             except Exception:
                 kept = []
         remembered = ("What you remember that may matter here (use it if it does): " + "; ".join(kept)) if kept else ""

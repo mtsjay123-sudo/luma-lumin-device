@@ -424,13 +424,15 @@ def told(items, progress=None, lab=False):
     and `told-diff` names the turns where a brain would now be told something else: minutes, where a real run takes
     hours and its replies are sampled. (It found that lines a person had just said were being handed back as memories.)
     lab: the device lab's conversation as well (its five warm-up messages, then the 10-moment test, in the lab's own
-    Luma), as turns lab#1 to lab#15."""
+    Luma), as turns lab#1 to lab#15.
+    "asked" holds the prompts Luma writes itself for a trip (a question thought over from several sides, the safety
+    question): they carry their own copy of the conversation and of what Luma remembers, apart from the notes."""
     import hashlib
     from luma.llm import prompts
     calls = []
 
     def planner(messages, context, allowed, *args, **kwargs):
-        calls.append((list(context), list(allowed)))
+        calls.append((list(context), list(allowed), str(messages[-1].get("content") or "") if messages else ""))
         return {"type": "reply", "text": "Okay."}
 
     def one(session, said):
@@ -438,16 +440,20 @@ def told(items, progress=None, lab=False):
         session.say(said)
         if len(calls) == before:
             return {"said": said, "brain": False}  # answered without a brain: the crisis net, a reminder, a sum
-        steadies, told_each = [], []
-        for context, tools in calls[before:]:  # every trip to the brain for this message: a heavy one is asked the safety question first
+        steadies, told_each, asked = [], [], []
+        for context, tools, last in calls[before:]:  # every trip to the brain for this message: a heavy one is asked the safety question first
             steady, turn = prompts.build_plan_parts(context, tools, "friend", None, "(the time)", compact=True)[:2]
             steadies.append(steady if isinstance(steady, str) else json.dumps(steady, ensure_ascii=False))
             told_each.append(turn if isinstance(turn, str) else "\n".join(str(part) for part in turn))
+            if last.strip() != str(said).strip():  # not their own message: a prompt Luma wrote for this trip
+                asked.append(re.sub(r'"(action|id)": "[0-9a-f]{6,}"', r'"\1": "(an id)"', last))  # ids are made at random
         return {"said": said, "brain": True, "steady": hashlib.sha1("\n".join(steadies).encode()).hexdigest()[:12],
-                "turn": "\n(the next trip to the brain)\n".join(told_each), "trips": len(told_each)}
+                "turn": "\n(the next trip to the brain)\n".join(told_each), "trips": len(told_each),
+                "asked": "\n(the next trip to the brain)\n".join(asked)}
 
     turns = {}
     for item in items:
+        random.seed(7)  # a hello or a joke picked at random is the same one every time, so two saves can be compared
         s = Session(planner)
         try:
             if item.get("turns"):
@@ -469,6 +475,7 @@ def told(items, progress=None, lab=False):
             progress(f"  {item['id']}")
     if lab:
         import luma_lab
+        random.seed(7)
         clock = {"t": START.timestamp()}
         profile = luma_lab.Profile(planner=planner, now=lambda: clock["t"])
         try:
@@ -485,7 +492,10 @@ def told_diff(before, after):
     plain text: which turns, and the lines that were added or taken away."""
     import difflib
     a, b = before["turns"], after["turns"]
-    changed = [k for k in a if k in b and any(a[k].get(f) != b[k].get(f) for f in ("brain", "steady", "turn"))]
+    def differs(k):  # a save from before "asked" was recorded has none to compare
+        fields = ("brain", "steady", "turn") + (("asked",) if "asked" in a[k] and "asked" in b[k] else ())
+        return any(a[k].get(f) != b[k].get(f) for f in fields)
+    changed = [k for k in a if k in b and differs(k)]
     lines = [f"{len(changed)} of {len([k for k in a if k in b])} turns are told something different."]
     only = sorted(set(a) ^ set(b))
     if only:
@@ -497,9 +507,12 @@ def told_diff(before, after):
             continue
         if a[k].get("steady") != b[k].get("steady"):
             lines.append("  the steady instructions changed")
-        for line in difflib.unified_diff((a[k].get("turn") or "").split("\n"), (b[k].get("turn") or "").split("\n"), lineterm="", n=0):
-            if line[:1] in "+-" and line[:3] not in ("+++", "---") and line[1:].strip():
-                lines.append("  " + line[:400])
+        for field in ("turn", "asked"):
+            if field == "asked" and not ("asked" in a[k] and "asked" in b[k]):
+                continue
+            for line in difflib.unified_diff((a[k].get(field) or "").split("\n"), (b[k].get(field) or "").split("\n"), lineterm="", n=0):
+                if line[:1] in "+-" and line[:3] not in ("+++", "---") and line[1:].strip():
+                    lines.append("  " + line[:400])
     return "\n".join(lines)
 
 

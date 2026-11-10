@@ -541,6 +541,19 @@ class InLuma(unittest.TestCase):
         back = handed_back("i keep meaning to go see my sister in the mountains")
         self.assertTrue(any("tiny town in the mountains" in line for line in back), back)
 
+    def test_a_side_prompt_isnt_handed_a_line_it_already_shows(self):
+        """A question Luma thinks over from several sides gets a prompt of its own: the last few lines of the conversation,
+        then what Luma remembers. A line that's right there in the conversation isn't also handed over as a memory. (In
+        the human test "Should I cook for her or take her out?" came with "I haven't seen her since last Christmas" twice.)"""
+        self.agent.chat("i haven't seen my cousin dana since last winter")
+        prompt = self.agent._recent_talk("should i bake for dana or take her to that noodle place?")
+        self.assertIn("Them: i haven't seen my cousin dana since last winter", prompt)
+        self.assertNotIn("What you remember that may matter here", prompt)
+        # A new conversation: the line isn't in front of the brain any more, so now it's something Luma remembers.
+        self.agent.history.clear()
+        prompt = self.agent._recent_talk("should i bake for my cousin dana or take her out?")
+        self.assertIn("What you remember that may matter here (use it if it does): i haven't seen my cousin dana since last winter", prompt)
+
     def test_asking_what_to_do_about_someone_isnt_asking_its_memory(self):
         """ "Should I tell my best friend her boyfriend is cheating on her?" names a friend Luma was never told about. It
         isn't asking who she is, so the brain isn't told to say it "hasn't been told". (Human Test v2 has this very line,
