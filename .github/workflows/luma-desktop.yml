@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   mac:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     defaults:
       run:
@@ -62,7 +62,7 @@ jobs:
   # Project code runs inside Apple's sandbox on a Mac. This proves the fence on a real Mac: code can write
   # its own project folder and nothing else, can't read the owner's files, and has no network.
   work-sandbox:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 15
     defaults:
       run:
@@ -85,7 +85,7 @@ jobs:
     concurrency:
       group: voice-lab
       cancel-in-progress: false
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 150
     continue-on-error: true
     defaults:
@@ -156,7 +156,7 @@ jobs:
     concurrency:
       group: brain-lab
       cancel-in-progress: false
-    runs-on: macos-14
+    runs-on: macos-15
     # Each step has its own limit, so one that runs long fails on its own and the summary still gets written.
     # Their limits add up to about 315 minutes, so the job's own limit sits above that.
     timeout-minutes: 340
