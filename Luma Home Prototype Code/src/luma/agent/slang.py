@@ -158,6 +158,59 @@ def find(text):
     return out
 
 
+# Everyday words that the dictionary also lists as a spelling of a slang word. Typed like this they're the everyday
+# word: "my dog" is a dog, "he's gone" is gone, "coping" is coping. The slang spelling still counts (dawg, gon, copium).
+PLAIN_SPELLINGS = frozenset("""dog gone child period youth suspect giving band rack stack sweat sweating sweats cope coping lacking
+totally goon dam da""".split())
+# Slang words that are everyday words too, and how the everyday one is used: "i woke up", "i bet it rains", "lit a candle",
+# "based on", "the twins". Said that way they aren't slang. Keyed by the dictionary's own spelling.
+_WHO = r"(?:my|his|her|our|their|your|uncle|aunt|cousin|friend|brother|dad|grandpa|coworker|neighbou?r|boss|mr\.?)"
+PLAIN_USE = {term: re.compile(pattern) for term, pattern in {
+    "woke": r"\bwoke\s+(?:up|me|him|her|us|them|at|to|early|late|in|from)\b|\b(?:i|we|he|she|they|it|just|finally|baby|kids?|dog|cat)\s+woke\b",
+    "shook": r"\bshook\s+(?:my|his|her|their|our|the|a|hands?|it|up|off|me|him|them)\b",
+    "pressed": r"\bpressed\s+(?:the|a|an|my|his|her|on|into|against|charges|down|play|send|enter|record|pause)\b",
+    "bet": r"\b(?:i|i'll|i'd|you|we|they|he|she|wanna|a|the|my|your|safe|sure|best)\s+bet\b|\bbet\s+(?:on|you|he|she|they|it|that|against|money|\$?\d)",
+    "based": r"\bbased\s+(?:on|in|off|out|around|upon)\b",
+    "lit": r"\blit\s+(?:a|an|the|my|his|her|up|it|them|some|candles?|fire)\b|\b(?:well|dimly|brightly|poorly)[\s-]lit\b",
+    "mid": r"\bmid[\s-]+(?:\d|morning|afternoon|day|night|week|month|year|summer|winter|spring|fall|sentence|air|way|life|twenties|thirties|"
+           r"forties|fifties|january|february|march|april|may|june|july|august|september|october|november|december|size|range|level|"
+           r"town|field|term|season|flight|shift)",
+    "cap": r"\b(?:a|an|the|my|his|her|your|this|baseball|bottle|gas|shower|swim|knee|salary|price|data)\s+caps?\b|\bcaps?\s+(?:on|off|lock|and\s+gown)\b",
+    "goat": r"\bgoats\b|\b(?:a|an|pet|baby|mountain|billy|our|their)\s+goat\b|\bgoat\s+(?:cheese|milk|farm|yoga)\b",
+    "salty": r"\bsalty\s+(?:food|soup|snack|chips|fries|water|taste|air)\b|\b(?:soup|food|fries|chips|sauce|dinner|popcorn|it|this|that)\s+"
+             r"(?:was|is|tastes?|tasted)\s+(?:too\s+|so\s+|really\s+|a\s+bit\s+)?salty\b(?!\s+(?:about|at|with|over|cause|because))",
+    "thirsty": r"\bthirsty\b(?!\s+(?:for\s+(?:attention|him|her|likes|clout|me)|in\s+(?:my|the|his|her)\s+(?:dms|comments|mentions)|on\s+(?:main|the\s+tl)))",
+    "ratio": r"\b(?:the|a|an|this|that|aspect|gear|mix|debt|right|wrong|golden)\s+ratio\b|\bratio\s+(?:of|is|was|between|for)\b",
+    "dope": r"\b(?:does|do|did|doing|done|on|smok\w+|sell\w*|sold|deal\w*|us\w+|shoot\w*|shot)\s+dope\b",
+    "stan": rf"\b{_WHO}\s+(?:\w+\s+)?stan\b|\bstan\s+(?:is|was|said|called|and|has|will|did|does|came|went)\b",
+    "chad": rf"\b{_WHO}\s+(?:\w+\s+)?chad\b|\bchad\s+(?:is|was|said|called|and|has|will|did|does|came|went)\b",
+    "twin": r"\btwins\b|\btwin\s+(?:sister|brother|boys?|girls?|sons?|daughters?|babies|beds?|size)\b",
+    "ahh": r"(?:^|[.!?,]\s*)a+h{2,}\b|\ba+h{2,}\s*(?:$|[.!?,])",  # a shout, not "goofy ahh"
+    "trippin": r"\btripping\s+(?:over|on\s+(?:the|my|a|his|her)|up|and\s+fell)\b",
+    "tweakin": r"\btweaking\s+(?:my|the|a|an|it|this|that|some|settings|things)\b",
+    "buggin": r"\bbugging\s+(?:me|him|her|us|them|you)\b",
+    "bussin": r"\bbussing\s+(?:tables|dishes|trays|kids|students|people|them)\b|\b(?:school|city)\s+bussing\b",
+}.items()}
+
+
+def _plainly(said, entry, low):
+    """An everyday word in its everyday sense, in this message."""
+    term = _key(entry.term)
+    if said in PLAIN_SPELLINGS and term != said:
+        return True
+    use = PLAIN_USE.get(term)
+    return bool(use and use.search(low))
+
+
+def heard(text):
+    """The slang in a message as Luma hears it: find(), without the everyday words in their everyday sense ("my dog",
+    "he's gone", "i woke up", "i bet it rains"). When they're asking what a word means, the dictionary answers as it is."""
+    if ASKING.search(str(text or "")):
+        return find(text)
+    low = _key(text)
+    return [(said, entry) for said, entry in find(text) if not _plainly(_key(said), entry, low)]
+
+
 def explain(term):
     """What a word means and where it's from, for "what does X mean?"."""
     _, forms = lexicon()
@@ -182,7 +235,7 @@ def details(term):
 
 def signals(text):
     """The parts of one message that say how someone talks: real slang (not everyday words), cussing, and energy."""
-    found = find(text)
+    found = heard(text)
     strong = [(said, e) for said, e in found if _key(e.term) not in AMBIGUOUS and e.register in ("c", "v")]
     letters = re.sub(r"[^A-Za-z]", "", text)
     return {
@@ -281,7 +334,7 @@ def meanings_note(text, most=3):
     a meaning. Words that are everyday English too ("fire", "chat") count only when they're asking what something means."""
     asking = bool(ASKING.search(str(text or "")) or re.match(r"^\W*(?:what|wtf)(?:'s| is| are)(?: [\w'-]+){1,3}\W*$", str(text or ""), re.I))
     picked = []
-    for said, entry in find(text):
+    for said, entry in heard(text):
         if entry.register == "x" or (_key(entry.term) in UNNOTED | AMBIGUOUS and not asking):
             continue
         where = entry.label

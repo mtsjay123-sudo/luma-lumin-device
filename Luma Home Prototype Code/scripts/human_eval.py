@@ -814,13 +814,19 @@ def summary(results, pairs=()):
     return "\n".join(lines)
 
 
+def chosen(items, only):
+    """The moments whose id or kind contains one of the words in `only`: "pet_loss", or "pet_loss-01,lonely-12"."""
+    parts = [part.strip() for part in str(only or "").split(",") if part.strip()]
+    return [i for i in items if not parts or any(part in i["id"] or part in i["category"] for part in parts)]
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
-    p.add_argument("--only", help="only moments whose id or category contains this")
+    p.add_argument("--only", help="only moments whose id or category contains this (several, with commas: pet_loss-01,lonely-12)")
     p.add_argument("--times", type=int, default=1, help="run: each chosen moment this many times (a reply is sampled; one says little)")
     p.add_argument("--judge", help="llama:<path to .gguf> or http:<base url>")
     p.add_argument("--sample", type=int, default=0, help="judge this many moments, spread over the categories (0: all)")
@@ -834,11 +840,11 @@ def main():
         os.environ["LUMA_LAB_CLOUD_MODEL"] = args.cloud
         os.environ.pop("ANTHROPIC_BASE_URL", None) if not os.environ.get("LUMA_LAB_KEEP_BASE_URL") else None  # the real API, not whatever this shell points at
     if args.what == "run":
-        items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
+        items = chosen(load(), args.only)
         result = run(items, args.label) if args.times <= 1 else run_times(items, args.label, args.times)
         print(json.dumps(result["score"], indent=1))
     elif args.what == "told":
-        items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
+        items = chosen(load(), args.only)
         result = told(items, lab=not args.only or args.only == "lab")
         print(f"{len(result['turns'])} turns, {sum(1 for t in result['turns'].values() if t['brain'])} answered by a brain")
     elif args.what == "told-diff":

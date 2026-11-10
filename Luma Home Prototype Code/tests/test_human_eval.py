@@ -238,6 +238,12 @@ class ManyTakes(unittest.TestCase):
         self.assertLess(h._chance(0, 20, 20, 20), 0.001)
         self.assertAlmostEqual(h._chance(1, 3, 3, 3), 0.4, places=6)  # by hand: 6 ways in 15 are at least this lopsided
 
+    def test_several_turns_can_be_chosen_at_once(self):
+        items = h.load()
+        self.assertEqual([i["id"] for i in h.chosen(items, "pet_loss-01, lonely-12,big_news-06")], ["big_news-06", "pet_loss-01", "lonely-12"])
+        self.assertEqual(len(h.chosen(items, "pet_loss")), 4)
+        self.assertEqual(len(h.chosen(items, "")), len(items))
+
     def test_the_code_under_test_can_be_another_copy(self):
         # LUMA_EVAL_SRC points the test at an earlier checkout's code, so a change is measured before and after
         import subprocess
