@@ -160,13 +160,19 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
     tone = read_tone(text)
     dial = int((taste or {}).get("dial", 2))
     how = level(tone, dial, mode)
+    from luma.agent import feelings, friendcheck
+    felt = feelings.read(text)
     if how != "none" and any(read_tone(r)["mood"] == "grief" for r in recent or ()):
         if tone["mood"] != "laughing":
             return ("They told you about a loss a few messages ago: stay gentle and warm. No jokes unless they start laughing about a memory, "
                     "then laugh with them softly.")
         how = "light"
-    from luma.agent import feelings, friendcheck
-    felt = feelings.read(text)
+    elif how != "none" and not felt and any((feelings.read(r) or {}).get("heavy") for r in recent or ()):
+        # Something hard a minute ago (a breakup, a fear, a let-down) and nothing of its own in this message: a friend is still gentle.
+        if tone["mood"] != "laughing":
+            return ("They told you something hard a few messages ago: stay gentle and warm, and on their side. "
+                    "No jokes unless they start joking about it; then go easy with them.")
+        how = "light"
     line = feelings.note(felt, asked=bool(feelings.ASKS_FOR.search(str(text or ""))))  # what this feeling needs first
     if line and not line.startswith("Read the room") and (friendcheck.at_risk(text) or friendcheck.worth_asking(text)):
         line = ""  # nobody who might not be safe is ever read as having good news

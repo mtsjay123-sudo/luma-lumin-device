@@ -434,6 +434,49 @@ class TheManyWaysPeopleSayIt(unittest.TestCase):
             self.assertNotIn("relieved with them", note, said)
 
 
+class AMinuteLater(unittest.TestCase):
+    """One message after something hard, a friend is still gentle. Before this, "she broke up with me over text" followed by
+    "we were together six years" got "a little humor is welcome", with a list of jokes."""
+
+    HARD = ["she broke up with me over text", "i feel like such a failure", "i'm terrified about the biopsy results", "he lied to my face for months",
+            "i didn't get the job", "i'm drowning at work", "i just feel so alone lately, no one calls", "i've been feeling really down lately"]
+
+    def test_the_next_thing_they_say_is_still_met_gently(self):
+        for first in self.HARD:
+            for then in ("we were together six years", "it's been like this for a while", "anyway"):
+                note = humor.turn_note(then, recent=[first])
+                self.assertIn("something hard a few messages ago", note, (first, then))
+                self.assertNotIn("humor is welcome", note, (first, then))
+                self.assertNotIn("sense of humor", note, (first, then))          # no list of jokes to pick from
+
+    def test_it_holds_for_their_next_few_messages(self):
+        note = humor.turn_note("what should i have for dinner", recent=["she broke up with me over text", "six years", "i don't even know what to do with myself"])
+        self.assertIn("something hard a few messages ago", note)
+        self.assertNotIn("something hard", humor.turn_note("what should i have for dinner", recent=["what's the weather", "cool", "ok"]))
+
+    def test_a_loss_keeps_its_own_line(self):
+        self.assertIn("a loss a few messages ago", humor.turn_note("he was a carpenter", recent=["my dad died on tuesday"]))
+
+    def test_when_they_start_joking_luma_can_go_easy(self):
+        note = humor.turn_note("lol at least i get the whole bed now", recent=["she broke up with me over text"])
+        self.assertNotIn("something hard a few messages ago", note)
+        self.assertIn("humor is welcome", note)                                   # a light touch, not "be funny back"
+        self.assertNotIn("be funny back", note)
+
+    def test_what_they_feel_now_comes_first(self):
+        self.assertIn("happy with them", humor.turn_note("i got the job!!", recent=["i feel like such a failure"]))
+        self.assertIn("someone hurt them", humor.turn_note("and then he lied to my face about it", recent=["i'm drowning at work"]))
+
+    def test_good_news_or_a_gripe_a_minute_ago_isnt_a_hard_moment(self):
+        for first in ("i got the job!!", "my boss is driving me crazy", "i'm a little nervous about friday", "lol i bombed the interview so bad"):
+            self.assertNotIn("something hard", humor.turn_note("anyway what's for dinner", recent=[first]), first)
+
+    def test_a_small_brain_gets_the_whole_line(self):
+        from luma.llm import prompts
+        note = humor.turn_note("we were together six years", recent=["she broke up with me over text"])
+        self.assertEqual(prompts._gist(note, 200), note)
+
+
 class SlangIsntAFeeling(unittest.TestCase):
     """The phrase bank is a million everyday lines in the slang of many communities: praise, gripes about a movie, plans.
     None of it is a wound or good news, and "I'm dead", "that slaps", "got me cooked" mustn't be read as one."""
