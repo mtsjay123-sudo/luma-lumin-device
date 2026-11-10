@@ -100,7 +100,7 @@ def space(agent):
         {"key": "news", "label": "News and posts I've read", "detail": "I read them again on my own every 15 minutes.", "bytes": _bytes(news) if news.get("items") else 0},
         {"key": "old_chats", "label": "Chats older than 30 days", "detail": f"{len(chats)} chat{'s' if len(chats) != 1 else ''}. What I learned about you stays in memory.",
          "bytes": sum(_bytes(c) for c in chats)},
-        {"key": "old_files", "label": "Files I made over 30 days ago", "detail": f"{len(files)} deck{'s' if len(files) != 1 else ''}, docs and apps.",
+        {"key": "old_files", "label": "Files I made over 30 days ago", "detail": f"{len(files)} file{'s' if len(files) != 1 else ''}: decks, documents and small apps.",
          "bytes": sum(p.stat().st_size for p in _file_paths(agent, files))},
         {"key": "browser_cache", "label": "Browser cache", "detail": "Pictures and pages saved to load faster. You stay signed in.",
          "bytes": sum(folder_size(d) for d in _browser_dirs(agent))},

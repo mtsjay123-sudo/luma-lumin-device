@@ -1,6 +1,10 @@
 """Storage, like the storage page on a phone: what Luma keeps, how much room it takes, what happens when it's full,
 and how room comes back. Everything is on the device; the cloud is only ever an offer of more room, never a brain."""
+import json
+import shutil
+import subprocess
 import tempfile
+import threading
 import unittest
 from collections import namedtuple
 from pathlib import Path
@@ -301,6 +305,73 @@ class TheDatabaseTests(unittest.TestCase):
         self.assertTrue(health["ok"], health["problems"])
         raw = (Path(self.temp.name) / "s.db").read_bytes()
         self.assertNotIn(b"Patel", raw)
+
+
+def browser():
+    """Node with Playwright and Chromium, the same thing the orb's browser test needs."""
+    node = shutil.which("node")
+    if not node:
+        return False
+    try:
+        return subprocess.run([node, "-e", "require.resolve('playwright')"], capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+class TheScreenTests(unittest.TestCase):
+    """The storage screen, opened in a real browser on the phone page and on the computer."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "s.db", root / "k")
+        self.store.set_setting("signed_up", True)
+        self.store.set_setting("luma_account_pending", {"email": "someone@example.com", "name": "Sam"})   # past sign-up, with a made-up account
+        self.agent = Agent(store=self.store, use_model=False)
+        now = self.agent.clock()
+        for text in ("Your sister's name is Dana", "Mom's birthday is June 3", "Your keys are on the hook by the door"):
+            self.store.put("memory", {"text": text, "source": "noticed_in_conversation", "created": now})
+        for i, title in enumerate(("Trip ideas", "Dana's speech")):
+            self.store.put("chat", {"thread": f"t{i}", "title": title, "log": [{"role": "user", "text": "tell me more " * 2000, "at": now - 60 * DAY}]})
+        files = self.agent.files_dir
+        files.mkdir(parents=True, exist_ok=True)
+        (files / "aa11bb22cc33-plan.pdf").write_bytes(b"0" * 200000)
+        self.store.put("file", {"name": "plan.pdf", "path": str(files / "aa11bb22cc33-plan.pdf"), "kind": "pdf", "title": "The plan", "created": now - 50 * DAY}, "aa11bb22cc33")
+        from luma.control.server import make_server
+        self.server = make_server(self.agent, 0)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+
+    def tearDown(self):
+        self.server.control_context.stop.set()
+        self.server.shutdown()
+        self.server.server_close()
+        self.store.close()
+        self.temp.cleanup()
+
+    @unittest.skipUnless(browser(), "no browser to open it in (node with Playwright and Chromium)")
+    def test_in_a_real_browser(self):
+        done = subprocess.run(["node", str(Path(__file__).with_name("storage_check.cjs")), self.base], capture_output=True, text=True, timeout=240)
+        self.assertEqual(done.returncode, 0, done.stdout[-600:] + done.stderr[-600:])
+        seen = json.loads(done.stdout.strip().splitlines()[-1])
+        self.assertEqual(seen["errors"], [])
+        self.assertFalse(seen["hiddenRowShows"], "a row marked hidden is showing on the phone")
+        phone = seen["phone"]
+        self.assertEqual(phone["title"], "Storage")
+        self.assertRegex(phone["left"], r"^\d+(\.\d)? (GB|MB|KB|bytes)$")
+        self.assertEqual(phone["segments"], len(phone["kinds"]))         # one piece of the bar for each kind
+        self.assertTrue(any(k.startswith("Chats (2)") for k in phone["kinds"]), phone["kinds"])
+        self.assertTrue(any(k.startswith("Memories (3)") for k in phone["kinds"]), phone["kinds"])
+        self.assertTrue(any("Chats older than 30 days" in o for o in phone["options"]))
+        self.assertTrue(any("The plan" in o for o in phone["options"]))   # the biggest things, each with its own Delete
+        after = seen["afterClear"]
+        self.assertRegex(after["freed"], r"^Freed \d+(\.\d)? (MB|KB)\.$")
+        self.assertFalse(any(k.startswith("Chats") for k in after["kinds"]), "the chats went, so they're off the list")
+        self.assertEqual(self.store.count("chat"), 0)
+        desk = seen["desktop"]
+        self.assertTrue(desk["health"])
+        self.assertIn("The plan", desk["biggest"])
+        self.assertGreaterEqual(desk["segments"], 2)
 
 
 if __name__ == "__main__":
