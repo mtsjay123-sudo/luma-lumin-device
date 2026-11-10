@@ -533,3 +533,93 @@ A reply that claims to be a person or invents a life is never right, whatever el
 - **Checking facts with a search before answering.** Only numbers from a search are checked against it.
 - **Units and dates.** The calculator does percents, tips, splits and plain arithmetic. "How many days until" and unit conversions go to the brain.
 
+## 7. The human tests and safety
+
+The rule: Human Test v2, the 10-moment test, the crisis corpus and both held-out safety sets must be no worse than before, with the Super Intelligence on and off.
+
+### What this work didn't touch
+
+Checked with `git diff` from the last measured code (`d40b1c1`, run 7) to now:
+
+- The crisis net's phrases, and the reply it gives.
+- The brain's safety question and the second look's safety check (`friendcheck.py`).
+- The crisis corpus, both held-out sets, and Human Test v2's wording.
+
+The crisis net doesn't use a brain, so its tests run here: 21 pass (`tests/test_safety_net.py`).
+
+### With the Super Intelligence off: the four home brains
+
+Run on GitHub, on real brains. "Before" is run 7 (`d40b1c1`), the last run before this work.
+
+| Safety, held out | Before (run 7) | After the life memory (run 8, `61f7f7f`) |
+|---|---|---|
+| Stock Qwen3 4B | 15 of 24 caught, 0 false alarms; then 20 of 24, 1 | The same |
+| Luma's own 4B | 18 of 24, 2; then 22 of 24, 2 | The same |
+| Stock Qwen3 1.7B | 14 of 24, 4; then 17 of 24, 3 | The same |
+| Luma's own small | 19 of 24, 10; then 23 of 24, 10 | The same |
+| The corpus sample | 60 of 60 on every brain, 1 or 2 false alarms | The same |
+
+Each cell is the first held-out set, then the second. Not one number moved.
+
+**The run on the final code (`02a4645`) was started on Nov 10 and hadn't finished when this was written:** Human Test v2 with the judge, the safety sets again, the device lab with the 10-moment test, and the think set on the four home brains. Until it's read, nothing is claimed for the final code, and main stays where it is.
+
+### With the Super Intelligence on
+
+**Not measured.** It needs the real API. What holds whatever the cloud brain says:
+
+- The crisis net answers at home before any brain. A test turns Plus on, sends a crisis message, and checks that not a word of it reaches the relay.
+- A cloud brain's reply goes through the same checks as a home brain's: never a person, never a made-up life, the second look, the safety question.
+- The command to measure it: the labs workflow by hand with `real: true`. It runs Human Test v2, the safety sample and the think set on the cloud brain.
+
+## 8. Cost
+
+### What this work cost
+
+Nothing was billed. Every lab here ran on stand-ins, and the real-brain runs used GitHub's runners.
+
+### What a real run would cost
+
+Estimates from the stand-in's token counts and the published prices of October 2026. Each needs the owner's yes.
+
+| Run | Sonnet 5.5 | Opus 5.5 |
+|---|---|---|
+| Cloud lab, 15 turns, both request shapes | about $0.30 | about $0.60 |
+| Human Test v2, the safety sample and the think set on the cloud brain | about $2 | about $5 |
+| The prototype of Luma's own cloud model | Not priced: needs a five-minute timing run first (`docs/LUMA_CLOUD_MODEL.md`) | |
+
+### What a turn costs
+
+| | Sonnet 5.5 | Opus 5.5 |
+|---|---|---|
+| As the request was before | $0.0069 | $0.0139 |
+| Cache first | $0.0025 | $0.0045 |
+
+Stand-in numbers: short replies and no thinking, so a real turn costs more in every cell. The ratio is the finding: the same talk costs about a third as much.
+
+## 9. What missed, and why
+
+| Target | Result | Why |
+|---|---|---|
+| Memory: right answer in the top 5, held out, ≥ 95% | fact 85%, reworded 70 to 71% | Facts are read with plain patterns fitted to the dev wording. The meaning model built for new wording can't run on this machine. |
+| Memory: two memories away, held out | 0% (0 of 18) | The same cause: the question patterns were fitted to the dev wording, where it's 100%. |
+| Memory: says "never told" by itself | 55% | The rest goes to the brain with a note that the word isn't in memory (100% together). Scoring what the brain then says needs a brain. |
+| Prompt read from cache ≥ 85% | 82%, stand-in | Three turns in fifteen take a short second trip that's too small to cache. |
+| News: each story told once ≥ 95% | 94.5% (dev 100%, held out 90%) | Two reports of one story with few words in common are told as two. Not tuned further, to keep the held-out half honest. |
+| Router: hard asks caught | 69% of held-out hard asks | It's set to be careful: 1.3% of everyday turns are wrongly called hard. |
+| Every speed target | Not measured | No key, no Mac, no microphone here. |
+| Think set ≥ 95%, 0 made up | Not measured on a real brain yet: the run is in progress | |
+| Human Test v2 ≥ 90%, judge ≥ 4.2, pairwise ≥ 70% | Before this work the best home brain was at 77.6%, 3.69 and 23%. The run on the final code is in progress. | These targets are for the cloud brain, which needs the key. The home brains were never near them. |
+
+Not built at all: a meaning model and reranker for memory, the cold tier and sync, voice-based "someone else is in the room", one person across apps, live app pings, the computer-use toolset, undo, the morning briefing built ahead, LongMemEval, AgentDojo and τ²-bench runs, and Luma's own cloud model.
+
+## 10. What's next, in order
+
+| Step | Needs |
+|---|---|
+| 1. Run the cloud lab, Human Test v2, safety and the think set on the real API | A key as the GitHub secret `LUMA_LAB_ANTHROPIC_KEY`, and a yes to about $2 to $5 |
+| 2. Ask Anthropic for zero data retention, set the two settings, apply the database change | The owner's yes: it turns Plus's Super Intelligence on for real |
+| 3. A meaning model for memory, measured on the held-out lives | A Mac or a GPU runner: the model can't be downloaded here |
+| 4. Speed on a real Mac and the device: first sound, barge-in, silence while a tool runs | A Mac and a microphone |
+| 5. The yes screen on a Luma with no computer | A decision: may the phone widen what leaves the home? |
+| 6. Sync and the archive, then Luma's own cloud model | `docs/LUMA_CLOUD_MODEL.md`, each step with its own yes |
+
