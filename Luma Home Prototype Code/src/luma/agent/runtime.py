@@ -1397,6 +1397,9 @@ class Agent:
         if name == "memory.remember":
             said = args["text"].strip().casefold()
             existing = next((m for m in self.store.same_as(args["text"]) if m["text"].strip().casefold() == said), None)
+            if not existing and self._out_of_room():
+                from luma.memory import storage
+                return {"summary": storage.CANT_KEEP, "memory_full": True}
             row = existing or self.store.put("memory", {"text": args["text"], "source": "explicit_user_request", "created": self.clock()})
             return {"summary": "Got it, I'll remember that.", "memory": row}
         if name == "memory.recall": return self._recall_tool(args["query"])
@@ -1471,6 +1474,7 @@ class Agent:
 
     def _create_doc(self, args):
         """A Word document or a PDF Luma wrote, saved here and listed in the Library."""
+        self._room_to_make()
         from luma.skills import documents
         spec = documents.validate_doc(args)
         ident = secrets.token_hex(6)
@@ -1486,6 +1490,7 @@ class Agent:
 
     def _create_app(self, args):
         """A small app (tracker, checklist, flashcards, countdown) as one page that works offline."""
+        self._room_to_make()
         from luma.skills import documents
         spec = documents.validate_app(args)
         ident = secrets.token_hex(6)
@@ -1506,6 +1511,9 @@ class Agent:
         """'Make me a morning podcast': a two-minute episode from what's new and what's on today, recorded here."""
         if not self.PODCAST.search(lowered) or self.mode == "kids" or re.search(r"\b(?:what|which|recommend|favorite|best|listen(?:ing)? to|subscribe)\b.*\bpodcasts?\b", lowered):
             return None
+        from luma.memory import storage
+        if storage.full(self):
+            return {"text": storage.CANT_MAKE}
         about = self.PODCAST_ABOUT.search(text)
         topic = about["topic"].strip() if about and not re.search(r"\b(?:news|my day|today|this morning)\b", about["topic"], re.I) else ""
         try:
@@ -1692,6 +1700,7 @@ class Agent:
             return None
 
     def _create_deck(self, args):
+        self._room_to_make()
         from luma.skills.decks import build_deck, safe_filename, validate_outline
         spec = validate_outline({"title": args["title"], "subtitle": args.get("subtitle") or None,
                                  "theme": args.get("theme") or "midnight", "slides": args["slides"]})
@@ -4453,6 +4462,9 @@ class Agent:
                 plus_notice = self._plus_notice(now, quiet)
                 if plus_notice:
                     return plus_notice
+                storage_notice = self._storage_notice(now, quiet)
+                if storage_notice:
+                    return storage_notice
             if quiet or self.speaking or now < self.store.setting("hush_until", 0) or now - self.store.setting("last_proactive", 0) < 1800: return None
             presence_event = self._presence_event(now, local)
             if presence_event: return presence_event
@@ -4477,6 +4489,25 @@ class Agent:
                 titles.append(row["title"])
             self.store.set_setting("last_proactive", now)
             return {"type": "reminder", "text": "A reminder for you: " + "; ".join(titles), "created": now}
+
+    def _storage_notice(self, now, quiet):
+        """When the device is almost out of room, and again if it runs out, Luma says so once, plainly. It's news, never
+        a pitch. It waits while they're hurting or Luma is talking, and it's never said in kids mode. Once there's room
+        again it's forgotten, so filling up a second time is news a second time."""
+        from luma.agent import friendcheck
+        from luma.memory import storage
+        state, said = storage.room(self)["state"], self.store.setting(storage.SAID)
+        if state == "ok":
+            if said:
+                self.store.set_setting(storage.SAID, None)
+            return None
+        if said == state or (said == "full" and state == "nearly") or self.mode == "kids" or self.speaking:
+            return None
+        lately = [h["content"] for h in self.history[-8:] if h.get("role") == "user" and isinstance(h.get("content"), str)][-3:]
+        if any(friendcheck.hurting(m) or friendcheck.at_risk(m) or CRISIS.search(m.lower()) for m in lately):
+            return None
+        self.store.set_setting(storage.SAID, state)
+        return {"type": "notice", "text": storage.line(state), "created": now, "silent": quiet or now < self.store.setting("hush_until", 0)}
 
     def _plus_notice(self, now, quiet):
         """When this month's Super Intelligence time runs out, Luma says so once, plainly, and goes on thinking at home.
@@ -4679,8 +4710,10 @@ class Agent:
                     picks = presence.options_in(reply)
                     if picks: result["choices"] = picks
                 if self.mode != "kids" and not agent_mode and not result.get("forgotten"):
+                    self.memory_was_full = bool(result.get("memory_full"))
                     noticed = [] if result.get("noticed") else self._notice(text)
                     if noticed: result["noticed"] = noticed
+                    if self.memory_was_full: result["memory_full"] = True  # something they said couldn't be kept: the app shows Make room
                     self._learn_style(text)
                     self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
@@ -5041,13 +5074,31 @@ class Agent:
 
     # -- memory that just catches things ---------------------------------------------------
     def memory_quota(self):
-        """How much Luma remembers here: everything, on every plan. Memory lives on the device, so the only limit is its
-        storage. (Luma Plus is the cloud: the cloud brain's own memory and usage, which is what's paid for.) `used` is
-        the facts it keeps; `lines` is what they've told it about their life, kept as they said it."""
+        """How much Luma remembers here, and how much room is left for more. Memory lives on the device, so the limit
+        is its storage (luma.memory.storage): there's no count of memories to buy past. `used` is the facts it keeps;
+        `lines` is what they've told it about their life, kept as they said it; `bytes`, `room` and `left` are the room
+        everything Luma keeps takes, how much fits, and what's left; `full` means nothing new is kept until there's room."""
+        from luma.memory import storage
         account = self.cloud.cached_account() or {}
         plus = str(account.get("plan") or "").lower() in {"plus", "pro", "premium"} or bool(account.get("plus"))
         used, lines = self.store.kept_counts()
-        return {"used": used, "lines": lines, "limit": None, "plan": "plus" if plus else "free", "full": False}
+        room = storage.room(self)
+        return {"used": used, "lines": lines, "limit": None, "plan": "plus" if plus else "free", "bytes": room["used"], "room": room["limit"],
+                "left": room["left"], "state": room["state"], "full": room["state"] == "full"}
+
+    def _room_to_make(self):
+        """Before making a file: on a full device Luma says so, instead of failing halfway through."""
+        from luma.memory import storage
+        if storage.full(self):
+            raise ValueError(storage.CANT_MAKE)
+
+    def _out_of_room(self):
+        """Nothing new is kept right now: the device is full (or the owner's cap is reached)."""
+        from luma.memory import storage
+        if storage.full(self):
+            self.memory_was_full = True  # this turn's reply carries it, so the app can show Make room
+            return True
+        return False
 
     def remember_fact(self, fact, source="noticed_in_conversation", **extra):
         """Keep one fact. A newer 'where my keys are' replaces the old one. Returns the row, or None if it's already known.
@@ -5057,6 +5108,8 @@ class Agent:
         # already kept, unless a newer fact took its place since: said again, it's true again ("You live in Austin", Denver, Austin)
         if any(not m.get("ended") and (low in m["text"].casefold() or m["text"].casefold() in low) for m in self.store.same_as(fact)):
             return None
+        if self._out_of_room():
+            return "full"  # like a full phone that can't take a photo: said plainly, never kept halfway
         where = presence.location_fact(fact.replace("Your ", "my ", 1)) if fact.startswith("Your ") else None
         if where:
             for m in self.store.mentioning(sorted(segments.words(where[0]))) or []:
@@ -5073,6 +5126,8 @@ class Agent:
         from luma.memory import segments
         line = " ".join(str(text or "").split())
         if not 4 <= len(line.split()) <= 60 or len(line) > 400 or not just_telling(line):
+            return None
+        if self._out_of_room():
             return None
         if CRISIS.search(line.lower()) or SPANISH_CRISIS.search(line.lower()) or friendcheck.at_risk(line):
             return None
@@ -5474,11 +5529,11 @@ class Agent:
         """They picked one (or the model's sure): do it, or ask for the one detail it needs."""
         from luma.agent.scenarios import INTENTS
         spec = INTENTS.get(intent) or {}
-        if intent == "luma_plus" and re.search(r"\b(?:memor|storage|space|remember|full)", str(original or ""), re.I):
-            # Memory was never something to buy: it's kept on this device, as much as fits. "My memory is full" gets the
-            # truth, not a plan.
-            return {"text": "There's nothing to buy for that. I keep what you tell me right here on this device, and the only limit is its storage. "
-                            "If the device itself is getting full, Make room in the Luma app clears space."}
+        if intent == "luma_plus" and re.search(r"\b(?:memor|storage|space|remember|full|room)", str(original or ""), re.I):
+            # "My memory is full" gets the truth, not a pitch: memories live on this device, Make room shows what's taking
+            # space, and more room in Luma Cloud is named only when it's really on offer.
+            from luma.memory import storage
+            return {"text": storage.asked_about_room(self)}
         if spec.get("walk"):
             return self._walk_step(spec["walk"], 0)
         if spec.get("action") == "talk":
@@ -5491,9 +5546,12 @@ class Agent:
         if intent == "remember":
             said = re.sub(r"^\W*(?:(?:hey|yo|ok(?:ay)?|luma)\W+)*(?:please\s+)?(?:remember|save (?:this|that)|note (?:that|this)|keep in mind|don'?t forget|write (?:this |that )?down|"
                           r"make a note(?: of)?|fyi|store this|for the record|jot (?:this|that) down)\W*(?:that\s+)?", "", original or "", flags=re.I).strip(" .!?")
+            if len(said.split()) >= 2 and self._out_of_room():
+                from luma.memory import storage
+                return {"text": storage.CANT_KEEP, "memory_full": True}
             if len(said.split()) >= 2:
                 facts = presence.notice_facts(said)
-                kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row]
+                kept = [(f, row) for f in facts for row in [self.remember_fact(f)] if row and row != "full"]
                 if kept:
                     self.last_noticed = [row["id"] for _, row in kept]
                     return {"text": "Got it. " + " ".join(self._yours(f) + "." for f, _ in kept), "noticed": [{"id": row["id"], "text": f} for f, row in kept]}
@@ -6198,6 +6256,9 @@ class Agent:
         about = re.sub(r"^our\b", "Our", re.sub(r"^my\b", "My", asked["about"], flags=re.I), flags=re.I)
         fact = f"{about} is {answer}"
         saved = self.remember_fact(fact, source="asked_and_answered")
+        if saved == "full":
+            from luma.memory import storage
+            return {"text": storage.CANT_KEEP, "memory_full": True}
         return {"text": f"Got it. {self._yours(fact)}. I won't forget.", **({"noticed": [saved]} if isinstance(saved, dict) else {})}
 
     FIND_ON_COMPUTER = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye)\W+)*(?:(?:can|could) (?:you|u)\s+|please\s+|pls\s+)?(?:find|look for|search for|where'?s|where is|pull up)\s+"
@@ -6230,12 +6291,16 @@ class Agent:
             return None
         if later and not facts and len(text.split()) > 14:
             return None  # a longer request with "remind me later" in it: let the normal path handle it
-        saved = []
+        saved, no_room = [], False
         for fact in facts:
             row = self.remember_fact(fact)
+            no_room = no_room or row == "full"
             if row and row != "full":
                 saved.append({"id": row["id"], "text": fact})
         self.last_noticed = [r["id"] for r in saved]
+        if no_room and not saved:
+            from luma.memory import storage
+            return {"text": storage.CANT_KEEP, "memory_full": True}
         lead = " ".join(f"{f}." for f in (places or facts)) or ""
         if not later:
             obj = presence.location_fact(places[0].replace("Your ", "my ", 1))[0]
@@ -6271,7 +6336,7 @@ class Agent:
             from luma.agent import people
             for fact in presence.notice_facts(text) + people.facts(text):  # "Lily (their daughter) is obsessed with dinosaurs"
                 row = self.remember_fact(fact)
-                if not row: continue
+                if not row or row == "full": continue
                 self.last_noticed.append(row["id"])
                 saved.append({"id": row["id"], "text": fact})
             line = self._keep_line(text)  # and what they said, as they said it

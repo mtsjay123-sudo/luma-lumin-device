@@ -156,7 +156,7 @@ def compact(agent):
     chats_ = [{"id": c.get("id"), "title": cut(c.get("title"), 60), "updated": c.get("updated"), "today": c.get("today"),
                "last": {"role": (c.get("last") or {}).get("role"), "text": cut((c.get("last") or {}).get("text"), 120)}} for c in full["chats"][:8]]
     mem = full["memory"] or {}
-    memory_ = {k: mem.get(k) for k in ("used", "limit", "plan") if k in mem}
+    memory_ = {k: mem.get(k) for k in ("used", "limit", "plan", "state", "left") if k in mem}
     memory_["recent"] = [{"id": m.get("id"), "text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
     dev = full["device"] or {}
     device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"),

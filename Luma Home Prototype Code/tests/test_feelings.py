@@ -434,5 +434,19 @@ class TheManyWaysPeopleSayIt(unittest.TestCase):
             self.assertNotIn("relieved with them", note, said)
 
 
+class SlangIsntAFeeling(unittest.TestCase):
+    """The phrase bank is a million everyday lines in the slang of many communities: praise, gripes about a movie, plans.
+    None of it is a wound or good news, and "I'm dead", "that slaps", "got me cooked" mustn't be read as one."""
+
+    def test_three_thousand_everyday_lines_in_slang(self):
+        from luma.agent import phrasebank
+        wrong = []
+        for row in phrasebank.sample(3000, seed=11):
+            read = feelings.read(row["text"])
+            if read and (read["heavy"] or read["family"] in feelings.GOOD):
+                wrong.append((row["text"], read["family"]))
+        self.assertEqual(wrong, [])
+
+
 if __name__ == "__main__":
     unittest.main()

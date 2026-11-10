@@ -21,6 +21,8 @@ Luma is an always-on AI friend for people who are lonely: a small speaker at hom
    - Luma Plus's cloud brain stays off until the owner says yes on the yes screen. Paying isn't the yes.
      - The relay keeps counts, never a message or a reply, in storage or in logs.
      - When what leaves the home changes, raise `WORDS` in `src/luma/llm/plus.py` so everyone is asked again.
+   - Luma thinks at home. The cloud brain is parked: `brain.cloud_allowed()` is off unless `LUMA_CLOUD_BRAIN=1`, so no brain in the cloud answers anything, with Plus or with the owner's own key. Its tests and labs turn the switch on for themselves.
+   - The cloud's one job is more room for memories. It isn't open yet, so Luma doesn't offer it (`storage.more()`). See `docs/STORAGE.md`.
 7. **Licenses: MIT, Apache-2.0, BSD only.**
    - No AGPL, no CC BY-NC.
    - Fish S2 Pro, Voxtral TTS, Higgs Audio and Breeze TTS are out.
@@ -76,18 +78,21 @@ Both human tests and the think set are held out. Never put their wording in prac
 | What | Where |
 |---|---|
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
+| What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording) |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
 | Who's who in a conversation; people remembered | `src/luma/agent/people.py` |
 | Sums worked out with a calculator, not by the brain | `src/luma/agent/sums.py` |
 | Check-ins, open loops | `src/luma/agent/presence.py` |
 | Where an action's values came from; the approvals ladder; the audit log | `src/luma/agent/provenance.py`, `rules.py` (`rung`), `Agent.propose` and `audit_log` |
 | Life memory: the index, facts, time words, the nightly tidy | `src/luma/memory/` (`index.py`, `facts.py`, `when.py`, `life.py`; `Store.search` in `store.py`) |
+| Storage: how full, what's using the room, the full state, giving room back, the database's own check | `src/luma/memory/storage.py`; `Store.compact`, `health`, `repair` in `store.py`; `docs/STORAGE.md` |
 | Luma's instructions | `src/luma/llm/prompts.py` |
 | The cloud brain's request, the router, which brain answers | `src/luma/llm/cloud.py`, `router.py`, `brain.py` |
 | Luma Plus: the yes screen and its words; one interface for every cloud brain | `src/luma/llm/plus.py`, `cloudbrain.py` |
 | The relay (Luma Cloud): the brain route, metering, the yes on record | `api/_lib/luma-cloud.js` and `tests/luma-brain.test.mjs`, both at the top of the repo |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
 | Luma's look: the liquid orb on the talk screen, the first slides, the small avatars and the logo | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright) |
+| The human model: what a close friend does with language, trait by trait, and where each lives | `docs/HUMAN_MODEL.md` |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |

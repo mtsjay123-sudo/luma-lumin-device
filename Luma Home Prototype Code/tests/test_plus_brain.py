@@ -30,6 +30,7 @@ HAVE_RELAY = bool(NODE) and (ROOT.parent / "api" / "_lib" / "luma-cloud.js").exi
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import si_lab  # noqa: E402
+from cloud_brain_on import setUpModule, tearDownModule  # noqa: F401  the cloud brain is parked; these tests turn it on for themselves
 
 HOME = {"type": "reply", "text": "home brain"}
 REPLY = {"type": "reply", "text": "I'm here. Tell me about your day, Marvin."}

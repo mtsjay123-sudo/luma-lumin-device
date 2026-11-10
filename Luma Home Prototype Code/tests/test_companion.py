@@ -86,4 +86,32 @@ class CompanionTests(unittest.TestCase):
         self.assertGreater(today['device']['storage']['total'],0)
         self.assertIn(today['device']['mic'],{'on','off'})
 
+    def test_the_storage_screen_from_a_paired_phone(self):
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/storage')
+        self.assertEqual(e.exception.code,401)                                  # not paired: nothing about what's kept
+        self.pair()
+        self.store.put('chat',{'thread':'t1','title':'Trip ideas','log':[{'role':'user','text':'x'*40000,'at':1}]})
+        with self.request('/api/storage') as r:page=json.load(r)
+        self.assertEqual(page['state'],'ok');self.assertTrue(page['health']['ok'])
+        self.assertIn('chats',[k['key'] for k in page['kinds']])
+        chat=next(b for b in page['biggest'] if b['kind']=='chat')
+        self.assertEqual(chat['title'],'Trip ideas')
+        with self.request('/api/storage/remove',{'kind':'chat','id':chat['id']}) as r:done=json.load(r)
+        self.assertGreater(done['freed_bytes'],30000)
+        self.assertIsNone(self.store.get('chat',chat['id']))
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/storage/remove',{'kind':'memory','id':'x'})
+        self.assertEqual(e.exception.code,400)
+        with self.request('/api/storage/repair',{}) as r:self.assertTrue(json.load(r)['ok'])
+        self.agent.set_mode('kids')
+        with self.request('/api/storage') as r:self.assertEqual(json.load(r),{'kids':True})
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/storage/remove',{'kind':'chat','id':'x'})
+        self.assertIn(e.exception.code,(400,403))                               # refused in kids mode, by the gate every personal control sits behind
+
+    def test_whats_marked_hidden_is_hidden_on_the_phone(self):
+        # A row is a flex box, and a class's display used to beat the hidden attribute: "Super Intelligence …" showed for everyone.
+        with self.request('/phone/phone.css') as r:css=r.read().decode()
+        self.assertIn('[hidden] { display: none !important; }',css)
+        with self.request('/phone/') as r:page=r.read().decode()
+        self.assertIn('id="plus-row" hidden',page)
+
 if __name__=='__main__':unittest.main()

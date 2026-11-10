@@ -11,6 +11,7 @@ from unittest import mock
 
 from luma.llm import brain, cloud, inference
 from luma.memory.store import Store
+from cloud_brain_on import setUpModule, tearDownModule  # noqa: F401  the cloud brain is parked; these tests turn it on for themselves
 
 
 class FakeAnthropic(http.server.BaseHTTPRequestHandler):

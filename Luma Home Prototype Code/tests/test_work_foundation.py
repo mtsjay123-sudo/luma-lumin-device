@@ -12,6 +12,7 @@ from unittest import mock
 from luma.memory.store import Store
 from luma.work import knowledge, sandbox
 from luma.work.projects import Projects
+from cloud_brain_on import setUpModule, tearDownModule  # noqa: F401  the cloud brain is parked; these tests turn it on for themselves
 
 
 class Base(unittest.TestCase):

@@ -54,6 +54,9 @@ def forget(agent, ids=None, kind=None, older_than_days=None):
         for m in agent.store.kept(10 ** 9):
             if kind_of(str(m.get("text", ""))) == kind and agent.store.delete("memory", m["id"]):
                 gone += 1
+    if gone:
+        from luma.memory import storage
+        storage.tidy(agent)  # the room comes back to the device, not just to the database
     return {"forgotten": gone, **agent.memory_quota()}
 
 
@@ -109,7 +112,11 @@ def space(agent):
 
 
 def clean(agent, key):
-    """Clear one kind of thing to make room. Returns roughly how many bytes came back."""
+    """Clear one kind of thing to make room. Returns how many bytes came back to the device."""
+    from luma.control import today
+    from luma.memory import storage
+    today._SIZES.clear()
+    kept = storage.kept_bytes(agent)
     before = {o["key"]: o["bytes"] for o in space(agent)["options"]}
     if key == "news":
         agent.store.set_setting("news", {"fetched": 0, "items": [], "failed": []})
@@ -134,9 +141,9 @@ def clean(agent, key):
             agent.store.delete("diary", row["id"])
     else:
         raise ValueError("Pick something from the list to clear.")
-    from luma.control import today
-    today._SIZES.clear()  # the storage panel shows the new room right away
-    return {"cleared": key, "freed_bytes": before.get(key, 0), **space(agent)}
+    storage.tidy(agent)  # the room comes back to the device, and the storage panel shows it right away
+    back = max(0, kept - storage.kept_bytes(agent))  # what really came back, so "freed" and "left" tell the same story
+    return {"cleared": key, "freed_bytes": back or before.get(key, 0), **space(agent)}
 
 
 def size_label(n):

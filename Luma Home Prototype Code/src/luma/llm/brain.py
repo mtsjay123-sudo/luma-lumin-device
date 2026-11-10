@@ -353,7 +353,7 @@ def plus_on():
     """The Super Intelligence answers right now: they have Plus, they said yes on the yes screen and haven't taken it
     back, and this month's time isn't used up. In kids mode it's off unless a parent turned it on."""
     from luma.llm import plus
-    if _store is None or _plus["cloud"] is None or not _store.setting(plus.SETTING, False):
+    if not cloud_allowed() or _store is None or _plus["cloud"] is None or not _store.setting(plus.SETTING, False):
         return False
     if _plus["mode"] is not None and _plus["mode"]() == "kids" and not _store.setting(plus.KIDS, False):
         return False
@@ -363,9 +363,20 @@ def plus_on():
         return False
 
 
+def cloud_allowed():
+    """The cloud brain is parked: Luma thinks at home, and no brain in the cloud answers anything, with Luma Plus or with
+    the owner's own key. LUMA_CLOUD_BRAIN=1 brings it back (a lab, a test, or the day it's wanted again): everything it
+    needs is still here and still checked. The cloud's one job now is more room for memories (luma.memory.storage)."""
+    import os
+    return os.environ.get("LUMA_CLOUD_BRAIN", "").strip() == "1"
+
+
 def cloud_route():
     """Which cloud brain answers: "plus" (through Luma Cloud), "own" (the owner's own key), or None (Luma thinks at home).
-    Plus goes first; when its month is used up, their own key takes over if they have one on."""
+    Plus goes first; when its month is used up, their own key takes over if they have one on. While the cloud brain is
+    parked it's always None."""
+    if not cloud_allowed():
+        return None
     if plus_on():
         return "plus"
     return "own" if _own_on() else None
@@ -384,6 +395,8 @@ def set_plus(on=None, kids=None, model=None):
             raise ValueError("Choose Auto, Claude Opus 5.5 or Claude Sonnet 5.5.")
         _store.set_setting(plus.MODEL, model)
     if on is True:
+        if not cloud_allowed():
+            raise ValueError("Luma thinks at home for now. The cloud brain is switched off.")
         plus.say_yes(_store, _plus["cloud"])
         _store.set_setting("brain_cloud_error", None)
     elif on is False:
@@ -557,6 +570,9 @@ def status():
         plus_view = plus.view(_store, _plus["cloud"]) if _store is not None and _plus["cloud"] is not None else None
     except Exception:
         plus_view = None
+    parked = not cloud_allowed()
+    if parked and plus_view:  # switched off: nothing to offer, nothing to ask, and no yes screen for it
+        plus_view = {**plus_view, "available": False, "on": False, "can_turn_on": False, "ask": False, "screen": None, "used_up": False, "update": False, "parked": True}
     thinking_with = local_name
     if route == "plus":
         thinking_with = "the Super Intelligence" + ("" if cloud_model() == AUTO else f" ({cloud_models().get(cloud_model(), 'Claude')})")
@@ -564,7 +580,7 @@ def status():
         thinking_with = cloud_models().get(cloud_model(), "the cloud brain")
     return {
         # The cloud brain on the owner's own key. Luma Plus's (no key of theirs) is "plus", below.
-        "cloud": {"on": _own_on(), "has_key": bool(_own_key()), "keys": {which: bool(_own_key(which)) for which in KEY_SETTING},
+        "cloud": {"on": _own_on() and not parked, "parked": parked, "has_key": bool(_own_key()), "keys": {which: bool(_own_key(which)) for which in KEY_SETTING},
                   "model": _own_model(), "provider": _own_provider(), "models": cloud_models(),
                   "last_error": (_store.setting("brain_cloud_error") if _store else None)},
         "plus": plus_view,

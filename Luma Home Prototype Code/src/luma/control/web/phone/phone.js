@@ -278,20 +278,47 @@
     $("sheet-body").replaceChildren(body);
     if (!sheet.open) sheet.showModal();
   }
-  // Make room: clear what's taking up space on the Luma, so new memories fit. Memories go one by one, from the deck.
-  const bytes = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (Number(n) || 0) + " bytes");
+  // Storage, like the storage page on a phone: how full, what's using the room, the biggest things, what could go, and
+  // the database's own check. Everything is at home on the Luma; nothing goes unless you choose it.
+  const bytes = (n) => { n = Number(n) || 0; return n >= 1073741824 ? (n / 1073741824).toFixed(n >= 10737418240 ? 0 : 1) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : n + " bytes"; };
+  const KIND_COLOR = { memories: "var(--mem)", chats: "var(--warm)", files: "#7aa7ff", diary: "#c9a0ff", news: "#e6c98a", cache: "#8d94a3", other: "color-mix(in srgb, var(--ink) 30%, transparent)" };
+  const KIND_NAME = { chat: "Chat", file: "Made by Luma" };
   async function openRoom(freed) {
     const wrap = el("div", "room");
-    wrap.append(el("p", "hint", "Clear what you don't need so new memories fit. Memories only go when you forget them."));
-    openSheet("Make room", wrap);
-    let sp;
-    try { sp = await api("/api/space"); } catch (e) { wrap.append(el("p", "hint", e.message)); return; }
-    if (freed) wrap.append(el("p", "hint", `Freed ${bytes(freed)}.`));
-    if (!sp.options.length) wrap.append(el("p", "hint", "Nothing else is taking up room right now."));
-    for (const o of sp.options) {
+    openSheet("Storage", wrap);
+    let page;
+    try { page = await api("/api/storage"); } catch (e) { wrap.append(el("p", "hint", e.message)); return; }
+    if (page.kids) { wrap.append(el("p", "hint", "Switch Luma to adult mode at home to see storage.")); return; }
+    const head = el("div", "room-head");
+    head.append(el("b", "room-left", bytes(page.left == null ? page.used : page.left)), el("span", null, page.left == null ? "kept on your Luma" : "left for new memories"));
+    wrap.append(head);
+    const bar = el("div", "room-bar");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", `${bytes(page.used)} used` + (page.limit ? ` of ${bytes(page.limit)}` : ""));
+    const total = page.limit || page.used || 1;
+    for (const k of page.kinds) {
+      const seg = el("i");
+      seg.style.width = Math.max(0.8, (k.bytes / total) * 100) + "%";
+      seg.style.background = KIND_COLOR[k.key] || KIND_COLOR.other;
+      bar.append(seg);
+    }
+    wrap.append(bar);
+    wrap.append(el("p", "hint", `${bytes(page.used)} used` + (page.limit ? ` of ${bytes(page.limit)}` : "") + (page.cap ? ", the cap you set" : "") + (page.luma ? `. Luma's own brain and voices take ${bytes(page.luma)} more.` : ".")));
+    if (page.state !== "ok") wrap.append(el("p", "room-state " + page.state, page.state === "full" ? "Out of room. I can't keep new memories until there's space." : "Almost out of room."));
+    if (freed) wrap.append(el("p", "room-state freed", `Freed ${bytes(freed)}.`));
+    const kinds = el("ul", "room-kinds");
+    for (const k of page.kinds) {
+      const li = el("li"), sw = el("i");
+      sw.style.background = KIND_COLOR[k.key] || KIND_COLOR.other;
+      li.append(sw, el("span", null, k.label + (k.count ? ` (${k.count})` : "")), el("b", null, bytes(k.bytes)));
+      kinds.append(li);
+    }
+    wrap.append(kinds);
+    if (page.options.length) wrap.append(el("h3", "room-h", "Quick ways to make room"));
+    for (const o of page.options) {
       const row = el("div", "row");
       const words = el("span");
-      words.append(el("b", null, `${o.label} \u00b7 ${bytes(o.bytes)}`), el("small", null, o.detail || ""));
+      words.append(el("b", null, `${o.label} · ${bytes(o.bytes)}`), el("small", null, o.detail || ""));
       const go = el("button", "pill", "Clear");
       go.type = "button";
       go.addEventListener("click", async () => {
@@ -301,14 +328,53 @@
       row.append(words, go);
       wrap.append(row);
     }
-    const m = sp.memories || {};
+    if (page.biggest.length) wrap.append(el("h3", "room-h", "Biggest things"));
+    for (const b of page.biggest) {
+      const row = el("div", "row");
+      const words = el("span");
+      words.append(el("b", null, b.title), el("small", null, `${KIND_NAME[b.kind] || b.kind} · ${bytes(b.bytes)}`));
+      const go = el("button", "pill", "Delete");
+      go.type = "button";
+      go.addEventListener("click", async () => {
+        if (!confirm(`Delete “${b.title}”? This can't be undone.`)) return;
+        try { const r = await api("/api/storage/remove", { kind: b.kind, id: b.id }); openRoom(r.freed_bytes); refresh(); } catch (e) { toast(e.message); }
+      });
+      row.append(words, go);
+      wrap.append(row);
+    }
+    wrap.append(el("h3", "room-h", "Memories"));
+    const m = page.memories || {};
+    wrap.append(el("p", "hint", `${m.count || 0} thing${m.count === 1 ? "" : "s"} I know about you. Swipe through them under Memory and tap one to fix or forget it.`));
     const old = el("button", "pill danger", "Forget memories older than 6 months");
     old.type = "button";
     old.addEventListener("click", async () => {
       if (!confirm("Forget every memory older than 6 months? This can't be undone.")) return;
       try { const r = await api("/api/memory/forget", { older_than_days: 182 }); toast(`Forgot ${r.forgotten}.`); openRoom(); refresh(); } catch (e) { toast(e.message); }
     });
-    wrap.append(el("p", "hint", `Memories: ${m.used || 0}${m.limit ? " of " + m.limit + " on the free plan" : ""} (${bytes(m.bytes)}).`), old);
+    wrap.append(old);
+    const health = page.health || { ok: true, problems: [] };
+    const hrow = el("div", "row");
+    const hwords = el("span");
+    hwords.append(el("b", null, "Luma's database"), el("small", null, health.ok ? "Checked just now. All good." : health.problems.join(" ")));
+    hrow.append(hwords);
+    if (!health.ok) {
+      const fix = el("button", "pill", "Tidy up");
+      fix.type = "button";
+      fix.addEventListener("click", async () => {
+        try { const r = await api("/api/storage/repair", {}); toast(r.ok ? "All good now." : "Some of it needs a look on the computer."); openRoom(r.freed); } catch (e) { toast(e.message); }
+      });
+      hrow.append(fix);
+    }
+    wrap.append(hrow);
+    if (page.more) {
+      const row = el("div", "row");
+      const words = el("span");
+      words.append(el("b", null, page.more.label), el("small", null, page.more.detail || ""));
+      row.append(words);
+      if (page.more.url) row.append(Object.assign(el("a", "pill", "See how"), { href: page.more.url, target: "_blank", rel: "noopener" }));
+      wrap.append(row);
+    }
+    wrap.append(el("p", "hint", "All of this is kept on your Luma at home, sealed. Nothing goes unless you choose it."));
   }
   $("make-room").addEventListener("click", () => openRoom());
   $("sheet-close").addEventListener("click", () => sheet.close());

@@ -93,6 +93,10 @@ class Store:
         self.db = sqlite3.connect(str(self.db_path), timeout=10, check_same_thread=False)
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("PRAGMA journal_mode=DELETE")
+        if not self.db.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone():
+            # A new database: room that deleting frees can go back to the device a page at a time (compact()), without
+            # rewriting the whole file. One made before this is switched over the first time it's compacted.
+            self.db.execute("PRAGMA auto_vacuum=INCREMENTAL")
         self.db.execute("CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT PRIMARY KEY, created REAL, updated REAL, payload BLOB)")
         self.db.execute("CREATE INDEX IF NOT EXISTS records_kind ON records(kind)")
         self.db.execute("CREATE TABLE IF NOT EXISTS keys (id TEXT PRIMARY KEY, wrapped BLOB)")
@@ -529,6 +533,103 @@ class Store:
             self._hot.clear()
         from luma.memory import meaning
         meaning._cache.clear()
+
+    # -- room, and the database looking after itself ------------------------------------------------------------------
+    def sizes(self):
+        """How much each kind of thing takes, as it sits sealed on the device: {kind: {"count": n, "bytes": b}}."""
+        with self.lock:
+            rows = self.db.execute("SELECT kind, COUNT(*), COALESCE(SUM(LENGTH(payload)), 0) FROM records GROUP BY kind").fetchall()
+            keys = self.db.execute("SELECT COUNT(*), COALESCE(SUM(LENGTH(wrapped) + LENGTH(id)), 0) FROM keys").fetchone()
+        out = {kind: {"count": count, "bytes": size} for kind, count, size in rows}
+        if keys[0] and "memory" in out:
+            out["memory"]["bytes"] += keys[1]  # each memory's own key is part of what it costs
+        return out
+
+    def size_of(self, kind, id):
+        """One record's sealed size in bytes, 0 when it isn't there."""
+        with self.lock:
+            row = self.db.execute("SELECT LENGTH(payload) FROM records WHERE kind=? AND id=?", (kind, id)).fetchone()
+        return int(row[0]) if row and row[0] else 0
+
+    def file_bytes(self):
+        """What the database takes on the device, with its journal while one is open."""
+        total = 0
+        for path in (self.db_path, Path(str(self.db_path) + "-journal"), Path(str(self.db_path) + "-wal")):
+            try:
+                total += path.stat().st_size
+            except OSError:
+                pass
+        return total
+
+    def spare_bytes(self):
+        """Room inside the file that deleting left behind and nothing is using."""
+        with self.lock:
+            return self.db.execute("PRAGMA freelist_count").fetchone()[0] * self.db.execute("PRAGMA page_size").fetchone()[0]
+
+    def compact(self, least=16 * 1024):
+        """Give the room that deleting left behind back to the device. Returns the bytes that came back (0 when there
+        was too little to bother, or the device had no room to do it: it's tried again after the next delete). It's
+        cheap: only the freed pages are touched. A database from before this is rewritten once, to switch it over."""
+        with self.lock:
+            if self.spare_bytes() < least:
+                return 0
+            before = self.file_bytes()
+            try:
+                self.db.commit()
+                if self.db.execute("PRAGMA auto_vacuum").fetchone()[0] == 2:
+                    self.db.executescript("PRAGMA incremental_vacuum;")  # as a script: execute() would free one page and stop
+                else:
+                    self.db.execute("PRAGMA auto_vacuum=INCREMENTAL")
+                    self.db.execute("VACUUM")
+            except sqlite3.Error:
+                return 0
+            return max(0, before - self.file_bytes())
+
+    def health(self):
+        """The database checking itself: whether the file reads back whole, and whether anything was left behind (a key
+        with no record to open, a meaning with no memory). Nothing is changed."""
+        problems = []
+        with self.lock:
+            try:
+                check = [row[0] for row in self.db.execute("PRAGMA quick_check(20)").fetchall()]
+            except sqlite3.Error as error:
+                check = [str(error)]
+            if check != ["ok"]:
+                problems.append("The database file didn't read back whole: " + "; ".join(str(c)[:120] for c in check[:3]))
+            try:
+                records = self.db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+                keys = self.db.execute("SELECT COUNT(*) FROM keys k WHERE NOT EXISTS (SELECT 1 FROM records r WHERE r.id = k.id)").fetchone()[0]
+                meanings = self.db.execute("SELECT COUNT(*) FROM records v WHERE v.kind='vector' AND NOT EXISTS "
+                                           "(SELECT 1 FROM records m WHERE m.kind='memory' AND m.id = substr(v.id, 8))").fetchone()[0]
+            except sqlite3.Error as error:
+                records, keys, meanings = 0, 0, 0
+                problems.append("The database couldn't be read: " + str(error)[:120])
+            if keys:
+                problems.append(f"{keys} key{'s' if keys != 1 else ''} left behind with nothing to open.")
+            if meanings:
+                problems.append(f"{meanings} meaning{'s' if meanings != 1 else ''} left behind for memories that are gone.")
+        return {"ok": not problems, "problems": problems, "records": records, "bytes": self.file_bytes(), "spare": self.spare_bytes(),
+                "left_behind": {"keys": keys, "meanings": meanings}}
+
+    def repair(self):
+        """Clear what was left behind, rebuild the indexes, and give the spare room back. Never touches a record that
+        still has its memory."""
+        with self.lock:
+            with self.db:
+                keys = self.db.execute("DELETE FROM keys WHERE NOT EXISTS (SELECT 1 FROM records r WHERE r.id = keys.id)").rowcount
+                meanings = self.db.execute("DELETE FROM records WHERE kind='vector' AND NOT EXISTS "
+                                           "(SELECT 1 FROM records m WHERE m.kind='memory' AND m.id = substr(records.id, 8))").rowcount
+                if meanings:
+                    self._changed()
+            try:
+                self.db.execute("REINDEX")
+                self.db.commit()
+            except sqlite3.Error:
+                pass
+            if meanings:
+                self._all, self._index, self._meanings = None, None, False
+            freed = self.compact(least=1)
+        return {"removed": keys + meanings, "freed": freed, **self.health()}
 
     def close(self):
         with self.lock: self.db.close()

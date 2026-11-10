@@ -504,7 +504,7 @@
         if (m.result?.photo) { const a = el("div", "actions"); a.append(btn("Choose a photo", "pill soft small", () => $("photo-input").click(), "image")); row.append(a); }
         if (m.result?.choices?.length) row.append(choiceChips(m.result.choices));
         if (m.result?.noticed?.length) row.append(rememberedNote(m.result.noticed));
-        if (m.result?.memory_full) row.append(memoryFullNote());
+        if (m.result?.memory_full) row.append(memoryFullNote(/out of room/i.test(m.text || m.result?.text || m.result?.summary || "")));
         row.append(replyTools(m));
       }
       box.append(row);
@@ -915,10 +915,10 @@
     n.append(undo);
     return n;
   }
-  function memoryFullNote() {
+  function memoryFullNote(said) {
     const n = el("div", "remembered full");
-    n.append(el("span", "ic", "🧠"), el("span", null, "My memory's full on the free plan. Luma Plus remembers everything, backed up and private."));
-    n.append(linkOut("Get Luma Plus", "https://lumin-holdings-site.vercel.app/luma-plus.html", "pill primary small"), btn("Clear some", "pill quiet small", () => go("identity")));
+    if (!said) n.append(el("span", "ic", "🧠"), el("span", null, "I'm out of room on this device, so I couldn't keep that."));  // Luma already said so: just the way out
+    n.append(btn("Make room", "pill primary small", () => openRoom()));
     return n;
   }
   // Tappable answers when Luma asks a question with a few choices.
@@ -2612,11 +2612,15 @@
     const q = id.memory;
     if (q) {
       const meter = el("div", "mem-meter");
-      if (q.limit) {
-        const bar = el("div", "brain-bar"); const fill = el("i"); fill.style.width = `${Math.min(100, Math.round(100 * q.used / q.limit))}%`; bar.append(fill);
-        meter.append(el("div", "s", `${q.used} of ${q.limit} memories on the free plan`), bar);
-        if (q.used >= q.limit * 0.8) meter.append(linkOut("Unlimited memory with Luma Plus", "https://lumin-holdings-site.vercel.app/luma-plus.html", "pill primary small"));
-      } else meter.append(el("div", "s", `${q.used} memories · no limit, all on this device`));
+      // Room, not a count: memories live on this device, and what fits is its storage (docs/STORAGE.md).
+      const size = (n) => { n = Number(n) || 0; return n >= 1073741824 ? (n / 1073741824).toFixed(1) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; };
+      if (q.room) {
+        const bar = el("div", "brain-bar"); const fill = el("i"); fill.style.width = `${Math.max(1, Math.min(100, Math.round(100 * q.bytes / q.room)))}%`; bar.append(fill);
+        meter.append(el("div", "s", `${q.used} memor${q.used === 1 ? "y" : "ies"} · everything I keep takes ${size(q.bytes)} of the ${size(q.room)} that fits on this device`), bar);
+      } else meter.append(el("div", "s", `${q.used} memor${q.used === 1 ? "y" : "ies"} · all on this device`));
+      if (q.state === "full") meter.append(el("div", "s warn", "Out of room. I can't keep new memories until there's space."));
+      else if (q.state === "nearly") meter.append(el("div", "s warn", "Almost out of room."));
+      meter.append(btn(q.state && q.state !== "ok" ? "Make room" : "Storage", "pill soft small", () => openRoom()));
       mem.append(meter);
     }
     if (id.style) mem.append(el("div", "s id-style", id.style.split(". Match")[0] + "."));
@@ -3691,7 +3695,7 @@
       if (L.fetch_error) lt.append(el("div", "sub warn", L.fetch_error));
       local.append(lt, btn("Get the bigger brain", "pill primary small", () => redo({ action: "get_bigger" }, "Downloading it in the background. Luma keeps working meanwhile.")));
     } else {
-      lt.append(el("div", "sub", `${L.name}. The bigger local brain needs 24 GB of memory and this computer has ${L.ram_gb} GB, so the cloud brain below is the big upgrade here.`));
+      lt.append(el("div", "sub", `${L.name}. The bigger local brain needs 24 GB of memory and this computer has ${L.ram_gb} GB` + ((b.cloud || {}).parked ? ", so this is the brain for this computer. It all stays here." : ", so the cloud brain below is the big upgrade here.")));
       local.append(lt);
     }
     // In the cloud, with your key
@@ -3832,7 +3836,7 @@
         plusRow.append(pt, btn("See what it does", "pill primary small", () => plusYesScreen(P.screen)));
       }
     }
-    g.append(...[local, ownRow, hugeRow, plusRow, cloud].filter(Boolean));
+    g.append(...[local, ownRow, hugeRow, plusRow, C.parked ? null : cloud].filter(Boolean));  // parked: Luma thinks at home, so no cloud brain is offered
     item.append(g);
     return item;
   }
@@ -4366,28 +4370,104 @@
   }
 
   // -------------------------------------------------------------- sheet ---
-  // Make room: what's taking up space on this device, and clearing it so new memories fit.
-  const sizeOf = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (Number(n) || 0) + " bytes");
+  // Storage, like the storage page on a phone: how full, what's using the room, the biggest things, what could go, and
+  // the database's own check. It's all on this device; nothing goes unless you choose it.
+  const sizeOf = (n) => { n = Number(n) || 0; return n >= 1073741824 ? (n / 1073741824).toFixed(n >= 10737418240 ? 0 : 1) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : n + " bytes"; };
+  const KIND_COLOR = { memories: "var(--mem, #54d18a)", chats: "var(--warm, #ffb86b)", files: "#7aa7ff", diary: "#c9a0ff", news: "#e6c98a", cache: "#8d94a3", other: "color-mix(in srgb, currentColor 28%, transparent)" };
+  const KIND_NAME = { chat: "Chat", file: "Made by Luma" };
   async function openRoom(freed) {
     const body = el("div", "room-sheet");
-    body.append(el("p", "sub", "Clear what you don't need so new memories fit. Memories only go when you forget them."));
-    openSheet("Make room", body);
-    let sp;
-    try { sp = await api("/api/space"); } catch (e) { body.append(el("p", "sub", e.message)); return; }
-    if (freed) body.append(el("p", "sub", `Freed ${sizeOf(freed)}.`));
-    if (!sp.options.length) body.append(el("p", "sub", "Nothing else is taking up room right now."));
-    for (const o of sp.options) {
+    openSheet("Storage", body);
+    let page;
+    try { page = await api("/api/storage"); } catch (e) { body.append(el("p", "sub", e.message)); return; }
+    if (page.kids) { body.append(el("p", "sub", "Switch to adult mode to see storage.")); return; }
+    const head = el("div", "room-head");
+    head.append(el("b", "room-left", sizeOf(page.left == null ? page.used : page.left)), el("span", "sub", page.left == null ? "kept on this device" : "left for new memories"));
+    body.append(head);
+    const bar = el("div", "room-bar");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", `${sizeOf(page.used)} used` + (page.limit ? ` of ${sizeOf(page.limit)}` : ""));
+    const total = page.limit || page.used || 1;
+    for (const k of page.kinds) {
+      const seg = el("i");
+      seg.style.width = Math.max(0.6, (k.bytes / total) * 100) + "%";
+      seg.style.background = KIND_COLOR[k.key] || KIND_COLOR.other;
+      seg.title = `${k.label}: ${sizeOf(k.bytes)}`;
+      bar.append(seg);
+    }
+    body.append(bar);
+    body.append(el("p", "sub", `${sizeOf(page.used)} used` + (page.limit ? ` of ${sizeOf(page.limit)}` : "") + (page.cap ? ", the cap you set" : "") + (page.luma ? `. Luma's own brain and voices take ${sizeOf(page.luma)} more.` : ".")));
+    if (page.state !== "ok") body.append(el("p", "room-state " + page.state, page.state === "full" ? "Out of room. I can't keep new memories until there's space." : "Almost out of room."));
+    if (freed) body.append(el("p", "room-state freed", `Freed ${sizeOf(freed)}.`));
+    const kinds = el("ul", "room-kinds");
+    for (const k of page.kinds) {
+      const li = el("li"), sw = el("i");
+      sw.style.background = KIND_COLOR[k.key] || KIND_COLOR.other;
+      const words = el("span");
+      words.append(el("b", null, k.label + (k.count ? ` (${k.count})` : "")), el("small", "sub", k.detail || ""));
+      li.append(sw, words, el("b", "num", sizeOf(k.bytes)));
+      kinds.append(li);
+    }
+    body.append(kinds);
+    if (page.options.length) body.append(el("h3", "room-h", "Quick ways to make room"));
+    for (const o of page.options) {
       const row = el("div", "item");
       const g = el("div", "grow");
-      g.append(el("div", "title", `${o.label} \u00b7 ${sizeOf(o.bytes)}`), el("div", "sub", o.detail || ""));
+      g.append(el("div", "title", `${o.label} · ${sizeOf(o.bytes)}`), el("div", "sub", o.detail || ""));
       row.append(g, btn("Clear", "pill soft small", async () => {
         if (!confirm(`Clear ${o.label.toLowerCase()}? This can't be undone.`)) return;
         try { const r = await api("/api/space/clean", { key: o.key }); openRoom(r.freed_bytes); } catch (e) { toast(e.message); }
       }));
       body.append(row);
     }
-    const m = sp.memories || {};
-    body.append(el("p", "sub", `Memories: ${m.used || 0}${m.limit ? " of " + m.limit + " on the free plan" : ""} (${sizeOf(m.bytes)}). Forget the ones you don't need from the Memories page.`));
+    if (page.biggest.length) body.append(el("h3", "room-h", "Biggest things"));
+    for (const b of page.biggest) {
+      const row = el("div", "item");
+      const g = el("div", "grow");
+      g.append(el("div", "title", b.title), el("div", "sub", `${KIND_NAME[b.kind] || b.kind} · ${sizeOf(b.bytes)}`));
+      row.append(g, btn("Delete", "pill soft small danger", async () => {
+        if (!confirm(`Delete “${b.title}”? This can't be undone.`)) return;
+        try { const r = await api("/api/storage/remove", { kind: b.kind, id: b.id }); openRoom(r.freed_bytes); } catch (e) { toast(e.message); }
+      }));
+      body.append(row);
+    }
+    body.append(el("h3", "room-h", "Memories"));
+    const m = page.memories || {};
+    const mrow = el("div", "item");
+    const mg = el("div", "grow");
+    mg.append(el("div", "title", `${m.count || 0} thing${m.count === 1 ? "" : "s"} I know about you`), el("div", "sub", "Fix or forget any of them, one at a time or a whole kind."));
+    mrow.append(mg, btn("Open memories", "pill soft small", () => { closeSheet(); go("identity"); }));
+    body.append(mrow);
+    body.append(el("h3", "room-h", "This device"));
+    const crow = el("div", "item");
+    const cg = el("div", "grow");
+    cg.append(el("div", "title", page.cap ? `Luma may use up to ${sizeOf(page.cap)}` : "Luma may use what this device has"), el("div", "sub", "Set a cap if you'd rather Luma stayed under a size."));
+    crow.append(cg, btn(page.cap ? "Change" : "Set a cap", "pill soft small", async () => {
+      const said = prompt("How many GB may Luma use? Leave it empty for no cap.", page.cap ? String(Math.round(page.cap / 1073741824)) : "");
+      if (said === null) return;
+      const gb = said.trim() === "" ? null : Number(said);
+      if (gb !== null && !(gb >= 1)) { toast("Say a number of GB, 1 or more."); return; }
+      try { await api("/api/storage/cap", { gb }); openRoom(); } catch (e) { toast(e.message); }
+    }));
+    body.append(crow);
+    const health = page.health || { ok: true, problems: [] };
+    const hrow = el("div", "item");
+    const hg = el("div", "grow");
+    hg.append(el("div", "title", "Luma's database"), el("div", "sub", health.ok ? "Checked just now. All good." : health.problems.join(" ")));
+    hrow.append(hg);
+    if (!health.ok) hrow.append(btn("Tidy up", "pill soft small", async () => {
+      try { const r = await api("/api/storage/repair", {}); toast(r.ok ? "All good now." : "That needs a closer look."); openRoom(r.freed); } catch (e) { toast(e.message); }
+    }));
+    body.append(hrow);
+    if (page.more) {
+      const row = el("div", "item");
+      const g = el("div", "grow");
+      g.append(el("div", "title", page.more.label), el("div", "sub", page.more.detail || ""));
+      row.append(g);
+      if (page.more.url) row.append(linkOut("See how", page.more.url, "pill soft small"));
+      body.append(row);
+    }
+    body.append(el("p", "sub", "All of this is kept on this device, sealed. Nothing goes unless you choose it."));
   }
   function openSheet(title, body, wide) {
     $("sheet-title").textContent = title;

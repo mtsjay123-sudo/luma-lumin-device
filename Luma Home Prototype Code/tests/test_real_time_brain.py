@@ -19,6 +19,7 @@ from luma.memory.store import Store
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import si_lab  # noqa: E402
+from cloud_brain_on import setUpModule, tearDownModule  # noqa: F401  the cloud brain is parked; these tests turn it on for themselves
 
 TOOLS = {"tasks.create": {"description": "Make a reminder", "fields": {"title": "string", "due": "string"}},
          "decks.create": {"description": "Make a deck", "fields": {"title": "text", "slides": "slides"}}}

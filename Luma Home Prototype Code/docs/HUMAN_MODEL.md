@@ -3,7 +3,8 @@
 This is the list Luma is built on top of. It names what a close friend does with language, one trait at a time, and for
 each one says where it lives in Luma, what checks it, and whether it's there yet.
 
-It's all done by the brain at home. Nothing on this page needs the cloud.
+It's all done by the brain at home. Nothing on this page needs the cloud, and no brain in the cloud answers anything:
+the cloud brain is parked (`docs/STORAGE.md`).
 
 ## The one line that never moves
 
@@ -74,6 +75,7 @@ just those turns, many times over, before against after (`python scripts/human_e
 | Forgets when you ask, for good | `Store.delete()` drops the memory, its key, its meaning and what was written from it; `memory_folder.forget()` | `tests/test_memory_folder.py`, `tests/test_life_memory.py` | There |
 | Keeps your private things private when someone else is in the room | Privacy in the room (S.I. 1) | `tests/test_life_memory.py` | There |
 | Has shared history with you: running jokes, days together | `agent/banter.py`: `remember_bit()`, `bits_note()`; `mind.days_together()` | `tests/test_humor.py` | There |
+| Runs out of room, like anyone's memory, and says so plainly instead of pretending | `memory/storage.py`: `room()`; `Agent._storage_notice`; nothing is claimed as kept that wasn't (`docs/STORAGE.md`) | `tests/test_storage.py` | There |
 
 ## 4. Being someone
 

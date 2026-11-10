@@ -205,6 +205,7 @@ def _totals(store):
 def cloud(turns=12, model="claude-sonnet-5-5", legacy=False, pause=0.0):
     """One conversation through the real Luma (a throwaway one) with the cloud brain on, turn by turn: every trip to the
     brain a turn makes is counted, not just the reply. Returns the report."""
+    os.environ["LUMA_CLOUD_BRAIN"] = "1"  # the cloud brain is parked in Luma itself; this lab is where it still runs
     import luma_lab
     from luma.llm import brain, cloud as claude
     key = os.environ.get("LUMA_LAB_ANTHROPIC_KEY", "").strip()
@@ -305,6 +306,7 @@ def _sum_up(rows):
 
 def plus(turns=12, model="claude-sonnet-5-5", asks=40):
     """The same conversation straight to the brain and through Luma Cloud. Returns the report, or why it was skipped."""
+    os.environ["LUMA_CLOUD_BRAIN"] = "1"  # the cloud brain is parked in Luma itself; this lab is where it still runs
     import shutil
     import subprocess
     import urllib.request

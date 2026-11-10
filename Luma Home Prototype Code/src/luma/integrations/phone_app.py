@@ -331,6 +331,18 @@ class PhoneApp:
                 return self.send(link_id, {"t": "memory", "re": n, "memory": compact_folder(memory_folder.folder(self.agent))})
             except ValueError as error:
                 return self.send(link_id, {"t": "reply", "re": n, "text": str(error)})
+        if kind in {"storage", "remove"}:
+            # The storage screen, and deleting one chat or one file from it, from anywhere. Kids mode keeps it closed.
+            from luma.memory import storage
+            if self.agent.mode == "kids":
+                return self.send(link_id, {"t": "reply", "re": n, "text": "Switch Luma to adult mode at home to see storage."})
+            try:
+                if kind == "remove":
+                    done = storage.remove(self.agent, str(message.get("what", ""))[:10], str(message.get("id", ""))[:80])
+                    return self.send(link_id, {"t": "storage", "re": n, "freed": done["freed_bytes"], "storage": storage.compact(self.agent)})
+                return self.send(link_id, {"t": "storage", "re": n, "storage": storage.compact(self.agent)})
+            except ValueError as error:
+                return self.send(link_id, {"t": "reply", "re": n, "text": str(error)})
         if kind in {"confirm", "cancel"}:
             action = str(message.get("action", ""))
             if kind == "cancel":

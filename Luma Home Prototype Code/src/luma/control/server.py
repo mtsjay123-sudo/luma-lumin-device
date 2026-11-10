@@ -552,6 +552,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 if agent.mode=='kids': return self.send({'error':'Switch to adult mode to see memories.'},403)
                 from luma.agent import memory_folder
                 return self.send(memory_folder.folder(agent) if path=='/api/memory/folder' else memory_folder.space(agent))
+            if path=='/api/storage':
+                # The storage screen: how full, what's using the room, the biggest things, what could go, and the database's own
+                # check. From the computer or the owner's paired phone; kids mode gets nothing personal.
+                from luma.memory import storage
+                return self.send(storage.summary(agent))
             if path=='/api/home':
                 if agent.mode=='kids': return self.send({'kids':True,'today':agent.today(),'ideas':[],'cards':[],'approvals':[]})
                 payload=home_payload(agent, owner=not companion)
@@ -908,6 +913,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                             result=memory_folder.forget(agent,ids=[str(i) for i in ids][:500] if ids else None,kind=data.get('kind') or None,
                                                         older_than_days=days if type(days) is int else None)
                         else: result=memory_folder.clean(agent,str(data.get('key','')))
+                    elif path in ('/api/storage/remove','/api/storage/cap','/api/storage/repair'):
+                        if agent.mode=='kids': return self.send({'error':'Switch to adult mode to manage storage.'},403)
+                        from luma.memory import storage
+                        if path=='/api/storage/remove': result=storage.remove(agent,str(data.get('kind',''))[:10],str(data.get('id',''))[:80])
+                        elif path=='/api/storage/cap': result=storage.set_cap(agent,data.get('gb'))
+                        else: result=agent.store.repair()
                     elif path=='/api/memory/add':
                         if companion or agent.mode=='kids': return self.send({'error':'Add memories on the Mac.'},403)
                         text=' '.join(str(data.get('text') or '').split())

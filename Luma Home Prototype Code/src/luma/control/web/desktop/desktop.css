@@ -2482,3 +2482,19 @@ body.live-on .chat-view .thread { padding-right: 296px; }  /* the conversation s
 /* the language picker in Settings > Voice */
 .item select.pick { font: 500 13px/1.2 var(--font); color: var(--ink); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; max-width: 46%; }
 .item select.pick:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }
+
+/* Storage, like the storage page on a phone */
+.room-sheet .room-head { display: flex; align-items: baseline; gap: 10px; }
+.room-sheet .room-left { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.room-sheet .room-bar { display: flex; height: 14px; margin-top: 4px; border-radius: 8px; overflow: hidden; background: color-mix(in srgb, currentColor 10%, transparent); }
+.room-sheet .room-bar i { display: block; height: 100%; min-width: 3px; }
+.room-sheet .room-state { margin: 0; padding: 10px 12px; border-radius: 12px; font-weight: 600; background: color-mix(in srgb, #ffb86b 18%, transparent); }
+.room-sheet .room-state.full { background: color-mix(in srgb, #ff6b5e 20%, transparent); }
+.room-sheet .room-state.freed { background: color-mix(in srgb, #54d18a 18%, transparent); }
+.room-sheet .room-kinds { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 10px; }
+.room-sheet .room-kinds li { display: flex; align-items: center; gap: 12px; }
+.room-sheet .room-kinds li > i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.room-sheet .room-kinds li > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.room-sheet .room-kinds li small { font-size: 13px; }
+.room-sheet .room-kinds .num { font-variant-numeric: tabular-nums; }
+.room-sheet .room-h { margin: 12px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.7; }
