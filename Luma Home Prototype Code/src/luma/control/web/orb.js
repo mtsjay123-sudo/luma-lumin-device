@@ -311,6 +311,7 @@ void main() {
     now.open = 0;
     now.kick = 1;   // it arrives already moving, and settles
     let want = 1, loud = 0, frame = 0, last = 0, seen = true, gone = false, placed = false, waited = 0;
+    const pace = options.small ? 30 : 0;   // a little orb is redrawn about 30 times a second: at that size nobody can tell, and it's half the work
 
     function size() {
       const box = host.getBoundingClientRect();
@@ -329,6 +330,7 @@ void main() {
         return;
       }
       placed = true;
+      if (pace && last && time - last < pace) { frame = requestAnimationFrame(step); return; }
       const dt = Math.min(0.05, last ? (time - last) / 1000 : 0.016);
       last = time;
       const to = MOODS[mood];
