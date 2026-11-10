@@ -5265,14 +5265,31 @@ class Agent:
                           r"remind me (?:what|who|when|where|which|how)|(?:what|who|when|where|which)(?:'s|’s| is| are| was| were)? (?:my|our)\b|"
                           r"(?:what|where|when|who|how long|how much|how many) (?:did|do|have|had) (?:i|we)\b)", re.I)
 
+    # Asked of its memory in so many words: these win over everything below.
+    ASKS_OUTRIGHT = re.compile(r"\b(?:do you remember|did i (?:ever )?(?:tell|mention|say)|have i (?:ever )?(?:told|mentioned)|"
+                               r"remind me (?:what|who|when|where|which|how)|(?:what|who|when|where|which)(?:'s|’s| is| are| was| were) (?:my|our)\b)", re.I)
+    # Asking what to do, or what Luma thinks. However many people it names, it isn't a question for Luma's memory:
+    # "should I tell my best friend her boyfriend is cheating" isn't asking who the friend is.
+    ADVICE_Q = re.compile(r"\b(?:(?:should|shall) (?:i|we)\b|do you think\b|what do you think\b|what would you\b|would you\b|(?:can|could|may) (?:i|we)\b|"
+                          r"how (?:do|can|should|would|could) (?:i|we)\b|what (?:should|can|could) (?:i|we)\b|what do (?:i|we) do\b|"
+                          r"what (?:am i|are we) (?:supposed|going) to do\b|am i (?:wrong|right|crazy|overreacting|being|the)\b|"
+                          r"(?:is it|is that|was it|would it be) (?:bad|weird|wrong|okay|ok|normal|rude|too|fair|worth|selfish|crazy|mean)\b|"
+                          r"is (?:he|she|my \w+|our \w+) (?:being|overreacting|wrong|right|mad at me|into me)\b|"
+                          r"why (?:does|do|is|are|did|would|can't|won't|doesn't|don't) (?:my|our|he|she|they)\b|honest opinion\b|real talk\b|be (?:real|honest)\b)", re.I)
+
     def _asks_memory(self, text):
         """A question only what they've told Luma can answer: "where does my sister live", "what did I do last spring",
-        "do you remember my landlord's name". Not "what should I eat": that one's asking for help, and a note saying Luma
-        was never told what to eat would only get in the way."""
+        "do you remember my landlord's name". Not "what should I eat" or "should I call my mom": those are asking for help
+        or for what Luma thinks, and a note saying Luma was never told about their mom would only get in the way."""
         from luma.memory import facts
         from luma.memory.index import OWNER
+        said = str(text)
+        if self.ASKS_OUTRIGHT.search(said):
+            return True
+        if self.ADVICE_Q.search(said):
+            return False
         ask = facts.asked(text)
-        return bool(ask["rels"] or (ask["what"] and OWNER.search(str(text))) or self.MEMORY_Q.search(str(text)))
+        return bool(ask["rels"] or (ask["what"] and OWNER.search(said)) or self.MEMORY_Q.search(said))
 
     def _remembered(self, text, room=5, hear=True):
         """What Luma remembers that fits this message, for the brain: what's true now before what used to be, lines of

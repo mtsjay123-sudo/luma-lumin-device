@@ -38,6 +38,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Rescore saved replies | `python scripts/human_eval.py rescore out/v2.json` |
 | Judge, pairwise, summary | `python scripts/human_eval.py judge\|pairwise\|summary ...` |
 | Safety net on a brain | `python scripts/human_eval.py safety --label NAME` |
+| What a home brain is told on every turn of Human Test v2, with no brain (save it before a change and after, then compare) | `python scripts/human_eval.py told --save out/told.json`, `python scripts/human_eval.py told-diff before.json after.json` |
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |

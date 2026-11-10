@@ -541,6 +541,31 @@ class InLuma(unittest.TestCase):
         back = handed_back("i keep meaning to go see my sister in the mountains")
         self.assertTrue(any("tiny town in the mountains" in line for line in back), back)
 
+    def test_asking_what_to_do_about_someone_isnt_asking_its_memory(self):
+        """ "Should I tell my best friend her boyfriend is cheating on her?" names a friend Luma was never told about. It
+        isn't asking who she is, so the brain isn't told to say it "hasn't been told". (Human Test v2 has this very line,
+        and the note was going with it.)"""
+        advice = ["Should I tell my best friend her boyfriend is cheating on her?", "should i call my mom tonight", "do you think my boss hates me?",
+                  "what should i get my sister for her birthday", "how do i tell my dad i'm dropping out", "is it weird that my roommate never talks to me?",
+                  "be real with me, should i go to my ex's wedding?", "would you text my ex back if you were me?", "can i bring my dog to the party?",
+                  "am i wrong for being mad at my sister?", "why does my brother always do this", "what do you think about my friend moving in with me?",
+                  "my mom keeps calling, should i pick up?", "how can i make my wife feel better", "is my boyfriend being unfair here?",
+                  "what do i do about my sister", "my coworker asked where i live and how long it's been, what should i tell her?"]
+        memory = ["where does my sister live", "what's my brother's name", "does my mom like tulips?", "is my sister still in Denver?",
+                  "do you remember my landlord's name", "when is my dad's birthday", "how old is my daughter", "what did i tell you about my boss",
+                  "who is my dentist", "what's my wifi password", "any idea what my uncle does for work these days?", "did i tell you what my mom said?",
+                  "should i know my landlord's name? do you remember it"]
+        for line in advice:
+            self.assertFalse(self.agent._asks_memory(line), line)
+        for line in memory:
+            self.assertTrue(self.agent._asks_memory(line), line)
+        # and through a whole turn: no "never told" note goes to the brain with the advice question, and it still goes with the memory one
+        self.agent.chat("Should I tell my best friend her boyfriend is cheating on her?")
+        self.assertFalse(any(m.get("note") for context in self.seen for m in context), [m for c in self.seen for m in c if m.get("note")])
+        self.seen.clear()
+        self.agent.chat("any idea what my best friend does for work these days?")
+        self.assertTrue(any("checked for this message" in m["text"] for context in self.seen for m in context if m.get("note")))
+
     def test_questions_requests_and_unsafe_moments_arent_kept(self):
         for said in ("what should i cook tonight for the four of us", "remind me to call the dentist tomorrow morning please",
                      "i keep thinking everyone would be better off without me", "ok cool"):

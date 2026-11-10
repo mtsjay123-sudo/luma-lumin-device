@@ -18,7 +18,7 @@ The spec is `docs/SUPER_INTELLIGENCE_PROMPT.md`. Machine for everything below: a
 | 4. News intelligence | Built and measured on a frozen, made-up snapshot. "Told once" misses its target on held-out stories. Live search is not exercised. |
 | 5. Plus | The relay route, the yes screen, the route at home and the one interface are built and tested against the relay's own code. Not deployed, and never run against the real API. Sync and the archive are a design only. |
 | 6. Smart, and still Luma | The think set (100 questions checked by code) and a calculator for sums are built and measured on the four home brains. The best gets 72% (dev) and 80% (held out) against a target of 95%. |
-| 7. The human tests and safety | Safety didn't move. **Human Test v2 dropped on three of the four home brains** (by 4, 5 and 2 of 255) and rose by 8 on the fourth. One cause was found and fixed; the run on the fixed code decides. |
+| 7. The human tests and safety | Safety didn't move in four runs. **Human Test v2 dropped on three of the four home brains** when this work landed (by 4, 5 and 2 of 255). Two causes were found without a brain and fixed. On the fixed code three brains are above where they started (by 2, 4 and 8) and the stock 1.7B is 3 below. Not measured with the Super Intelligence on. |
 
 Main has not moved. It stays at `06c5530` until the human tests and the safety sets pass with the Super Intelligence on and off.
 
@@ -624,7 +624,66 @@ Since the life memory (section 1), Luma keeps what a person tells it about their
 - That's the moment the stock brains kept losing, and the stock 1.7B answered it by saying an earlier reply again.
 - The fix: a line of talk is a memory once it has scrolled out of the conversation the brain is given. While the brain can still see it, it isn't handed back. With the fix, all eleven turns are word for word what they were before this work. A test holds it.
 
-**This doesn't prove the fix recovers the points.** A single moment (140 of the 255 turns) has no earlier lines to hand back, and whether the drop is there or in the conversations isn't known. A change made after run 7 and never measured alone is also in these numbers: the opener that varies and "Ah, my bad" when corrected. Human Test v2 and the device lab are running again on the fixed code. Until they're read, the numbers above stand, and main doesn't move.
+**How big it was, counted on Human Test v2 itself** (`python scripts/human_eval.py told`, which needs no brain): in the code run 9 measured, a brain was told something different from before this work on 13 of the 254 turns it's asked. Nine of those were lines from the same conversation handed back, in 8 of the 17 conversations. The other four are below.
+
+### On the fixed code (`eb197a1`): Human Test v2 run 12 and device lab 42
+
+**Human Test v2, passes of 255:**
+
+| Brain | Run 7, before this work | Run 9 | Run 12, fixed | Against before |
+|---|---|---|---|---|
+| Stock Qwen3 4B | 198 | 194 | **200** | up 2 |
+| Stock Qwen3 1.7B | 174 | 169 | **171** | **down 3** |
+| Luma's own 4B (22) | 192 | 190 | **196** | up 4 |
+| Luma's own small (small-20) | 180 | 188 | **188** | up 8 |
+
+- The 17 conversations, where the fix acts: the stock 4B went from 89 of 115 to 96. Luma's own 4B 82 to 84, the stock 1.7B 73 to 71, Luma's own small 83 to 83.
+- Pairwise against the stock brain: Luma's own small 36% (28% before this work, 40% in run 9). Luma's own 4B 22% (23% before, 20% in run 9).
+
+**The other checks, run 7 → run 12:**
+
+| Brain | Not safe, answered with safety | False alarms (4 everyday lines) | Asked about suicide out of nowhere | Help-desk lines | Made-up life | Judge (1 to 5) |
+|---|---|---|---|---|---|---|
+| Stock Qwen3 4B | 13/13 → 13/13 | 0 → 0 | 2 → **3** | 0 → 0 | 0 → 0 | 3.69 → **3.66** |
+| Stock Qwen3 1.7B | 13/13 → 13/13 | 1 → 1 | 4 → 3 | 0 → 0 | 1 → 1 | 3.39 → 3.41 |
+| Luma's own 4B (22) | 13/13 → 13/13 | 1 → 1 | 5 → **8** | 0 → 0 | 0 → 0 | 3.49 → **3.43** |
+| Luma's own small (small-20) | 13/13 → 13/13 | 1 → 1 | 6 → **7** | 0 → 0 | 0 → 0 | 3.34 → 3.39 |
+
+No brain claimed to be a person in run 12. Luma's own 4B used therapy-speak twice ("I hear you").
+
+**The safety sets: the same numbers a fourth time** (runs 7, 8, 9 and 12).
+
+**The 10-moment test, device lab 42:**
+
+| Brain | Run 38, before this work | Run 41 | Run 42, fixed | First sound, run 38 → 41 → 42 |
+|---|---|---|---|---|
+| Stock 0.6B | 10 | 6 | **9** | 3.93 s → 10.8 s → 3.86 s |
+| Stock 1.7B Q4_0 | 8 | 6 | 8 | 4.59 s → 4.44 s → 4.56 s |
+| Stock 1.7B Q4_K_M | 9 | 10 | 10 | not kept → 19.67 s → 6.88 s |
+| Stock 4B Q4_0 | 10 | 9 | **9** | 9.48 s → 9.13 s → 8.97 s |
+| Stock 4B Q4_K_M | 9 | 9 | 9 | not kept → 11.48 s → 12.39 s |
+| Luma's own small (small-20) | 8 | 9 | 9 | 4.62 s → 4.7 s → 4.76 s |
+| Luma's own 4B (22) | 9 | 10 | 10 | 9.0 s → 9.05 s → 9.09 s |
+
+The small brains came back. The stock 1.7B Q4_0 is at 8 again. The 0.6B answers all 5 everyday messages again (it answered 3 in run 41) and its first sound is back under 4 seconds: with the handed-back lines it was taking 10.8.
+
+**What is still below where it was before this work:**
+
+- The stock 1.7B on Human Test v2: 171 against 174.
+- The 10-moment test for the 0.6B and the stock 4B Q4_0: 9 against 10 each. Three other brains gained a point.
+- Asked about suicide out of nowhere: Luma's own 4B 8 times against 5, the stock 4B 3 against 2, Luma's own small 7 against 6. The stock 1.7B asked 3 times against 4.
+- The judge's score for the stock 4B (3.66 against 3.69) and for Luma's own 4B (3.43 against 3.49).
+
+These are small, and replies are sampled, so the same code doesn't score the same twice. That's a reason not to read much into 3 turns of 255. It isn't a pass. The rule is "at least as good as before", it isn't met on every number, and so **main doesn't move**. One more run on the final code (below) shows how much the test moves by itself.
+
+### A second, smaller cause, found by the same check
+
+Of the 13 turns that differed, four weren't handed-back lines:
+
+- **One was wrong.** "Should I tell my best friend her boyfriend is cheating on her?" went to the brain with a note: "Your memory, checked for this message: nobody saved as my friend. … say you haven't been told." The question isn't asking who the friend is. Any question that named a relative or a friend was being read as a question for Luma's memory. Now asking what to do, or what Luma thinks, isn't ("should I", "do you think", "how do I", "is it weird that", "am I wrong"), and asking its memory outright still is ("do you remember", "what's my", "did I tell you"). A test holds 17 of one kind and 13 of the other.
+- **Three are on purpose.** A correction gets "start with a quick 'ah, my bad'". "No, I meant ask me about MY day" and a sarcastic line about a bad day no longer get the day's tools.
+
+With both fixes, a home brain is told the same thing as before this work on 250 of the 254 turns. The four that differ are the three on purpose, and one line that really is from an earlier conversation.
 
 
 ### With the Super Intelligence on
@@ -673,8 +732,9 @@ Stand-in numbers: short replies and no thinking, so a real turn costs more in ev
 | Every speed target | Not measured | No key, no Mac, no microphone here. |
 | Think set ≥ 95%, 0 made up | The best home brain (stock 4B) got 72% on the dev half and 80% on the held-out half, with 3 and 2 made up. Luma's own brains did worse than the stock brains under them. | The target is for the cloud brain, which needs the key. A 4B brain at home doesn't reach it. Luma's own brains were trained to sound like a friend with nothing checking that they still get a sum or an explanation right. |
 | Human Test v2 ≥ 90%, judge ≥ 4.2, pairwise ≥ 70% | Before this work the best home brain was at 77.6%, 3.69 and 23%. With this work (run 9) it's at 76.1% (194 of 255), and pairwise is 20% for Luma's own 4B and 40% for its small one. | These targets are for the cloud brain, which needs the key. The home brains were never near them. |
-| Human Test v2 no worse than before on the home brains | **Worse on three of four** in run 9: stock 4B 198 → 194, stock 1.7B 174 → 169, Luma's own 4B 192 → 190. Luma's own small 180 → 188. | One cause found: lines said a minute ago were handed back to the brain as memories (section 7). Fixed. Whether that's all of it isn't known until the run on the fixed code is read. |
-| 10-moment test no worse than before | **Worse for the small stock brains:** the 1.7B Q4_0 went 8 → 6 → 6, the 0.6B 10 → 6. | The same cause, shown on this test's own conversation. |
+| Human Test v2 no worse than before on the home brains | **Worse on three of four** when this work landed (run 9). On the fixed code (run 12): stock 4B 198 → 200, Luma's own 4B 192 → 196, Luma's own small 180 → 188, and **the stock 1.7B 174 → 171**. | Lines said a minute ago were handed back to the brain as memories, and advice questions got a wrong "you haven't been told" note (section 7). Both fixed. The stock 1.7B's last 3 turns may be the test's own noise; that isn't shown yet. |
+| 10-moment test no worse than before | The stock 1.7B Q4_0 went 8 → 6 → 6 and is back at 8. **The 0.6B and the stock 4B Q4_0 are at 9 against 10.** Three brains gained a point. | The first cause, shown on this test's own conversation. One point either way is what this test moves between two runs of the same code. |
+| Asked about suicide out of nowhere, no more often than before | **More often on three brains:** Luma's own 4B 5 → 8, the stock 4B 2 → 3, Luma's own small 6 → 7. | Not known. Nothing this work changed touches when a brain brings it up. Luma's own brains were trained to ask less, and still ask more than the stock brains. |
 
 Not built at all: a meaning model and reranker for memory, the cold tier and sync, voice-based "someone else is in the room", one person across apps, live app pings, the computer-use toolset, undo, the morning briefing built ahead, LongMemEval, AgentDojo and τ²-bench runs, and Luma's own cloud model.
 

@@ -359,6 +359,79 @@ def run(items, label, planner=None, progress=print):
     return tally(out)
 
 
+def told(items, progress=None):
+    """What a small home brain is given on every turn it answers, with no brain at all. A stand-in records each turn's
+    notes and tools, and they're put through the instructions a small device gets. Save it before a change and after,
+    and `told-diff` names the turns where a brain would now be told something else: minutes, where a real run takes
+    hours and its replies are sampled. (It found that lines a person had just said were being handed back as memories.)"""
+    import hashlib
+    from luma.llm import prompts
+    calls = []
+
+    def planner(messages, context, allowed, *args, **kwargs):
+        calls.append((list(context), list(allowed)))
+        return {"type": "reply", "text": "Okay."}
+
+    def one(session, said):
+        before = len(calls)
+        session.say(said)
+        if len(calls) == before:
+            return {"said": said, "brain": False}  # answered without a brain: the crisis net, a reminder, a sum
+        steadies, told_each = [], []
+        for context, tools in calls[before:]:  # every trip to the brain for this message: a heavy one is asked the safety question first
+            steady, turn = prompts.build_plan_parts(context, tools, "friend", None, "(the time)", compact=True)[:2]
+            steadies.append(steady if isinstance(steady, str) else json.dumps(steady, ensure_ascii=False))
+            told_each.append(turn if isinstance(turn, str) else "\n".join(str(part) for part in turn))
+        return {"said": said, "brain": True, "steady": hashlib.sha1("\n".join(steadies).encode()).hexdigest()[:12],
+                "turn": "\n(the next trip to the brain)\n".join(told_each), "trips": len(told_each)}
+
+    turns = {}
+    for item in items:
+        s = Session(planner)
+        try:
+            if item.get("turns"):
+                for i, turn in enumerate(item["turns"]):
+                    if turn.get("at"):
+                        s.at(turn["at"])
+                    if turn.get("new_conversation"):
+                        s.new_conversation()
+                    if turn.get("tick"):
+                        s.tick()
+                        continue
+                    turns[f"{item['id']}#{i + 1}"] = one(s, turn["said"])
+            else:
+                s.seed(item.get("before"))
+                turns[item["id"]] = one(s, item["said"])
+        finally:
+            s.close()
+        if progress:
+            progress(f"  {item['id']}")
+    return {"kind": "told", "turns": turns}
+
+
+def told_diff(before, after):
+    """The turns where a brain is told something different in `after` than in `before` (two results of told()), in
+    plain text: which turns, and the lines that were added or taken away."""
+    import difflib
+    a, b = before["turns"], after["turns"]
+    changed = [k for k in a if k in b and any(a[k].get(f) != b[k].get(f) for f in ("brain", "steady", "turn"))]
+    lines = [f"{len(changed)} of {len([k for k in a if k in b])} turns are told something different."]
+    only = sorted(set(a) ^ set(b))
+    if only:
+        lines.append(f"{len(only)} turns are in one and not the other: {', '.join(only[:8])}")
+    for k in changed:
+        lines.append(f"\n{k}: {a[k]['said'][:90]}")
+        if a[k].get("brain") != b[k].get("brain"):
+            lines.append(f"  a brain answered: {a[k].get('brain')} -> {b[k].get('brain')}")
+            continue
+        if a[k].get("steady") != b[k].get("steady"):
+            lines.append("  the steady instructions changed")
+        for line in difflib.unified_diff((a[k].get("turn") or "").split("\n"), (b[k].get("turn") or "").split("\n"), lineterm="", n=0):
+            if line[:1] in "+-" and line[:3] not in ("+++", "---") and line[1:].strip():
+                lines.append("  " + line[:400])
+    return "\n".join(lines)
+
+
 def rescore(result, items=None):
     """The checks again on the saved replies: when a check is fixed, old runs are scored the new way without a brain."""
     by_id = {}
@@ -672,7 +745,7 @@ def summary(results, pairs=()):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety"])
+    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
@@ -692,6 +765,13 @@ def main():
         items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
         result = run(items, args.label)
         print(json.dumps(result["score"], indent=1))
+    elif args.what == "told":
+        items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
+        result = told(items)
+        print(f"{len(result['turns'])} turns, {sum(1 for t in result['turns'].values() if t['brain'])} answered by a brain")
+    elif args.what == "told-diff":
+        print(told_diff(*(json.loads(Path(f).read_text()) for f in args.files[:2])))
+        return
     elif args.what == "rescore":
         for f in args.files:
             result = rescore(json.loads(Path(f).read_text()))

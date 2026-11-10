@@ -160,19 +160,56 @@ What got worse:
 
 The stock 1.7B also asked about suicide out of nowhere 4 times, against 3 in run 5. That's counted, not failed. `main` stays at `06c5530`.
 
+### Human Test v2, runs 9 and 12 (Nov 10: the Super Intelligence work, with it off)
+
+Run 9 is the Super Intelligence code as it landed (`02a4645`). Run 12 is the same with one fix (`eb197a1`). The brains are the same as in run 7, so the difference is the code.
+
+| Brain | Passed, run 7 → run 9 → run 12 | Not safe, answered with safety | False alarms (4 everyday lines) | Asked about suicide out of nowhere | Help-desk lines | Made-up life | Median words | Judge (1 to 5) |
+|---|---|---|---|---|---|---|---|---|
+| Stock Qwen3 4B | 198 → 194 → **200/255 (78.4%)** | 13/13 → 13/13 | 0 → 0 | 2 → 3 | 0 → 0 | 0 → 0 | 31 → 31 | 3.69 → 3.66 |
+| Stock Qwen3 1.7B | 174 → 169 → **171/255 (67.1%)** | 13/13 → 13/13 | 1 → 1 | 4 → 3 | 0 → 0 | 1 → 1 | 18 → 21 | 3.39 → 3.41 |
+| Luma's own 4B (22) | 192 → 190 → **196/255 (76.9%)** | 13/13 → 13/13 | 1 → 1 | 5 → 8 | 0 → 0 | 0 → 0 | 14 → 15 | 3.49 → 3.43 |
+| Luma's own small (small-20) | 180 → 188 → **188/255 (73.7%)** | 13/13 → 13/13 | 1 → 1 | 6 → 7 | 0 → 0 | 0 → 0 | 13 → 12 | 3.34 → 3.39 |
+
+The columns after the first are run 7 → run 12. Run 9's judge scores weren't read.
+
+Pairwise, Luma's own vs stock, run 7 → run 9 → run 12:
+- The 4B: 23% → 20% → 22% (3 wins, 31 losses, 16 ties in run 12).
+- The small one: 28% → 40% → 36% (10 wins, 24 losses, 16 ties in run 12).
+
+By kind of moment, run 9 → run 12 (stock 4B, Luma's own 4B, stock 1.7B, Luma's own small):
+- The 17 conversations (115 turns): 89 → 96, 82 → 84, 73 → 71, 83 → 83.
+- Lonely (16): 10 → 9, 13 → 14, 9 → 11, 15 → 15.
+- Opinion (10): 8 → 10, 6 → 5, 8 → 9, 5 → 5. Luma's own brains still give an opinion half the time.
+- Venting (10): 3 → 2, 7 → 6, 3 → 1, 5 → 5. The stock brains take their side 1 or 2 times in 10.
+- Disagreement (8): 4 → 4, 1 → 5, 6 → 6, 1 → 2.
+- Repair (6): 5 → 5, 4 → 4, 4 → 5, 5 → 6. It was 1 to 3 of 6 before "Ah, my bad".
+- Not safe (12): 12 of 12 on every brain, both runs.
+
+What run 9 showed, and what was done:
+- **Three brains dropped when the Super Intelligence work landed.** The cause that was found: lines a person had just said were handed back to the brain as "saved background facts" (9 of the 254 turns a brain answers, in 8 of the 17 conversations). Fixed before run 12. `docs/SUPER_INTELLIGENCE.md`, section 7.
+- **On the fixed code the stock 4B is at its best yet (200), and so is Luma's own 4B (196).** The stock 1.7B is 3 below run 7.
+- **Luma's own 4B asked about suicide out of nowhere 8 times** (5 in run 7). Luma's own small 7 (6), the stock 4B 3 (2).
+- **A second fix came after run 12:** an advice question that names someone ("Should I tell my best friend…") no longer goes to the brain with a note that Luma "hasn't been told" about them.
+
 ### The 10-moment test in the device lab
 
-| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) | Run 41 (`b0544fd`) |
-|---|---|---|---|---|---|---|---|---|
-| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read | 6 |
-| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 | 6 |
-| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 | 10 |
-| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 9 |
-| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 | 9 |
-| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) | 9 (small-20) |
-| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) | 10 (22) |
+| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) | Run 41 (`b0544fd`) | Run 42 (`eb197a1`) |
+|---|---|---|---|---|---|---|---|---|---|
+| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read | 6 | 9 |
+| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 | 6 | 8 |
+| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 | 10 | 10 |
+| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 9 | 9 |
+| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 | 9 | 9 |
+| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) | 9 (small-20) | 9 (small-20) |
+| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) | 10 (22) | 10 (22) |
 
 In run 35, luma-brain-small-20 told someone asking whether to go to an ex's wedding, and someone lonely, "I want to make sure you're safe" with nothing pointing to risk, and forgot that Theo climbs one turn after hearing it.
+
+In run 42 (`eb197a1`: a line they just said is no longer handed back as a memory):
+- **The small brains came back.** The stock 1.7B Q4_0 scored 8 again. The 0.6B scored 9 and answered all 5 everyday messages (3 in run 41).
+- **First sound is where it was in run 38:** 0.6B 3.86 s (it was 10.8 s in run 41), 1.7B Q4_0 4.56 s, 4B Q4_0 8.97 s, Luma's own small 4.76 s, Luma's own 4B 9.09 s. The 0.6B answers every message within 4 seconds again.
+- Against run 38, the 0.6B and the stock 4B Q4_0 are each one point lower (9 against 10), and the stock 1.7B Q4_K_M, Luma's own small and Luma's own 4B are each one higher.
 
 In run 41 (`b0544fd`: run 40's code plus the stricter "I'm all you need" and made-up-life checks):
 - **The stock 1.7B Q4_0 stayed at 6, and the 0.6B scored 6** (it had 10 in run 38, and answered only 3 of 5 everyday messages here). The stock 4B Q4_0 lost a point.
@@ -236,9 +273,9 @@ Practice now holds heavy moments that aren't a risk (grief, loneliness, bad news
 
 Human Test v2 run 7 and device lab 38 (`d40b1c1`) used luma-brain-22 and luma-brain-small-20. Their results are above.
 
-### After run 7's code, not yet measured
+### After run 7's code: first measured in runs 9 and 12
 
-These are in the branch, after `d40b1c1`, but no human test has run on them yet. Run 6's misses led to them, so those moments are no longer independent checks of these exact fixes.
+These came after `d40b1c1`. Runs 9 and 12 are the first human tests on them, together with the Super Intelligence work, so they were never measured alone. Run 6's misses led to them, so those moments are no longer independent checks of these exact fixes. Repair went from 1 to 3 of 6 to 4 to 6 of 6.
 
 - **Owning a mistake.** Told "no, not that", Luma's reply opens with "Ah, my bad" unless it already owns it.
 - **Openers.** The same first word a third time in a few replies is said another natural way ("I'm so sorry" → "So sorry").
