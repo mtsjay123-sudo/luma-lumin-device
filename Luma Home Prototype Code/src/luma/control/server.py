@@ -191,12 +191,36 @@ def _finish_plus_later(agent):
     threading.Thread(target=run, name='luma-plus-retry', daemon=True).start()
 
 
+_account_look = {'at': 0.0, 'running': False}
+ACCOUNT_LOOK_EVERY = 900  # seconds
+
+
+def _look_at_account_later(agent):
+    """While the app is open, a signed-in Luma looks its account up again every fifteen minutes, in the background. That's
+    how it learns they subscribed to Plus (so it can ask, once, about the Super Intelligence) or that a month turned over.
+    Nothing new is sent: it's the account look-up Luma Cloud already answers for texting."""
+    now = agent.clock()
+    if _account_look['running'] or not agent.cloud.connected() or agent.mode == 'kids' or now - _account_look['at'] < 60:
+        return
+    cached = agent.store.setting('luma_cloud_account') or {}
+    if now - float(cached.get('checked') or 0) < ACCOUNT_LOOK_EVERY:
+        return
+    _account_look.update(at=now, running=True)
+
+    def run():
+        try: agent.cloud.account(refresh=True)
+        except Exception: pass
+        finally: _account_look['running'] = False
+    threading.Thread(target=run, name='luma-account-look', daemon=True).start()
+
+
 def home_payload(agent, owner=True):
     """Everything the Luma Desktop home screen shows, in one request."""
     now = agent.clock()
     if owner:
         _finish_account_later(agent)
         _finish_plus_later(agent)
+        _look_at_account_later(agent)
     approvals = []
     for row in agent.store.all('action', 40):
         if row.get('state') != 'pending' or row.get('expires', 0) < now: continue

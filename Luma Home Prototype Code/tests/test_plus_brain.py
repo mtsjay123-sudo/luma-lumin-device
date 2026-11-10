@@ -371,6 +371,21 @@ class FromTheApp(WithLumaCloud):
         self.assertEqual((status, out["brain"]["plus"]["on"]), (200, False))
         self.assertEqual(self.lab()["accounts"][-1]["consent"], False)
 
+    def test_after_they_subscribe_the_app_finds_out_by_itself_and_asks(self):
+        from luma.control import server
+        self.assertFalse(self.home()["member"])
+        self.lab(plus=True)  # they subscribed in a browser; nothing told this Luma
+        self.assertFalse(self.home()["member"], "it was looked up a moment ago: not again yet")
+        cached = self.store.setting("luma_cloud_account")
+        self.store.set_setting("luma_cloud_account", {**cached, "checked": self.agent.clock() - server.ACCOUNT_LOOK_EVERY - 1})
+        server._account_look.update(at=0.0, running=False)
+        self.home()  # the app is open: this starts the look-up in the background
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not self.home()["member"]:
+            time.sleep(0.05)
+        view = self.home()
+        self.assertEqual((view["member"], view["ask"]), (True, True))
+
     def test_not_now_is_remembered(self):
         self.subscribe(yes=False)
         self.press(action="plus_no")
