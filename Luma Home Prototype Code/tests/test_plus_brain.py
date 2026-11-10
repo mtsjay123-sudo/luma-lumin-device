@@ -4,8 +4,10 @@ The home's real code talks to a stand-in Luma Cloud (tests/plus_relay.mjs: the r
 with a made-up Claude behind it), run under node on this computer. Skipped where node isn't installed or the relay's code
 isn't beside the app. Nothing leaves the machine and no key is real."""
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -25,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 RELAY = ROOT / "tests" / "plus_relay.mjs"
 NODE = shutil.which("node")
 HAVE_RELAY = bool(NODE) and (ROOT.parent / "api" / "_lib" / "luma-cloud.js").exists()
+
+sys.path.insert(0, str(ROOT / "scripts"))
+import si_lab  # noqa: E402
 
 HOME = {"type": "reply", "text": "home brain"}
 REPLY = {"type": "reply", "text": "I'm here. Tell me about your day, Marvin."}
@@ -472,6 +477,71 @@ class AsItComes(WithLumaCloud):
         self.lab(status=529)
         self.assertEqual(self.ask(), (HOME, 1))
         self.assertEqual(self.lab()["used"][-1]["calls"], 0, "and nothing was charged")
+
+
+@unittest.skipUnless(HAVE_RELAY, "needs node and the relay's code (api/_lib/luma-cloud.js)")
+class TheLab(unittest.TestCase):
+    def test_the_same_talk_both_ways_and_the_two_counts_agree(self):
+        report = si_lab.plus(turns=4, asks=4)
+        self.assertTrue(report["meter"]["agree"], report["meter"])
+        self.assertEqual(report["meter"]["relay"], report["meter"]["home"])
+        self.assertEqual(report["words_kept"]["found"], 0)
+        self.assertEqual(report["after_budget"], {"refused": [402, "budget"], "reached_the_brain": 0})
+        self.assertTrue(report["sent_on"]["with_lumas_key"])
+        self.assertEqual((report["sent_on"]["fallbacks_passed_on"], report["sent_on"]["betas_passed_on"]), (0, 0))
+        self.assertEqual((report["straight"]["failed"], report["through"]["failed"]), (0, 0))
+        self.assertEqual(report["straight"]["calls_per_turn"], report["through"]["calls_per_turn"], "the relay doesn't add a trip")
+        self.assertIn("agree", si_lab.plus_table(report))
+
+
+class TheWords(unittest.TestCase):
+    """What Luma says about Plus when asked: only what Plus does today, and memory is never for sale."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.agent = Agent(store=Store(Path(self.temp.name) / "s.db", Path(self.temp.name) / "k"), use_model=False)
+
+    def test_asked_about_plus_luma_says_only_what_it_does_today(self):
+        from luma.agent import understanding
+        said = " ".join(step["say"] for step in understanding.WALKS["plus"]["steps"])
+        self.assertIn("texts", said)
+        for not_built in ("no limit", "backed up", "back up", "archive", "sync", "Super Intelligence", "unlimited"):
+            self.assertNotIn(not_built, said)
+
+    def test_a_full_memory_is_never_answered_with_a_plan(self):
+        for said in ("my memory is full", "i need more storage", "can i buy more memory", "can you remember more"):
+            out = self.agent._do_intent("luma_plus", said, None)
+            self.assertNotIn("Plus", out["text"], said)
+            self.assertIn("nothing to buy", out["text"].lower())
+        from luma.agent.scenarios import INTENTS
+        for phrase in INTENTS["luma_plus"]["t"]:
+            self.assertNotRegex(phrase, r"memor|storage")
+
+    def test_asking_what_plus_costs_still_gets_the_walkthrough(self):
+        out = self.agent._do_intent("luma_plus", "how much is luma plus", None)
+        self.assertIn("texts", out["text"])
+
+
+class TheMeter(unittest.TestCase):
+    """The home's own count of what the cloud brain used, which the owner's cost estimate is made from."""
+
+    def test_a_call_that_isnt_streamed_is_counted_with_its_real_tokens(self):
+        server = si_lab.StandIn.start()
+        self.addCleanup(server.shutdown)
+        patched = mock.patch.dict(os.environ, {"ANTHROPIC_BASE_URL": f"http://127.0.0.1:{server.server_port}"})
+        patched.start()
+        self.addCleanup(patched.stop)
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
+        brain.init(store)
+        brain.set_cloud(True, key="sk-ant-lab", model="claude-sonnet-5-5")
+        self.assertTrue(brain.rewrite("say this more clearly: hey can u remind me abt the thing", tier="standard"))
+        (row,) = [row for day in store.setting("usage").values() for row in day.values()]
+        self.assertEqual(row["calls"], 1)
+        self.assertGreater(row["fresh"] + row["read"] + row["written"], 0, "what the brain says it was sent, not a guess")
+        self.assertGreater(row["out"], 0)
 
 
 class OneInterface(unittest.TestCase):

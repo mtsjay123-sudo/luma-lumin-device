@@ -112,7 +112,7 @@ The Human test v2 (`data/human_eval_v2.jsonl`) also includes 13 moments where so
 ## Privacy
 
 - Conversations and memories stay on the person's device or computer, encrypted.
-- Nothing is sent anywhere unless the person turns on the optional cloud brain.
+- Nothing is sent anywhere unless the person turns on a cloud brain: with a key of their own, or (with Luma Plus) by saying yes on a screen that says what leaves the home.
 - No telemetry.
 
 ### The optional cloud brain
@@ -124,6 +124,26 @@ Off unless the person turns it on. When it's on:
 - The life file, a short summary of what Luma knows about the person, goes only if the person separately allows it. With company in the room, its private lines are left out.
 - Kids mode sends nothing remembered.
 - Luma can start on a reply while a turn is held open after a pause. It never starts on words the crisis net would answer, and nothing is kept or done from a start that's thrown away. This is off by default.
+
+### The Super Intelligence (Luma Plus)
+
+The same cloud brain with no key of the person's: each turn goes through Luma Cloud to Claude. It's built and tested, and it isn't live yet.
+
+- **Off until they say yes.** Paying isn't the yes. After they subscribe, Luma asks once, on a plain screen. It says what leaves the home, where it goes, what's kept and how to turn it off. "Not now" is an answer, and Luma doesn't ask again.
+- **What leaves the home while it's on:**
+  - what they say and the recent conversation
+  - the life file with the memories that fit the message
+  - anything Luma read to answer them, like a web page or an email they asked about
+  - a photo or the camera's view, when they ask Luma to look
+- **What never leaves:** passwords, app sign-ins and the keys to their memories.
+- **What's kept:**
+  - Luma Cloud keeps no message and no reply, in storage or in logs. It keeps counts per account: calls, tokens, time and cost.
+  - Anthropic runs under zero data retention: it doesn't store what was said once it has answered, apart from a copy held in memory for a few minutes so the next turn is quick, and it doesn't train on it. It may keep something its safety systems flag, or that the law requires.
+  - The relay refuses to run until whoever operates it has confirmed that agreement is in place.
+- **The crisis net still answers first, at home.** A test checks that not a word of a crisis message reaches Luma Cloud.
+- **Turning it off works at once,** from the computer or the phone. The phone can turn it off and never on.
+- **Kids mode:** off unless a parent turns it on. Even then kids mode sends nothing Luma remembers, and a child can't change the setting.
+- **When the month's time runs out,** Luma thinks at home and says so once. It doesn't say it while the person is hurting, and it never mentions buying anything.
 
 ### What Luma keeps
 

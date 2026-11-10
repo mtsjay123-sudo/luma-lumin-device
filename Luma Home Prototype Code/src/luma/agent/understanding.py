@@ -328,8 +328,10 @@ WALKS = {
         {"say": "For the strongest brain, pick Claude or Kimi K3.1 Pro under Cloud brain, paste that company's API key, and turn it on. Claude keys come from console.anthropic.com, Kimi keys from platform.kimi.ai.",
          "stuck": "On either site, go to API keys and press Create key. Copy it and paste it into Luma."},
         {"say": "Or, if this computer has 24 GB of memory or more, tap Get the bigger brain. It's free and private, and runs right here."}]},
+    # Only what Plus does today (the relay's texting plan). Memory isn't part of it: everyone's is kept at home, as much as
+    # fits. Add the Super Intelligence here the day its route is live, not before.
     "plus": {"title": "Luma Plus", "steps": [
-        {"say": "Luma Plus remembers everything with no limit, backed up and private, and it unlocks your phone and texting."},
+        {"say": "Luma Plus gives me more texts to send for you each month, a phone number of my own, and lets you text me from your phone."},
         {"say": "Sign in with your phone number in Settings, then tap Get Luma Plus. I'll take you there.", "open": "settings"}]},
     "teach": {"title": "Teach me a task", "steps": [
         {"say": "Open my browser. I'll take you there.", "open": "browser"},

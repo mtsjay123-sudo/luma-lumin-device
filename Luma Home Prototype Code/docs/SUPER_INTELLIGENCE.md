@@ -16,7 +16,7 @@ The spec is `docs/SUPER_INTELLIGENCE_PROMPT.md`. Machine for everything below: a
 | 2. Real-time brain | Built. Measured on a stand-in only: no key here, so no real speed or cost. |
 | 3. Agent that acts | The safeguards are built and measured with a red team that needs no brain. Tool-picking with a real brain is not measured. |
 | 4. News intelligence | Built and measured on a frozen, made-up snapshot. "Told once" misses its target on held-out stories. Live search is not exercised. |
-| 5. Plus and the future model | See section 5. |
+| 5. Plus | The relay route, the yes screen, the route at home and the one interface are built and tested against the relay's own code. Not deployed, and never run against the real API. Sync and the archive are a design only. |
 
 Main has not moved. It stays at `06c5530` until the human tests and the safety sets pass with the Super Intelligence on and off.
 
@@ -129,7 +129,7 @@ Found by tracing every trip to the brain a turn makes, through the real Luma, ag
 
 | Finding | Before | After |
 |---|---|---|
-| Luma's instructions were sent fresh every turn | 0% read from cache | 84% read from cache from the second turn on (stand-in) |
+| Luma's instructions were sent fresh every turn | 0% read from cache | 82% read from cache from the second turn on (stand-in) |
 | The conversation window slid by one every turn, so nothing early ever held still | Slides every turn after 10 exchanges | Steps back once every 16 messages |
 | The answer shape changed with each turn's tools, which is compiled again and drops the cache | A new shape per turn | One shape for every turn |
 | "What should I eat, I'm starving" took five trips before a word was said | 5 trips | 1 trip |
@@ -139,13 +139,16 @@ Found by tracing every trip to the brain a turn makes, through the real Luma, ag
 
 `python scripts/luma_lab.py cloud --turns 15`. One made-up conversation through the real Luma, in both request shapes, in the same run.
 
-| Request | Numbers | Trips to the brain per turn | Tokens sent per turn | Read from cache, turn 2 on | First words | Cost per turn |
-|---|---|---|---|---|---|---|
-| As before | stand-in | 1.2 | 3,329 | 0% | not measured | $0.0068 |
-| Cache first | stand-in | 1.2 | 3,466 | 84% | not measured | $0.0024 |
+| Request | Model | Numbers | Trips to the brain per turn | Tokens sent per turn | Read from cache, turn 2 on | First words | Cost per turn |
+|---|---|---|---|---|---|---|---|
+| As before | Sonnet 5.5 | stand-in | 1.2 | 3,380 | 0% | not measured | $0.0069 |
+| Cache first | Sonnet 5.5 | stand-in | 1.2 | 3,523 | 82% | not measured | $0.0025 |
+| As before | Opus 5.5 | stand-in | 1.2 | 3,386 | 0% | not measured | $0.0139 |
+| Cache first | Opus 5.5 | stand-in | 1.2 | 3,524 | 82% | not measured | $0.0045 |
 
-- The costs use Sonnet 5.5's published prices on the stand-in's token counts. The stand-in writes short replies and does no thinking, so real costs will be higher in both rows.
-- The target was 85% read from cache. The stand-in says 84% on a 15-turn talk with a small life file.
+- The costs use the published prices on the stand-in's token counts. The stand-in writes short replies and does no thinking, so real costs will be higher in every row.
+- The target was 85% read from cache. The stand-in says 82% on a 15-turn talk with a small life file. Three of the 15 turns take a short second trip (a look back over the reply) that's too small to be cached.
+- **These numbers replace the first ones** (84%, 3,329 and 3,466 tokens, $0.0068 and $0.0024). The Plus lab compared Luma Cloud's count with the home's and they differed: the home was counting that second trip as a call but not counting its tokens. It counts them now, and the two counts match (section 5).
 
 ### Against the targets
 
@@ -154,8 +157,8 @@ Found by tracing every trip to the brain a turn makes, through the real Luma, ag
 | First sound on the Mac | p50 ≤ 0.8 s, p95 ≤ 1.6 s | Not measured |
 | First sound on the device, through the cloud | p50 ≤ 1.2 s, p95 ≤ 2.5 s | Not measured |
 | Request to the brain's first words, cache hit | 350 ms | Not measured |
-| Prompt read from cache, from the second turn on | ≥ 85% | 84%, stand-in |
-| Time the relay adds | ≤ 50 ms | Not measured: the relay route isn't deployed |
+| Prompt read from cache, from the second turn on | ≥ 85% | 82%, stand-in. Missed. |
+| Time the relay adds | ≤ 50 ms | The relay's own work: about 5 to 8 ms on one machine (section 5). The trip to Luma Cloud and its one database read are not measured: the route isn't deployed. |
 | Luma stops when they talk over it | ≤ 150 ms | Not measured here |
 | Silence while a tool runs | Never over 1.5 s | Not measured here |
 
@@ -180,7 +183,7 @@ It tells a hard ask from everyday talk. It's learned from 389 labeled turns writ
 - **An early start.** When a turn is held open after a pause, Luma starts on the words so far. If they keep talking, it's thrown away and counted. The crisis net reads the words first. Off until turned on (`early_start`).
 - **A warm-up** before the first word. Off until turned on (`cloud_warm`), because it costs a little each time and whether it helps isn't measured.
 - **A time box.** If the cloud brain's first words don't come in 12 seconds, the next brain answers.
-- **More memory for the cloud brain.** The life file and 12 recalled memories, only when the owner says the life file may leave the home (`cloud_life`, off by default).
+- **More memory for the cloud brain.** The life file and 12 recalled memories, only when the owner says the life file may leave the home. On their own key that's a switch (`cloud_life`, off by default). With Luma Plus it's what the yes screen asks.
 - **Real numbers.** Every cloud call records what it read from cache, what it wrote and the time to its first words.
 
 ### Design choices the measurements forced
@@ -353,3 +356,119 @@ The other 40 questions are general ("what's in the news", "any tech news", "the 
 - **Local news and live scores fetched for them.** Luma only reorders what the public feeds already carry. Fetching their city or their team in the background would send what they care about to a search engine, so it needs its own setting, off by default.
 - **Alerts at night on request.**
 - **The live search path** isn't in the test. The snapshot is frozen, so the test answers from the cache.
+
+
+## 5. Plus
+
+Luma Plus's Super Intelligence is the cloud brain with no key of the owner's: each turn goes through Luma Cloud, which passes it to Claude on Luma's key. It's built and tested end to end against the relay's own code. **It isn't live.** Nothing was deployed, the database change isn't applied, and no real key was used.
+
+### What's free and what's Plus, as built
+
+| | Free | Plus |
+|---|---|---|
+| Everything at home, every app, the news | Yes | Yes |
+| Memories | Limited only by storage | The same |
+| The cloud brain on their own key | Yes, as before | Yes |
+| The Super Intelligence, no key needed | No | Yes, after their yes |
+| More of what Luma remembers on every turn | With their own key and a switch | Yes: the yes screen says the life file goes along |
+| Texting from Luma's number | As before | As before |
+| The crisis net, honesty, approvals | The same | The same |
+| The encrypted archive and sync, live app updates | Not built | Not built |
+
+### The relay
+
+`/api/luma/brain`, and the same route at the path Anthropic's own library asks for. Its tests are `tests/luma-brain.test.mjs` at the top of the repo: 19, all passing, with Anthropic and the database replaced by fakes.
+
+| What it must do | How it's held |
+|---|---|
+| Off until they say yes | Five things must all be true: a signed-in Luma, Plus, the owner's yes, Luma's key, and zero data retention confirmed for that key. Paying isn't the yes. |
+| The yes is to the words they saw | The yes carries the number of the wording. A yes to older words is refused, and when the words change everyone is asked again. |
+| Nothing kept in the middle | No message and no reply is stored or logged. Only counts are kept, per account per month: calls, tokens, time, cost. A test looks through every table and every log line for the words. |
+| Zero data retention | That's an agreement with Anthropic for the organization the key belongs to, asked for through their sales team. A request can't turn it on. So the relay stays off until whoever runs it sets `LUMA_BRAIN_ZERO_RETENTION=1`. |
+| Only what the brain needs | The model, the messages, Luma's instructions, the answer shape, the effort. Anything else is dropped: tools that run on Anthropic's side, files, connectors, labels for the person, beta switches. |
+| Only brains that keep nothing | Sonnet 5.5, Opus 5.5 and Haiku 5.5. Fable and Mythos need 30 days of retention, so they can't be asked for. |
+| Meter each account | Counted from what the brain reports, at the price of the brain that answered, every attempt. A brain with no price is charged as the dearest. |
+| A monthly budget | `LUMA_PLUS_BRAIN_BUDGET_CENTS`, 400 by default. When it's gone the relay says so plainly and sends nothing. |
+| Stop when they talk over Luma | When the home hangs up, the brain is stopped. What was already heard is still counted (an estimate of four letters a token, because the final count never comes). |
+| Don't keep the first words waiting | One trip to the database before the brain is asked. It was four. |
+
+**One thing is off that the owner's own key has on.** When a safety check declines a request, Anthropic can retry it on another model. That retry isn't on Anthropic's list of what zero data retention covers, so the relay doesn't pass it on. A decline comes home and the home brain answers. `LUMA_BRAIN_FALLBACKS=1` turns it on once Anthropic has confirmed it.
+
+### The Plus lab
+
+`python scripts/luma_lab.py plus --turns 15` (needs node). The same made-up conversation, through the real Luma, twice: straight to the brain the way an owner's own key goes, and through the relay's own code. The brain is the stand-in both times.
+
+| Path | Trips to the brain per turn | Tokens sent per turn | Read from cache, turn 2 on | Cost per turn | Failed |
+|---|---|---|---|---|---|
+| Straight to the brain (their own key) | 1.2 | 3,516 | 82% | $0.00252 | 0 |
+| Through Luma Cloud (Luma Plus) | 1.2 | 3,522 | 82% | $0.00253 | 0 |
+
+| Check | Result |
+|---|---|
+| Luma Cloud's count against the home's count | They match: 18 calls, 52,834 tokens in, 276 out. $0.037983 at the relay, $0.037977 at home (the relay rounds each call up). |
+| Words kept at Luma Cloud | 0 of 41 lines looked for: what was said, what Luma knows, what was answered. |
+| What reached the brain | Every request on Luma's own key. Retry-on-decline passed on 0 times, beta switches 0 times. |
+| What the relay adds before the first words | About 5 ms in one run and 8 ms in another, of its own work, on one machine (40 asks each way). |
+| After the month's budget is gone | Refused, and 0 requests reached the brain. |
+
+- The relay doesn't change what's cached: the same 82%.
+- The time is the relay's own work only. A real turn also crosses the internet to Luma Cloud and reads the database once. That isn't measured, because the route isn't deployed.
+- The first run of this lab found the two counts 808 tokens apart. The relay was right. The fix is in section 2.
+
+### What a member's month buys
+
+Arithmetic from the stand-in's token counts and the published prices. Real replies are longer and the brain thinks, so real turns cost more.
+
+| Brain | Cost per turn, cache first | Turns in a $4.00 month | As it was before, for the same $4.00 |
+|---|---|---|---|
+| Sonnet 5.5 | $0.0025 | about 1,580 (52 a day) | about 580 |
+| Opus 5.5 | $0.0045 | about 880 (29 a day) | about 290 |
+
+- Plus is $9.99 a month. The budget is a setting, and texting and Luma's number come out of the same $9.99.
+- Whether $4.00 is the right number needs real turns. That's the first paid run.
+
+### At home
+
+`tests/test_plus_brain.py`: 37 tests. Most run the relay's real code under node with a made-up Claude behind it.
+
+- **The yes screen.** After they subscribe, Luma asks once. The screen says what leaves the home, where it goes, what's kept and how to turn it off. "Not now" is an answer and Luma doesn't ask again. Settings can turn it on later, behind the same screen.
+- **The words are the code's.** They come from `luma.llm.plus`, so the app can't promise something the code doesn't do. What's said about Anthropic is what its page on API data retention says.
+- **Turning it off works at once,** even when Luma Cloud can't be reached. Luma Cloud is told as soon as it answers.
+- **Which brain answers.** Plus first, then their own key if they have one on, then the home brain.
+- **When the month's time is used up.** The home brain answers, and Luma says so once, as its own short line: "Heads up: this month's Super Intelligence time is used up, so I'm thinking with my own brain at home until December." It waits while they're hurting. It's never said in kids mode. It never mentions buying anything.
+- **Kids mode.** Off unless a parent turns it on in Settings. Even then kids mode is told nothing Luma remembers. A kid can't change it.
+- **The crisis net** answers at home before any brain. A test checks that not a word of a crisis message reaches the relay.
+- **The owner's phone** can see it and turn it off, never on. The phone can't turn the mic on either: from the phone, what leaves the home can only get smaller.
+
+### One interface for every cloud brain
+
+`luma.llm.cloudbrain`. `stream(messages, tools)` gives the words as they're written, then the real numbers, then the answer. Each brain says what it can do. The runtime asks through it, so a new brain is one more class.
+
+| Brain | Reached through | Reads at once | Conversation sent | Caching | Words as written | Effort levels | Sees photos | Retry on a decline |
+|---|---|---|---|---|---|---|---|---|
+| Claude Opus 5.5 | their own key | 1,000,000 tokens | 80 messages | Yes | Yes | low, medium, high | Yes | Yes |
+| Claude Sonnet 5.5 | their own key | 1,000,000 tokens | 80 messages | Yes | Yes | low, medium, high | Yes | Yes |
+| Claude Opus 5.5 | Luma Plus | 1,000,000 tokens | 80 messages | Yes | Yes | low, medium, high | Yes | No |
+| Claude Sonnet 5.5 | Luma Plus | 1,000,000 tokens | 80 messages | Yes | Yes | low, medium, high | Yes | No |
+| Kimi K3.1 Pro | their own key | not published where Luma could check | 40 messages | No | No | one | No | No |
+
+Every brain asks for a tool the same way: in Luma's own answer shape, read and checked at home. The cloud only thinks.
+
+### Not built
+
+- **The encrypted archive, sync, and the recovery key.** A design only (`docs/LUMA_CLOUD_MODEL.md`).
+- **Live app updates** ("something changed" pings through the relay).
+- **A yes without a computer.** The yes screen is in the desktop app. A Luma with only a phone has no way to say yes yet, because the phone is deliberately not allowed to widen what leaves the home.
+- **A budget per plan.** There's one budget, for Plus.
+- **Anything against the real API.** The request the relay passes on is the one section 2 measures on the stand-in. It has never met the real thing.
+
+### What it takes to turn it on
+
+Each of these changes something real, so each needs the owner's yes.
+
+| Step | What it changes or costs |
+|---|---|
+| Ask Anthropic for zero data retention on the organization the key belongs to | An agreement through their sales team. Without it the relay stays off by design. |
+| Set `ANTHROPIC_API_KEY` and `LUMA_BRAIN_ZERO_RETENTION=1` on the site | Turns the route on. Usage is billed to that key: at most the budget per Plus member per month, $4.00 by default. |
+| Apply `supabase/migrations/20261109120000_luma_brain.sql` | Adds two columns to accounts, one table of counts, and two functions. It deletes nothing. |
+| Move main | Deploys the route to the live site. |

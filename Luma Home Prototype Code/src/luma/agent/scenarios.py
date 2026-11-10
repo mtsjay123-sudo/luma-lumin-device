@@ -202,8 +202,8 @@ INTENTS = {
         "be smarter", "you're too dumb", "add my api key", "use the cloud", "turn on super intelligence", "switch to the big model", "faster brain",
         "can you think harder", "use the best model", "smarter mode"]},
     "luma_plus": {"label": "Get Luma Plus", "walk": "plus", "t": [
-        "get luma plus", "upgrade", "how much is luma plus", "buy more memory", "more storage", "my memory is full", "upgrade my plan",
-        "what's luma plus", "pricing", "subscribe", "how much does it cost", "go premium", "unlimited memory"]},
+        "get luma plus", "upgrade", "how much is luma plus", "upgrade my plan",
+        "what's luma plus", "pricing", "subscribe", "how much does it cost", "go premium"]},
     "talk": {"label": "Talk out loud", "action": "talk", "t": [
         "let's talk", "talk to me", "voice mode", "can we talk out loud", "turn on voice", "i want to talk", "start talking", "talk mode",
         "use your voice", "speak to me", "hands free", "listen to me", "can you hear me", "start voice"]},

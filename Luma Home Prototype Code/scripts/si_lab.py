@@ -120,7 +120,9 @@ class StandIn(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         cls = type(self)
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        cls.seen.append({"body": body, "beta": self.headers.get("anthropic-beta")})
+        bearer = self.headers.get("authorization") or ""
+        cls.seen.append({"body": body, "beta": self.headers.get("anthropic-beta"),
+                         "key": self.headers.get("x-api-key") or (bearer[7:] if bearer.lower().startswith("bearer ") else "")})
         problem = cls.refuse(body) if cls.refuse else None
         if problem:
             return self._json({"type": "error", "error": {"type": "invalid_request_error", "message": problem}}, 400)
@@ -136,7 +138,8 @@ class StandIn(http.server.BaseHTTPRequestHandler):
                    "stop_sequence": None, "usage": usage}
         if not body.get("stream"):
             done = body.get("max_tokens") == 0
-            return self._json({**message, "content": [] if done else [{"type": "text", "text": text}], "stop_reason": "max_tokens" if done else "end_turn"})
+            return self._json({**message, "content": [] if done else [{"type": "text", "text": text}], "stop_reason": "max_tokens" if done else "end_turn",
+                               "usage": {**usage, "output_tokens": 0 if done else tokens(text)}})
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -268,6 +271,164 @@ def cloud_table(reports):
                      f"{r.get('calls_per_turn')} | {r.get('tokens_per_turn'):,} | "
                      f"{100 * (r['read_from_second_turn'] or 0):.0f}% | {show(first.get('p50'))} | {show(first.get('p95'))} | "
                      f"${r['cost_per_turn']:.5f} | {r['asked_again']} | {r['failed']} |")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------------- the Plus lab ---
+# Luma Plus sends each turn through Luma Cloud. This lab runs the relay's own code (under node, on an in-memory database)
+# in front of the same stand-in brain, and holds the same made-up conversation twice: straight to the brain, the way an
+# owner's own key goes, and through the relay. So what the relay adds or changes is a measured difference.
+def _talk(profile, turns, model):
+    rows, before = [], _totals(profile.store)
+    for i, said in enumerate(TALK[:turns]):
+        result = profile.say(said)
+        after = _totals(profile.store)
+        used = {k: after[k] - before[k] for k in after}
+        before = after
+        sent = used["read"] + used["written"] + used["fresh"]
+        rows.append({"turn": i + 1, **used, "share_read": round(used["read"] / sent, 3) if sent else None, "cost": round(cost(model, used), 6),
+                     "error": result.get("text", "")[:60] if str(result.get("text", "")).startswith("ERROR") else None})
+    return rows
+
+
+def _sum_up(rows):
+    later = rows[1:]
+    sent = sum(r["read"] + r["written"] + r["fresh"] for r in later)
+    return {"calls": sum(r["calls"] for r in rows), "tokens_in": sum(r["read"] + r["written"] + r["fresh"] for r in rows), "tokens_out": sum(r["out"] for r in rows),
+            "cache_read": sum(r["read"] for r in rows), "dollars": round(sum(r["cost"] for r in rows), 6),
+            "calls_per_turn": round(statistics.mean(r["calls"] for r in rows), 2) if rows else None,
+            "tokens_per_turn": round(statistics.mean(r["read"] + r["written"] + r["fresh"] for r in rows)) if rows else None,
+            "read_from_second_turn": round(sum(r["read"] for r in later) / sent, 3) if sent else None,
+            "cost_per_turn": round(statistics.mean(r["cost"] for r in rows), 6) if rows else None,
+            "failed": sum(1 for r in rows if r["error"]) + sum(r["errors"] for r in rows)}
+
+
+def plus(turns=12, model="claude-sonnet-5-5", asks=40):
+    """The same conversation straight to the brain and through Luma Cloud. Returns the report, or why it was skipped."""
+    import shutil
+    import subprocess
+    import urllib.request
+    from pathlib import Path
+    import luma_lab
+    from luma.llm import brain, cloud as claude, cloudbrain
+    root = Path(__file__).resolve().parents[1]
+    node = shutil.which("node")
+    if not node or not (root.parent / "api" / "_lib" / "luma-cloud.js").exists():
+        return {"kind": "plus", "skipped": "needs node and the relay's code (api/_lib/luma-cloud.js) beside the app"}
+    server = StandIn.start()
+    up = f"http://127.0.0.1:{server.server_port}"
+    relay = subprocess.Popen([node, str(root / "tests" / "plus_relay.mjs")], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, cwd=str(root),
+                             env={**os.environ, "LUMA_LAB_REAL_UPSTREAM": "1",
+                                  "LUMA_LAB_RELAY_ENV": json.dumps({"LUMA_BRAIN_UPSTREAM": up, "LUMA_BRAIN_CALLS_PER_MINUTE": "100000"})})
+    url = f"http://127.0.0.1:{json.loads(relay.stdout.readline())['port']}"
+
+    def lab(**ask):
+        request = urllib.request.Request(url + "/__lab", data=json.dumps(ask).encode() if ask else None, headers={"Content-Type": "application/json"},
+                                         method="POST" if ask else "GET")
+        with urllib.request.urlopen(request, timeout=20) as answer:
+            return json.load(answer)
+
+    def person(profile):
+        now = time.time()
+        profile.store.put_many("memory", [{"text": line[2:], "created": now - 86400 * (40 - i)} for i, line in enumerate(LIFE.splitlines()) if not line.startswith("- (")])
+
+    old = os.environ.get("ANTHROPIC_BASE_URL")
+    os.environ["ANTHROPIC_BASE_URL"] = up
+    for learned in claude._learned.values():
+        learned.discard(model)
+    report = {"kind": "plus", "model": model, "turns": turns}
+    try:
+        # Straight to the brain, on a key of their own.
+        profile = luma_lab.Profile(use_model=True)
+        try:
+            person(profile)
+            profile.store.set_setting("cloud_life", True)
+            brain.set_cloud(True, key="sk-ant-lab", model=model)
+            report["straight"] = _sum_up(_talk(profile, turns, model))
+        finally:
+            profile.close()
+        # Through Luma Cloud, on Luma Plus: the brain starts from the same empty cache.
+        StandIn.cache, StandIn.seen = PromptCache(), []
+        profile = luma_lab.Profile(use_model=True)
+        try:
+            person(profile)
+            profile.agent.cloud.env = {"LUMA_CLOUD_URL": url}
+            profile.agent.cloud.create_account("Sam", "sam@example.com", "a long enough password")
+            lab(plus=True)
+            profile.agent.cloud.account(refresh=True)
+            brain.set_plus(True, model=model)
+            rows = _talk(profile, turns, model)
+            report["through"] = _sum_up(rows)
+            state = lab()
+            kept = state["used"][-1]
+            home = report["through"]
+            report["meter"] = {"relay": {k: kept[k] for k in ("calls", "tokens_in", "tokens_out", "cache_read")}, "relay_dollars": round(kept["micros"] / 1e6, 6),
+                               "home": {k: home[k] for k in ("calls", "tokens_in", "tokens_out", "cache_read")}, "home_dollars": home["dollars"]}
+            report["meter"]["agree"] = (report["meter"]["relay"] == report["meter"]["home"]
+                                        and abs(report["meter"]["relay_dollars"] - home["dollars"]) <= 1e-6 * max(1, kept["calls"]))
+            said = TALK[:turns] + [line[2:] for line in LIFE.splitlines()] + StandIn.LINES
+            report["words_kept"] = {"checked": len(said), "found": sum(1 for line in said if line in state["tables"])}
+            report["sent_on"] = {"with_lumas_key": bool(StandIn.seen) and all(call["key"] == "lumas-own-key-for-claude" for call in StandIn.seen),
+                                 "fallbacks_passed_on": sum(1 for call in StandIn.seen if "fallbacks" in call["body"]),
+                                 "betas_passed_on": sum(1 for call in StandIn.seen if call.get("beta"))}
+            # What the relay adds before the first words, on one machine: the same single ask, each way, many times.
+            relayed = brain.cloud_key()
+            ask = [{"role": "user", "content": "hey, just got off shift"}]
+            ways = {"straight": cloudbrain.pick("own", model, "sk-ant-lab"), "through": cloudbrain.pick("plus", model, relayed)}
+            times = {name: [] for name in ways}
+            for i in range(asks + 2):
+                for name, chosen in ways.items():
+                    first, began = [], time.perf_counter()
+                    chosen.plan(list(ask), [], {}, "friend", on_text=lambda chunk: first or first.append(time.perf_counter() - began))
+                    if i >= 2 and first:  # the first two warm things up
+                        times[name].append(first[0] * 1000)
+            report["first_words_ms"] = {name: {"p50": round(middle(values, .5), 1), "p95": round(middle(values, .95), 1), "asks": len(values)} for name, values in times.items()}
+            report["first_words_ms"]["added_p50"] = round(report["first_words_ms"]["through"]["p50"] - report["first_words_ms"]["straight"]["p50"], 1)
+            # When the month's budget is gone: refused at the relay, and nothing reaches the brain.
+            lab(env={"LUMA_PLUS_BRAIN_BUDGET_CENTS": "0"})
+            reached = len(StandIn.seen)
+            try:
+                ways["through"].plan(list(ask), [], {}, "friend")
+                refused = None
+            except Exception as error:
+                refused = (getattr(error, "status_code", None), (getattr(error, "body", None) or {}).get("error") if isinstance(getattr(error, "body", None), dict) else None)
+            report["after_budget"] = {"refused": list(refused) if refused else None, "reached_the_brain": len(StandIn.seen) - reached}
+        finally:
+            profile.close()
+    finally:
+        relay.terminate()
+        relay.wait(timeout=10)
+        relay.stdout.close()
+        server.shutdown()
+        if old is None:
+            os.environ.pop("ANTHROPIC_BASE_URL", None)
+        else:
+            os.environ["ANTHROPIC_BASE_URL"] = old
+        for learned in claude._learned.values():
+            learned.discard(model)
+    return report
+
+
+def plus_table(r):
+    if r.get("skipped"):
+        return "Luma Plus lab skipped: " + r["skipped"]
+    lines = [f"## Luma Plus: the same {r['turns']}-turn conversation, straight to the brain and through Luma Cloud ({r['model']}, stand-in brain)", "",
+             "| Path | Trips to the brain per turn | Tokens sent per turn | Read from cache, turn 2 on | Cost per turn | Failed |", "|---|---|---|---|---|---|"]
+    for name, label in (("straight", "straight to the brain (their own key)"), ("through", "through Luma Cloud (Luma Plus)")):
+        row = r[name]
+        lines.append(f"| {label} | {row['calls_per_turn']} | {row['tokens_per_turn']:,} | {100 * (row['read_from_second_turn'] or 0):.0f}% | ${row['cost_per_turn']:.5f} | {row['failed']} |")
+    meter, first = r["meter"], r["first_words_ms"]
+    lines += ["",
+              f"- **The relay's count and the home's count {'agree' if meter['agree'] else 'DO NOT agree'}.** "
+              f"Relay: {meter['relay']['calls']} calls, {meter['relay']['tokens_in']:,} tokens in, {meter['relay']['tokens_out']:,} out, ${meter['relay_dollars']:.6f}. "
+              f"Home: {meter['home']['calls']} calls, {meter['home']['tokens_in']:,} in, {meter['home']['tokens_out']:,} out, ${meter['home_dollars']:.6f}.",
+              f"- **Words kept at Luma Cloud: {r['words_kept']['found']} of {r['words_kept']['checked']} lines looked for** (what was said, what Luma knows, what was answered).",
+              f"- **What reached the brain:** every request on Luma's own key: {'yes' if r['sent_on']['with_lumas_key'] else 'NO'}. "
+              f"Retry-on-decline passed on {r['sent_on']['fallbacks_passed_on']} times, beta switches {r['sent_on']['betas_passed_on']} times.",
+              f"- **First words, one ask, {first['through']['asks']} times each way on this machine:** straight {first['straight']['p50']} ms (p95 {first['straight']['p95']}), "
+              f"through the relay {first['through']['p50']} ms (p95 {first['through']['p95']}). The relay's own work adds about {first['added_p50']} ms. "
+              "In the real world add the trip to Luma Cloud and one database read: not measured here.",
+              f"- **After the month's budget is gone:** refused with {r['after_budget']['refused']}, and {r['after_budget']['reached_the_brain']} requests reached the brain."]
     return "\n".join(lines)
 
 

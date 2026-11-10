@@ -3,7 +3,9 @@
 #   - the router on turns it never learned from;
 #   - the red team: a stand-in brain that does exactly what a hidden instruction says, to prove nothing acts without a yes;
 #   - the cloud brain's request, through the real Luma, against a stand-in for Anthropic's API that follows the prompt
-#     cache's published rules: how much of each turn would be read from the cache, and how many trips a turn makes.
+#     cache's published rules: how much of each turn would be read from the cache, and how many trips a turn makes;
+#   - Luma Plus: the relay's own tests, and the same conversation straight to the brain and through the relay (the
+#     relay's own code under node), to show its count matches the home's and it keeps no word.
 # Run by hand with `real: true` and the secret LUMA_LAB_ANTHROPIC_KEY, the cloud lab talks to the real API instead, and
 # Human Test v2 and the safety sample run on the cloud brain. That is billed to that key: about 30 cents for the cloud
 # lab on Sonnet, and a few dollars for the human test.
@@ -14,6 +16,13 @@ on:
     paths:
       - "Luma Home Prototype Code/src/luma/memory/**"
       - "Luma Home Prototype Code/src/luma/llm/cloud.py"
+      - "Luma Home Prototype Code/src/luma/llm/plus.py"
+      - "Luma Home Prototype Code/src/luma/llm/brain.py"
+      - "Luma Home Prototype Code/src/luma/llm/cloudbrain.py"
+      - "Luma Home Prototype Code/tests/plus_relay.mjs"
+      - "api/_lib/**"
+      - "api/luma/**"
+      - "tests/luma-brain.test.mjs"
       - "Luma Home Prototype Code/src/luma/llm/router.py"
       - "Luma Home Prototype Code/src/luma/llm/prompts.py"
       - "Luma Home Prototype Code/src/luma/agent/provenance.py"
@@ -60,8 +69,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -q --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata anthropic pytest "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
-      - name: The tests for the life memory, the real-time brain and the agent's safeguards
-        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: The relay's own tests (Luma Cloud, with Anthropic and the database replaced by fakes)
+        working-directory: .
+        run: node --test tests/*.test.mjs
+      - name: The tests for the life memory, the real-time brain, the agent's safeguards, the news and Luma Plus
+        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py tests/test_plus_brain.py
       - name: Memory, the dev half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
       - name: Memory, the held-out half
@@ -76,6 +91,8 @@ jobs:
         env:
           LUMA_LAB_ANTHROPIC_KEY: ${{ github.event.inputs.real == 'true' && secrets.LUMA_LAB_ANTHROPIC_KEY || '' }}
         run: python scripts/luma_lab.py cloud --turns 15 --model "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --save "$RUNNER_TEMP/lab/cloud.json" | tee "$RUNNER_TEMP/lab/cloud.txt"
+      - name: Luma Plus (the same talk straight to the brain and through the relay; fails if the counts differ or a word is kept)
+        run: python scripts/luma_lab.py plus --turns 15 --save "$RUNNER_TEMP/lab/plus.json" | tee "$RUNNER_TEMP/lab/plus.txt"
       - name: Human Test v2 and the safety sample on the cloud brain (only when run by hand with real=true)
         if: github.event.inputs.real == 'true'
         env:
@@ -92,6 +109,7 @@ jobs:
             echo; echo "## Red team"; cat "$RUNNER_TEMP/lab/apps.txt"
             echo; echo "## News"; cat "$RUNNER_TEMP/lab/news.txt"
             echo; echo "## Cloud brain"; cat "$RUNNER_TEMP/lab/cloud.txt"
+            echo; cat "$RUNNER_TEMP/lab/plus.txt"
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()

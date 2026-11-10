@@ -57,7 +57,10 @@ async function claude(url, init = {}) {
   return { ok: true, status: 200, body: stream() };
 }
 
-const handler = createHandler(() => ({ env, db, fetch: claude, now: () => Date.now() + lab.ahead_ms }));
+// LUMA_LAB_REAL_UPSTREAM: the brain behind the relay is another process on this computer (LUMA_BRAIN_UPSTREAM), reached
+// over HTTP the way Anthropic is, instead of the made-up Claude above. The Plus lab uses it to compare like with like.
+const brainBehind = process.env.LUMA_LAB_REAL_UPSTREAM ? fetch : claude;
+const handler = createHandler(() => ({ env, db, fetch: brainBehind, now: () => Date.now() + lab.ahead_ms }));
 
 async function read(req) {
   const chunks = [];

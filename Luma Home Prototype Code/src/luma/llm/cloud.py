@@ -288,8 +288,19 @@ def warm(key, memories, mode, profile=None, model=DEFAULT_MODEL, effort=None):
     return {"written": int(getattr(used, "cache_creation_input_tokens", 0) or 0), "read": int(getattr(used, "cache_read_input_tokens", 0) or 0)}
 
 
+def _note(message, model, began):
+    """What a call that wasn't streamed really used, noted for the meter the way a streamed turn's numbers are. Without
+    this the second look and the photo were counted as calls but their tokens weren't (the Plus lab found it: Luma
+    Cloud's count ran ahead of the home's)."""
+    used = getattr(message, "usage", None)
+    count = lambda name: int(getattr(used, name, 0) or 0)  # noqa: E731
+    _turn.last = {"model": model, "first_words_s": None, "seconds": round(time.perf_counter() - began, 3), "read": count("cache_read_input_tokens"),
+                  "written": count("cache_creation_input_tokens"), "fresh": count("input_tokens"), "out": count("output_tokens")}
+
+
 def rewrite(key, prompt, max_tokens=300, model=DEFAULT_MODEL):
     """The quick 'what do they mean' pass, short and cheap."""
+    began = time.perf_counter()
     message = _client(key).beta.messages.create(
         model=model if model in MODELS else DEFAULT_MODEL,
         max_tokens=max(max_tokens, 1024),
@@ -299,6 +310,7 @@ def rewrite(key, prompt, max_tokens=300, model=DEFAULT_MODEL):
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
     )
+    _note(message, model, began)
     return _final_text(message).strip()
 
 
@@ -310,6 +322,7 @@ def look(key, image_bytes, question=None, model=DEFAULT_MODEL):
     if not kind:
         raise ValueError("That doesn't look like a photo I can read.")
     ask = " ".join(str(question or "").split())[:500] or "What's in this picture? Tell me like a friend looking at it with me, and read out any text that matters."
+    began = time.perf_counter()
     message = _client(key).beta.messages.create(
         model=model if model in MODELS else DEFAULT_MODEL,
         max_tokens=4096,
@@ -321,4 +334,5 @@ def look(key, image_bytes, question=None, model=DEFAULT_MODEL):
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
     )
+    _note(message, model, began)
     return " ".join(_final_text(message).split())[:2000]

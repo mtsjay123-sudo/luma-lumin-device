@@ -5421,6 +5421,11 @@ class Agent:
         """They picked one (or the model's sure): do it, or ask for the one detail it needs."""
         from luma.agent.scenarios import INTENTS
         spec = INTENTS.get(intent) or {}
+        if intent == "luma_plus" and re.search(r"\b(?:memor|storage|space|remember|full)", str(original or ""), re.I):
+            # Memory was never something to buy: it's kept on this device, as much as fits. "My memory is full" gets the
+            # truth, not a plan.
+            return {"text": "There's nothing to buy for that. I keep what you tell me right here on this device, and the only limit is its storage. "
+                            "If the device itself is getting full, Make room in the Luma app clears space."}
         if spec.get("walk"):
             return self._walk_step(spec["walk"], 0)
         if spec.get("action") == "talk":
