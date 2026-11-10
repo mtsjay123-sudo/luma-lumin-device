@@ -5290,10 +5290,13 @@ class Agent:
         if self._company():
             out.append({"note": True, "text": "They have company in the room right now. Keep anything private (health, money, relationships) to yourself "
                                               "unless they ask you about it directly."})
+        in_view = self._in_view()
         for m in found["memories"] or found["related"][:3]:
             words = str(m.get("text", ""))
             if company and facts.private(words, m.get("category") or ""):
                 continue
+            if m.get("source") == "said" and " ".join(words.split()).casefold() in in_view:
+                continue  # the brain can already see them say this, a few messages up; handed back as a "memory" it only muddles a small brain
             if m.get("ended"):
                 words = "(Used to be true, not anymore) " + words
             elif m.get("source") == "said" and m.get("created"):
@@ -5307,6 +5310,14 @@ class Agent:
             out.append({"note": True, "text": "Your memory, checked for this message: no memory mentions " + ", ".join(found["unseen"][:4])
                                               + ". If the saved facts above don't answer what they asked, say you haven't been told that part. Never guess."})
         return out
+
+    def _in_view(self):
+        """What they've said in the stretch of conversation the brain is given this turn. A line of talk Luma kept is a
+        memory once it has scrolled out of that stretch; while it's still there, it's just the conversation."""
+        try:
+            return {" ".join(str(m.get("content") or "").split()).casefold() for m in self._window(self.history) if m.get("role") == "user"}
+        except Exception:
+            return set()
 
     def _true_now(self, question):
         """The saved fact that states the very thing asked, and is still true; or None."""

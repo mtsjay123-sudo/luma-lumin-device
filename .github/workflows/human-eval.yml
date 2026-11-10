@@ -197,3 +197,15 @@ jobs:
         with:
           name: human-eval-all
           path: ${{ runner.temp }}/all
+      - name: The tables once more, last, where they're quick to find in the log
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/all"
+          files=""
+          for key in stock-4b own-4b stock-1.7b own-1.7b; do
+            if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
+          done
+          files="$files $(ls pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          if [ -n "$(echo $files)" ]; then
+            python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files | grep -E '^\||^\*\*Pairwise|^#' || true
+          fi

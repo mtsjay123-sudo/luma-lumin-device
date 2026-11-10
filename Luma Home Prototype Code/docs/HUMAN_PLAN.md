@@ -162,17 +162,23 @@ The stock 1.7B also asked about suicide out of nowhere 4 times, against 3 in run
 
 ### The 10-moment test in the device lab
 
-| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) |
-|---|---|---|---|---|---|---|---|
-| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read |
-| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 |
-| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 |
-| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 |
-| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 |
-| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) |
-| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) |
+| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) | Run 41 (`b0544fd`) |
+|---|---|---|---|---|---|---|---|---|
+| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read | 6 |
+| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 | 6 |
+| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 | 10 |
+| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 9 |
+| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 | 9 |
+| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) | 9 (small-20) |
+| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) | 10 (22) |
 
 In run 35, luma-brain-small-20 told someone asking whether to go to an ex's wedding, and someone lonely, "I want to make sure you're safe" with nothing pointing to risk, and forgot that Theo climbs one turn after hearing it.
+
+In run 41 (`b0544fd`: run 40's code plus the stricter "I'm all you need" and made-up-life checks):
+- **The stock 1.7B Q4_0 stayed at 6, and the 0.6B scored 6** (it had 10 in run 38, and answered only 3 of 5 everyday messages here). The stock 4B Q4_0 lost a point.
+- Luma's own brains and the stock 1.7B Q4_K_M each gained one or two.
+- **A cause was found for the small brains' drop.** Since the life memory, the lines a person said a minute ago were handed back to the brain as "saved background facts" while they were still in the conversation. On the lonely moment that was "my dad passed away last night" and "omg i got into my dream school!!". Fixed: a line of talk is only a memory once it has scrolled out of the conversation the brain is given. `docs/SUPER_INTELLIGENCE.md`, section 7, has the proof.
+- First sound, 4 cores: stock 1.7B Q4_0 4.44 s, Luma's own small 4.7 s, Luma's own 4B 9.05 s, stock 4B Q4_0 9.13 s. None answers every message within 4 seconds.
 
 In run 40 (the Super Intelligence work, with it off):
 - **Two scores dropped:** the stock 1.7B Q4_0 from 8 to 6, and Luma's own 4B from 9 to 8. The stock 1.7B said "You're the best!" to big news, fell back on a death, said an ex's-wedding question back, and repeated itself to someone lonely. Luma's own 4B said "That's so much. What's the next step?" to big news.

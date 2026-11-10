@@ -512,6 +512,35 @@ class InLuma(unittest.TestCase):
         from luma.agent import memory_folder
         self.assertEqual(sum(len(k["items"]) for k in memory_folder.folder(self.agent)["kinds"]), 0)
 
+    def test_what_they_just_said_isnt_handed_back_as_a_memory(self):
+        """A line of talk Luma kept is a memory once the conversation has moved past it. While the brain can still see
+        them say it a few messages up, it's only the conversation: handed back as a "saved fact" it muddles a small
+        brain. (Two home brains lost the lonely moment of the 10-moment test to exactly this: they were handed the two
+        lines below while answering it.)"""
+        def handed_back(message):
+            """The kept lines of talk the brain was given while answering this message (on any of its trips to the brain)."""
+            before = len(self.seen)
+            self.agent.chat(message)
+            return [m["text"] for context in self.seen[before:] for m in context if m.get("source") == "said"]
+
+        self.agent.chat("my dad passed away last night and i can't stop thinking about it")
+        self.agent.chat("omg i got into my dream school, the letter came today")
+        self.assertEqual(handed_back("it's been so hard since my dad passed away"), [], "lines still in the conversation came back as memories")
+        self.assertEqual(len([t for t in self.texts() if "last night" in t or "dream school" in t]), 2, "they're still kept")
+        # A new conversation: the brain can't see them say it any more, so now it's a memory, with its day.
+        self.agent.history.clear()
+        self.now[0] += 2 * 86400
+        back = handed_back("i still can't believe my dad passed away")
+        self.assertTrue(any("my dad passed away last night" in line and line.startswith("(They said, ") for line in back), back)
+        # And in a long conversation, once it has scrolled out of what the brain is given.
+        self.agent.history.clear()
+        self.agent.chat("my sister moved to a tiny town in the mountains last month")
+        from luma.llm import brain
+        for i in range(brain.LOCAL_WINDOW):
+            self.agent.history.append({"role": "user" if i % 2 == 0 else "assistant", "content": f"filler line number {i}"})
+        back = handed_back("i keep meaning to go see my sister in the mountains")
+        self.assertTrue(any("tiny town in the mountains" in line for line in back), back)
+
     def test_questions_requests_and_unsafe_moments_arent_kept(self):
         for said in ("what should i cook tonight for the four of us", "remind me to call the dentist tomorrow morning please",
                      "i keep thinking everyone would be better off without me", "ok cool"):
