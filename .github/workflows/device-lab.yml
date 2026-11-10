@@ -102,4 +102,4 @@ jobs:
           if-no-files-found: warn
       - name: The tables once more, last, where they're quick to find in the log
         if: always()
-        run: python scripts/luma_lab.py device-summary "$RUNNER_TEMP"/lab/device-*.json | awk '/<details>/{exit} {print}'
+        run: python scripts/luma_lab.py device-summary "$RUNNER_TEMP"/lab/device-*.json | awk '/<details>/{skip=1} !skip'  # reads to the end, so the report isn't cut off with a broken pipe

@@ -29,6 +29,19 @@ still also lol lmao rn tho though even didn't doesn't won't can't isn't wasn't u
 asked asks ate eats broke fell moved moves found lost won became becomes turned turns gets getting got's literally lowkey honestly
 basically kinda sorta again already almost actually only ever recently suddenly constantly probably definitely totally barely
 who's that's he's she's they're i'm is's""".split())
+# In lowercase there's no capital letter to go on, so these are never taken as a name after "my sister": what someone
+# does ("my mom work nights") or is ("my dad mad at me"). None of them is a common first name.
+NOT_NAMES |= set("""live work love want need think say tell call text come go make take give buy send ask eat break fall move find lose
+win become turn keep leave stay visit feel look seem sound hear see talk speak try help care mind remember forget understand believe
+drive play use start stop drink sleep wake cook pay read write run walk sit stand wear bring meet miss hurt cry laugh smile worry wish
+plan own stays stayed acts act hit hits mad sad sick crazy tired mean nice cool funny weird right wrong fine good bad great old young
+busy angry upset happy scared proud dead alive gone home back pregnant drunk late early single smart dumb stupid cute hot cold
+trippin tripping wild tall short fat skinny lazy broke bored annoyed stressed depressed lonely jealous worried""".split())
+# "where does my sister live", "should my mom know", "is my dad right": a question, and the word after the relation is what
+# they do or are. "this is my sister maya" isn't a question: the helping verb has to start the sentence or follow a question word.
+ASKING = re.compile(r"(?:^|[.!?,;:]\s*|\b(?:and|but|so|or)\s+|\b(?:what|where|when|why|how|who|which)\s+(?:\w+\s+){0,2}?)"
+                    r"(?:do|does|did|can|could|should|would|will|might|must|may|is|are|was|were|has|have|had|"
+                    r"don'?t|doesn'?t|didn'?t|can'?t|couldn'?t|shouldn'?t|wouldn'?t|won'?t|isn'?t|aren'?t|wasn'?t|weren'?t|hasn'?t|haven'?t)\s+$", re.I)
 PHRASAL = re.compile(r"^\s*(?:away|out|on|by|up|down|off|over|back|around|in|me|us|you|him|her|them)\b", re.I)
 DURABLE = re.compile(r"^(?:(?:really|just|recently|lately|finally|totally|so)\s+)?(?:"
                      r"is (?:(?:so |really |totally |kind of |kinda )?(?:obsessed with|into|allergic to|scared of|afraid of|terrified of|"
@@ -54,6 +67,8 @@ def mentions(text):
     text = str(text or "")
     found = []
     for m in MENTION.finditer(text):
+        if ASKING.search(text[:m.start()]) and not m["name"][:1].isupper():
+            continue  # "where does my sister live": no capital, and it's where a verb goes
         if _name_ok(m["name"], text) and not PHRASAL.match(m["rest"]):  # "my dad passd away": a verb, typo and all
             found.append((m["name"].capitalize(), m["rel"].lower(), m["rest"].strip(" ,")))
     for m in NAMED.finditer(text):

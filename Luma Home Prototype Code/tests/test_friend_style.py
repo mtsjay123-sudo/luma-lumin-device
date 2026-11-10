@@ -111,6 +111,21 @@ class WhosWho(unittest.TestCase):
         self.assertEqual(people.mentions("my boss just yelled at me"), [])
         self.assertEqual(people.mentions("My sister Maya is coming to visit."), [("Maya", "sister", "is coming to visit")])
 
+    def test_what_someone_does_or_is_isnt_their_name(self):
+        # Typed in lowercase there's no capital letter to go on. "where does my sister live" used to hand the brain
+        # "Live, their sister".
+        for said in ["where does my sister live", "should my mom know about this", "did my brother call you", "is my dad right about this",
+                     "why is my mom mad at me", "can my friend stay over", "when did my boss say that", "what time does my daughter get out",
+                     "my mom work nights", "my dad mad at me again", "my sister stay with me now", "my brother need a ride"]:
+            self.assertEqual(people.mentions(said), [], said)
+        self.assertEqual(people.note([], "where does my sister live"), "")
+        # a name is still a name: in a plain sentence, when they're introduced, and with a capital letter anywhere
+        self.assertEqual([m[0] for m in people.mentions("my sister maya lives in denver")], ["Maya"])
+        self.assertEqual([m[0] for m in people.mentions("this is my friend jordan")], ["Jordan"])
+        self.assertEqual([m[0] for m in people.mentions("and this is my friend jordan")], ["Jordan"])
+        self.assertEqual([m[0] for m in people.mentions("Does my sister Maya know?")], ["Maya"])
+        self.assertEqual([m[0] for m in people.mentions("and my brother theo just got into climbing")], ["Theo"])
+
     def test_what_lasts_is_kept_and_what_passes_isnt(self):
         self.assertEqual(people.facts("My daughter Lily is obsessed with dinosaurs right now."), ["Lily (their daughter) is obsessed with dinosaurs right now"])
         self.assertEqual(people.facts("my friend sam loves jazz"), ["Sam (their friend) loves jazz"])

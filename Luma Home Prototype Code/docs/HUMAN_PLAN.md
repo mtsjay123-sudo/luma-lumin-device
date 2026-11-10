@@ -194,17 +194,30 @@ What run 9 showed, and what was done:
 
 ### The 10-moment test in the device lab
 
-| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) | Run 41 (`b0544fd`) | Run 42 (`eb197a1`) |
-|---|---|---|---|---|---|---|---|---|---|
-| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read | 6 | 9 |
-| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 | 6 | 8 |
-| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 | 10 | 10 |
-| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 9 | 9 |
-| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 | 9 | 9 |
-| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) | 9 (small-20) | 9 (small-20) |
-| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) | 10 (22) | 10 (22) |
+| Brain | Run 29 | Run 30 | Run 32 (`luma-human` at `7fe0104`) | Run 35 (`82cd135`) | Run 37 (`38cebbe`) | Run 38 (`d40b1c1`) | Run 40 (`02a4645`) | Run 41 (`b0544fd`) | Run 42 (`eb197a1`) | Run 43 (`226d505`) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Stock 0.6B | 9 | - | 9 | 9 | 8 | 10 | not read | 6 | 9 | 9 |
+| Stock 1.7B Q4_0 | 8 | 7 | 8 | 8 | 8 | 8 | 6 | 6 | 8 | 8 |
+| Stock 1.7B Q4_K_M | 8 | 8 | 9 | 9 | 8 | 9 | 9 | 10 | 10 | 9 |
+| Stock 4B Q4_0 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 9 | 9 | 9 |
+| Stock 4B Q4_K_M | 10 | 10 | 10 | 10 | 9 | 9 | 9 | 9 | 9 | 9 |
+| Luma's own small | 8 (small-18) | 7 (small-18) | 9 (small-18) | 8 (small-20) | 9 (small-20) | 8 (small-20) | 8 (small-20) | 9 (small-20) | 9 (small-20) | 9 (small-20) |
+| Luma's own 4B | 10 (17) | 8 (17) | 10 (17) | 10 (19) | 9 (19) | 9 (22) | 8 (22) | 10 (22) | 10 (22) | 9 (22) |
 
 In run 35, luma-brain-small-20 told someone asking whether to go to an ex's wedding, and someone lonely, "I want to make sure you're safe" with nothing pointing to risk, and forgot that Theo climbs one turn after hearing it.
+
+In run 43 (`226d505`, the final code: run 42's plus the advice fix, which doesn't change what a brain is told on this test):
+- **Scores: 9, 8, 9, 9, 9, 9, 9.** Against run 38, the 0.6B and the stock 4B Q4_0 are a point lower, Luma's own small is a point higher, and four are the same.
+- **This test moves a point by itself.** Runs 42 and 43 gave every brain the same words on every turn, and two brains still moved from 10 to 9 (the stock 1.7B Q4_K_M and Luma's own 4B). `python scripts/human_eval.py told` records this conversation too now, so a change in what a brain is told here shows up in minutes.
+- **What was lost:**
+  - Stock 1.7B Q4_0: big news ("You're the best!") and loneliness (an earlier reply again).
+  - Stock 1.7B Q4_K_M: big news.
+  - Stock 4B Q4_0: loneliness ("Right here, bro. No pressure, just you.": it didn't stay with them).
+  - Stock 4B Q4_K_M: listening (flat, to nobody).
+  - Luma's own small: remembering. It gave Theo the gift idea it had given the sister.
+  - Luma's own 4B: loneliness. It said "I'm here for you, not just today but every day" again, as it had about the death.
+  - The 0.6B's lost moment wasn't read. It answered 4 of 5 everyday messages.
+- **First sound, 4 cores:** 0.6B 3.98 s, 1.7B Q4_0 4.73 s, 4B Q4_0 8.89 s, Luma's own small 4.69 s, Luma's own 4B 9.1 s.
 
 In run 42 (`eb197a1`: a line they just said is no longer handed back as a memory):
 - **The small brains came back.** The stock 1.7B Q4_0 scored 8 again. The 0.6B scored 9 and answered all 5 everyday messages (3 in run 41).

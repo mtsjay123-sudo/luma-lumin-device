@@ -38,7 +38,8 @@ HUB = ROOT / "tests" / "fixtures" / "mcp" / "apps_hub.py"
 class Profile:
     """A throwaway Luma: its own folder, a saved Mom, a shared Documents folder with a resume in it."""
 
-    def __init__(self, use_model=True):
+    def __init__(self, use_model=True, planner=None, now=None):
+        """planner: a stand-in brain, so nothing is loaded (the `told` check). now: a clock that holds still."""
         self.dir = Path(tempfile.mkdtemp(prefix="luma-lab-"))
         self._home = mock.patch("pathlib.Path.home", return_value=self.dir)
         self._home.start()
@@ -49,7 +50,9 @@ class Profile:
         self.store = Store(self.dir / "s.db", self.dir / "k")
         self.store.set_setting("signed_up", True)
         self.store.set_setting("personality", {"name": "Jay", "tone": "warm", "language_style": "contemporary", "verbosity": "balanced"})
-        self.agent = Agent(store=self.store, use_model=use_model)
+        self.agent = Agent(store=self.store, use_model=use_model and planner is None, now=now)
+        if planner is not None:
+            self.agent.use_model, self.agent.planner = True, planner
         self.agent.contacts.save({"name": "Mom", "phone": "+19195550111", "aliases": "my mom, mom"})
         self.agent.contacts.save({"name": "Sam", "phone": "+19195550133", "aliases": ""})
         self.agent.link.computer.grant(str(self.dir / "Documents"))

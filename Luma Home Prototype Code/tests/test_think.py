@@ -71,6 +71,27 @@ class Sums(unittest.TestCase):
         self.assertTrue(sums.holds("That's 15,000.", big))
         self.assertTrue(sums.holds("15000", big))
 
+    def test_a_sum_with_two_steps_is_worked_out_whole_or_left_to_the_brain(self):
+        # It used to work out the first step it knew and tell the brain to say that number exactly: "split $186 four ways
+        # with a 20% tip" came back as $46.50 each, with the tip left out.
+        found = sums.find("split $186 four ways with a 20% tip")
+        self.assertEqual(found["kind"], "tip_split")
+        self.assertEqual(sums.line(found), "$186.00 with a 20% tip is $223.20. Split 4 ways, that's $55.80 each.")
+        self.assertTrue(sums.holds("So that's $55.80 each.", found))
+        self.assertFalse(sums.holds("That's $46.50 each.", found))
+        found = sums.find("what's a 20% tip on $64.50 split three ways")
+        self.assertEqual(sums.line(found), "$64.50 with a 20% tip is $77.40. Split 3 ways, that's $25.80 each.")
+        found = sums.find("an 18% tip on $100 split between 3 people")   # doesn't come out even
+        self.assertIn("that's about $39.33 each", sums.line(found))
+        for said in ["what's 20% off $80 plus 8% tax", "what's 20% of 150 and 30% of 200", "what's 12 + 30 and then 20% of that",
+                     "split 126 between 4 and add tax", "what's a 20% tip on $64.50 after a 10% discount",
+                     "split $186 four ways with a 20% tip and 8% tax"]:
+            self.assertIsNone(sums.find(said), said)
+        # one step is still one step
+        self.assertEqual(sums.line(sums.find("what's a 20% tip on $64.50")), "A 20% tip on $64.50 is $12.90, which makes $77.40 in all.")
+        self.assertEqual(sums.find("split 126 between 4")["say"], "31.5")
+        self.assertEqual(sums.find("so what's 18% of 240 then")["say"], "43.2")
+
 
 class InLuma(unittest.TestCase):
     def setUp(self):

@@ -4,7 +4,11 @@
 shapes people ask out loud and works them out exactly, in decimal, with no eval. The brain is told the result as a note
 for the turn (note), and a reply that doesn't carry the calculator's number is put right (holds, line).
 
-It only fires when the message really is a sum. "I work 9-5", "it's open 24/7", "we lost 3-2" and a phone number aren't."""
+It only fires when the message really is a sum. "I work 9-5", "it's open 24/7", "we lost 3-2" and a phone number aren't.
+
+One sum at a time. A bill with a tip, split between people, is the one two-step sum it works out whole. Anything else
+that asks for more than it worked out ("20% off $80 plus 8% tax") is left to the brain with no number to hold it to: a
+right answer to half the question, said "exactly", is a wrong answer."""
 from __future__ import annotations
 
 import re
@@ -25,6 +29,11 @@ OFF_AFTER = re.compile(rf"({NUM})\s+(?:[a-z]+\s+){{0,2}}?(?:with|at|after)\s+({N
 OF = re.compile(rf"({NUM})\s*(?:%|percent)\s+of\s+({NUM})")
 SPLIT = re.compile(rf"split\s+({NUM})\s+(?:(?:evenly|equally)\s+)?(?:(?:between|among|amongst|by|across|with)\s+({NUM})\b|({NUM})\s+ways)|"
                    rf"({NUM})\s+(?:split|divided)\s+(?:(?:evenly|equally)\s+)?(?:between|among|amongst|across)\s+({NUM})\b")
+TIP_TOO = re.compile(rf"({NUM})\s*(?:%|percent)\s+tip\b")
+SPLIT_TOO = re.compile(rf"\bsplit\s+(?:(?:it|that|this|the\s+(?:bill|total|check|tab))\s+)?(?:(?:evenly|equally)\s+)?"
+                       rf"(?:(?:between|among|amongst|by|across|with)\s+)?({NUM})\b(?:\s+(?:ways|people|of\s+us|friends))?")
+MORE = re.compile(r"%|\b(?:percent|tip|tax|off|discount|coupon|split|divided|each|apiece|per\s+person|ways|plus|minus|times|add|subtract|"
+                  r"take\s+away|and\s+then|then\s+(?:split|multiply|divide|double|halve))\b")
 EXPR = rf"{NUM}(?:\s*[+*]\s*{NUM}|\s+[-/]\s+{NUM})+"
 ASKED = re.compile(rf"(?:\bwhat'?s|\bwhat is|\bhow much is|\bcalculate|\bcompute|\bwork out|\bsolve|\badd up)\s+(?:the\s+)?(?:answer to\s+|sum of\s+|total of\s+)?({EXPR})(?![\d/-])")
 ALONE = re.compile(rf"^\W*({EXPR})\W*$")
@@ -93,26 +102,50 @@ def _show(value, money):
     return (text.rstrip("0").rstrip(".") if "." in text else text), rounded
 
 
+def _cut(text, found):
+    """The message with the part that was read as the sum taken out."""
+    return text[:found.start()] + " " + text[found.end():]
+
+
+def _tip_split(bill, share, people, rest):
+    """A bill with a tip, split between people. None when it isn't a whole number of people, or more is asked still."""
+    if people != people.to_integral_value() or not 2 <= people <= 1000 or MORE.search(rest):
+        return None
+    total = bill + bill * share / 100
+    say, about = _show(total / people, True)
+    return {"kind": "tip_split", "ask": f"{_show(bill, True)[0]} with a {_show(share, False)[0]}% tip", "say": say, "also": _show(total, True)[0],
+            "people": int(people), "about": about, "value": total / people}
+
+
 def find(text):
-    """The sum in a message, worked out: {"ask", "say", "also", "about", "value"}, or None when it isn't a sum."""
+    """The sum in a message, worked out: {"ask", "say", "also", "about", "value"}, or None when it isn't a sum, or when
+    the message asks for more than the one sum that was worked out."""
     plain = _plain(text)
     try:
         found = TIP.search(plain)
         if found:
             share, bill = _n(found[1]), _n(found[2])
+            rest = _cut(plain, found)
+            also = SPLIT_TOO.search(rest)
+            if also:  # "... split three ways": the bill and the tip, shared out
+                return _tip_split(bill, share, _n(also[1]), _cut(rest, also))
+            if MORE.search(rest):
+                return None
             tip = bill * share / 100
             say, about = _show(tip, True)
             return {"kind": "tip", "ask": f"a {found[1].rstrip('%')}% tip on {_show(bill, True)[0]}", "say": say, "also": _show(bill + tip, True)[0], "about": about, "value": tip}
         found = OFF.search(plain) or OFF_AFTER.search(plain)
         if found:
             share, price = (_n(found[1]), _n(found[2])) if found.re is OFF else (_n(found[2]), _n(found[1]))
-            if not 0 < share <= 100:
+            if not 0 < share <= 100 or MORE.search(_cut(plain, found)):
                 return None
             left = price * (100 - share) / 100
             say, about = _show(left, True)
             return {"kind": "off", "ask": f"{_show(share, False)[0]}% off {_show(price, True)[0]}", "say": say, "also": None, "about": about, "value": left}
         found = OF.search(plain)
         if found:
+            if MORE.search(_cut(plain, found)):
+                return None
             money = "$" in found[2]
             value = _n(found[2]) * _n(found[1]) / 100
             say, about = _show(value, money)
@@ -121,7 +154,11 @@ def find(text):
         if found:
             whole, ways = (found[1], found[2] or found[3]) if found[1] else (found[4], found[5])
             people = _n(ways)
-            if people != people.to_integral_value() or not 2 <= people <= 1000:
+            rest = _cut(plain, found)
+            also = TIP_TOO.search(rest)
+            if also and "$" in whole:  # "... with a 20% tip": the tip goes on before it's shared out
+                return _tip_split(_n(whole), _n(also[1]), people, _cut(rest, also))
+            if people != people.to_integral_value() or not 2 <= people <= 1000 or MORE.search(rest):
                 return None
             value = _n(whole) / people
             say, about = _show(value, "$" in whole)
@@ -129,7 +166,7 @@ def find(text):
         found = ASKED.search(plain) or ALONE.match(plain)
         if found:
             value = _work(found[1])
-            if value is None:
+            if value is None or MORE.search(_cut(plain, found)):
                 return None
             say, about = _show(value, "$" in found[1])
             ask = re.sub(r"\s*([+*/-])\s*", lambda sign: f" {SAID_OPS[sign[1]]} ", found[1]) if not re.search(r"\d-\d", found[1]) else found[1]
@@ -144,6 +181,8 @@ def line(found):
     about = "about " if found["about"] else ""
     if found["kind"] == "tip":
         return f"{found['ask'][0].upper()}{found['ask'][1:]} is {about}{found['say']}, which makes {found['also']} in all."
+    if found["kind"] == "tip_split":
+        return f"{found['ask']} is {found['also']}. Split {found['people']} ways, that's {about}{found['say']} each."
     if found["kind"] == "off":
         return f"{found['ask']} comes to {about}{found['say']}."
     if found["kind"] == "split":

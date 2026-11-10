@@ -359,11 +359,13 @@ def run(items, label, planner=None, progress=print):
     return tally(out)
 
 
-def told(items, progress=None):
+def told(items, progress=None, lab=False):
     """What a small home brain is given on every turn it answers, with no brain at all. A stand-in records each turn's
     notes and tools, and they're put through the instructions a small device gets. Save it before a change and after,
     and `told-diff` names the turns where a brain would now be told something else: minutes, where a real run takes
-    hours and its replies are sampled. (It found that lines a person had just said were being handed back as memories.)"""
+    hours and its replies are sampled. (It found that lines a person had just said were being handed back as memories.)
+    lab: the device lab's conversation as well (its five warm-up messages, then the 10-moment test, in the lab's own
+    Luma), as turns lab#1 to lab#15."""
     import hashlib
     from luma.llm import prompts
     calls = []
@@ -406,6 +408,16 @@ def told(items, progress=None):
             s.close()
         if progress:
             progress(f"  {item['id']}")
+    if lab:
+        import luma_lab
+        clock = {"t": START.timestamp()}
+        profile = luma_lab.Profile(planner=planner, now=lambda: clock["t"])
+        try:
+            for i, said in enumerate(list(luma_lab.DEVICE_TALK) + [said for said, _ in luma_lab._human_talk()]):
+                turns[f"lab#{i + 1}"] = one(profile, said)
+                clock["t"] += 45
+        finally:
+            profile.close()
     return {"kind": "told", "turns": turns}
 
 
@@ -767,7 +779,7 @@ def main():
         print(json.dumps(result["score"], indent=1))
     elif args.what == "told":
         items = [i for i in load() if not args.only or args.only in i["id"] or args.only in i["category"]]
-        result = told(items)
+        result = told(items, lab=not args.only or args.only == "lab")
         print(f"{len(result['turns'])} turns, {sum(1 for t in result['turns'].values() if t['brain'])} answered by a brain")
     elif args.what == "told-diff":
         print(told_diff(*(json.loads(Path(f).read_text()) for f in args.files[:2])))

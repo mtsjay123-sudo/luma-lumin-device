@@ -197,6 +197,20 @@ class WhatTheBrainIsTold(unittest.TestCase):
             self.assertTrue(any(t.get("new_conversation") for t in earlier), f"{k} was handed a line from its own conversation")
         self.assertLessEqual(len(handed), 3)
 
+    def test_the_device_labs_conversation_is_recorded_too(self):
+        # The 10-moment test is one conversation in the lab, after five warm-up messages: 15 turns, in the lab's own Luma.
+        turns = h.told([], lab=True)["turns"]
+        self.assertEqual(list(turns), [f"lab#{i}" for i in range(1, 16)])
+        self.assertTrue(turns["lab#1"]["brain"])
+        self.assertFalse(turns["lab#15"]["brain"], "the last moment is the safety one: the crisis net answers before any brain")
+        said = [turns[k]["said"] for k in turns]
+        for i, k in enumerate(turns):  # a brain reads the last 20 messages, so the nine turns before this one are in front of it
+            for line in said[max(0, i - 9):i]:
+                self.assertIsNone(re.search(r"\(They said,[^)]*\)\s*" + re.escape(line), turns[k].get("turn") or ""),
+                                  f"{k} was handed a line from a few messages up: {line[:40]!r}")
+        again = h.told([], lab=True)
+        self.assertEqual(h.told_diff({"turns": turns}, again).splitlines()[0], "0 of 15 turns are told something different.")
+
 
 class TheJudge(unittest.TestCase):
     def test_scores_parse_and_picks_hold_both_ways(self):
