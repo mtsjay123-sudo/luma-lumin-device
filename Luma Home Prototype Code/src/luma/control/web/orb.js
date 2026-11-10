@@ -393,13 +393,15 @@ void main() {
     const key = `${pixels}:${mood}:${moment || 0}`;
     if (kept[key] !== undefined) return kept[key];
     const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = Math.max(16, Math.min(SHARED, Math.round(pixels)));
-    const paint = copier(canvas);
+    canvas.width = canvas.height = Math.max(16, Math.min(1024, Math.round(pixels)));
+    const big = canvas.width > SHARED;   // a big one (an app icon) gets a drawing surface of its own, for as long as it takes
+    const paint = big ? painter(canvas) : copier(canvas);
     const now = look(mood, 0.47);   // a still is nearly all ball: there's no room for a glow in a small place
     now.t = MOMENT + (moment || 0);
     paint.draw(now);
     let url = "";
     try { url = canvas.toDataURL("image/png"); } catch (_) { url = ""; }
+    if (big) paint.lose();
     kept[key] = url;
     return url;
   }

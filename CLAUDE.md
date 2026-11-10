@@ -47,7 +47,7 @@ All commands run from `Luma Home Prototype Code/`.
 | The relay's own tests (from the top of the repo, not the app folder) | `node --test tests/*.test.mjs` |
 | News test: 200 questions over a frozen, made-up snapshot | `python scripts/luma_lab.py news-test` |
 | Device lab | `python scripts/luma_lab.py device --human [--v2] --label NAME` |
-| Draw the logo again from Luma's orb (needs node with Playwright) | `node scripts/orb_logo.cjs` |
+| Draw the logo, the app icons and the start-up screen's copy of the orb again (needs node with Playwright) | `node scripts/orb_logo.cjs` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
 

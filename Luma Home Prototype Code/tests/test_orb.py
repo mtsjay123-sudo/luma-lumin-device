@@ -229,5 +229,57 @@ class TheFile(unittest.TestCase):
         self.assertTrue((ROOT / "desktop" / "mascot.svg").is_file())
 
 
+SHELL = HERE.parent.parent / "desktop"
+
+
+@unittest.skipUnless((SHELL / "splash.html").is_file(), "the desktop shell isn't beside this folder")
+class TheDesktopShell(unittest.TestCase):
+    """Luma Desktop's start-up screen shows before Luma is running, so it carries its own copy of the orb, and the
+    app's icon is a picture of it. `node scripts/orb_logo.cjs` writes all of them."""
+
+    def test_its_copy_of_the_orb_is_the_same_file(self):
+        self.assertEqual((SHELL / "assets" / "orb.js").read_bytes(), ORB.read_bytes(),
+                         "desktop/assets/orb.js has drifted from the orb the apps draw with: run `node scripts/orb_logo.cjs`")
+
+    def test_the_start_up_screen_loads_it_first_and_still_works_without_it(self):
+        html = (SHELL / "splash.html").read_text()
+        self.assertLess(html.index('src="assets/orb.js"'), html.index('src="splash.js"'))
+        self.assertIn("script-src 'self'", html)                      # nothing from anywhere else
+        self.assertIn('<div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>', html)   # the plain ball it replaces
+        code = (SHELL / "splash.js").read_text()
+        self.assertIn("window.LumaOrb &&", code)
+        self.assertIn("orb?.set(", code)
+
+    def test_the_app_icons_are_whole(self):
+        import struct
+        png = (SHELL / "build" / "icon.png").read_bytes()
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II", png[16:24]), (1024, 1024))
+        ico = (SHELL / "build" / "icon.ico").read_bytes()
+        reserved, kind, count = struct.unpack("<HHH", ico[:6])
+        self.assertEqual((reserved, kind), (0, 1))
+        sizes = []
+        for i in range(count):
+            w, h, _, _, planes, bits, size, at = struct.unpack("<BBBBHHII", ico[6 + 16 * i:22 + 16 * i])
+            self.assertEqual(ico[at:at + 8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II", ico[at + 16:at + 24]), (w or 256, h or 256))
+            self.assertLessEqual(at + size, len(ico))
+            sizes.append(w or 256)
+        self.assertEqual(sizes, [16, 24, 32, 48, 64, 128, 256])
+        icns = (SHELL / "build" / "icon.icns").read_bytes()
+        self.assertEqual(icns[:4], b"icns")
+        self.assertEqual(struct.unpack(">I", icns[4:8])[0], len(icns))
+        at, found = 8, []
+        while at < len(icns):
+            name, size = icns[at:at + 4].decode("ascii"), struct.unpack(">I", icns[at + 4:at + 8])[0]
+            self.assertGreater(size, 8)
+            if name != "TOC ":
+                self.assertEqual(icns[at + 8:at + 16], b"\x89PNG\r\n\x1a\n", name)
+                found.append((name, struct.unpack(">I", icns[at + 24:at + 28])[0]))
+            at += size
+        self.assertEqual(at, len(icns))
+        self.assertEqual(found, [("ic07", 128), ("ic08", 256), ("ic09", 512), ("ic10", 1024), ("ic11", 32), ("ic12", 64), ("ic13", 256), ("ic14", 512)])
+
+
 if __name__ == "__main__":
     unittest.main()

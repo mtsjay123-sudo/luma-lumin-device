@@ -12,6 +12,17 @@ const [title, detail] = copy[state] || copy.starting;
 $("title").textContent = title;
 $("detail").textContent = detail;
 document.body.classList.add(state);
+
+// Luma itself while it wakes: its liquid orb (assets/orb.js, a copy of the one the app draws with). It turns over
+// while Luma starts or sets up, and waits, warm, when it needs you. Without it, the plain ball in the page stays.
+let orb = null;
+try {
+  const host = document.querySelector(".orb");
+  if (window.LumaOrb && host) {
+    orb = window.LumaOrb.mount(host, { mood: state === "missing" || state === "failed" ? "waiting" : "thinking", size: 0.36 });
+    host.classList.add("liquid");
+  }
+} catch (_) { orb = null; }
 if (state === "missing" || state === "failed") {
   $("actions").hidden = false;
   $("choose").addEventListener("click", () => window.lumaDesktop?.chooseFolder());
@@ -37,6 +48,7 @@ window.lumaDesktop?.onSetup?.((p) => {
   const pct = Math.round(overall * 100);
   $("fill").style.width = pct + "%";
   $("percent").textContent = pct + "%";
+  if (p.step === "done") orb?.set("speaking", 0.4);   // everything's here: it lights up
   const label = p.step === "done" ? "Starting Luma" : p.label || "Working";
   $("step-label").textContent = p.detail && p.step !== "packages" ? `${label} · ${p.detail}` : label;
 });
