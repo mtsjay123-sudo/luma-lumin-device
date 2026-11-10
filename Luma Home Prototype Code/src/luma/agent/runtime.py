@@ -4650,6 +4650,7 @@ class Agent:
                             result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
+                            result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
@@ -5084,10 +5085,30 @@ class Agent:
         file, the household's records, headlines, and how Luma feels. hear=False only looks (the early start: nothing they
         said is acted on until they've finished saying it)."""
         if self.mode == "kids":
-            return []
+            return self._sum_context(text)  # nothing remembered, but a sum is still the calculator's
         return (self._remembered(text, room=12 if self._roomy() else 5, hear=hear) + self._life_context()
                 + [{"text": r["title"] + ": " + r["details"]} for r in self.household.records(query=text, mode=self.mode)[:3]]
-                + self._news_context(text) + self._mind_context(text, cancel_event))
+                + self._news_context(text) + self._mind_context(text, cancel_event) + self._sum_context(text))
+
+    def _sum_context(self, text):
+        """Check, don't guess: a sum in the message ("what's 18% of 240", "a 20% tip on $64.50") is worked out with a
+        calculator (luma.agent.sums), and the brain is told the answer instead of being left to do arithmetic."""
+        from luma.agent import sums
+        try:
+            found = sums.find(text)
+        except Exception:
+            return []
+        return [{"note": True, "text": sums.note(found)}] if found else []
+
+    def _sum_right(self, said, reply):
+        """A reply to a sum has to carry the calculator's number. One that doesn't (another number, or none) is replaced
+        by the plain answer: a wrong sum said warmly is still wrong."""
+        from luma.agent import sums
+        try:
+            found = sums.find(said)
+            return reply if not found or sums.holds(reply, found) else sums.line(found)
+        except Exception:
+            return reply
 
     # -- starting before they've finished --------------------------------------------------------------------------------
     def think_ahead(self, text):

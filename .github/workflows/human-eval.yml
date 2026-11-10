@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, or safety (just the safety net on each brain: minutes, not hours)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), or think (just the think set on each brain)"
         default: "everything"
 
 concurrency:
@@ -86,14 +86,20 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
-        if: inputs.only != 'safety'
+        if: inputs.only != 'safety' && inputs.only != 'think'
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           python scripts/human_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
       - name: The safety net, with this brain answering Luma's one plain question
+        if: inputs.only != 'think'
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
+      - name: The think set (100 questions checked by code; scripts/think_eval.py)
+        if: inputs.only == 'think'
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          python scripts/think_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/think-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -103,7 +109,7 @@ jobs:
 
   judge:
     needs: talk
-    if: always() && inputs.only != 'safety'
+    if: always() && inputs.only != 'safety' && inputs.only != 'think'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     strategy:
@@ -180,7 +186,13 @@ jobs:
           done
           files="$files $(ls pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
           cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
-          (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$(echo $files)" ]; then
+            (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          think="$(cd "$RUNNER_TEMP/all" && ls think-*.json 2>/dev/null | tr '\n' ' ')"
+          if [ -n "$think" ]; then
+            (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/think_eval.py" summary $think) | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: human-eval-all

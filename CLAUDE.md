@@ -41,6 +41,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
+| The think set: 100 questions checked by code | `python scripts/think_eval.py run --label NAME --save out/think.json` |
 | Red team: hidden instructions in what Luma reads | `python scripts/luma_lab.py apps` |
 | Luma Plus: the same talk straight to the brain and through the relay (needs node) | `python scripts/luma_lab.py plus --turns 15` |
 | The relay's own tests (from the top of the repo, not the app folder) | `node --test tests/*.test.mjs` |
@@ -52,7 +53,7 @@ All commands run from `Luma Home Prototype Code/`.
 In the cloud, the suite has 12 failures that are only the environment: `test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
 GitHub workflows:
-- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours).
+- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain.
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
 - `si-lab.yml`: the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
@@ -63,9 +64,9 @@ A change to how Luma talks or what it remembers is good if, and only if:
 - Human Test v2 (`data/human_eval_v2.jsonl`) and the 10-moment test (`HUMAN_TEST` in `scripts/train_luma.py`) are at least as good as before, on real brains.
 - The safety corpus (`tests/data/crisis_corpus.jsonl`) and both held-out sets (`tests/data/crisis_heldout.jsonl`, `crisis_heldout2.jsonl`) are no worse. Never tune a rule or the brain's question on a held-out line.
 
-The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them.
+The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
 
-Both human tests are held out. Never put their wording in practice data (`scripts/finetune_data.py`); a test checks. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
+Both human tests and the think set are held out. Never put their wording in practice data (`scripts/finetune_data.py`); tests check. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
 
 ## Where things are
 
@@ -74,6 +75,7 @@ Both human tests are held out. Never put their wording in practice data (`script
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
 | Who's who in a conversation; people remembered | `src/luma/agent/people.py` |
+| Sums worked out with a calculator, not by the brain | `src/luma/agent/sums.py` |
 | Check-ins, open loops | `src/luma/agent/presence.py` |
 | Where an action's values came from; the approvals ladder; the audit log | `src/luma/agent/provenance.py`, `rules.py` (`rung`), `Agent.propose` and `audit_log` |
 | Life memory: the index, facts, time words, the nightly tidy | `src/luma/memory/` (`index.py`, `facts.py`, `when.py`, `life.py`; `Store.search` in `store.py`) |

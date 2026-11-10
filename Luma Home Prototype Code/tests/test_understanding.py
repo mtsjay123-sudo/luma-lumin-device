@@ -58,7 +58,8 @@ class MomentsTests(unittest.TestCase):
         self.assertIn("Remind you to what?", understanding.cut_off("remind me to"))
         self.assertIn("What should I tell them?", understanding.cut_off("can you text my"))
         self.assertIn("Keep going", understanding.cut_off("I was gonna say..."))
-        for whole in ["who should I send it to", "tell me a joke", "I love her", "turn it on", "just because", "what would you like", "Okay."]:
+        for whole in ["who should I send it to", "tell me a joke", "I love her", "turn it on", "just because", "what would you like", "Okay.",
+                      "my car gets 28 miles to the gallon and the trip is 350 miles, how many gallons do i need"]:
             self.assertIsNone(understanding.cut_off(whole), whole)
 
     def test_frustration(self):

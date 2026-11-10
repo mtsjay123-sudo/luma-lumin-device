@@ -211,8 +211,11 @@ def cut_off(text):
         return None
     if re.search(r"\b(?:you|u|i|we|they|ya|y'all|people|everyone) (?:really |actually |would |might )?like$", said, re.I):
         return None  # "a song you like" is whole: "like" there is the verb, not a filler
-    if QUESTION_START.match(said) and not re.search(r"\b(?:the|a|an|my|your|and|or|but|um+|uh+)$|\.\.\.$|…$", said, re.I):
-        return None  # "who should I send it to" is a whole question, even without the question mark
+    asked = QUESTION_START.match(said) or QUESTION_START.match(re.split(r"[,;:]\s*", said)[-1])
+    if asked and not re.search(r"\b(?:the|a|an|my|your|and|or|but|um+|uh+)$|\.\.\.$|…$", said, re.I):
+        # "who should I send it to" is a whole question, even without the question mark. So is one that comes after the
+        # facts: "the trip is 350 miles, how many gallons do i need" (the think set found Luma asking them to keep going).
+        return None
     tail = " ".join(said.rstrip(".…-— ").split()[-4:])
     lowered = said.lower()
     if re.search(r"\b(?:remind|ping|nudge) me(?: (?:tomorrow|tonight|later|at \S+|in \S+ \S+))?(?: to| about)?\W*$", lowered):

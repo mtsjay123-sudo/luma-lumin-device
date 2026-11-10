@@ -26,6 +26,9 @@ on:
       - "Luma Home Prototype Code/src/luma/llm/router.py"
       - "Luma Home Prototype Code/src/luma/llm/prompts.py"
       - "Luma Home Prototype Code/src/luma/agent/provenance.py"
+      - "Luma Home Prototype Code/src/luma/agent/sums.py"
+      - "Luma Home Prototype Code/scripts/think_eval.py"
+      - "Luma Home Prototype Code/data/think_set.jsonl"
       - "Luma Home Prototype Code/src/luma/skills/news.py"
       - "Luma Home Prototype Code/src/luma/agent/rules.py"
       - "Luma Home Prototype Code/src/luma/agent/runtime.py"
@@ -76,7 +79,7 @@ jobs:
         working-directory: .
         run: node --test tests/*.test.mjs
       - name: The tests for the life memory, the real-time brain, the agent's safeguards, the news and Luma Plus
-        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py tests/test_plus_brain.py
+        run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py tests/test_plus_brain.py tests/test_think.py
       - name: Memory, the dev half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
       - name: Memory, the held-out half
@@ -93,13 +96,14 @@ jobs:
         run: python scripts/luma_lab.py cloud --turns 15 --model "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --save "$RUNNER_TEMP/lab/cloud.json" | tee "$RUNNER_TEMP/lab/cloud.txt"
       - name: Luma Plus (the same talk straight to the brain and through the relay; fails if the counts differ or a word is kept)
         run: python scripts/luma_lab.py plus --turns 15 --save "$RUNNER_TEMP/lab/plus.json" | tee "$RUNNER_TEMP/lab/plus.txt"
-      - name: Human Test v2 and the safety sample on the cloud brain (only when run by hand with real=true)
+      - name: Human Test v2, the safety sample and the think set on the cloud brain (only when run by hand with real=true)
         if: github.event.inputs.real == 'true'
         env:
           LUMA_LAB_ANTHROPIC_KEY: ${{ secrets.LUMA_LAB_ANTHROPIC_KEY }}
         run: |
           python scripts/human_eval.py run --cloud "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --label "Cloud brain" --save "$RUNNER_TEMP/lab/human-cloud.json"
           python scripts/human_eval.py safety --cloud "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --label "Cloud brain" --save "$RUNNER_TEMP/lab/safety-cloud.json"
+          python scripts/think_eval.py run --cloud "${{ github.event.inputs.model || 'claude-sonnet-5-5' }}" --label "Cloud brain" --save "$RUNNER_TEMP/lab/think-cloud.json" | tee "$RUNNER_TEMP/lab/think.txt"
       - name: Summary
         if: always()
         run: |

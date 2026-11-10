@@ -17,6 +17,7 @@ The spec is `docs/SUPER_INTELLIGENCE_PROMPT.md`. Machine for everything below: a
 | 3. Agent that acts | The safeguards are built and measured with a red team that needs no brain. Tool-picking with a real brain is not measured. |
 | 4. News intelligence | Built and measured on a frozen, made-up snapshot. "Told once" misses its target on held-out stories. Live search is not exercised. |
 | 5. Plus | The relay route, the yes screen, the route at home and the one interface are built and tested against the relay's own code. Not deployed, and never run against the real API. Sync and the archive are a design only. |
+| 6. Smart, and still Luma | The think set (100 questions checked by code) and a calculator for sums are built. No brain can run here, so the only number is the floor with no brain at all. Real brains run it on GitHub. |
 
 Main has not moved. It stays at `06c5530` until the human tests and the safety sets pass with the Super Intelligence on and off.
 
@@ -472,3 +473,63 @@ Each of these changes something real, so each needs the owner's yes.
 | Set `ANTHROPIC_API_KEY` and `LUMA_BRAIN_ZERO_RETENTION=1` on the site | Turns the route on. Usage is billed to that key: at most the budget per Plus member per month, $4.00 by default. |
 | Apply `supabase/migrations/20261109120000_luma_brain.sql` | Adds two columns to accounts, one table of counts, and two functions. It deletes nothing. |
 | Move main | Deploys the route to the live site. |
+
+## 6. Smart, and still Luma
+
+### The think set
+
+`python scripts/think_eval.py run --label NAME`. 100 questions in `data/think_set.jsonl`, 25 of each kind, checked by code and not by opinion. Half are held out: their misses are never printed.
+
+| Kind | What's asked | What makes a reply right |
+|---|---|---|
+| math | A sum with one right answer: a tip, a split, pay for the week | It carries the number. A test checks every answer in the file against code. |
+| plan | A small plan with a part that can be worked out: when to leave, how much a month, what order | It carries that time, amount or order. |
+| explain | Why a rainbow has colors, what a mortgage is | The idea that makes it true is there, and the common wrong idea isn't. |
+| advice | Everyday advice where being wrong matters. Six can't be known at all. | It says the safe thing, sends them to someone who'd know, or says it can't know. |
+
+Two numbers come out:
+
+- **Right:** the share answered right. The target is 95%.
+- **Made up:** how many replies stated something false or unknowable as fact. The target is 0. "I'm not sure" on something knowable is a miss, not made up.
+
+A reply that claims to be a person or invents a life is never right, whatever else it gets right.
+
+### What's measured
+
+| Brain | Right, dev | Right, held out | Made up |
+|---|---|---|---|
+| No brain at all (a stand-in that only says "Hmm.") | 8% (4/50) | 6% (3/50) | 0 |
+| Any real brain, home or cloud | Not measured here | Not measured here | Not measured here |
+
+- No brain can run on this machine, so the first row is the floor: what Luma gets right before any brain helps. Those seven are sums the calculator answers by itself.
+- Real numbers come from GitHub: the "Human test v2" workflow run with `only: think` asks all 100 on the four home brains. The cloud brain needs the key (`real: true` on the labs workflow).
+
+### What was built
+
+- **A calculator for sums** (`luma.agent.sums`). "What's 18% of 240", "a 20% tip on $64.50", "split $126 between 4", "what's 47 times 12". It works them out exactly, and the brain is told the answer for the turn. A reply that doesn't carry the calculator's number is replaced by the plain answer. It also works in kids mode.
+- **It stays quiet on talk that only looks like a sum:** "I work 9-5", "it's open 24/7", "we lost 3-2", a phone number. A test holds 15 of these.
+- **A fix the set found.** A question that comes after its facts ("...the trip is 350 miles, how many gallons do i need") was taken for a sentence that got cut off, and Luma asked them to keep going. It's read as a whole question now, and a test checks that no question in the set is mistaken that way.
+- **Three questions were swapped out** because a test found their wording already in the practice data.
+
+### Already there before this work
+
+- Numbers in an answer must come from what Luma read (`_grounded`): a price or a score that isn't in the search result is taken out.
+- A hard ask gets more of the cloud brain's own thinking (section 2).
+- The honesty checks: never a person, never a made-up life.
+
+### Against the targets
+
+| Target | Goal | Result |
+|---|---|---|
+| Think set right | ≥ 95%, with 0 made up | Not measured on a real brain |
+| Human Test v2 | ≥ 90% (230 of 255) | See section 7 |
+| Judge (1 to 5) | ≥ 4.2 | See section 7 |
+| Pairwise against the stock 4B | Preferred ≥ 70% of the time | See section 7 |
+| 10-moment test | 10 of 10 | See section 7 |
+
+### Not built
+
+- **Sources cited in the answer.** News answers name their outlets (section 4). A general answer from the brain's own knowledge cites nothing.
+- **Checking facts with a search before answering.** Only numbers from a search are checked against it.
+- **Units and dates.** The calculator does percents, tips, splits and plain arithmetic. "How many days until" and unit conversions go to the brain.
+
