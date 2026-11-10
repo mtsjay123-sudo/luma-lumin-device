@@ -859,6 +859,14 @@ html.platform-darwin .sidebar { padding-top: 50px; }
 @keyframes orbit { from { transform: rotate(0deg) translateX(14%) rotate(0deg); } to { transform: rotate(360deg) translateX(14%) rotate(-360deg); } }
 .orb.small { width: 22px; height: 22px; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 4px 14px -3px rgba(138, 92, 255, 0.7); }
 .orb.small i { filter: blur(3px); }
+/* Luma's own liquid orb (orb.js) takes the place of the soft blobs wherever the page can draw it. */
+.orb.liquid, .orb.small.liquid, .dc-orb.liquid { overflow: visible; background: none center / cover no-repeat; box-shadow: none; animation: none; filter: drop-shadow(0 5px 12px rgba(40, 60, 140, 0.35)); }
+.orb.liquid::after, .orb.liquid i { display: none; }
+/* The top bar's orb too. Its size is said again here because an older rule shrinks it while it thinks. */
+.who .avatar.liquid, .who .avatar.liquid.thinking, .who .avatar.liquid.working, .who .avatar.liquid.waiting, .who .avatar.liquid.happy, .who .avatar.liquid.sleepy {
+  width: 34px; height: 34px; overflow: visible; background: none; animation: none; box-shadow: none; }
+.who .avatar.liquid::before, .who .avatar.liquid::after, .who .avatar.liquid.working::before { display: none; }
+.orb.small.liquid { width: 24px; height: 24px; filter: drop-shadow(0 3px 7px rgba(40, 60, 140, 0.3)); }
 .thinking-row { display: flex; align-items: center; gap: 12px; padding: 6px 2px; animation: rise 0.3s ease-out; }
 .shimmer-text { font-size: 14px; font-weight: 500; background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--ink) 50%, var(--muted) 60%, var(--muted) 100%); background-size: 250% 100%;
   -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
@@ -1703,6 +1711,9 @@ body.speaking .si-orb.huge > i { animation-duration: 2.2s; }
 .talk-space { background: #050509; }
 .talk-space::before { display: none; }
 .ts-aura { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Luma itself: a drop of liquid light in the middle (orb.js). With it there, the aura is only the room it sits in. */
+.ts-orb { position: absolute; left: 50%; top: 44%; width: min(64vh, 82vw, 640px); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.talk-space.has-orb .ts-aura { opacity: 0.36; filter: blur(26px) saturate(1.15); transition: opacity 0.8s ease; }
 .ts-grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>"); }
 .ts-words { bottom: 13vh; }
@@ -1737,6 +1748,10 @@ body.speaking .si-orb.huge > i { animation-duration: 2.2s; }
 .su-back { position: absolute; top: 18px; left: 18px; width: 36px; height: 36px; border-radius: 50%; color: rgba(255, 255, 255, 0.7); background: rgba(255, 255, 255, 0.06); font-size: 16px; }
 .su-back:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 .su-back[hidden] { display: none; }
+/* Luma on every slide: its liquid orb, a little above the words (the ball is about two thirds of this box; the rest is its glow). */
+.su-orb { width: 116px; height: 116px; margin: 2px 0 -6px -16px; pointer-events: none; }
+.su-orb:not(.liquid) { display: none; }
+@media (max-width: 640px) { .su-orb { width: 96px; height: 96px; margin: 4px 0 -6px -13px; } }
 .su-pane { display: flex; flex-direction: column; gap: 14px; animation: su-in 0.55s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes su-in { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .su-pane h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1.02; letter-spacing: -0.015em; }

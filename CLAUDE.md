@@ -47,6 +47,7 @@ All commands run from `Luma Home Prototype Code/`.
 | The relay's own tests (from the top of the repo, not the app folder) | `node --test tests/*.test.mjs` |
 | News test: 200 questions over a frozen, made-up snapshot | `python scripts/luma_lab.py news-test` |
 | Device lab | `python scripts/luma_lab.py device --human [--v2] --label NAME` |
+| Draw the logo again from Luma's orb (needs node with Playwright) | `node scripts/orb_logo.cjs` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
 
@@ -84,6 +85,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Luma Plus: the yes screen and its words; one interface for every cloud brain | `src/luma/llm/plus.py`, `cloudbrain.py` |
 | The relay (Luma Cloud): the brain route, metering, the yes on record | `api/_lib/luma-cloud.js` and `tests/luma-brain.test.mjs`, both at the top of the repo |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
+| Luma's look: the liquid orb on the talk screen, the first slides, the small avatars and the logo | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright) |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |

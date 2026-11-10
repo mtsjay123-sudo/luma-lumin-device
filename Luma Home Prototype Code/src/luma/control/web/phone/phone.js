@@ -71,9 +71,19 @@
     return name ? `${part}, ${name}.` : `${part}.`;
   }
 
+  // Luma itself, as its liquid orb (orb.js): a live one inside `host`, or nothing if this phone can't draw it.
+  function luma(host, mood, options) {
+    if (!host || !window.LumaOrb) return null;
+    try { const orb = LumaOrb.mount(host, { mood, ...options }); host.classList.add("liquid"); return orb; } catch (_) { return null; }
+  }
+  // The dot in the state pill is a little orb that shows what Luma is doing at home: a ring while it listens, a
+  // spiral while it thinks, warm while it talks.
+  const stateOrb = luma($("state").querySelector("i"), "idle", { small: true, size: 0.47 });
+
   function setState(dev) {
     const body = document.body, label = $("state").querySelector("span");
     body.classList.remove("listening", "thinking", "quiet");
+    stateOrb?.set(!dev ? "idle" : dev.busy ? "thinking" : dev.speaking ? "speaking" : dev.mic === "on" ? "listening" : "idle", dev && dev.speaking && !dev.busy ? 0.35 : 0);
     if (!dev) { label.textContent = "Can't reach your Luma"; body.classList.add("quiet"); return; }
     if (dev.busy) { body.classList.add("thinking"); label.textContent = "Thinking"; }
     else if (dev.speaking) { body.classList.add("listening"); label.textContent = "Talking"; }
@@ -421,7 +431,7 @@
   const SEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
   const TOUR = [
     { color: "var(--warm)", title: "Hi. I'm <em>Luma.</em>", say: "Talk to me out loud at home, or type to me here from anywhere. Same me, same memory.",
-      art: () => { const a = el("div"); a.innerHTML = '<div class="t-orb"><i></i><i></i><i></i><b></b></div><div class="t-wave"><i></i><i></i><i></i><i></i><i></i></div>'; return a; } },
+      art: () => { const a = el("div", "t-luma"); tourOrb(a); return a; } },
     { color: "var(--chat)", title: "Every talk, <em>kept as a chain.</em>", say: "Today's chats has each conversation from today. Tap one to read it back and keep going.",
       art: () => { const a = el("div", "t-chat"); a.append(el("p", "me", "what's on today?"), el("p", "lu", "Dentist at 3, then dinner with Sam at 7."), el("p", "me", "remind me at 2:30")); return a; } },
     { color: "var(--mem)", title: "I remember <em>what matters.</em>", say: "Swipe through what I know about you. Tap a card to fix it or forget it. It's all yours.",
@@ -433,6 +443,22 @@
     { color: "var(--chat)", title: "Ready <em>when you are.</em>", say: "Ask me anything up top, or just say “hey Luma” at home.", last: true,
       art: () => { const a = el("div", "t-bar"); const send = el("b", "t-send"); send.innerHTML = SEND; a.append(el("span", "t-type", "what's on today?"), el("i", "t-caret"), send); return a; } },
   ];
+  // The first slide is Luma itself: its liquid orb, moving through what it does (rest, listen, think, speak) so you
+  // see it pour from one into the next. If this phone can't draw it, the warm ball and rings stand in.
+  function tourOrb(host) {
+    const orb = luma(host, "idle", { size: 0.33 });
+    if (!orb) { host.className = ""; host.innerHTML = '<div class="t-orb"><i></i><i></i><i></i><b></b></div><div class="t-wave"><i></i><i></i><i></i><i></i><i></i></div>'; return; }
+    let calm = false;
+    try { calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) { /* it moves */ }
+    if (calm) return;
+    const round = ["idle", "listening", "thinking", "speaking"], began = performance.now();
+    const beat = setInterval(() => {
+      if (orb.gone) { clearInterval(beat); return; }   // the tour closed and took the orb with it
+      const t = (performance.now() - began) / 1000, mood = round[Math.floor(t / 2.8) % round.length];
+      const voice = Math.abs(Math.sin(t * 6.1) * Math.sin(t * 2.3));
+      orb.set(mood, mood === "speaking" ? 0.25 + 0.5 * voice : mood === "listening" ? 0.4 * voice : 0);
+    }, 90);
+  }
   const tour = { at: 0, scenes: [], seenKey: "luma-phone-tour" };
   const tourSeen = () => { try { return localStorage.getItem(tour.seenKey) === "1"; } catch (_) { return false; } };
   function tourGo(n) {

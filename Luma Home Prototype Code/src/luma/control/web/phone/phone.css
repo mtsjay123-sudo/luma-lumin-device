@@ -60,6 +60,9 @@ body.quiet .bg .glow { background: radial-gradient(circle, rgba(160, 150, 140, .
 .state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 body.listening .state i { background: var(--mem); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mem) 22%, transparent); }
 body.thinking .state i { background: var(--chat); }
+/* When the phone can draw it, the dot is Luma's own little orb instead (orb.js), and it changes with what Luma is doing. */
+.state i.liquid, body.listening .state i.liquid, body.thinking .state i.liquid { width: 22px; height: 22px; margin: 0 -2px 0 -6px; border-radius: 0; background: none; box-shadow: none; }
+body.quiet .state i.liquid { filter: grayscale(.85) opacity(.6); }
 .round { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line);
   background: var(--glass-2); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); cursor: pointer; text-decoration: none; }
 .round.small { width: 44px; height: 44px; }
@@ -250,7 +253,9 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
   box-shadow: 0 18px 40px -18px var(--tc); cursor: pointer; transition: transform .15s, box-shadow .5s var(--ease); }
 .tour-next:active { transform: scale(.97); }
 
-/* 1. talk: Luma's light breathing, rings going out, the voice moving */
+/* 1. talk: Luma itself, a drop of liquid light (orb.js). The warm ball, rings and bars below it are what's shown
+   when a phone can't draw that. */
+.t-luma { width: min(42vh, 300px, 84vw); aspect-ratio: 1; }
 .t-orb { position: relative; width: 150px; height: 150px; display: grid; place-items: center; }
 .t-orb b { width: 92px; height: 92px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8ee, var(--warm) 45%, #ff7a3c 80%);
   animation: breathe 3.2s ease-in-out infinite; }

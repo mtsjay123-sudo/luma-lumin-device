@@ -409,11 +409,17 @@
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
+  // Luma's orb in the top bar, and the little one in the chat bar that follows you to other pages. Both are Luma's
+  // liquid orb (orb.js) once the page is ready, and both change with what Luma is doing.
+  let mascotOrb = null, dockOrb = null;
+  const orbMood = (name) => name === "thinking" || name === "working" ? "thinking" : name === "waiting" ? "waiting" : name === "happy" ? "speaking" : "idle";
   function mood(name, doing, holdMs) {
-    $("mascot").className = "avatar " + name;
+    $("mascot").className = "avatar " + name + (mascotOrb ? " liquid" : "");
     document.body.dataset.mood = name;
+    mascotOrb?.set?.(orbMood(name), name === "happy" ? 0.45 : 0);
+    dockOrb?.set?.(orbMood(name));
     const ts = $("talk-state");
-    if (ts) ts.textContent = document.body.classList.contains("speaking") ? "Speaking" : name === "thinking" || name === "working" ? "Thinking" : /yes or no/i.test(doing || "") ? "Your call" : "Listening";
+    if (ts) ts.textContent = document.body.classList.contains("speaking") ? "Speaking" : /^hearing/i.test(doing || "") ? "Listening" : name === "thinking" || name === "working" ? "Thinking" : /yes or no/i.test(doing || "") ? "Your call" : "Listening";
     $("doing").textContent = name === "sleepy" ? "Can't reach Luma" : doing || "";
     document.body.classList.toggle("thinking", name === "thinking" || name === "working");
     const row = document.querySelector(".thinking-row .shimmer-text");
@@ -485,7 +491,7 @@
       if (m.photo) { const fig = el("div", "photo-bubble"); const im = el("img"); im.src = m.photo; im.alt = "Photo you shared"; fig.append(im); row.append(fig); }
       if (m.result && m.result.thinking && m.result.thinking.length && state.home?.status?.show_thoughts) {
         const t = el("div", "thought-trace");
-        t.append(orb("small"));
+        t.append(orb("small still"));
         t.append(el("span", null, "Thought it through: " + m.result.thinking.join(" → ")));
         row.append(t);
       }
@@ -514,8 +520,26 @@
     state.stick = false;
   }
 
-  // While Luma works: a small living orb and, in words, what it's doing.
-  function orb(cls = "") { const o = el("span", "orb " + cls); o.setAttribute("aria-hidden", "true"); o.append(el("i"), el("i"), el("i")); return o; }
+  // While Luma works: a small living orb and, in words, what it's doing. It's Luma's own liquid orb (orb.js): live
+  // while it's working, a still picture where it only marks something that's done. The old soft blobs are what's
+  // left if the page can't draw it.
+  function liquidOrb(host, moodName, still) {
+    if (!window.LumaOrb) return null;
+    try {
+      host.classList.add("liquid");
+      if (!still) return LumaOrb.mount(host, { mood: moodName, small: true, size: 0.47 });
+      const url = LumaOrb.still(96, moodName);
+      if (!url) throw new Error("no picture");
+      host.style.backgroundImage = `url(${url})`;
+      return true;
+    } catch (_) { host.classList.remove("liquid"); return null; }
+  }
+  function orb(cls = "") {
+    const o = el("span", "orb " + cls);
+    o.setAttribute("aria-hidden", "true");
+    if (!liquidOrb(o, /small/.test(cls) ? "thinking" : "idle", /still/.test(cls))) o.append(el("i"), el("i"), el("i"));
+    return o;
+  }
   function thinkingRow() {
     const t = el("div", "thinking-row");
     const doing = $("doing").textContent;
@@ -4981,6 +5005,7 @@
     waiting: ["#ffd166", "#ff9f68", "#ffe29a", "#ffb86b", "#c9a6ff"],
   };
   const aura = { raf: 0, t: 0, cur: null, level: 0 };
+  let talkOrb = null;   // Luma itself, in the middle of the talk screen: a drop of liquid light (orb.js)
   const rgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
   const auraMood = () => document.body.classList.contains("speaking") ? "speaking" : (state.busy || voice.pending) ? "thinking" : voice.expect ? "waiting" : "listening";
   // How loud Luma is right now, from the voice that's playing (or a gentle pulse if the browser won't say).
@@ -5059,8 +5084,19 @@
   }
   function auraFrame() {
     const c = $("ts-aura");
-    if (!c || !document.body.classList.contains("talk")) { aura.raf = 0; return; }
-    paintAura(c, auraMood(), Math.max(voice.levelNow && !voice.talking ? voice.levelNow : 0, outLevel()), aura);
+    if (!c || !document.body.classList.contains("talk")) { aura.raf = 0; talkOrb?.close(); return; }   // the talk is over: it drains away
+    const moodNow = auraMood(), loud = Math.max(voice.levelNow && !voice.talking ? voice.levelNow : 0, outLevel());
+    paintAura(c, moodNow, loud, aura);
+    if (window.LumaOrb && $("ts-orb")) {
+      // The orb: a ring while it listens (moving with your voice), a spiral while it thinks, full of warm light while
+      // it speaks (moving with its own). The light behind it is only the room it sits in.
+      try {
+        if (!talkOrb || talkOrb.gone) talkOrb = LumaOrb.mount($("ts-orb"), { mood: moodNow });
+        else if (talkOrb.closing) talkOrb.open();
+        talkOrb.set(moodNow, loud);
+        $("talk-space").classList.toggle("has-orb", true);
+      } catch (_) { talkOrb = null; }
+    }
     document.documentElement.style.setProperty("--aura-level", aura.level.toFixed(3));
     aura.raf = requestAnimationFrame(auraFrame);
   }
@@ -5297,8 +5333,22 @@
     return row;
   }
   const suErr = (t) => { $("su-error").textContent = t || ""; };
+  // Luma is on every sign-up slide, and it changes with what the slide is for: it listens for your name, it waits
+  // on your birthday, it lights up when you're done. The liquid pours from one into the next.
+  const SU_MOODS = { hello: "idle", name: "listening", birthday: "waiting", contact: "idle", people: "listening", world: "thinking", done: "speaking" };
+  function suOrb(name) {
+    const host = $("su-orb");
+    if (!host || !window.LumaOrb) return;
+    try {
+      if (!signup.orb || signup.orb.gone) signup.orb = LumaOrb.mount(host, { mood: SU_MOODS[name] || "idle", size: 0.36 });
+      else { signup.orb.open(); signup.orb.stir(); }
+      signup.orb.set(SU_MOODS[name] || "idle", name === "done" ? 0.4 : name === "hello" ? 0.12 : 0);
+      host.classList.add("liquid");
+    } catch (_) { signup.orb = null; }
+  }
   function suPaint() {
     const name = STEPS[signup.step];
+    suOrb(name);
     $("su-steps").replaceChildren(...STEPS.slice(1, -1).map((_, k) => el("i", k + 1 === signup.step ? "on" : k + 1 < signup.step ? "done" : "")));
     $("su-back").hidden = signup.step === 0 || name === "done" || signup.only;
     suErr("");
@@ -5584,6 +5634,7 @@
   }
   function hideWelcome() {
     $("welcome").classList.add("leaving");
+    signup.orb?.close();
     setTimeout(() => { $("welcome").hidden = true; $("welcome").classList.remove("leaving"); document.body.classList.remove("welcoming"); input.focus(); }, 650);
   }
   // Mandatory: until they've signed up and have a Luma account, this is the only screen.
@@ -6061,6 +6112,10 @@
 
   // ------------------------------------------------------------- start ---
   applyScene();
+  // Luma's orbs that are written into the page (the browser's empty state, the chat bar) come alive too.
+  document.querySelectorAll(".orb").forEach((o) => liquidOrb(o, "idle"));
+  mascotOrb = liquidOrb($("mascot"), "idle");
+  dockOrb = liquidOrb(document.querySelector(".dc-orb"), "idle");
   mood("idle", "Here with you");
   Promise.all([loadThread("main"), refreshHome()]).then(async () => {
     const v = location.hash.slice(1);

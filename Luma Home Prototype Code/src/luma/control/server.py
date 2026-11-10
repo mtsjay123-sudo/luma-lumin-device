@@ -409,13 +409,14 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 if not agent.chrome.valid(token): return self.send({'error':'Pair Luma for Chrome again.'},403)
                 return self.send({'command':agent.chrome.next(25)})
             static = {'/':('index.html','text/html'), '/app.js':('app.js','text/javascript'), '/companion.js':('companion.js','text/javascript'), '/style.css':('style.css','text/css'),
+                      '/orb.js':('orb.js','text/javascript'),   # Luma as a drop of liquid light: one small file both apps draw it with
                       '/phone/':('phone/index.html','text/html'), '/phone/phone.js':('phone/phone.js','text/javascript'), '/phone/phone.css':('phone/phone.css','text/css'),
                       '/phone/manifest.webmanifest':('phone/manifest.webmanifest','application/manifest+json'),
                       '/desktop/':('desktop/index.html','text/html'), '/desktop/desktop.js':('desktop/desktop.js','text/javascript'), '/desktop/desktop.css':('desktop/desktop.css','text/css')}
             if path=='/desktop': return self.redirect('/desktop/')
             if path=='/phone': return self.redirect('/phone/')
-            if path in {'/phone/home.jpg','/phone/device.jpg','/phone/device.webp','/desktop/night.jpg'}:
-                return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind='image/webp' if path.endswith('.webp') else 'image/jpeg')
+            if path in {'/phone/home.jpg','/phone/device.jpg','/phone/device.webp','/phone/icon.png','/desktop/night.jpg'}:
+                return self.send((ROOT/path.removeprefix('/')).read_bytes(),kind={'webp':'image/webp','png':'image/png'}.get(path.rsplit('.',1)[-1],'image/jpeg'))
             if path=='/desktop/logo':
                 # Drop your own logo at web/desktop/brand/logo.png and Luma Desktop uses it everywhere.
                 custom = ROOT/'desktop'/'brand'/'logo.png'

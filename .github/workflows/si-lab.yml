@@ -80,6 +80,11 @@ jobs:
         run: node --test tests/*.test.mjs
       - name: The tests for the life memory, the real-time brain, the agent's safeguards, the news and Luma Plus
         run: python -m pytest -q -p no:cacheprovider tests/test_life_memory.py tests/test_real_time_brain.py tests/test_brain.py tests/test_agent_safeguards.py tests/test_news_intelligence.py tests/test_plus_brain.py tests/test_think.py
+      - name: Luma's liquid orb in a real browser (the shader draws, each mood looks like itself, it cleans up, it holds still for less motion)
+        run: |
+          npm install --no-save --no-package-lock --silent playwright@1.63.0
+          npx playwright install --with-deps chromium
+          python -m pytest -q -p no:cacheprovider tests/test_orb.py
       - name: Memory, the dev half
         run: python scripts/memory_eval.py run --sizes "$SIZES" --split dev --lives 3 --save "$RUNNER_TEMP/lab/memory-dev.json"
       - name: Memory, the held-out half

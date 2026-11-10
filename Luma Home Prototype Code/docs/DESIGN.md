@@ -9,14 +9,19 @@ open-source design skills, credited at the bottom.
 The owner set the direction, so it wins over the generic rules below:
 
 - **Identity:** calm, glassy and alive. Apple and visionOS liquid glass, in light and dark. The Luma S.I.
-  wordmark and the talking aura are the motif.
+  wordmark and Luma's liquid orb are the motif: a glass ball with ribbons of light turning in it, the way ink
+  turns in water. The orb is the logo, and it's Luma itself on the talk screen, on the first slides and beside
+  its name. One file draws all of them (`src/luma/control/web/orb.js`), and `node scripts/orb_logo.cjs` draws the
+  logo from it, so the picture and the moving thing never drift apart.
 - **Personality:** a friend, not a dashboard. Short sentences, sentence case, no jargon. The chat is always in reach.
 - **Type:** the system font (SF Pro on a Mac). It reads as native, and it renders crisply at every size in the
   app window.
 - **Palette:** a neutral ground, ink, and one accent color for the thing that matters on each screen. No rainbow
   gradients and no neon.
-- **Motion:** gentle, and only where it means something: the aura while Luma listens and speaks, a soft rise
-  when a sheet opens. Everything respects reduced motion.
+- **Motion:** gentle, and only where it means something: the orb pours from one mood into the next (it opens
+  into a ring and moves with your voice while it listens, winds into a spiral while it thinks, fills with warm
+  light and moves with its own voice while it speaks), and a sheet rises softly when it opens. Everything
+  respects reduced motion: the orb holds still and only changes with the mood.
 - **Dials:** energy 2, rhythm 2, motion 2.
 
 **Known collision.** The rules cap glass at one or two elements per screen. Luma's identity is glass, and the

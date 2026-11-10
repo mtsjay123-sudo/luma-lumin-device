@@ -261,6 +261,7 @@
     </div>
     <main class="su-card" id="su-card">
       <button class="su-back" id="su-back" type="button" aria-label="Back" title="Back">←</button>
+      <div class="su-orb" id="su-orb" aria-hidden="true"></div>
       <form class="su-pane" id="su-pane" autocomplete="on" novalidate></form>
       <p class="su-error" id="su-error" role="alert"></p>
     </main>
@@ -287,10 +288,11 @@
   </div>
 
 
-  <!-- Talking: an aura of soft light that listens, thinks and speaks with you, and Luma's words as they're said -->
+  <!-- Talking: Luma as a drop of liquid light that listens, thinks and speaks with you, and its words as they're said -->
   <div class="talk-space" id="talk-space" aria-live="polite">
     <canvas class="ts-aura" id="ts-aura" aria-hidden="true"></canvas>
     <div class="ts-grain" aria-hidden="true"></div>
+    <div class="ts-orb" id="ts-orb" aria-hidden="true"></div>
     <div class="ts-top"><span class="ts-brand">Luma <em>S.I.</em></span><span class="ts-state" id="talk-state">Listening</span></div>
     <div class="ts-words"><p class="ts-you" id="talk-you"></p><p class="ts-line" id="talk-line">Go ahead. I'm listening.</p></div>
     <div class="ts-bottom">
@@ -352,6 +354,7 @@
     <div class="live-watch" id="live-watch" hidden></div>
     <button class="live-close" id="live-close" type="button" aria-label="Turn the camera off" title="Turn the camera off" data-icon="x"></button>
   </div>
+  <script src="/orb.js"></script>
   <script src="/desktop/desktop.js"></script>
 </body>
 </html>

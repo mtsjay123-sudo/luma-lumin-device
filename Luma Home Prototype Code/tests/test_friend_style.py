@@ -87,6 +87,12 @@ class TheFixes(unittest.TestCase):
         self.assertTrue(style.invented_life("19, wow. I remember when I was 19, it felt like forever."))
         self.assertTrue(style.invented_life("When I was your age I couldn't wait to move out."))
         self.assertIsNone(style.invented_life("I remember when you told me about the trip."), "remembering them is fine")
+        # A body it doesn't have: it can't go anywhere with anyone.
+        self.assertTrue(style.invented_life("Nice. Is it the weekend? Because I'd go with you."))
+        self.assertTrue(style.invented_life("I'll come with you to the gym if you want."))
+        self.assertIsNone(style.invented_life("I'll go with you on that one, the blue is better."), "agreeing isn't going anywhere")
+        self.assertIsNone(style.invented_life("I'd go with you if I could. Who could you ask?"), "saying it can't is honest")
+        self.assertIsNone(style.invented_life("I'd go with the blue one."))
 
     def test_no_joke_in_the_bank_invents_a_family_or_a_body(self):
         made_up = [b for items in humor_bank.BANK.values() for _, b in items if style.invented_life(b) or style.claims_human(b)]

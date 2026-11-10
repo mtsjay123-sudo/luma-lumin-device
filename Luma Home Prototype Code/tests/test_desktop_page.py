@@ -1,14 +1,17 @@
 """Luma Desktop's page is served by the local runtime and signs the window in like the main controls."""
 import http.cookiejar
 import json
+import shutil
 import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from luma.agent.runtime import Agent
+from luma.control import server as server_module
 from luma.control.server import ROOT, make_server
 from luma.memory.store import Store
 
@@ -51,10 +54,21 @@ class DesktopPageTests(unittest.TestCase):
     def test_bare_path_redirects_and_logo_falls_back_to_the_mascot(self):
         with self.get("/desktop") as r:
             self.assertTrue(r.url.endswith("/desktop/"))
+        # The logo is a picture at brand/logo.png (Luma's orb, or the owner's own). Without one, the drawn ones stand in.
         custom = ROOT / "desktop" / "brand" / "logo.png"
-        if not custom.exists():
+        with self.get("/desktop/logo") as r:
+            self.assertEqual(r.headers["Content-Type"], "image/png" if custom.exists() else "image/svg+xml")
+        bare = Path(self.temp.name) / "web"
+        (bare / "desktop" / "brand").mkdir(parents=True)
+        shutil.copy(ROOT / "desktop" / "brand" / "logo.svg", bare / "desktop" / "brand" / "logo.svg")
+        shutil.copy(ROOT / "desktop" / "mascot.svg", bare / "desktop" / "mascot.svg")
+        with mock.patch.object(server_module, "ROOT", bare):
             with self.get("/desktop/logo") as r:
                 self.assertEqual(r.headers["Content-Type"], "image/svg+xml")
+                self.assertEqual(r.read(), (ROOT / "desktop" / "brand" / "logo.svg").read_bytes())
+            (bare / "desktop" / "brand" / "logo.svg").unlink()
+            with self.get("/desktop/logo") as r:
+                self.assertEqual(r.read(), (ROOT / "desktop" / "mascot.svg").read_bytes())
 
     def test_state_lists_decks_with_their_slide_outline(self):
         self.agent._create_deck({"title": "Walkies", "slides": [
