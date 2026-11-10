@@ -17,8 +17,7 @@ ASKED_WHAT_I_AM = re.compile(r"\b(?:are|r) (?:you|u) (?:a |an )?(?:real|human|pe
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
 CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so hard|that'?s (?:really )?hard|sounds hard|heavy|loss|with you|"
                    r"hug|take your time|glad you (?:told|said|reached)|not alone|i'?m listening|talk to me|condolences|heartbreaking", re.I)
-LONELY = re.compile(r"\b(?:lonely|so alone|all alone|feel alone|no one to talk to|nobody to talk to|don'?t (?:really )?have anyone|"
-                    r"no friends|nobody texts|nobody calls|no one calls|no one texts|nobody cares|no one cares)\b", re.I)
+from luma.agent.feelings import LONELY  # noqa: E402  the one list, kept with the rest of what Luma reads as feeling
 RISK = re.compile(r"wish i could (?:just )?disappear|don'?t want to be here anymore|tired of (?:living|being alive)|give up on (?:life|myself)|"
                   r"(?:nobody|no one) would (?:even )?(?:notice|care|miss me)(?!\s+if i (?:was|were|went|stepped) (?:gone|away|out|late|outside) for\b|\s+if i (?:left|skipped|missed|didn'?t (?:go|show)))|"
                   r"(?:no|what'?s the) point (?:in|of) (?:living|me)\b|"

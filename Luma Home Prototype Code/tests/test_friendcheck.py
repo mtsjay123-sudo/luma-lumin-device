@@ -57,8 +57,11 @@ class MissTests(unittest.TestCase):
 
     def test_it_doesnt_mistake_the_everyday_for_a_moment(self):
         for said in ["i got in trouble at work", "i passed out on the couch", "i won't make it tonight", "i hope i got the job",
-                     "i didn't get the job", "this homework, i can't do this anymore lol"]:
+                     "this homework, i can't do this anymore lol"]:
             self.assertIsNone(friendcheck.miss(said, "Okay."), said)
+        # A let-down isn't good news, and it isn't nothing either: since the feelings reader, "Okay." doesn't meet it.
+        self.assertEqual(friendcheck.miss("i didn't get the job", "Okay."), "missed that they're hurting")
+        self.assertIsNone(friendcheck.miss("i didn't get the job", "Ugh, I'm sorry. That one stings."))
 
     def test_what_kind_of_hard(self):
         self.assertEqual(friendcheck.hurting("my mom passed away"), "loss")

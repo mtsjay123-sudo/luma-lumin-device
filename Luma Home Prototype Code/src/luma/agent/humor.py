@@ -78,9 +78,11 @@ def read_tone(text, recent=None):
     """{'mood': laughing|venting|playful|grief|upset|serious|task|neutral, 'register': casual|plain, 'why': ...}."""
     said = str(text or "")
     lowered = said.lower()
-    if GRIEF.search(lowered):
+    from luma.agent import feelings
+    felt = feelings.read(said)  # the one place Luma reads feeling: a death said softly, heartbreak, fear, shame, a let-down
+    if (felt and felt["family"] == "grief") or (GRIEF.search(lowered) and not feelings.not_a_loss(said)):
         return {"mood": "grief", "register": _register(said), "why": "they're talking about a loss"}
-    if UPSET.search(lowered) or (CRYING_SAD.search(said) and not LAUGH_MARKS.search(said)):
+    if (felt and felt["heavy"]) or UPSET.search(lowered) or (CRYING_SAD.search(said) and not LAUGH_MARKS.search(said)):
         return {"mood": "upset", "register": _register(said), "why": "they're going through something"}
     if SERIOUS.search(lowered):
         return {"mood": "serious", "register": _register(said), "why": "they said they're being serious"}

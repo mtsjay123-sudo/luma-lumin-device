@@ -110,8 +110,13 @@ FEELINGS = [
 
 def next_mood(previous, text, now):
     """How Luma feels after hearing this. Strong feelings linger a couple of hours, then settle back to warm."""
+    from luma.agent import feelings
+    felt = feelings.read(text)  # the one reader: "my hamster passed" is a loss, and "my phone died" isn't
+    if felt and (felt["heavy"] or felt["family"] in ("joy", "proud", "relieved")):
+        return {"feeling": "worried about them" if felt["heavy"] else "so happy for them", "about": text.strip()[:80], "at": now}
     for feeling, pattern in FEELINGS:
-        if pattern.search(text):
+        if pattern.search(text) and not (feeling in ("worried about them", "so happy for them") and feelings.not_a_loss(text)
+                                         and re.search(r"\b(?:died|passed)\b", text, re.I)):
             return {"feeling": feeling, "about": text.strip()[:80], "at": now}
     if previous and now - previous.get("at", 0) < 2 * 3600:
         return previous
