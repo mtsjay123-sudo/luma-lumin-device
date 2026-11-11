@@ -477,6 +477,50 @@ class AMinuteLater(unittest.TestCase):
         self.assertEqual(prompts._gist(note, 200), note)
 
 
+class AFourthRound(unittest.TestCase):
+    """The families the first rounds tested least. Fresh lines again, written before looking at what the reader made of them."""
+
+    SAID = {
+        "fear": ["what if it's cancer", "what if the cancer is back", "i've been having panic attacks all week", "my anxiety is through the roof",
+                 "i'm so worried about my mom", "i feel sick to my stomach about monday", "the doctor wants more tests and i'm freaking out",
+                 "i'm really worried that i'll lose my job"],
+        "shame": ["i ruined everything", "i'm the worst mom", "i hate myself for what i said", "i'm not good enough for her", "i can't do anything right",
+                  "i should have been there for him", "i relapsed last night", "i let my kids down", "i disappointed my parents again"],
+        "hurt": ["my best friend stopped talking to me", "he called me worthless", "my dad didn't come to my graduation", "i wasn't even invited",
+                 "my mom said she wishes i was never born", "she chose him over me", "they replaced me like i was nothing", "he blocked me on everything"],
+        "heartbreak": ["my marriage is over", "my girlfriend and i split up", "i caught him cheating", "she's been having an affair",
+                       "we called it quits last night", "my husband and i separated in june"],
+        "overwhelmed": ["i have way too much on my plate", "i haven't slept in three days", "i'm so exhausted i could cry", "i'm behind on rent again",
+                        "i can't pay the bills this month", "everything is piling up", "i'm at the end of my rope", "there aren't enough hours in the day",
+                        "i'm running on fumes"],
+        "disappointed": ["my application was denied", "i got another rejection letter", "they gave the promotion to someone else", "my business is failing",
+                         "the ivf didn't work", "my loan got rejected"],
+        "low": ["i've lost interest in everything", "i don't enjoy anything anymore", "i just want to stay in bed all day", "i'm just going through the motions",
+                "i broke down in the car", "i feel like crying all the time", "it's been a really dark few weeks", "i've been going through a rough patch"],
+    }
+    NOT_HEAVY = [
+        "what if we get pizza tonight", "i'm worried about the weather for the picnic", "i ruined the cake lol", "we separated the laundry",
+        "the meeting was cancelled", "i haven't slept yet, it's only nine", "i'm exhausted after that workout, feels great", "he called me a genius",
+        "my application was approved", "i broke down the boxes for recycling", "i lost interest in that show after season two",
+        "a few dark weeks of winter ahead", "she chose the blue one over the red", "they replaced the windows last week", "i caught him napping",
+        "i'm on my plate number three at this buffet", "i hate myself for eating that whole pizza lol", "what if i painted the kitchen green",
+        "the doctor wants me to drink more water", "i can't pay with cash here", "he blocked the shot at the buzzer", "i'm not good enough at chess to beat her yet",
+    ]
+
+    def test_each_is_heard(self):
+        for family, lines in self.SAID.items():
+            for said in lines:
+                read = feelings.read(said)
+                self.assertTrue(read and read["heavy"], said)
+                self.assertEqual(read["family"], family, said)
+                self.assertIn("No jokes", humor.turn_note(said), said)
+
+    def test_everyday_lines_arent(self):
+        for said in self.NOT_HEAVY:
+            read = feelings.read(said)
+            self.assertFalse(read and read["heavy"], said)
+
+
 class SlangIsntAFeeling(unittest.TestCase):
     """The phrase bank is a million everyday lines in the slang of many communities: praise, gripes about a movie, plans.
     None of it is a wound or good news, and "I'm dead", "that slaps", "got me cooked" mustn't be read as one."""

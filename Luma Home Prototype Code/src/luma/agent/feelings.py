@@ -144,18 +144,31 @@ HEARTBREAK = re.compile(
     r"cheat(?:ed|ing) on me|wants? a divorce|filed for divorce|getting (?:a )?divorced?|ended things|called off the (?:wedding|engagement)|"
     r"(?:doesn'?t|don'?t) love me anymore|fell out of love|(?:been|is|was|'s) seeing someone else|(?:found|caught) (?:him|her|them) (?:with|texting)|"
     r"ghosted me|we'?re over|it'?s over between|heartbroken|broke my heart)\b|"
-    r"\b(?:he|she|my (?:wife|husband|partner|girlfriend|boyfriend|fianc[eé]e?))\s+(?:just\s+)?moved out\b", re.I)
+    r"\b(?:he|she|my (?:wife|husband|partner|girlfriend|boyfriend|fianc[eé]e?))\s+(?:just\s+)?moved out\b|"
+    r"\b(?:my|our)\s+(?:marriage|relationship|engagement)\s+is\s+(?:over|ending|falling apart|done|finished)\b|"
+    r"\b(?:we|my \w+ and i|me and my \w+)\s+(?:just\s+|recently\s+|finally\s+)?(?:split up|separated|broke up|called it quits|called it off)\b(?!\s+the\b)|"
+    r"\b(?:caught|found out)\s+(?:him|her|them|he|she|my \w+)(?:\s+was|\s+is|\s+has been|'s)?\s+cheating\b|\bunfaithful\b|\b(?:having|had|been having) an affair\b", re.I)
 FEAR = re.compile(
     rf"\b{I}\s+{VERY}(?:scared|terrified|afraid|frightened|petrified|nervous|anxious|panicking|freaking out|worried sick|on edge|dreading)\b|"
-    r"\bpanic attack\b|\bcan'?t stop (?:worrying|shaking|thinking about what)\b|\bcan'?t breathe\b|\bi'?m dreading\b|\bscared (?:i|that|of|to)\b|"
-    r"\bterrified (?:i|that|of|to|about)\b|\bwaiting (?:on|for) (?:the |my )?(?:results|biopsy|scan|diagnosis|test results)\b|\bwhat if (?:it'?s|i|they find)\b",
+    r"\bpanic attacks?\b|\bcan'?t stop (?:worrying|shaking|thinking about what)\b|"
+    r"\bmy anxiety\s+(?:is|has been|'s|’s)\s+(?:so |really |been )?(?:bad|through the roof|terrible|awful|out of control|acting up|high|killing me)\b|"
+    r"\bi'?m\s+(?:so|really|very|super|extremely)\s+worried\b|\bsick to my stomach\b|\bwhat if\s+(?:the|my)\s+(?:cancer|tumou?r|test|results?|scan|biopsy)\b|\bcan'?t breathe\b|\bi'?m dreading\b|\bscared (?:i|that|of|to)\b|"
+    r"\bterrified (?:i|that|of|to|about)\b|\bwaiting (?:on|for) (?:the |my )?(?:results|biopsy|scan|diagnosis|test results)\b|"
+    r"\bwhat if\s+(?:it'?s\s+(?:cancer|serious|bad|malignant|something (?:serious|bad|wrong))|they find\s+(?:something|cancer|a\b)|"
+    r"i\s+(?:lose|can'?t|fail|never|don'?t (?:make it|get|pass|wake)))\b",
     re.I)
 SHAME = re.compile(
     rf"\b{I}\s+{VERY}(?:like )?(?:such )?(?:a |an )?(?:failure|loser|idiot|burden|disappointment|fraud|joke|mess|terrible|horrible|awful|worthless|pathetic|"
     rf"stupid|dumb|useless|embarrassed|ashamed|humiliated|mortified|guilty)\b|\b(?:it'?s|it was|this is|that'?s)\s+(?:all\s+)?my fault\b|"
     r"\bi (?:messed|screwed|fucked) (?:it |everything |this |that )?up\b|\bi let (?:him|her|them|everyone|everybody|my \w+|the \w+|you) down\b|"
     r"\bi(?:'m| am) (?:a |an |such a )(?:terrible|bad|awful|horrible|shitty|useless) (?:mom|mother|dad|father|parent|friend|person|son|daughter|partner|wife|husband)\b|"
-    r"\bcan'?t forgive myself\b|\bi hate (?:that|how) i\b|\bso embarrass\w+\b", re.I)
+    r"\bcan'?t forgive myself\b|\bi hate (?:that|how) i\b|\bso embarrass\w+\b|"
+    r"\bi\s+(?:ruined|wrecked|destroyed)\s+(?:everything|my (?:life|chance|chances|marriage|career|family)|things with)\b|"
+    r"\bi'?m the worst\b(?!\s+(?:at|with|about)\b)|\bi hate myself\b|\bi'?(?:m| am|ll never be| will never be)\s+not good enough\b(?!\s+at\b)|"
+    r"\bi'?m not good enough\b(?!\s+at\b)|\bi can'?t do anything right\b|"
+    r"\bi should(?:'ve| have)\s+(?:been there|done more|known|seen it|called|visited|said something|stayed)\b|\bi relapsed\b|\bfell off the wagon\b|"
+    r"\bi\s+(?:disappointed|failed|let down|hurt)\s+(?:my (?:parents|mom|dad|kids?|family|wife|husband|partner|team|friends?|son|daughter)|everyone|everybody)\b|"
+    r"\bi let\s+(?:my (?:kids?|parents|family|team|mom|dad|wife|husband|partner|son|daughter))\s+down\b", re.I)
 HURT = re.compile(
     r"\b(?:went|go|going|hung out|hang out|made plans|had (?:a |the )?(?:party|dinner|trip)) (?:out )?without me\b|\b(?:left|leaving|leave) me out\b|"
     r"\b(?:didn'?t|did not|never) (?:even )?invite(?:d)? me\b|\b(?:forgot|forgotten) my birthday\b|\blied to (?:me|my face)\b|\bbehind my back\b|"
@@ -163,14 +176,24 @@ HURT = re.compile(
     r"\b(?:nobody|no one|not one person|none of (?:them|my friends|my kids|my family))\s+(?:even\s+)?(?:called|texted|remembered|asked|noticed|said anything|wished me|"
     r"checked in|reached out|invited me|visited)\b(?!\s+(?:about|back about|for the|regarding|the (?:police|cops)|in sick))|\bwithout me\b(?=.*\b(?:group chat|friends|all)\b)|"
     r"\bgroup chat without me\b|\bbetrayed\b|\bstood me up\b|\bmade fun of me\b|\blaughed at me\b|\bin confidence\b|\btold everyone (?:what|about|my)\b|"
-    r"\b(?:ignored|ignoring|ignores) me\b|\bstabbed me in the back\b|\b(?:my|our) (?:own )?\w+ (?:said|told me|thinks) i'?m\b(?=.*\b(?:useless|lazy|fat|ugly|stupid|a burden)\b)",
+    r"\b(?:ignored|ignoring|ignores) me\b|\bstabbed me in the back\b|"
+    r"\b(?:stopped|quit)\s+(?:talking|speaking)\s+to me\b|\b(?:called|calls)\s+me\s+(?:an? )?(?:worthless|stupid|fat|ugly|useless|lazy|crazy|loser|burden|failure|idiot|dumb|"
+    r"pathetic|nothing)\b|\bdidn'?t\s+(?:even\s+)?(?:come|show up|show|bother coming)\s+to my\b|\bi wasn'?t\s+(?:even\s+)?invited\b|"
+    r"\bwish(?:es|ed)?\s+(?:i|she'?d|he'?d|they'?d)\s+(?:was|were|had)\s+never\s+(?:been\s+)?born\b|\bchose\s+(?:him|her|them|[a-z]+)\s+over me\b|"
+    r"\b(?:replaced|excluded|abandoned|ditched|unfriended|uninvited)\s+me\b|\bblocked me\b(?=[^.!?]*\b(?:everything|everywhere|instagram|facebook|snap|whatsapp|"
+    r"number|phone|socials?|all)\b)|\b(?:my|our) (?:own )?\w+ (?:said|told me|thinks) i'?m\b(?=.*\b(?:useless|lazy|fat|ugly|stupid|a burden)\b)",
     re.I)
 LOW = re.compile(
     rf"\b{I}\s+{VERY}(?:down|sad|low|blue|empty|numb|hollow|miserable|depressed|hopeless|heartsick|not (?:okay|ok|myself|doing (?:well|good|great))|"
     rf"struggling|lost\b(?! (?:my|the|a|an|it|in thought|track))|off\b(?=\s*(?:lately|today|all day|this week|\.|$)))\b|"
     r"\b(?:i )?(?:cried|been crying|keep crying|can'?t stop crying|was crying)\b|\bcan'?t get out of bed\b|\b(?:everything|nothing|it all) feels? "
     r"(?:pointless|gray|grey|heavy|empty|hard|wrong|numb)\b|\bnothing (?:feels good|makes me happy|matters lately)\b|\bmy heart hurts\b|\bi hate my life\b|"
-    r"\bhaven'?t\s+(?:left|been out of|gotten out of|got out of)\s+(?:my|the)\s+(?:apartment|house|room|bed|place|flat)\s+(?:in|for)\s+(?:days|weeks|months|a week|a few days|[a-z]+ days)\b", re.I)
+    r"\bhaven'?t\s+(?:left|been out of|gotten out of|got out of)\s+(?:my|the)\s+(?:apartment|house|room|bed|place|flat)\s+(?:in|for)\s+(?:days|weeks|months|a week|a few days|[a-z]+ days)\b|"
+    r"\blost interest in\s+(?:everything|things|life|all of it|the things i (?:used to )?(?:love|enjoy))\b|\bdon'?t enjoy\s+(?:anything|things|life)\b|"
+    r"\b(?:want|wanna)\s+to\s+(?:sleep|stay in bed)\s+all day\b|\bgoing through the motions\b|\bi feel like crying\b|\bon the verge of tears\b|"
+    r"\bi\s+(?:just\s+|completely\s+|totally\s+)?broke down\b(?=\s*(?:[.!,]|$|crying|in tears|and cried|at work|in the car|in front of|on the phone|in the bathroom))|"
+    r"\b(?:it'?s been|been|having|had|going through)\s+(?:a\s+|some\s+)?(?:really\s+|pretty\s+|very\s+)?(?:dark|rough|hard|heavy|awful|terrible|tough)\s+"
+    r"(?:few\s+|couple of\s+|couple\s+)?(?:days|weeks|months|year|time|patch|stretch)\b", re.I)
 LONELY = re.compile(
     r"\b(?:lonel(?:y|ier|iest|iness)|so alone|all alone|no one to talk to|nobody to talk to|don'?t (?:really )?have anyone|no friends|nobody cares|no one cares)\b|"
     r"\bmy phone\s+(?:never|doesn'?t|hasn'?t|barely)\s+(?:rings?|rung|buzz(?:es|ed)?|goes off|lights up)\b(?!\s+(?:during|in|at|when|while))|"
@@ -213,13 +236,22 @@ LONELY = re.compile(
 OVERWHELMED = re.compile(
     rf"\b{I}\s+{VERY}(?:overwhelmed|swamped|drowning|burn(?:ed|t) out|fried|at my limit|at (?:my|the) breaking point|stretched (?:so |too )?thin|stressed|"
     rf"stressed out|falling apart|barely (?:holding|keeping) (?:it|on|up)|spiraling|spiralling)\b|\b(?:it'?s|its|this is|everything is) (?:all |just )?too much\b|"
-    r"\bcan'?t keep up\b|\bat my limit\b|\bbreaking point\b|\bdrowning (?:in|at)\b|\beverything (?:at once|is falling apart)\b|\bcan'?t (?:do|handle|take) "
+    r"\bcan'?t keep up\b|\bat my limit\b|\bbreaking point\b|\bdrowning (?:in|at)\b|"
+    r"\b(?:too|so|way too)\s+much on my plate\b|\bhaven'?t slept\b(?=[^.!?]*\b(?:days|week|weeks|nights)\b)|\brunning on (?:empty|fumes|no sleep)\b|"
+    rf"\b{I}\s+(?:so|completely|totally|just so|beyond)\s+(?:exhausted|drained|worn out|wiped out)\b|"
+    r"\bcan'?t\s+(?:pay|afford|make)\s+(?:rent|my rent|the rent|the bills|my bills|the mortgage|ends meet)\b|"
+    r"\bbehind on\s+(?:rent|my rent|the rent|bills|my bills|the mortgage|payments|everything)\b|\b(?:buried|drowning) in (?:debt|bills)\b|"
+    r"\b(?:everything|it all|things)\s+(?:is|are|keeps?)\s+piling up\b|\bend of my (?:rope|tether)\b|\bat my wit'?s end\b|\baren'?t enough hours in the day\b|\beverything (?:at once|is falling apart)\b|\bcan'?t (?:do|handle|take) "
     r"(?:this|it|any more|anymore)\b(?=.*\b(?:work|deadline|kids?|school|bills|job|week|exams?)\b)", re.I)
 DISAPPOINTED = re.compile(
     r"\b(?:didn'?t|did not) get (?:the|that|my|in\b|it\b|into|accepted|picked|chosen|hired|a callback|an offer)\b|\b(?:went|going|gone) with someone else\b|"
     r"\b(?:picked|chose|hired) someone else\b|\bi (?:failed|flunked|bombed|blew)\b(?! (?:to\b|at being))|\bgot (?:rejected|turned down|passed over|cut from|"
     r"laid off|let go|fired|denied|waitlisted)\b|\b(?:fell|falling) through\b|\b(?:didn'?t|did not) make (?:the (?:team|cut|list)|it (?:onto|into) the)\b|"
-    r"\blost my job\b|\b(?:they|he|she) (?:said|told me) no\b|\bdidn'?t (?:pass|qualify|win)\b|\b(?:so|really) disappointed\b|\bgot my hopes up\b", re.I)
+    r"\blost my job\b|\b(?:they|he|she) (?:said|told me) no\b|\bdidn'?t (?:pass|qualify|win)\b|\b(?:so|really) disappointed\b|\bgot my hopes up\b|"
+    r"\b(?:application|loan|visa|claim|appeal|request|offer|proposal|manuscript|submission)\s+(?:was|got|has been)\s+(?:denied|rejected|declined|turned down)\b|"
+    r"\b(?:another\s+)?rejection\s+(?:letter|email)\b|\banother rejection\b|\bgave\s+(?:the|my)\s+(?:job|promotion|role|part|spot)\s+to\s+(?:someone else|him|her)\b|"
+    r"\b(?:my|our)\s+(?:business|shop|store|restaurant|company|startup)\s+(?:is failing|failed|went under|is going under|closed down|is closing)\b|"
+    r"\b(?:ivf|the transfer|the treatment|the chemo)\s+didn'?t\s+(?:work|take)\b", re.I)
 
 # -- fed up: not a wound, a gripe. A friend is on their side and asks what happened ---------------------------------------------
 FED_UP = re.compile(
@@ -383,7 +415,8 @@ def _families(said):
     if not not_a_loss(said) and any(pattern.search(said) for pattern in GRIEF):
         found.append("grief")
     if NOT_REAL.search(said):
-        return found
+        hit = FEAR.search(said)  # "what if it's cancer" isn't a what-if about a loss: it's a worry they have right now
+        return found + (["fear"] if hit and not _negated(said, hit.end()) and not found else [])
     for family, pattern in ORDER:
         hit = pattern.search(said)
         if not hit or _negated(said, hit.end() if family in ("fear", "shame", "low", "overwhelmed") else hit.start()):
@@ -410,6 +443,8 @@ def read(text):
     strength = 1 if SMALL.search(low) else 3 if (BIG.search(said) or (family == "grief" and TODAY.search(low))) else 2
     if family not in ALWAYS_HEAVY:
         heavy = heavy and strength >= 2 and not (family != "grief" and LAUGHING.search(said))
+    elif family == "shame" and LAUGHING.search(said):
+        heavy = False  # "i'm such an idiot lol", "i hate myself for eating that whole pizza lol": said with a laugh, it's a joke at their own expense
     who = WHO.search(low) if family in ("grief", "missing", "fear") else None
     also = next((f for f in found[1:] if (f in GOOD) != (family in GOOD)), "")  # glad and hurting at once, not two hurts
     return {"family": family, "strength": strength, "about": ("their " + who["who"]) if who else "", "need": need, "heavy": heavy, "also": also, "why": why}

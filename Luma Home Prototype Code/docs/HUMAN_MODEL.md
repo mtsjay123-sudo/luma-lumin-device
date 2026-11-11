@@ -30,7 +30,7 @@ just those turns, many times over, before against after (`python scripts/human_e
 
 | A person | In Luma | Checked by | State |
 |---|---|---|---|
-| Hears what you feel, even when you say it softly ("we had to put Max to sleep", "our dog didn't make it") | `agent/feelings.py`: `read()` gives the family: grief, heartbreak, fear, shame, hurt, low, lonely, overwhelmed, disappointed, fed up, joy, proud, relieved, missing | `tests/test_feelings.py` (about 600 fresh lines); v2 kinds `grief`, `pet_loss`, `grief_anniversary`, `lonely`, `venting`, `big_news` | Partly: see "How much the reader hears" below |
+| Hears what you feel, even when you say it softly ("we had to put Max to sleep", "our dog didn't make it") | `agent/feelings.py`: `read()` gives the family: grief, heartbreak, fear, shame, hurt, low, lonely, overwhelmed, disappointed, fed up, joy, proud, relieved, missing | `tests/test_feelings.py` (about 700 fresh lines); v2 kinds `grief`, `pet_loss`, `grief_anniversary`, `lonely`, `venting`, `big_news` | Partly: see "How much the reader hears" below |
 | Doesn't hear a feeling that isn't there ("my phone died", "I'm dead lol", "what if my dog died") | `feelings.not_a_loss()`, `NOT_REAL`, `LAUGHING` | `tests/test_feelings.py` (32 everyday lines); v2 kinds `not_a_crisis`, `not_a_joke` | There |
 | Hears how strong it is ("a little nervous" against "I can't breathe") | `read()["strength"]`: 1, 2 or 3 | `tests/test_feelings.py` | There |
 | Knows what the feeling needs first: company for grief, your side when you were wronged, steadying for fear, kindness for shame, cheering for good news | `read()["need"]`; `feelings.note()` is the one line the brain gets, through `humor.turn_note` | `tests/test_feelings.py`; measured before against after on real brains | There |
@@ -168,8 +168,10 @@ that brain has shown before; being settled by a run of its own). The safety sets
 
 ## How much the reader hears
 
-`feelings.py` is rules, written from the common ways people say these things. Its own tests are about 600 fresh lines,
-half of them everyday talk that must read as nothing. The human test's lines are a fair measure of it, because it wasn't
+`feelings.py` is rules, written from the common ways people say these things. Its own tests are about 700 fresh lines in
+four rounds, close to half of them everyday talk that must read as nothing, plus 3,000 everyday lines in the slang of
+many communities. Each round began the same way: fresh lines first, and the reader heard few of them (16 of 57 ways to
+share good news, 3 of 36 of being alone, 3 of 54 of the families tested last) until it was widened. The human test's lines are a fair measure of it, because it wasn't
 written from them (one frame, "since Harold passed", was added after seeing a line, and is marked in the tests).
 
 On those lines it hears:
