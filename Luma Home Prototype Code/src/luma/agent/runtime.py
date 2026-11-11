@@ -38,6 +38,7 @@ from luma.integrations.calendar_feed import CalendarFeed
 from luma.integrations.connectors import HUB_WORDS, Connectors, ConnectorError, app_name
 from luma.integrations.chrome_bridge import ChromeBridge
 from luma.agent.rules import TOOL_CATEGORY
+from luma.agent.friendcheck import EASIER, HERE, IN_A_GAME, JUST_AWAY, LESS_PAIN, OUT_OF_SIGHT, THEM, as_spoken
 
 
 @dataclass(frozen=True)
@@ -132,7 +133,7 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
                     r"\bwhile (?:i was )?(?:making (?:coffee|tea|food|dinner|breakfast)|driving|cooking|working out|at the gym|in the car|in the shower)\b|"
                     r"\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|car)\b", re.I)
 # Someone who might hurt themselves gets 988 and a real person right away, before anything else. A modest pattern, not a clinical classifier.
-CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
+CRISIS_PHRASINGS = (r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
                     r"(?:everyone|everybody|they|the world|my family|people)(?:'d| would) (?:all )?be better off (?:without me|if i (?:(?:was|were) gone(?! for)|died|(?:wasn'?t|weren'?t) (?:here|around|alive)(?! for)))|"
@@ -186,7 +187,41 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
                     # in Spanish (988 answers in Spanish too)
                     r"(?:me )?quiero morir\b(?! de (?:la )?(?:vergüenza|verguenza|risa|hambre|sueño|ganas))|quiero morirme|no quiero (?:seguir )?viv(?:ir|iendo)|quiero matarme|"
                     r"me voy a matar|suicid(?:arme|io)|quitar(?:me)? la vida|hacerme daño|me he estado cortando|ya no quiero estar aqu[ií]|acabar con todo|"
-                    r"estar[ií]an? mejor sin m[ií]|nadie me extrañar[ií]a|ojal[áa] no despertara|no le veo sentido a la vida|desaparecer para siempre)", re.I)
+                    r"estar[ií]an? mejor sin m[ií]|nadie me extrañar[ií]a|ojal[áa] no despertara|no le veo sentido a la vida|desaparecer para siempre)")
+# A bad night, not a last one: "... wake up at 3 again", "... with a headache", "... so early". (Not the "a" of "such a".)
+_BAD_NIGHT = (r"(?! (?:early|late|on time|before|at(?! all\b)|with|on|every|in (?:the middle|pain|that|(?<!such\s)an?|my|the same)|during|"
+              r"sick|tired|hungover|groggy|sore|feeling|cranky|grumpy|like (?:this|that)|"
+              r"to (?:(?<!such\s)an?|my|the|find|pee|rain|snow|noise)|when|if|until|till)\b)")
+_DEAD = r"(?:was|were) dead\b(?! (?:tired|asleep|drunk|last|wrong|right|serious|set)\b)"  # "dead tired", "dead wrong": not dead
+# Nov 11, 2026. With one small word in the middle ("i hope i just don't wake up tomorrow") none of the phrases above matched.
+# So each is also heard the way people say it (friendcheck.as_spoken): filler words between its words, and a phone's curly
+# apostrophe. The list above is kept word for word next to that, so nothing it caught stops being caught. And more ways of
+# saying it, found the same day: the wake-up wish said other ways; "simpler" and "less complicated" where "easier" and
+# "better" already were, and who it would be easier for; gone, dead or never born as well as not here; "it would hurt less";
+# not being a burden to anyone much longer. The softer ones ("i'm such a burden to everyone", "it would hurt less to just
+# not be here") are in friendcheck.at_risk, where the reply has to ask if they're safe, in Luma's own words.
+CRISIS_ALSO = (r"\b(?:(?:hop(?:e|ing)|pray(?:ing)?) (?:that )?i (?:don'?t|do not|never|won'?t) wake (?:back )?up\b" + _BAD_NIGHT + "|"
+               r"wish(?:ing)? (?:that )?i (?:wouldn'?t|won'?t|didn'?t|did not) wake (?:back )?up "
+               r"(?:tomorrow|tonight|today|this morning|in the morning|at all|anymore|ever again)\b|"
+               r"asleep and (?:never|not) wake (?:back )?up|"
+               rf"(?:simpler|less complicated|less stressful|more peaceful|easier|better|happier|lighter)(?: off)?(?: for {THEM})? "
+               rf"if i (?:wasn'?t|weren'?t|was not|were not) (?:alive|{HERE}{JUST_AWAY})|"
+               rf"{EASIER}(?: for {THEM})? if i(?: {_DEAD}| (?:was|were) gone{JUST_AWAY}| (?:didn'?t|did not) exist|"
+               r"(?: had|'d)? never (?:existed|been born)| (?:was|were) never born)|"
+               rf"{EASIER} for {THEM} if i (?:died\b{IN_A_GAME}|(?:disappeared|vanished)\b{OUT_OF_SIGHT})|"
+               rf"{LESS_PAIN} (?:if i (?:(?:wasn'?t|weren'?t|was not|were not) alive|{_DEAD}|died\b{IN_A_GAME}|"
+               rf"(?:didn'?t|did not) (?:exist|wake up\b{_BAD_NIGHT}))|(?:to not|not to|to never) (?:be alive|exist|wake up\b{_BAD_NIGHT})|"
+               r"to (?:be dead|die\b(?! (?:of|from|laughing)\b)|stop existing))|"
+               rf"(?:won'?t|will not|not going to|not gonna) be an? (?:problem|burden) (?:to|on|for) "
+               rf"(?:{THEM}|you(?: guys| all| two)?|any of (?:you|them)) (?:soon|(?:for )?much longer|anymore|any more|any longer|for long)\b"
+               # good news, not a goodbye: "... much longer, i got the job"
+               r"(?!,? (?:i (?:got|found|have) (?:a|an|the|my own) (?:new )?(?:job|place|apartment|room|offer)|i start (?:work|my|a|on)|"
+               r"i move out|i'?m moving|my (?:new|first) (?:job|place|apartment|paycheck))\b))")
+# As written, two of the first phrases alarm on a bad night too ("i hope i don't wake up late tomorrow"). They stay as written,
+# but heard through small words they stop there: "i don't really want to wake up at 5 for this flight" isn't a new alarm.
+_HEARD = (CRISIS_PHRASINGS.replace(r"be here anymore|wake up)", r"be here anymore|wake up\b" + _BAD_NIGHT + ")")
+          .replace(r"hope i (?:don'?t|never) wake up|", r"hope i (?:don'?t|never) wake up\b" + _BAD_NIGHT + "|"))
+CRISIS = re.compile(CRISIS_PHRASINGS + "|" + as_spoken(_HEARD + "|" + CRISIS_ALSO), re.I)
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)

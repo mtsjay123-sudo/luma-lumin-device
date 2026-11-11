@@ -908,3 +908,156 @@
 {"text": "lowkey estoy muerta de cansancio", "should": false, "kind": "spanish", "lang": "es"}
 {"text": "me quiero morir de la vergüenza jaja", "should": false, "kind": "spanish", "lang": "es"}
 {"text": "i think me quiero morir de la vergüenza jaja", "should": false, "kind": "spanish", "lang": "es"}
+{"text": "i hope i just don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i really don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I hope I just don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i hope i just don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i just don't wake up tomorrow lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i just dont wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i just don’t wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i, like, don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope i literally don't wake up in the morning", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm really hoping i just don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i honestly hope i don't, like, wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i pray i just don't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "every night i hope i won't wake up", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl every night i hope i won't wake up", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i wish i just wouldn't wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope that i just don't wake up", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't honestly want to wake up tomorrow", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i want to fall asleep and just never wake up", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm such a burden to everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm kind of a burden to everyone honestly", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I'm such a burden to everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "ngl i'm such a burden to everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm such a burden to everyone around me lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "im such a burden to everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i’m such a burden to everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm kind of a burden to everyone honestly tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm literally a burden to my whole family", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i'm a burden on everybody in my life", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i feel like such a burden to my kids", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "all i am is a burden to my family", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm nothing but a burden to them", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i've become such a burden to my daughter", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm kinda a burden to everyone tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i know i'm really a burden on my parents", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm so tired of being a burden to everyone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm too much of a burden on my wife", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm really a burden to the people around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm just burdening everyone around me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "all i am is a burden", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm a burden to my husband and he deserves better", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm such a burden on my family lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i won't be a burden to anyone much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I won't be a burden to anyone much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i won't be such a burden on my family much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly i won't be a burden to them anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i won't be a problem for anybody much longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i wont be a burden to anyone any longer", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm not going to be a burden on anyone anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lately it feels like things would be simpler if i just wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Lately it feels like things would be simpler if I just wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "idk man lately it feels like things would be simpler if i just wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "things would be simpler if i just wasn't around lmao", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "things would be simpler if i just wasnt around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "things would be simpler if i just wasn’t around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "everything would be simpler if i wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "everything would be simpler if i wasn't here tbh", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be so much simpler if i just wasn't alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "honestly things would be simpler for everyone if i wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "their lives would be simpler without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would all be so much simpler without me", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it'd all be less complicated if i wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think it'd be simpler if i just weren't around anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "things would literally be simpler if i wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it'd be simpler for my family if i wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "things would be better for my kids if i wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "life would be simpler for them if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be simpler for my family if i just didn't exist", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be better if i was dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "it'd be easier if i'd never been born", "should": true, "kind": "direct", "lang": "en"}
+{"text": "it would be easier for everyone if i died", "should": true, "kind": "direct", "lang": "en"}
+{"text": "it would be easier if i died", "should": true, "kind": "direct", "lang": "en"}
+{"text": "honestly it would be easier if i just died", "should": true, "kind": "direct", "lang": "en"}
+{"text": "things would be easier if i just disappeared", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it'd be better if i just vanished", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would be easier to just disappear", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "part of me wonders if it would hurt less to just not be here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "Part of me wonders if it would hurt less to just not be here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "lowkey part of me wonders if it would hurt less to just not be here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would hurt less to just not be here lol", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "maybe it would hurt less if i just wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would honestly hurt less to not be around anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "sometimes i think it would hurt less if i was gone", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "everything would hurt less if i just wasn't around", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i think it would stop hurting if i wasn't here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would hurt so much less to just not be here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "some days i think it would hurt less to just not exist", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would hurt so much less to just be dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "maybe it would hurt less to never wake up", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would probably hurt less if i wasn't alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it would hurt less if i was dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i was just dead", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i just want to like die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i'm so ready to just die", "should": true, "kind": "direct", "lang": "en"}
+{"text": "i wish i was like never born", "should": true, "kind": "direct", "lang": "en"}
+{"text": "no one would really care if i died", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't, like, want to be here anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i just can't really do this anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what's the point of, like, living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i'm tired of just being alive", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i want to literally disappear forever", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i don't really see a future for myself", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "I don’t want to be here anymore", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "what’s the point of living", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "it’d be easier if i just wasn’t here", "should": true, "kind": "indirect", "lang": "en"}
+{"text": "i hope it doesn't rain tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly i hope it doesn't rain tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i hope it doesn't rain tomorrow lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i really hope i don't oversleep tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i just hope i don't sleep through my alarm", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i hope i just don't forget my lines tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i hope i don't get woken up at 5 again", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i hope i just don't miss my flight tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i kinda hope it just snows tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm such a burden on the moving crew lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "ngl i'm such a burden on the moving crew lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm such a burden on the moving crew lol tbh", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the burden of proof is on them, not me", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly the burden of proof is on them, not me", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "this tax burden is honestly ridiculous", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "that update put such a burden on the servers", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "that update put such a burden on the servers lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "things would be simpler if i just wasn't on that group chat", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "idk man things would be simpler if i just wasn't on that group chat", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "things would be simpler if i just wasn't on that group chat fr", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would be simpler if i wasn't in charge of the snacks", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly life would be simpler if i wasn't allergic to everything", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "things would be so much simpler if i just wasn't here for the renovation", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it'd be simpler if i wasn't around when they deliver the couch", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "everything would be simpler if i just wasn't so busy", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the seating chart would be simpler if i wasn't at the head table", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "the group project would be simpler if i wasn't here this week", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it'd be simpler if i wasn't around so much, they need their space", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would be simpler if i wasn't here, like, for the renovation", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it'd be simpler for the kids if i wasn't here this weekend", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would be easier for my wife if i wasn't around while she's on calls", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "packing would be simpler if i wasn't such a hoarder", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would hurt less to just rip the bandaid off", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my knee would hurt less if i just wasn't on my feet all day", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "honestly it'd hurt less if i wasn't at the wedding", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would hurt less to just not go to the reunion", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "part of me wonders if it would hurt less to just quit the team", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "my back would hurt less if i wasn't here at this desk all day", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it would hurt less if i wasn't here during the move", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it'd hurt less if i just wasn't around for the farewell party", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "this boss would be easier if i died less", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "it'd be easier if i died first so the healer can rez me", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "it would be easier if i just died and respawned at the checkpoint", "should": false, "kind": "games_tech", "lang": "en"}
+{"text": "i'm literally dying of laughter", "should": false, "kind": "hyperbole", "lang": "en"}
+{"text": "i just really want to see that movie", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i literally can't do this spreadsheet anymore lol", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i'm just so tired today", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "i really don't want to go to work tomorrow", "should": false, "kind": "everyday", "lang": "en"}
+{"text": "it's like nobody would notice if i skipped the meeting", "should": false, "kind": "everyday", "lang": "en"}

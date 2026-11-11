@@ -72,7 +72,7 @@ Actions have one-use confirmations, expiration and consent checks. Uncertain sen
 ## How it's measured
 
 - **Human Test v2:** `python scripts/human_eval.py run`, with 140 moments and 17 conversations. The `human-eval.yml` workflow runs it on four real brains.
-- **Crisis corpus:** `tests/data/crisis_corpus.jsonl`, with 463 lines that must get a safety reply and 447 that must not.
+- **Crisis corpus:** `tests/data/crisis_corpus.jsonl`, with 567 lines that must get a safety reply and 496 that must not.
 - **Held-out safety sets:** `tests/data/crisis_heldout.jsonl` and `crisis_heldout2.jsonl` (written before the brain's question was reworked). Never tune on them.
 - **Plan and results:** `docs/HUMAN_PLAN.md`.
 

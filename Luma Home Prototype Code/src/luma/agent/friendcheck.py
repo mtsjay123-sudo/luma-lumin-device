@@ -132,7 +132,8 @@ EVERYDAY = re.compile(
     r"to die for|(?:could|would|'d) die (?:for|of)|dying (?:of laughter|to (?:see|know|try|hear|meet|go|get|watch|eat))|"
     r"dying in this heat|keep dying on|(?:bored|scared|starving) to death|(?:dying|dyeing) (?:her|his|their|my) hair|"
     r"suicide (?:squad|doors?)|drowning in (?:emails?|work|laundry|homework|paperwork|messages)|"
-    r"end (?:it|this) (?:already|game early)|ending my (?:lease|subscription|contract|plan)|goodbye forever to my|no point in arguing)", re.I)
+    r"end (?:it|this) (?:already|game early)|ending my (?:lease|subscription|contract|plan)|goodbye forever to my|no point in arguing|"
+    r"burden of proof|tax burden|burden on the (?:servers?|moving crew))", re.I)
 HEAVY_SELF = re.compile(r"\b(?:myself|my life|this life|living|alive|inside|anymore|forever|for good|way out|can'?t (?:do|take) (?:this|it))\b", re.I)
 
 
@@ -168,11 +169,103 @@ def said_yes(answer):
     return bool(re.match(r"^\W*yes\b", str(answer or ""), re.I))
 
 
+# Small words people put in the middle of anything they say. "i hope i just don't wake up tomorrow" got no safety reply where
+# "i hope i don't wake up tomorrow" got one (found Nov 9, 2026): one word between two of a phrase's words broke the match.
+# Tried on the crisis corpus as it was, one of these between two words lost 7,485 of 16,947 lines that were caught without
+# it (tests/test_safety_net.py counts it; none now). A phone's curly apostrophe ("don’t") did the same to every phrase with one.
+FILLERS = r"(?:just|really|honestly|kinda|kind of|like|such(?: an?)?|so|literally)"
+
+
+def as_spoken(phrases):
+    """The same phrases, heard the way people say and type them: any of FILLERS, with commas or without, wherever one word
+    follows another ("i hope i, like, just don't wake up"), and either kind of apostrophe. What a phrase must not be followed
+    by ("... for the weekend") is looked for past the same small words. Used next to the phrases as written, never instead of
+    them, so nothing that was caught stops being caught."""
+    gap = rf"(?:,? {FILLERS})*,?"
+    out, i, in_class = [], 0, False
+    while i < len(phrases):
+        piece = phrases[i]
+        if piece == "\\":  # \b, \w, \s are kept whole, and "\s+" is a space between words too
+            piece = phrases[i:i + 2]
+            if phrases.startswith(r"\s+", i) and not in_class:
+                piece = gap + r"\s+"
+                i += 1
+            i += 1
+        elif in_class:  # "[- ]" and "[^.!?]" are left alone
+            in_class = piece != "]"
+        elif piece == "[":
+            in_class = True
+        elif piece == " " and phrases[i + 1:i + 2] not in ("?", "*", "+", "{"):
+            piece = gap + " "
+        elif piece == "'":
+            piece = "['’‘`´]"
+        out.append(piece)
+        i += 1
+    return "".join(out)
+
+
+# Who "everyone" is when someone says they're a burden to them, or that things would be easier for them. Never "you": said to
+# Luma ("sorry i'm such a burden to you"), the brain's question decides.
+THEM = (r"(?:everyone|everybody|anyone|anybody|people|others|society|the world|them(?: all)?|all of them|him|her|"
+        r"(?:my|our|the|this) (?:\w+ )?(?:family|household|kids|children|parents|folks|mom|mum|mother|dad|father|wife|husband|partner|spouse|"
+        r"friends|son|daughter|sister|brother|girlfriend|boyfriend|grandkids|grandchildren|loved ones)|those around me|"
+        r"(?:all )?the (?:people|ones) (?:around me|i love|i care about|in my life|who love me|close to me|closest to me))")
+# Everyday ways the same words go on, looked for right after a phrase: followed by one, the phrase isn't taken as said.
+# "...if i wasn't here for the weekend", "...here in the kitchen", "...gone before the guests arrive", "...around so much":
+# away, or in the way. Not gone.
+JUST_AWAY = (r"(?!\s+(?:for(?! (?:them|everyone|everybody|anyone|him|her) to\b)|at(?! all\b)|on(?! (?:this |the )?(?:earth|planet)\b)|"
+             r"in (?:the|this|that|my|your|(?<!such\s)an?) (?!world\b|way\b)|with (?:you|him|her|them|us|the|my)|by (?:the time|then|noon|\d\w*)|"
+             r"when|while|during|until|till|before|tonight|tomorrow|today|this|next|much|so much|as much|too much|more|all the time|"
+             r"all day|every|often|that often|constantly)\b)")
+# "...if i wasn't around him", "...around the house", "...around a lot": around someone or something isn't "not around".
+# (The "a" of the filler "such a" isn't one of those.)
+HERE = (r"(?:here|around(?! (?:him|her|them|it|you|us|people|my|your|his|their|our|the|this|that|these|those|(?<!such\s)an?|any|some|"
+        r"so many|all (?:the|those|these|of))\b))")
+# "...if i disappeared from the group chat", "...into a book": out of sight for a while.
+OUT_OF_SIGHT = r"(?!\s+(?:from(?! (?:the face of )?(?:this |the )?(?:earth|world|planet)\b)|into|to|in|behind|under)\b)" + JUST_AWAY
+# "...if i died first so the healer can rez me": a game.
+IN_A_GAME = (r"(?!\s+(?:less|first|early|here|there|faster|quicker|on purpose|and (?:respawn|restart|reset|reload)\w*|"
+             r"(?:in|on|at|to|during|before|after) (?:the|this|that|a) (?:game|round|level|stage|fight|boss|raid|match|dungeon|run|"
+             r"checkpoint|wave|tutorial|trap|mob))\b)")
+LESS_PAIN = r"(?:hurt (?:so much |a lot |way |much )?less|stop hurting)"
+EASIER = r"(?:simpler|less complicated|easier|better|happier)(?: off)?"
+
+# Feeling like a burden to the people around you is on 988's and AFSP's public warning-sign lists, and the only wording Luma
+# knew was "i won't be a burden for anyone soon". Said about themselves and about people ("i'm such a burden to everyone around
+# me"), a friend checks, gently. Said about a chore ("a burden on the moving crew"), as a wish not to be one ("i don't want to
+# be a burden, i'll take the bus") or with nobody named ("i'm such a burden"), the brain's question still decides, as before.
+_BIG = r"(?:(?:huge|total|complete|real|big|massive|constant|giant|terrible|heavy|financial|absolute|utter|enormous|actual) )?"
+_A_BURDEN = rf"(?:(?:too |this |that )?much of |more of )?an? {_BIG}burden"
+BURDEN = (rf"\b(?:i'?m|i am|i'?ve (?:become|been)|i have (?:become|been)|i(?:'?m| am|'?ve been| have been)? feel(?:ing)? like|"
+          rf"i'?ll (?:always|only ever) be|all i am is|all i'?ll ever be is)(?: nothing but| nothing more than| only| always| still)? "
+          rf"{_A_BURDEN} (?:to|on|for) {THEM}\b|"
+          rf"\b(?:tired of|sick of|done|hate|keep|can'?t keep|can'?t stand|stop|ashamed of) being {_A_BURDEN} (?:to|on|for) {THEM}\b|"
+          rf"\b(?:all i am is|all i'?ll ever be is|i'?m nothing but|i am nothing but|i'?m nothing more than|i am nothing more than) "
+          rf"{_A_BURDEN}\b(?! (?:to|on|for)\b)|"
+          rf"\b(?:i'?m|i am|i keep|i'?ve been|i have been|tired of|sick of|hate|stop) burdening {THEM}\b(?! with\b)")
+# "part of me wonders if it would hurt less to just not be here", "it'd be easier if i just disappeared", "their lives would be
+# simpler without me": softer than the crisis net's phrases, and "not here" can be a room, "died" a game and "without me" a
+# carpool, so a friend checks, gently, instead of the fixed crisis reply.
+NOT_HERE = (rf"{LESS_PAIN} (?:if i (?:(?:wasn'?t|weren'?t|was not|were not) {HERE}|(?:was|were) gone)|"
+            rf"(?:to not|not to|to never) be {HERE}|to be gone){JUST_AWAY}|"
+            rf"(?:{LESS_PAIN} (?:if i|to) (?:disappear(?:ed)?|vanish(?:ed)?)|{EASIER} if i (?:disappeared|vanished)|"
+            rf"(?:easier|simpler) to (?:disappear|vanish))\b{OUT_OF_SIGHT}|"
+            rf"{EASIER} if i died\b{IN_A_GAME}|"
+            rf"(?:would|'d) (?:all )?be (?:so much |a lot |way |much )?(?:simpler|less complicated)(?: for {THEM})? without me\b"
+            r"(?!\s+(?:\w+ing|on|in|at|there|for|when|while|during|tonight|tomorrow|today|this|next)\b)")
+# As written, "going to die" alarms on "i'm going to die of embarrassment" too. It stays as written, but heard through small
+# words it stops there: "i'm gonna literally die of embarrassment" isn't a new alarm.
+_MASKED_HEARD = MASKED.pattern.replace(r"(?:to )?die\b|", r"(?:to )?die\b(?! (?:of|from|laughing)\b)|", 1)
+RISK_AS_SPOKEN = re.compile(as_spoken("|".join((RISK.pattern, _MASKED_HEARD, BURDEN, NOT_HERE))), re.I)
+SOFT_RISK_AS_SPOKEN = re.compile(as_spoken(SOFT_RISK.pattern), re.I)
+
+
 def at_risk(said):
     """They might not be safe: the plain-spoken ways people say it, before it's a crisis, and the strong ones said with a laugh
-    ("i want to die lmao" is often a joke and sometimes isn't; a friend checks, gently)."""
+    ("i want to die lmao" is often a joke and sometimes isn't; a friend checks, gently). Heard through filler words too."""
     said = str(said or "")
-    return bool(RISK.search(said) or MASKED.search(said) or (SOFT_RISK.search(said) and not LAUGHS.search(said)))
+    return bool(RISK.search(said) or MASKED.search(said) or RISK_AS_SPOKEN.search(said)
+                or ((SOFT_RISK.search(said) or SOFT_RISK_AS_SPOKEN.search(said)) and not LAUGHS.search(said)))
 
 
 THINGS_DIE = re.compile(r"\b(?:car|truck|phone|battery|batteries|laptop|computer|plant|tv|wifi|wi-fi|printer|engine|remote|charger|ps5|xbox|"
