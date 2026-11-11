@@ -363,7 +363,7 @@ are kinds the feelings work doesn't touch. Passes of 160:
 - **What changed** (`style.own_words`). The habit is swapped where it stands for "I get it", and the rest of what the
   brain said is kept: "Ha, I get it. Mondays hit different." A claim with a life in it ("I get lonely too", "the same
   thing happened to me") still costs the sentence. When the habit is all the reply says, nothing is swapped and the
-  brain is asked again, as before. Nothing borrowed is ever said. Run 24 runs these 20 moments again, before and after.
+  brain is asked again, as before. Nothing borrowed is ever said. Run 25, below, ran these 20 moments again, before and after.
 
 **Bringing back what they love** (`agent/loves.py`). When they're at a loose end and they told Luma earlier about
 something they love doing, the brain gets one line, last, right before their message: "They're at a loose end. Earlier
@@ -373,13 +373,30 @@ there's something like it near them. One idea, from their own life. No list of t
 - It never brings back drinking, smoking, gambling, an ex, something they can't do any more, or something they did with
   someone they lost. It says nothing when they might not be safe, when they're hurting in this message, or within three
   messages of something hard.
-- It changes 1 of 269 turns of the two tests: `conv-02`, the weekend turn. Run 23 runs that conversation 10 times,
-  before and after.
+- It changes 1 of 269 turns of the two tests: `conv-02`, the weekend turn.
 - How much it hears, on lines written before it was changed to hear them: of 20 things people love, 7 in the first
   fresh round and 11 in the second; of 18 loose ends, 0 and then 5. It hears those now, and of 62 everyday lines and
   3,000 lines of slang it takes none for either. It will miss many ways of saying it; a miss costs nothing, since the
   brain then does what it did before. The soccer line in `conv-02` was seen before the rules were written, so that turn
   is not an independent measure of how much it hears, only of what a brain does once told.
+
+**Run 24: `conv-02`, 10 times, before (`0d1ec2e`) and after (`5a4cb40`, with both changes).** Passes of 80:
+
+| Brain | Before | After | The weekend turn, of 10 | A gap this big between two runs of the same code |
+|---|---|---|---|---|
+| Stock Qwen3 4B | 70 | **80** | 1 → **10** | less than 1 time in 100 |
+| Luma's own 4B | 61 | 61 | 2 → 3 | about 100 times in 100 |
+| Stock Qwen3 1.7B | 63 | 62 | 2 → 2 | about 100 times in 100 |
+| Luma's own small | 55 | 59 | 0 → 1 | 60 times in 100 |
+| All four | 249 of 320 | 262 of 320 | 5 → 16 of 40 | |
+
+- **On the stock 4B, the brain a computer starts with, it works every time:** the soccer came back 10 times of 10 (1
+  before), and the whole conversation passed 80 of 80.
+- **On the other three it doesn't work yet.** They're handed the same line and don't act on it: the 1.7B is too small
+  to carry a quoted line into what it says, and Luma's own two keep to the habits they were trained into. No brain got
+  worse. Next for them: name the thing itself in the line ("soccer"), and teach it in practice data with made-up
+  pastimes.
+
 
 ### The 10-moment test in the device lab
 

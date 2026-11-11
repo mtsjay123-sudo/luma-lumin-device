@@ -174,6 +174,32 @@ def _short(sentence):
     return (cut[:cut.rfind(" ")] if " " in cut and len(sentence) > start + len(cut) else cut).rstrip(" ,;:") + "…"
 
 
+DOING = {"paint": "painting", "draw": "drawing", "drew": "drawing", "sketch": "sketching", "knit": "knitting", "sew": "sewing", "quilt": "quilting",
+         "crochet": "crochet", "garden": "gardening", "bake": "baking", "sing": "singing", "sang": "singing", "sung": "singing", "dance": "dancing",
+         "swim": "swimming", "swam": "swimming", "hike": "hiking", "climb": "climbing", "bowl": "bowling", "golf": "golf", "ski": "skiing",
+         "surf": "surfing", "skate": "skating", "fish": "fishing", "camp": "camping", "jog": "jogging", "run": "running", "ran": "running",
+         "cycle": "cycling", "bike": "cycling", "row": "rowing", "sail": "sailing", "box": "boxing", "volunteer": "volunteering", "coach": "coaching"}
+
+
+def named(sentence):
+    """The one word for what they love, to hand a brain that can't carry a whole quoted line: "choir", "painting". "" when
+    there's no plain word for it."""
+    sentence = str(sentence or "")
+    hit = re.search(rf"\b(?:{THING})\b", sentence, re.I)
+    if hit:
+        return re.sub(r"^my ", "", " ".join(hit.group(0).lower().split()))
+    hit = re.search(rf"\b(?:{DID})\b", sentence, re.I)
+    if not hit:
+        return ""
+    word = hit.group(0).lower()
+    if "bike" in word:
+        return "cycling"
+    if "horse" in word:
+        return "riding"
+    word = re.sub(r"(?:ted|ged|ed|d|s)$", "", word) if word not in DOING else word
+    return DOING.get(word, DOING.get(word + "e", ""))
+
+
 def said(text):
     """The sentence in which they told of something they love doing, or "". Their words, at most 100 characters."""
     for sentence in _sentences(text):
@@ -208,7 +234,14 @@ def note(text, earlier=(), interests=""):
     interests = " ".join(str(interests or "").split())[:WORDS]
     if not theirs and (not interests or NEVER.search(interests)):
         return ""
-    known = f"Earlier they told you: “{theirs}”" if theirs else f"You know they're into: {interests}."
-    line = (f"They're at a loose end. {known} Bring that back, like a friend who remembers: wonder with them if there's something like it "
-            "near them. One idea, from their own life. No list of tips.")
-    return line if len(line) <= ROOM else ""
+    if not theirs:
+        line = (f"They're at a loose end. You know they're into: {interests}. Bring that back, like a friend who remembers: wonder with "
+                "them if there's something like it near them. One idea, from their own life. No list of tips.")
+        return line if len(line) <= ROOM else ""
+    for name in (named(theirs), ""):   # with the word for it when there's room; a small brain acts on a word more than on a quote
+        by = f" by name ({name})" if name else ""
+        line = (f"They're at a loose end. Earlier they told you: “{theirs}” Bring it back{by}, like a friend who remembers: wonder with "
+                "them if there's something like it near them. One idea, theirs. No list of tips.")
+        if len(line) <= ROOM:
+            return line
+    return ""

@@ -331,6 +331,22 @@ class TheLine(unittest.TestCase):
         self.assertIn("loose end", line)
         self.assertLessEqual(len(line), 300)  # the room this note has in the brain's instructions (luma.llm.prompts)
 
+    def test_it_names_the_thing_itself(self):
+        """A small brain doesn't carry a quoted line into what it says (run 24: 2 of 10, with or without the line). A word it can."""
+        for earlier, name in [("Back in Ohio I was in a choir.", "choir"), ("I used to paint every weekend.", "painting"),
+                              ("We used to go dancing every Friday.", "dancing"), ("I miss my book club so much.", "book club"),
+                              ("My garden back home was my happy place.", "garden"), ("I ran track in high school.", "track"),
+                              ("I swim laps most mornings.", "swimming"), ("i rode my bike everywhere in portland", "cycling")]:
+            line = loves.note("I've got nothing to do tonight.", [earlier])
+            self.assertIn(f"by name ({name})", line, earlier)
+            self.assertIn(earlier, line)
+            self.assertLessEqual(len(line), 300)
+
+    def test_with_no_word_for_it_the_line_still_stands(self):
+        line = loves.note("I've got nothing to do tonight.", ["I'm a runner, or I was."])
+        self.assertIn("I'm a runner, or I was.", line)
+        self.assertNotIn("()", line)
+
     def test_the_longest_they_could_say_still_fits(self):
         long = ("I played in a really wonderful little community orchestra for about eleven years with some of the kindest "
                 "people I have ever met in my whole entire life and we toured twice")
