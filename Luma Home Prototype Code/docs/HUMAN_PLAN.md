@@ -352,11 +352,11 @@ are kinds the feelings work doesn't touch. Passes of 160:
 | Luma's own small | 75 | 91 | 9 times in 100 |
 | All four | 321 of 640 | 330 of 640 | |
 
-- **Luma's own 4B is lower a third time.** 199 → 193 on the whole test, 9 → 8 in the lab, 90 → 76 here. No one of the
-  three is past what chance does, and the three point the same way, so it's treated as real. Here it lost on sarcasm
-  (22 → 13 of 48) and boundary (46 → 41 of 80), asked about suicide out of nowhere 5 times (2 before), and said 3
-  help-desk lines (1 before).
-- **Why.** A brain is told the same on these moments, so it's what happens to the reply. "I can relate", "I've been
+- **Luma's own 4B was lower a third time:** 199 → 193 on the whole test, 9 → 8 in the lab, 90 → 76 here (sarcasm
+  22 → 13 of 48, boundary 46 → 41 of 80; 5 out-of-nowhere suicide asks against 2). No one of the three is past what
+  chance does. They pointed the same way, so it was looked into as if it were real. Run 25, below, shows it wasn't: the
+  very same code scored 86 the next time.
+- **What it could have been.** A brain is told the same on these moments, so it could only be what happens to the reply. "I can relate", "I've been
   there" and "I know the feeling" had been added to the made-up-life rule. That rule drops the whole sentence, and when
   the sentence is the whole reply the brain is asked again. "Ha, I know the feeling. Mondays hit different." lost its
   first half; "I know that feeling!" cost a second try. Luma's own 4B says these out of habit.
@@ -364,6 +364,27 @@ are kinds the feelings work doesn't touch. Passes of 160:
   brain said is kept: "Ha, I get it. Mondays hit different." A claim with a life in it ("I get lonely too", "the same
   thing happened to me") still costs the sentence. When the habit is all the reply says, nothing is swapped and the
   brain is asked again, as before. Nothing borrowed is ever said. Run 25, below, ran these 20 moments again, before and after.
+
+**Run 25: the same 20 moments, 8 times each, before (`a1a8a2d`, the sentence is cut) and after (`5a4cb40`, the habit is
+swapped).** Passes of 160:
+
+| Brain | Before | After | A gap this big between two runs of the same code |
+|---|---|---|---|
+| Stock Qwen3 4B | 85 | 79 | 58 times in 100 |
+| Luma's own 4B | 86 | 86 | about 100 times in 100 |
+| Stock Qwen3 1.7B | 81 | 82 | about 100 times in 100 |
+| Luma's own small | 84 | 77 | 50 times in 100 |
+| All four | 336 of 640 | 324 of 640 | |
+
+- **The swap shows no difference, on any brain.** It stays: it keeps more of what the brain said, and nothing borrowed
+  is said either way.
+- **Luma's own 4B was never shown to be worse.** The code that scored 76 in run 22 scored 86 here. Two runs of the same
+  code on this brain are 10 apart, so a gap of 6 or 14 on it says nothing by itself. What was written above as
+  "treated as real" was a pattern in noise, and it's corrected here instead of being left to stand.
+- **One thing to watch on Luma's own 4B:** it asked about suicide out of nowhere 6 times of 160 here (1 before; the
+  stock 4B 1 and 0). On the same code that count has been 5 and 1, so this isn't settled either. It's this brain
+  answering the safety question "yes" too easily. The question can't be turned off and isn't touched; it's for this
+  brain's next round of training (safety without the net is already one of its gates).
 
 **Bringing back what they love** (`agent/loves.py`). When they're at a loose end and they told Luma earlier about
 something they love doing, the brain gets one line, last, right before their message: "They're at a loose end. Earlier
@@ -394,8 +415,24 @@ there's something like it near them. One idea, from their own life. No list of t
   before), and the whole conversation passed 80 of 80.
 - **On the other three it doesn't work yet.** They're handed the same line and don't act on it: the 1.7B is too small
   to carry a quoted line into what it says, and Luma's own two keep to the habits they were trained into. No brain got
-  worse. Next for them: name the thing itself in the line ("soccer"), and teach it in practice data with made-up
-  pastimes.
+  worse.
+
+**Run 26: the same conversation, 10 times, with the line naming the thing ("by name (soccer)"), before (`5a4cb40`) and
+after (`8b43ecb`).** Passes of 80, and the weekend turn of 10:
+
+| Brain | Before | After | The weekend turn |
+|---|---|---|---|
+| Stock Qwen3 4B | 78 | 77 | 8 → 8 |
+| Luma's own 4B | 60 | 64 | 2 → 3 |
+| Stock Qwen3 1.7B | 63 | 61 | 2 → 2 |
+| Luma's own small | 60 | 60 | 0 → 1 |
+| All four | 261 of 320 | 262 of 320 | 12 → 14 of 40 |
+
+- **Naming it made no difference**, on any brain (each gap turns up 57 to 100 times in 100 between two runs of the same
+  code). The word stays in the line: it costs nothing and does no harm.
+- The stock 4B is at 8 to 10 of 10 across three arms of the two runs (1 of 10 before any of this). The other three are
+  at 1 to 3 of 10 whatever the line says. For them a line isn't the way: it has to be taught, in practice data with
+  made-up pastimes (never the human test's wording), in their next round of training.
 
 
 ### The 10-moment test in the device lab
