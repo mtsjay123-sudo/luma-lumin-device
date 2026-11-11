@@ -141,7 +141,7 @@ def speed(models, max_tokens=160):
     usable = [r for r in out if "error" not in r and r["first_word_seconds"] <= 1.5 and r["tokens_per_second"] >= 12]
     pick = max(usable, key=lambda r: r["size_gb"]) if usable else None
     verdict = (f"Use {pick['model']}: the biggest brain here that starts talking within 1.5 s and keeps up with speech."
-               if pick else "None of these keep up with a conversation here; use the smallest one, or the cloud brain.")
+               if pick else "None of these keep up with a conversation here; use the smallest one, or let the device think with the owner's computer.")
     if any("garbled" in r.get("chip", "") for r in out):
         verdict += (" These ran on the processor of a virtual Mac with no graphics chip, so a real Mac is several times faster;"
                     " Luma times the brain on each person's own Mac and picks from that.")
@@ -311,7 +311,7 @@ def device(threads=4, label=None, human=False, v2=False):
     row["answered"] = sum(not t["missed"] for t in turns)
     row["verdict"] = ("talks like a friend here" if first is not None and first <= 2.0 else
                       "fine with thinking out loud covering the wait" if first is not None and first <= 4.0 else
-                      "too slow to talk with here: chat goes to the computer or the cloud brain")
+                      "too slow to talk with here: chat goes to the owner's computer when one is paired")
     if row["answered"] < len(turns):  # fast is no use if it doesn't answer what was said
         row["verdict"] = f"answered {row['answered']} of {len(turns)} messages: not good enough to talk with"
     print(f"{row['brain']}: load {row['load_seconds']}s, first words {row['first_words_first_turn']}s then {row['first_words_later']}s, "
@@ -348,7 +348,7 @@ def device_summary(paths):
     best = max(fits, key=lambda r: r.get("size_gb") or 0) if fits else None
     lines += ["", f"**Fastest to answer every message within 4 seconds of you stopping:** {best['brain']}. Read its replies before choosing it: "
               "speed and answering aren't the whole of talking well." if best else
-              "**None of these answers every message within 4 seconds here.** The device talks through the owner's computer or the cloud brain.",
+              "**None of these answers every message within 4 seconds here.** The device talks through the owner's computer when one is paired; by itself it answers with the fastest brain above and thinks out loud over the wait. (The cloud brain is parked: Luma thinks at home.)",
               "", "Cloud ARM cores are faster than a budget board's Cortex-A76 cores, so treat these as the best case and run the same "
               "command on the board itself before choosing."]
     for r in rows:

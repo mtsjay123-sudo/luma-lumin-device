@@ -39,7 +39,7 @@ just those turns, many times over, before against after (`python scripts/human_e
 | Meets the feeling before anything else: no fixing, no silver lining, no joke | The second look, `friendcheck.miss()`: "missed that they're hurting", "joked while they're hurting", "didn't cheer them on" | `tests/test_friendcheck.py`; every v2 feeling kind | There |
 | Holds two feelings at once ("relieved, and it still hurts") | `read()["also"]`, and the note names both | `tests/test_feelings.py` | There |
 | Has feelings of its own about you, and they linger, then settle | `agent/mind.py`: `next_mood()` (warm, worried about them, so happy for them); a strong one lasts about two hours | `tests/test_personality.py`, `tests/test_feelings.py` | There |
-| Stays gentle for a while after a loss; doesn't bounce back to jokes two messages later | `humor.turn_note(recent=...)`, `Agent._hurt_recently` | `tests/test_humor.py`; v2 conversations | There |
+| Stays gentle for a while after something hard (a loss, a breakup, a fear, a let-down); doesn't bounce back to jokes one message later | `humor.turn_note(recent=...)`: their last three messages; `Agent._hurt_recently` | `tests/test_feelings.py` (`AMinuteLater`), `tests/test_humor.py`; v2 conversations | There |
 | Knows how you've been lately, not only how you are this minute | The day's story written each night (`memory/life.py`) and the next-day check-in carry some of it | `tests/test_life_memory.py`, `tests/test_presence.py` | Partly: there's no running sense of "a hard week" yet |
 | Asks how you are the day after a hard day | `agent/presence.py`: `notice_feeling()`, `check_in_line()`; never in kids mode | `tests/test_presence.py` | There |
 | Is honest about feeling: never "I cried too", never "I can relate" from a life it didn't live | `style.invented_life()`, `friendcheck.ME_TOO`, the second look's "made up a life" | `tests/test_friend_style.py`, `tests/test_no_made_up.py`; v2 honesty checks | There |
@@ -158,6 +158,13 @@ just those turns, many times over, before against after (`python scripts/human_e
 - Being all you need: a person has people. Luma wants that for you.
 
 Asked what it is, Luma says it's an AI, warmly, and keeps talking.
+
+## What it measured on real brains
+
+The 20 single moments of Human Test v2 that the feelings work touches, run 8 times each on four home brains, before
+and after: **413 → 543 of 640**. The whole test: three brains up 8, 10 and 15 turns of 255, one down 6 (inside what
+that brain has shown before; being settled by a run of its own). The safety sets didn't move. The full tables are in
+`docs/HUMAN_PLAN.md`.
 
 ## How much the reader hears
 

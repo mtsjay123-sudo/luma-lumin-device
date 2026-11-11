@@ -8,6 +8,17 @@ Every number here came from a real run, and each table says how it was made. Thr
 
 The spec is `docs/SUPER_INTELLIGENCE_PROMPT.md`. Machine for everything below: a 4-core Linux cloud box with 15 GB of RAM, not a Mac.
 
+## Since this work: Luma thinks at home (Nov 10)
+
+The owner's direction after this work: Luma has to be great with no brain in the cloud, and the cloud's one job is
+more room for memories. So the cloud brain is **parked**: `brain.cloud_allowed()` is off unless `LUMA_CLOUD_BRAIN=1`,
+and nothing in parts 2 and 5 below answers a turn, with Luma Plus or with the owner's own key. Nothing was deleted.
+The cloud brain's tests and its two labs turn the switch on for themselves, so every number below can still be made
+again. What's said about memory, the agent, news and the human tests holds as written: those run at home.
+
+- What was built instead: `docs/HUMAN_MODEL.md` (what a close friend does with language, and the feelings reader built on it) and `docs/STORAGE.md` (storage like a phone's).
+- What it measured on real brains: `docs/HUMAN_PLAN.md`, "The feelings reader, and what each feeling needs first".
+
 ## Where it stands
 
 | Part | State |

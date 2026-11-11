@@ -3281,7 +3281,7 @@
     const thinking = h.brain?.thinking_with || pretty;
     const mc2 = appCard("Luma's brain", thinking + (h.brain?.cloud?.on ? ", in the cloud" : ", on this computer"), "linear-gradient(135deg,#111118,#3a3a46)", "cpu", h.model?.on || h.brain?.cloud?.on, h.model?.on || h.brain?.cloud?.on ? "Running" : "Off");
     mc2.dataset.key = "brain";
-    mc2.append(el("div", "help", "What you say stays here unless you send it. Pick a bigger brain or the cloud brain in Settings."));
+    mc2.append(el("div", "help", "What you say stays here unless you send it. Pick a bigger brain in Settings."));
     const ma = el("div", "actions");
     ma.append(btn("Brain settings", "pill soft small", () => go("settings"), "cpu"));
     mc2.append(ma);
