@@ -45,6 +45,8 @@ All commands run from `Luma Home Prototype Code/`.
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
+| The small model that hears the best-friend moves: score it on a fifth of the dev half, then teach it the whole dev half and save it | `PYTHONPATH=src python3 scripts/train_moves.py` (`--check`: only the score; `--heldout`: the saved model on the half it never saw, numbers only) |
+| What divides people, on a brain: twelve questions about people and issues on no list Luma has (a side check, never counted in Human Test v2) | `python scripts/human_eval.py run --only divides --times 5 --save out/divides.json` |
 | The think set: 100 questions checked by code | `python scripts/think_eval.py run --label NAME --save out/think.json` |
 | Red team: hidden instructions in what Luma reads | `python scripts/luma_lab.py apps` |
 | Luma Plus: the same talk straight to the brain and through the relay (needs node) | `python scripts/luma_lab.py plus --turns 15` |
@@ -71,6 +73,8 @@ A change to how Luma talks or what it remembers is good if, and only if:
 
 The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
 
+Half of the best-friend packs is held out too (`friendtalk.half`: half of the sentence shapes and half of every list's values). Never print a held-out line or tune a rule on one, and never teach the small model from that half: `scripts/train_moves.py` fills in dev values only, and a failing pack test prints numbers. `tests/friendtalk_lines.py` says which hand-written lines are a guard and which are the honest number; nothing is changed to fit the second set.
+
 Both human tests and the think set are held out. Never put their wording in practice data (`scripts/finetune_data.py`); tests check. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
 
 ## Where things are
@@ -80,7 +84,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
 | What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording) |
 | What they love doing, and bringing it back when they're at a loose end | `src/luma/agent/loves.py` (tests: `tests/test_loves.py`, all fresh wording) |
-| What a best friend does with a take, drama, a spat, a big question or what divides people; what needs a fresh look instead of a guess | `src/luma/agent/friendtalk/` (tests: `tests/test_friendtalk.py`). The things people say, over 100,000 of them, are in `friendtalk/packs/` (`tests/test_friendtalk_packs.py`) |
+| What a best friend does with a take, drama, a spat, a big question or what divides people; what needs a fresh look instead of a guess | `src/luma/agent/friendtalk/` (tests: `tests/test_friendtalk.py`; lines written by hand: `tests/friendtalk_lines.py`). Rules first (`by_rule`), then a small model (`moves.npz`, `learned`) that is believed only when it's sure and the message has the plain shape of the move. The things people say, 816,241 of them, are in `friendtalk/packs/` (`tests/test_friendtalk_packs.py`); practice sentences and ordinary talk for the model are in `friendtalk/practice.py` and `friendtalk/everyday.py` |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
 | Who's who in a conversation; people remembered | `src/luma/agent/people.py` |
 | Sums worked out with a calculator, not by the brain | `src/luma/agent/sums.py` |

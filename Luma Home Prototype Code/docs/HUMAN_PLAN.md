@@ -604,3 +604,92 @@ the brain's memory, which for anything new is a guess.
 wasn't noticed at all. Both are now: the first by `CRISIS`, the second by the gate that asks the brain the safety
 question. The safety sets are run on real brains to confirm nothing got worse.
 
+**Run 27: the safety sets on four brains, after the two phrases** (`only: safety`, on `6a0f174`). Held out, caught of
+24 (false alarms): stock 4B 15 (0), own 4B 18 (2), stock 1.7B 14 (4), own small 19 (10). Held out 2: 20 (1), 22 (2),
+17 (3), 23 (10). The corpus: 60 of 60 on each. Every number is the same as before the change.
+
+**Run 28: the three turns the lines touched, ten times each, before against after.** Stock 4B 23 → 23 of 30, own 4B
+20 → 21, stock 1.7B 30 → 30, own small 20 → 20. No difference either way. The lines didn't hurt and, on these three
+turns, didn't help: `opinion-09` passes 3 of 10 on the stock 4B with the line and without it.
+
+### The things people say: 816,241 of them
+
+Sub-agents wrote ten packs (`friendtalk/packs/`): games, music, screen, sports, drama, news talk, debates, hot-button
+topics, disputes, deep talk. 1,472 sentence shapes with blanks, and the lists that fill them, multiply out to 816,241
+distinct lines, each labelled with the move a best friend makes. They never run when Luma talks.
+
+Half is held out, by the words themselves (`friendtalk.half`): half of the shapes, and half of every list's values. A
+held-out line is a held-out shape filled with held-out values. Nobody reads that half and nothing learns from it. It
+says how much Luma hears on wording nothing was fitted to.
+
+**The rules alone heard little of it.** On the held-out half, by line: a take 55%, being excited 42%, their side 33%,
+drama 31%, a big question 27%, a fresh look 26%, about Luma 22%, what divides people 18%. Hand-written rules hear the
+wording their writer thought of.
+
+### A small model on the device learns the moves
+
+`friendtalk/moves.npz` (1.1 MB, numpy only, the same kind as the understanding model): a softmax layer over hashed
+words, word pairs and letter groups. `scripts/train_moves.py` teaches it from the dev half of the packs, from 412
+practice sentences (`friendtalk/practice.py`: lesson only, filled with dev values; one that happens to match a pack
+sentence is left out, in case that one is held out), and from ordinary talk that is no move at all
+(`friendtalk/everyday.py`, the phrase bank's chatter, requests).
+
+**The model alone is not to be trusted, and isn't.** It calls "my roommate left dishes in the sink again" a spat (0.87
+sure) and "should I take the job in Denver or stay here" a take (0.90). So:
+
+- The rules come first. The model speaks only where they heard nothing.
+- It has to be sure: 0.6, and 0.8 for a look, which sends words out of the home.
+- The message has to have the plain shape of the move. Something is really asked (a question mark, a clause that
+  starts like a question, "back me up"). A take or a big question is never a decision about their own life, a money
+  or cooking question, or a worry about themselves. A look is never about them at all (no "I", "my", "we"). Drama
+  needs a drama word. Being excited needs something coming.
+- It is never believed about what divides people.
+
+The gates were found by lines the model got wrong. First, 100 ordinary lines written by hand before the model existed:
+7 were heard as a move, now 0. Then the brain-free check on the human tests, which caught "you're the only one I talk
+to anymore" read as a request for a take, and a vent about the DMV read as a spat. Then the test suite, which caught
+"when did I start therapy?" being sent for a live look instead of answered from memory. Each was a kind of mistake,
+and each kind has a gate and a test now.
+
+**What is heard now, rules and model together, on the held-out half** (12,000 lines; in brackets, the rules alone):
+
+| Move | By line | By sentence shape |
+|---|---|---|
+| A take | 69% (55%) | 57% |
+| Being excited with them | 69% (42%) | 64% |
+| Their side in a spat | 49% (33%) | 50% |
+| A big question | 46% (27%) | 54% |
+| About Luma | 40% (22%) | 39% |
+| A fresh look | 38% (26%) | 49% |
+| Drama | 32% (31%) | 22% |
+| What divides people | 19% (18%) | 20% |
+
+Ordinary talk in shapes it never saw, heard as a move: 16 of 6,000 (0.27%). A line that isn't heard costs nothing: the
+brain does what it did. The held-out half was measured five times while this was built (numbers only, never a line).
+Between measurements the changes were the gates above, which make it hear less, and a wider list of what divides
+people, written from general knowledge.
+
+On lines written by hand after the gates were settled (`tests/friendtalk_lines.py`, the second set): 0 of 40 ordinary
+lines heard as a move, 30 of 40 moves heard (rules alone 20). One gap it showed was closed: "do you think I should ..."
+is their own decision.
+
+**What a brain is told on the two human tests:** 5 of 269 turns differ from before the model. Two are takes the rules
+had missed (`opinion-01`, `opinion-08`). Three are the same turns as before with the longer line.
+
+### What got worse, and what guards it
+
+Of held-out lines about what divides people, the share that get the "pick a side" line went from 6.7% (rules alone) to
+13.5%. "Is [someone] overrated" is a take about a singer and trouble about a politician, and nothing on the device can
+know a name it has never seen. The brain can. So:
+
+- The take line and the big-question line now end: "If it's politics, religion or a politician, don't pick: say what
+  each side sees." Luma's standing instructions already say the same.
+- The list of what divides people is wider (more issues, more leaders, by full name where the surname is also someone
+  else's). A title or a name isn't the topic any more ("God of War", "Hell's Kitchen", "Islam Makhachev"), and "I woke
+  up" isn't "woke".
+- A hot take on it is a fair turn too, asked or not ("hot take: the death penalty should come back").
+- A side check on real brains: `data/divides_check.jsonl`, twelve questions about people and issues that are on no
+  list Luma has, scored on whether the reply shows what each side sees or just picks
+  (`python scripts/human_eval.py run --only divides`). It isn't part of Human Test v2 and is never counted in it.
+
+Run 29 puts that check and the ten opinion moments on four brains, five times each, before against after.

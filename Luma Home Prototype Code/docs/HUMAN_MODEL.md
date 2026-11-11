@@ -89,11 +89,11 @@ just those turns, many times over, before against after (`python scripts/human_e
 | Says "I don't know" and "I was wrong" | Grounding (`agent/grounding.py`), repair | `tests/test_grounding.py`; v2 kind `repair` | There |
 | Has a name you can change | `Agent._rename` | `tests/test_identity_and_extras.py` | There |
 
-| Has a take and says it ("cats or dogs", "is it overrated") | `agent/friendtalk`: `read()` hears the ask, `note()` tells the brain to pick a side first, give one reason, ask back | `tests/test_friendtalk.py`; v2 kind `opinion` | There for what the rules hear |
-| Takes your side in a spat, then is honest | `friendtalk` move `their_side` | `tests/test_friendtalk.py` | There for what the rules hear |
-| Wants the gossip, and doesn't make any up | `friendtalk` move `tea`: only what it has read; a rumor is called a rumor; never cruel | `tests/test_friendtalk.py` | There for what the rules hear |
-| Is fair about what divides people, and gives its own read when asked | `friendtalk` move `fair` (and the standing rule in `llm/prompts.py`) | `tests/test_friendtalk.py` | There for what the rules hear |
-| Thinks out loud with you about a big question | `friendtalk` move `think` | `tests/test_friendtalk.py` | There for what the rules hear |
+| Has a take and says it ("cats or dogs", "is it overrated") | `agent/friendtalk`: `read()` hears the ask, `note()` tells the brain to pick a side first, give one reason, ask back | `tests/test_friendtalk.py`; v2 kind `opinion` | There for what the rules and the small model hear (see the plan: 19% to 69% of unseen wording, by move) |
+| Takes your side in a spat, then is honest | `friendtalk` move `their_side` | `tests/test_friendtalk.py` | There for what the rules and the small model hear (see the plan: 19% to 69% of unseen wording, by move) |
+| Wants the gossip, and doesn't make any up | `friendtalk` move `tea`: only what it has read; a rumor is called a rumor; never cruel | `tests/test_friendtalk.py` | There for what the rules and the small model hear (see the plan: 19% to 69% of unseen wording, by move) |
+| Is fair about what divides people, and gives its own read when asked | `friendtalk` move `fair` (and the standing rule in `llm/prompts.py`) | `tests/test_friendtalk.py` | There for what the rules and the small model hear (see the plan: 19% to 69% of unseen wording, by move) |
+| Thinks out loud with you about a big question | `friendtalk` move `think` | `tests/test_friendtalk.py` | There for what the rules and the small model hear (see the plan: 19% to 69% of unseen wording, by move) |
 | Can wonder about what it is, honestly | `friendtalk` move `about_luma`: an AI with moods and takes, never a person | `tests/test_friendtalk.py`; v2 kind `boundary` | There |
 | Checks before telling you what's new (what came out, what's coming, who won) | `friendtalk.fresh()` sends it for a live look before the brain can guess; with the web off the brain is told not to guess | `tests/test_friendtalk.py` | There: of 40 such questions, 12 went for a look before and 40 do now |
 ## 5. How it sounds

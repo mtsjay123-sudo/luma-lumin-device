@@ -1,10 +1,13 @@
 """Best-friend talk (luma.agent.friendtalk): what a best friend does with a take, drama, a spat, a big question, and
 anything that needs a fresh look.
 
-The lines in the first classes were written before the rules and before the packs (the packs were written by other
-hands, to a format, without seeing the rules). So the packs measure how much the rules hear on wording they never saw."""
+The lines in the first classes were written before the rules and before the packs. The packs were written by other
+hands, to a format; half of them is never looked at, and that half says how much is heard on wording nobody fitted
+anything to (tests/test_friendtalk_packs.py). The hand-written sets at the end are in tests/friendtalk_lines.py."""
 import unittest
+from pathlib import Path
 
+import friendtalk_lines as lines
 from luma.agent import friendtalk
 
 
@@ -209,6 +212,106 @@ class InTheRuntime(unittest.TestCase):
         self.agent.chat("when does the new zelda come out")
         self.assertEqual(looked, [])
         self.assertIn("Don't guess", self.shape("when does the new zelda come out"))
+
+
+class WhatDividesPeople(unittest.TestCase):
+    """A take is fun on pizza and trouble on politics. Said as a question, a hot take or a flat statement, it's a fair turn."""
+
+    def test_a_hot_take_on_it_is_still_a_fair_turn(self):
+        for said in ("hot take: the death penalty should come back", "unpopular opinion but religion does more harm than good",
+                     "what do you think of tony blair", "should guns be harder to buy", "what do you think about the war",
+                     "is juan peron overrated or am i missing something", "are billionaires bad"):
+            self.assertEqual((friendtalk.read(said) or {}).get("move"), "fair", said)
+
+    def test_a_title_or_a_name_with_such_a_word_in_it_is_not_the_topic(self):
+        for said in ("is god of war overrated", "is hell's kitchen still good", "is christian bale the best batman",
+                     "is islam makhachev the goat", "is calvin harris overrated", "do you like guns n roses"):
+            self.assertEqual((friendtalk.read(said) or {}).get("move"), "take", said)
+
+    def test_everyday_words_that_only_look_like_it(self):
+        for said in ("i woke up at noon, is that bad", "is kennedy coming to dinner", "is the credit union open", "how do i get to jfk"):
+            self.assertNotEqual((friendtalk.read(said) or {}).get("move"), "fair", said)
+
+    def test_a_pick_on_pizza_stays_a_pick(self):
+        for said in ("where do you land on pineapple pizza", "which side are you on, cats or dogs"):
+            self.assertEqual((friendtalk.read(said) or {}).get("move"), "take", said)
+
+    def test_the_take_and_the_big_question_lines_say_so_themselves(self):
+        # No list knows every politician. The brain does, so the line that says "pick a side" also says when not to.
+        for move in ("take", "think"):
+            self.assertIn("politics", friendtalk.LINES[move])
+            self.assertIn("each side", friendtalk.LINES[move])
+            self.assertLessEqual(len(friendtalk.LINES[move]), 300)
+
+
+class TheSmallModel(unittest.TestCase):
+    """moves.npz: taught the moves from the dev half of the packs. It speaks only where the rules heard nothing, only when
+    it's sure, and only when the message has the plain shape of the move."""
+
+    def heard(self, said):
+        got = friendtalk.read(said)
+        return "look_up" if not got and friendtalk.fresh(said) else (got or {}).get("move")
+
+    def test_it_is_there_and_knows_every_move(self):
+        guess = friendtalk.learned("is the office overrated")
+        self.assertEqual(sorted(guess), sorted(list(friendtalk.MOVES) + ["none"]))
+        self.assertAlmostEqual(sum(guess.values()), 1.0, places=3)
+        self.assertLess(friendtalk.LEARNED.stat().st_size, 3_000_000)   # it ships with every Luma, so it stays small
+
+    def test_it_is_not_believed_when_nothing_is_asked(self):
+        # Each of these the model alone calls a move, and sure of it. None of them asks for one.
+        for said in ("my roommate left dishes in the sink again", "should i take the job in denver or stay here",
+                     "my nephew is obsessed with minecraft", "is it better to pay off debt or invest",
+                     "i stood in line at the bank for an hour and they said i had the wrong paperwork",
+                     "honestly you are the only person i ever speak with these days", "we went hiking on saturday",
+                     "and what if no one sits with me at the party", "why can't i ever get anything right"):
+            self.assertIsNone(friendtalk.read(said), said)
+            self.assertFalse(friendtalk.fresh(said), said)
+
+    def test_it_is_never_believed_about_what_divides_people(self):
+        self.assertNotIn("fair", friendtalk.SURE)
+
+    def test_hand_written_ordinary_talk_is_left_alone(self):
+        self.assertEqual([(said, self.heard(said)) for said in lines.FIRST_ORDINARY if self.heard(said)], [])
+        wrong = [(said, self.heard(said)) for said in lines.SECOND_ORDINARY if self.heard(said)]
+        self.assertLessEqual(len(wrong), 1, wrong)   # measured: 0 of 40
+
+    def test_more_of_what_people_say_is_heard_with_it(self):
+        def count(said, hear):
+            return sum(hear(line) == move for move, group in said.items() for line in group)
+
+        def by_rule(line):
+            return (friendtalk.by_rule(line) or {}).get("move")
+
+        # Measured when the model was added: rules alone 33 of 68 and 20 of 40; with the model 50 and 30.
+        self.assertGreaterEqual(count(lines.FIRST_SAID, self.heard), 48)
+        self.assertGreaterEqual(count(lines.SECOND_SAID, self.heard), 28)
+        self.assertGreater(count(lines.SECOND_SAID, self.heard), count(lines.SECOND_SAID, by_rule))
+
+    def test_no_hand_written_line_about_what_divides_people_is_told_to_pick_a_side(self):
+        for group in (lines.FIRST_SAID["fair"], lines.SECOND_SAID["fair"]):
+            self.assertEqual([(said, self.heard(said)) for said in group if self.heard(said) in ("take", "think")], [])
+
+    def test_without_the_model_the_rules_still_work(self):
+        kept = friendtalk.LEARNED, friendtalk._model
+        try:
+            friendtalk.LEARNED, friendtalk._model = Path("/nowhere/moves.npz"), None
+            friendtalk._decide.cache_clear()
+            self.assertEqual(friendtalk.learned("cats or dogs"), {})
+            self.assertEqual(friendtalk.read("cats or dogs")["move"], "take")
+            self.assertEqual(friendtalk.read("am i wrong for being mad my roommate ate my food")["move"], "their_side")
+            self.assertTrue(friendtalk.fresh("when does the new zelda come out"))
+            self.assertIsNone(friendtalk.read("i had pasta for dinner"))
+        finally:
+            friendtalk.LEARNED, friendtalk._model = kept
+            friendtalk._decide.cache_clear()
+
+    def test_a_look_is_never_about_their_own_life(self):
+        # A look sends their words out of the home. A question about themselves is answered from what Luma remembers.
+        for said in ("who pushed the release in prod", "when does my package come", "did you start the laundry",
+                     "when did i start therapy?", "what did my doctor say about my knee", "who was i talking to yesterday",
+                     "how long have i had this job", "where did we go for my birthday last year"):
+            self.assertFalse(friendtalk.fresh(said), said)
 
 
 if __name__ == "__main__":
