@@ -92,7 +92,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Luma Plus: the yes screen and its words; one interface for every cloud brain | `src/luma/llm/plus.py`, `cloudbrain.py` |
 | The relay (Luma Cloud): the brain route, metering, the yes on record | `api/_lib/luma-cloud.js` and `tests/luma-brain.test.mjs`, both at the top of the repo |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
-| Luma's look: living water where it's live and large (the talk screen, the first slides), the marble where it's small or still (the avatars, the logo) | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright). After a change, copy it to `desktop/assets/orb.js` |
+| Luma's look: living water on the talk screen's dark stage (`look: "water"`), the marble everywhere else (the first slides, the avatars, the logo) | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright). After a change, copy it to `desktop/assets/orb.js` |
 | The human model: what a close friend does with language, trait by trait, and where each lives | `docs/HUMAN_MODEL.md` |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |

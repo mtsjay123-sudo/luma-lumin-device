@@ -56,7 +56,7 @@ async function alone(browser) {
   out.liquid = await page.evaluate(() => window.LumaOrb.liquid());
 
   // a big live orb, through every mood
-  await page.evaluate(() => { window.big = window.LumaOrb.mount(document.getElementById("big"), { mood: "idle" }); });
+  await page.evaluate(() => { window.big = window.LumaOrb.mount(document.getElementById("big"), { mood: "idle", look: "water" }); });   // as the talk screen asks for it
   await page.waitForTimeout(900);
   out.big = await see(page, "#big");
   out.bigLiquid = await page.evaluate(() => window.big.liquid);
@@ -97,15 +97,15 @@ async function alone(browser) {
   out.stills = await page.evaluate(() => window.LumaOrb.moods.map((m) => window.LumaOrb.still(64, m)));
   out.surfacesAfterStills = await page.evaluate(() => window.__webgl);
 
-  // the marble (the logo's look) is still there when it's asked for by name (looked at here, after the surfaces are counted:
-  // it gets one of its own)
+  // the marble is what a large orb is when nobody asks for water: the first slides (looked at here, after the surfaces are
+  // counted: it gets one of its own)
   out.bigLook = await page.evaluate(() => window.big.look);
   await page.evaluate(() => {
     const d = document.createElement("div");
     d.id = "marble";
     d.style.cssText = "width:300px;height:300px";
     document.body.appendChild(d);
-    window.marble = window.LumaOrb.mount(d, { mood: "idle", look: "marble" });
+    window.marble = window.LumaOrb.mount(d, { mood: "idle" });
   });
   await page.waitForTimeout(900);
   out.marble = { look: await page.evaluate(() => window.marble.look), idle: await see(page, "#marble") };
@@ -148,7 +148,7 @@ async function still(browser) {
   page.on("pageerror", (e) => out.errors.push("calm: " + e.message));
   await page.setContent("<!doctype html><meta charset='utf-8'><body style='margin:0;background:#000'><div id='big' style='width:300px;height:300px'></div></body>");
   await page.addScriptTag({ path: ORB });
-  await page.evaluate(() => { window.big = window.LumaOrb.mount(document.getElementById("big"), { mood: "idle" }); });
+  await page.evaluate(() => { window.big = window.LumaOrb.mount(document.getElementById("big"), { mood: "idle", look: "water" }); });
   await page.waitForTimeout(3500);
   const one = await see(page, "#big");
   await page.waitForTimeout(700);

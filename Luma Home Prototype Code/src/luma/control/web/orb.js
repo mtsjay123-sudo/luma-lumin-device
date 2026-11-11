@@ -10,10 +10,11 @@
 //   speaking    it fills with warm light and moves with Luma's voice
 //   waiting     warm and slow, while Luma waits for your answer
 //
-// It has two looks. Where Luma is live and large (the talk screen, the first slides) it's a body of clear water:
-// a see-through middle, a thick wet rim, lines of light running down it, warm glints at its sides, spray coming off
-// its edge, and its whole shape moving with whoever is talking. Where it's small or still (the avatar by its name,
-// the logo) it's the marble described above. Both take the same moods and the same voice.
+// It has two looks. On the talk screen it's a body of clear water (look: "water"): a see-through middle, a thick
+// wet rim, lines of light running down it, warm glints at its sides, spray coming off its edge, and its whole shape
+// moving with whoever is talking. It's made for a dark stage: on a light page water has nothing to shine against.
+// Everywhere else (the first slides, the avatar by its name, the logo) it's the marble described above. Both take
+// the same moods and the same voice.
 //
 //   const orb = LumaOrb.mount(element, { mood: "idle" });   // a live orb that fills the element
 //   orb.set("speaking", 0.6);                               // mood, and how loud the voice is right now (0 to 1)
@@ -467,8 +468,8 @@ void main() {
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     host.appendChild(canvas);
-    // Live and large, it's water (unless asked for the marble with look: "marble"); small ones stay the marble.
-    const wet = !options.small && !options.plain && (options.look ? options.look === "water" : true);
+    // Asked for by name, and large, it's water (the talk screen asks); otherwise the marble.
+    const wet = !options.small && !options.plain && options.look === "water";
     const paint = options.small ? copier(canvas, options.plain) : painter(canvas, options.plain, wet);
     const table = paint.water ? WET : MOODS;
     let mood = MOODS[options.mood] ? options.mood : "idle";

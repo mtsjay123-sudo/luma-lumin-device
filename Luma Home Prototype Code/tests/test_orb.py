@@ -116,8 +116,8 @@ class Served(unittest.TestCase):
         self.assertTrue(seen["liquid"] and seen["bigLiquid"], "the shader didn't run; only the plain orb drew")
         self.assertLess(seen["big"]["corner"], 8)
 
-        # Live and large, it's water (the look of the owner's video): clear in the middle, so less of its box is lit
-        # than the marble's. Each mood looks like itself, and no two look the same.
+        # Asked for as water (the talk screen does; it's the look of the owner's video): clear in the middle, so less of
+        # its box is lit than the marble's. Each mood looks like itself, and no two look the same.
         self.assertEqual(seen["bigLook"], "water")
         self.assertGreater(seen["big"]["lit"], 0.15)
         looks = seen["looks"]
@@ -132,7 +132,7 @@ class Served(unittest.TestCase):
         self.assertGreater(looks["thinking"]["tone"][2], looks["thinking"]["tone"][1] + 20)   # violet while it thinks
         self.assertGreater(looks["speaking"]["lit"], looks["idle"]["lit"] + 0.05, "its voice should make it glow")
 
-        # The marble is still there when asked for by name (it's the logo and the small avatar), and looks as it did.
+        # Not asked for water, a large orb is the marble (the first slides, on their light page), and looks as it did.
         marble = seen["marble"]
         self.assertEqual(marble["look"], "marble")
         self.assertGreater(marble["idle"]["lit"], 0.2)
@@ -165,6 +165,10 @@ class Served(unittest.TestCase):
         self.assertTrue(seen["calm"]["changed"])
 
         # In the real apps: it's on the first slides, it leaves with the tour, and the pages' own rules refuse nothing.
+        desktop = (ROOT / "desktop" / "desktop.js").read_text()
+        self.assertIn('LumaOrb.mount($("ts-orb"), { mood: moodNow, look: "water" })', desktop, "the talk screen should ask for the water")
+        self.assertEqual(desktop.count('look: "water"'), 1, "only the talk screen's dark stage asks for water")
+        self.assertNotIn('look: "water"', (ROOT / "phone" / "phone.js").read_text())
         self.assertEqual(seen["desktop"]["orb"], True)
         self.assertEqual(seen["desktop"]["signup"], 1)
         self.assertTrue(seen["desktop"]["talkPlace"])

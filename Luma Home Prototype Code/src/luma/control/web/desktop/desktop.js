@@ -5171,7 +5171,7 @@
       // The orb: a ring while it listens (moving with your voice), a spiral while it thinks, full of warm light while
       // it speaks (moving with its own). The light behind it is only the room it sits in.
       try {
-        if (!talkOrb || talkOrb.gone) talkOrb = LumaOrb.mount($("ts-orb"), { mood: moodNow });
+        if (!talkOrb || talkOrb.gone) talkOrb = LumaOrb.mount($("ts-orb"), { mood: moodNow, look: "water" });
         else if (talkOrb.closing) talkOrb.open();
         talkOrb.set(moodNow, loud);
         $("talk-space").classList.toggle("has-orb", true);
