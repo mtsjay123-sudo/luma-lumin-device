@@ -3222,6 +3222,10 @@ class Agent:
         if lean: out.append({"mind": True, "text": lean})
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
+        if not shape and self.mode != "kids":
+            from luma.agent import loves  # at a loose end: bring back something they said they love doing
+            told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
+            shape = loves.note(text, told, (self.about or {}).get("interests"))
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people

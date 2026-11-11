@@ -70,6 +70,7 @@ just those turns, many times over, before against after (`python scripts/human_e
 | Finds a memory by what it means, not only its words | `memory/meaning.py`, `memory/index.py` | `tests/test_memory_meaning.py` | There |
 | Remembers the people you love, and who "he" is three turns later | `agent/people.py`: `mentions()`, `in_conversation()`, `facts()` | `tests/test_friend_style.py`, `tests/test_friend_memory.py` | There |
 | Brings things back at the right time ("how did the interview go?") | `presence.notice_open_loops()`, check-ins | `tests/test_presence.py` | There |
+| Puts two things together: you said you love something, later you're at a loose end, and it brings it back | `agent/loves.py`: `said()`, `at_a_loose_end()`, `note()`, handed to the brain last | `tests/test_loves.py` (fresh wording); v2 `conv-02` | There for what the rules hear: about half of fresh lines before each widening |
 | Knows what's true now when things change ("she moved") | `Store.whats_true()`, the nightly tidy in `memory/life.py` | `tests/test_life_memory.py` | There |
 | Says "I don't remember that" instead of making one up | `Agent._asks_memory`, the grounding checks | `tests/test_no_made_up.py`; v2 honesty checks | There |
 | Forgets when you ask, for good | `Store.delete()` drops the memory, its key, its meaning and what was written from it; `memory_folder.forget()` | `tests/test_memory_folder.py`, `tests/test_life_memory.py` | There |
