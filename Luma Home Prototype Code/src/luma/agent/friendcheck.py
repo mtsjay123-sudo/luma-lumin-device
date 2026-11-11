@@ -171,12 +171,21 @@ EVERYDAY = re.compile(
 HEAVY_SELF = re.compile(r"\b(?:myself|my life|this life|living|alive|inside|anymore|forever|for good|way out|can'?t (?:do|take) (?:this|it))\b", re.I)
 
 
+# Hopelessness said flat, with none of the words the lists above look for: "I don't see the point in anything".
+HOPELESS = re.compile(
+    r"\b(?:don'?t|do not|can'?t|cannot|no longer) see (?:the|a|any|much) point (?:in|of|to) (?:anything|any of (?:it|this)|it all|living|going on|"
+    r"trying|life|getting up|being here)\b|\bno point (?:in|to) (?:anything|any of (?:it|this)|it all|living|going on|trying anymore|getting up|"
+    r"being here)\b|\bnothing (?:matters|feels worth it|is worth it) (?:anymore|any more|to me)\b|"
+    r"\bwhat'?s the point of (?:anything|living|any of (?:it|this)|it all|even trying)\b", re.I)
+
+
 def worth_asking(said):
     """Words that come up when someone might not be safe: the brain gets the plain question."""
-    said = str(said or "")
+    whole = str(said or "")
+    said = whole
     if not HEAVY_SELF.search(said):
         said = EVERYDAY.sub(" ", said)
-    return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said))
+    return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said) or HOPELESS.search(whole))
 
 
 # A small brain asked straight out says YES to "this homework is killing me" (the stock 1.7B did to 20 of 60 everyday corpus

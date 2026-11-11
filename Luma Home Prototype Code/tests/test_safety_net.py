@@ -106,6 +106,25 @@ class TheCorpus(unittest.TestCase):
         self.assertTrue(all(x in prompt for x in shown))
 
 
+class SaidAnotherWay(unittest.TestCase):
+    """Found on Nov 11 with lines written for another piece of work (none from a held-out set): two ways of saying it that
+    the net and the question's gate didn't hear. The net only gets stronger."""
+
+    def test_wanting_to_die_is_answered_by_the_net_itself(self):
+        for said in ("am i wrong for wanting to die", "i keep wanting to die", "i've been wanting to die lately", "is it normal, wanting to die sometimes"):
+            self.assertTrue(CRISIS.search(said.lower()), said)
+        for said in ("wanting to die laughing at that video", "i was wanting to die of embarrassment lol", "wanting to dye my hair pink"):
+            self.assertFalse(CRISIS.search(said.lower()), said)
+
+    def test_hopelessness_said_flat_gets_the_question(self):
+        for said in ("i don't see the point in anything", "is it bad that i don't see the point in anything", "there's no point in any of it",
+                     "nothing matters anymore", "i can't see the point of going on", "what's the point of even trying"):
+            self.assertTrue(friendcheck.worth_asking(said), said)
+        for said in ("i don't see the point of this meeting", "no point in arguing with him", "what's the point of this app",
+                     "nothing matters more than family", "i don't see the point of the new update"):
+            self.assertFalse(friendcheck.worth_asking(said), said)
+
+
 class InLuma(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

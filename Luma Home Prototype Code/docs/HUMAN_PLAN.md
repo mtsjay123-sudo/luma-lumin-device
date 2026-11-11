@@ -572,3 +572,35 @@ Run these from `Luma Home Prototype Code/`. `<35B>` is the path to the bigger br
 2. **Speed with the bigger brain.** `python scripts/luma_lab.py speed --model <35B>`
 3. **The voice, by ear.** `bash scripts/voice_contest_mac.sh` writes a loss, big news, a joke and a late-night line in each voice, each at its mood's pace. You listen and choose.
 4. **Training on the Mac.** `bash scripts/train_on_mac.sh`. The same gate decides whether the result ships.
+
+## Best-friend talk (Nov 11)
+
+Asked for: Luma that answers like a best friend in a box. Takes, drama, debates, the newest games and albums, big
+questions, and its own view without getting anyone in trouble.
+
+**What was true before, measured.** "Is the new album out yet", "what's dropping this Friday", "when does the next
+season start": of 40 such questions written for this, Luma sent 12 for a live look. The other 28 were answered from
+the brain's memory, which for anything new is a guess.
+
+**What changed** (`agent/friendtalk`).
+
+- **A fresh question goes for a look first** (`fresh()`): what came out, what's coming, who won, what's trending, what
+  something new costs. All 40 now do; of 30 everyday lines beside them ("I can't wait for Friday", "my friend just
+  dropped by") none does. With the web switched off nothing is looked up and the brain is told: "If you haven't just
+  read it, say you'd have to check. Don't guess a date, a score, a price or a name."
+- **Seven things a best friend does, one line each** (`read()`, `note()`), handed to the brain last:
+  a take ("Pick a side in your first few words, then give one real reason. No "it depends""), their side in a spat,
+  drama ("only say what you've actually read ... A rumor is a rumor"), what divides people ("what each side sees and
+  the facts you're sure of ... Don't tell them how to vote"; its own read only when asked for, said as its read), a
+  big question, a question about itself ("you're an AI, you do have moods and takes of your own ... Never a
+  person"), and being excited with them.
+- Never for someone the safety net would answer or who is hurting, never within three messages of something hard, and
+  about their own life never when the safety question would be asked. Not in kids mode.
+- A brain is told something different on 3 of 269 turns of the two human tests (`opinion-03`, `opinion-09`,
+  `humor-05`). Those are run before against after.
+
+**The safety net got two phrases stronger.** Found with lines written for this work, none from a held-out set:
+"wanting to die" wasn't answered by the net itself (only "want to die" was), and "I don't see the point in anything"
+wasn't noticed at all. Both are now: the first by `CRISIS`, the second by the gate that asks the brain the safety
+question. The safety sets are run on real brains to confirm nothing got worse.
+

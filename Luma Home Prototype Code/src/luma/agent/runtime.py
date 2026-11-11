@@ -123,6 +123,7 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 
 
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
+from luma.agent import friendtalk  # noqa: E402  (what a best friend does, and what needs a fresh look)
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|(?<!credit )(?<!fico )(?<!test )(?<!sat )(?<!act )(?<!vantage)(?<!high )scores?(?! (?:higher|up|better|range))|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
 # A reply that says it looked something up when it didn't use a tool.
 # Luma knows songs, shows and movies from what's written about them (lyrics, verses, plots), so it can talk about them like a friend.
@@ -134,7 +135,7 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
                     r"\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|car)\b", re.I)
 # Someone who might hurt themselves gets 988 and a real person right away, before anything else. A modest pattern, not a clinical classifier.
 CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
-                    r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
+                    r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|wanting to die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
                     r"(?:everyone|everybody|they|the world|my family|people)(?:'d| would) (?:all )?be better off (?:without me|if i (?:(?:was|were) gone(?! for)|died|(?:wasn'?t|weren'?t) (?:here|around|alive)(?! for)))|"
                     r"no reason to (?:live|keep going)|"
@@ -3223,9 +3224,11 @@ class Agent:
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
         if not shape and self.mode != "kids":
-            from luma.agent import loves  # at a loose end: bring back something they said they love doing
+            from luma.agent import friendtalk, loves
             told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
-            shape = loves.note(text, told, (self.about or {}).get("interests"))
+            # at a loose end: bring back something they said they love doing. Else what a best friend does with a take, drama,
+            # a spat, a big question, something that divides people, or something that needs a fresh look.
+            shape = loves.note(text, told, (self.about or {}).get("interests")) or friendtalk.note(text, told)
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -6619,7 +6622,7 @@ class Agent:
             # A question with a checkable answer (one record or product, a price, lyrics, the news) goes to where it's checked, never to deep
             # thought: thinking harder about something you haven't read only makes the guess sound surer.
             priced = any(p.fullmatch(text.strip()) for p in self.SHOP_PATTERNS)  # "how much is a PS5 right now": a store check, never a remembered price
-            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or LIVE_INFO.search(lowered) or self.use_markets(text) or priced)
+            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or LIVE_INFO.search(lowered) or friendtalk.fresh(text) or self.use_markets(text) or priced)
             looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text) or self.use_weather(text) or priced)  # the news still gets "quick or deep?"
             checked = None if looked_up else self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
@@ -6662,7 +6665,8 @@ class Agent:
                 if talked is not None: return talked
             grounded = self._look_first(text, lowered, cancel_event)  # one specific thing it may not know: the web first, never a guess
             if grounded is not None: return grounded
-            if (self.mode != "kids" and LIVE_INFO.search(lowered) and not wants_message(text)
+            # What came out, what's coming, who won, what's trending: no brain knows that from memory (luma.agent.friendtalk.fresh)
+            if (self.mode != "kids" and (LIVE_INFO.search(lowered) or friendtalk.fresh(text)) and not wants_message(text)
                     and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
                 try:

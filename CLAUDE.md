@@ -80,6 +80,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
 | What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording) |
 | What they love doing, and bringing it back when they're at a loose end | `src/luma/agent/loves.py` (tests: `tests/test_loves.py`, all fresh wording) |
+| What a best friend does with a take, drama, a spat, a big question or what divides people; what needs a fresh look instead of a guess | `src/luma/agent/friendtalk/` (tests: `tests/test_friendtalk.py`). The things people say, over 100,000 of them, are in `friendtalk/packs/` (`tests/test_friendtalk_packs.py`) |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
 | Who's who in a conversation; people remembered | `src/luma/agent/people.py` |
 | Sums worked out with a calculator, not by the brain | `src/luma/agent/sums.py` |
