@@ -10,6 +10,11 @@
 //   speaking    it fills with warm light and moves with Luma's voice
 //   waiting     warm and slow, while Luma waits for your answer
 //
+// It has two looks. Where Luma is live and large (the talk screen, the first slides) it's a body of clear water:
+// a see-through middle, a thick wet rim, lines of light running down it, warm glints at its sides, spray coming off
+// its edge, and its whole shape moving with whoever is talking. Where it's small or still (the avatar by its name,
+// the logo) it's the marble described above. Both take the same moods and the same voice.
+//
 //   const orb = LumaOrb.mount(element, { mood: "idle" });   // a live orb that fills the element
 //   orb.set("speaking", 0.6);                               // mood, and how loud the voice is right now (0 to 1)
 //   orb.close();                                            // it drains away, then stops
@@ -35,6 +40,16 @@
   const UNIFORMS = ["uRes", "uT", "uLevel", "uTurb", "uSwirl", "uHollow", "uBright", "uIri", "uOpen", "uSize", "uDeep", "uMid", "uLite", "uGlint"];
 
   const VERTEX = "attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }";
+  // The same moods as water: how fast it runs, how much its shape wobbles, how far its lines wind into a spiral, how
+  // far its middle clears, its light, how strong the warm glints are, and its colors (the tint of the water's body,
+  // its blue, the white of its light, the glint at its sides).
+  const WET = {
+    idle: { flow: 0.30, turb: 0.42, swirl: 0.0, hollow: 0.0, bright: 1.0, iri: 0.55, deep: [0.012, 0.022, 0.075], mid: [0.20, 0.42, 1.0], lite: [0.86, 0.93, 1.0], glint: [1.0, 0.42, 0.22] },
+    listening: { flow: 0.42, turb: 0.46, swirl: 0.0, hollow: 1.0, bright: 1.05, iri: 0.50, deep: [0.008, 0.028, 0.080], mid: [0.10, 0.52, 1.0], lite: [0.82, 0.97, 1.0], glint: [0.25, 0.98, 0.85] },
+    waiting: { flow: 0.26, turb: 0.40, swirl: 0.0, hollow: 0.0, bright: 1.0, iri: 0.95, deep: [0.040, 0.022, 0.050], mid: [0.62, 0.44, 0.80], lite: [1.0, 0.93, 0.84], glint: [1.0, 0.55, 0.22] },
+    thinking: { flow: 0.70, turb: 0.50, swirl: 1.0, hollow: 0.0, bright: 1.0, iri: 0.60, deep: [0.034, 0.016, 0.095], mid: [0.50, 0.32, 1.0], lite: [0.92, 0.86, 1.0], glint: [1.0, 0.42, 0.78] },
+    speaking: { flow: 0.60, turb: 0.55, swirl: 0.0, hollow: 0.0, bright: 1.12, iri: 0.85, deep: [0.012, 0.022, 0.075], mid: [0.22, 0.44, 1.0], lite: [0.90, 0.95, 1.0], glint: [1.0, 0.40, 0.18] },
+  };
   const FRAGMENT = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
@@ -139,7 +154,152 @@ void main() {
   const calm = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) { return false; } };
   const mix = (a, b, k) => a + (b - a) * k;
 
-  function program(gl) {
+  // The same orb as a body of clear water (the look of the talk screen). It takes the same values as the marble.
+  const WATER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2 uRes;
+uniform float uT, uLevel, uTurb, uSwirl, uHollow, uBright, uIri, uOpen, uSize;
+uniform vec3 uDeep, uMid, uLite, uGlint;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) {
+  float a = 0.5, s = 0.0;
+  for (int i = 0; i < 4; i++) { s += a * noise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+  return s;
+}
+// Bright along the creases of the noise: the thin curling lines light makes on water.
+float crease(vec2 q) { return 1.0 - abs(2.0 * noise(q) - 1.0); }
+// The net of light on moving water. It's stretched so the lines run down the ball like the ribs of a peeled orange,
+// and each layer is pushed around by the one before it, so nothing in it ever lines up or repeats.
+float net(vec2 q, float t) {
+  q += 0.42 * vec2(fbm(q * 0.8 + vec2(0.0, 0.22 * t)), fbm(q * 0.8 + vec2(5.2, -0.18 * t))) - 0.21;
+  float a = crease(q * vec2(2.4, 0.9) + vec2(0.0, -0.30 * t));
+  float b = crease(q * vec2(5.0, 2.0) + vec2(3.1, 0.42 * t) + 1.5 * a);
+  float c = crease(q * vec2(10.5, 3.6) + vec2(-1.3, -0.65 * t) + 1.1 * b);
+  return 0.95 * pow(a, 6.0) + 0.75 * pow(b, 8.0) + 0.45 * pow(c, 9.0) + 1.3 * pow(a * b, 3.0);
+}
+// The outline of the water: a ball whose edge swells and dips as it wobbles, with a small crest that wanders near the
+// top, and a roughness to the edge that grows with the voice.
+float outline(float a, float t, float wob, float voice) {
+  vec2 ring = vec2(cos(a), sin(a));
+  float lump = 0.055 * sin(2.0 * a + 0.9 * t) + 0.042 * sin(3.0 * a - 1.3 * t + 1.7) + 0.026 * sin(5.0 * a + 1.9 * t + 0.6)
+             + 0.014 * sin(8.0 * a - 2.7 * t) + 0.105 * (noise(ring * 1.4 + vec2(0.31 * t, -0.23 * t)) - 0.5)
+             + 0.040 * (noise(ring * 4.0 + vec2(-0.5 * t, 0.4 * t)) - 0.5);
+  float top = a - 1.5708 - 0.30 * sin(0.47 * t);
+  float crest = 0.085 * exp(-top * top / 0.035) * (0.55 + 0.45 * sin(1.3 * t + 0.8));
+  float rough = (0.016 + 0.030 * voice) * (noise(ring * 17.0 + vec2(0.9 * t, -0.7 * t)) - 0.5)
+              + (0.006 + 0.012 * voice) * (noise(ring * 46.0 + vec2(-1.6 * t, 1.2 * t)) - 0.5);
+  return 1.0 + wob * lump + crest * (0.5 + 0.8 * wob) + rough;
+}
+// Tiny drops: one in some cells of a grid, each with its own place, size and twinkle.
+float drops(vec2 q, float t, float share) {
+  vec2 cell = floor(q), in_cell = fract(q) - 0.5;
+  float pick = hash(cell);
+  vec2 at = (vec2(hash(cell + 7.1), hash(cell + 3.7)) - 0.5) * 0.7;
+  float size = 0.035 + 0.11 * hash(cell + 1.9);
+  float twinkle = 0.45 + 0.55 * sin(t * (1.5 + 5.0 * hash(cell + 5.3)) + 40.0 * pick);
+  return step(1.0 - share, pick) * smoothstep(size, 0.0, length(in_cell - at)) * twinkle;
+}
+
+void main() {
+  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
+  float t = uT;
+  float r = length(p), a = atan(p.y, p.x);
+  float voice = clamp(uLevel, 0.0, 1.0);
+  float wob = uTurb * (0.8 + 1.5 * voice);
+  float breath = 1.0 + 0.014 * sin(4.2 * t);          // it breathes, a little faster when someone is talking
+  float R = uSize * (0.62 + 0.38 * uOpen) * (1.0 + 0.05 * voice) * breath * outline(a, t, wob, voice);
+  float d = r / R;                                   // 0 in the middle, 1 at the edge of the water
+  float inside = smoothstep(1.0, 0.975, d);
+  float z = sqrt(max(0.0, 1.0 - d * d));             // how much this bit of the surface faces us
+
+  // where we are on the ball's skin (how far round, how far up), so the lines curve with it and bunch toward the edge
+  vec2 s = vec2(atan(p.x / R, z + 0.02), asin(clamp(p.y / R, -1.0, 1.0)));
+  float spin = uSwirl * (1.0 - d) * 2.6;
+  s = mat2(cos(spin), -sin(spin), sin(spin), cos(spin)) * s;
+  s.x += 0.09 * t;                                   // it turns, slowly
+
+  float edge = smoothstep(0.10, 0.96, d);
+  float band = smoothstep(0.52, 0.99, d);            // the thick wet rim of a drop
+  float open = mix(1.0, 0.45, uHollow);              // listening: the middle clears
+  float busy = mix(0.22 * open, 1.0, edge);          // little light in the clear middle, much toward the rim
+  float glow = net(s * 2.1, t);
+  float fine = net(s * 4.3 + 7.7, t * 1.25);
+  float caustic = (glow * (0.34 + 0.50 * band) + 0.34 * fine * band) * busy * (1.0 + 0.5 * voice);
+  float sheen = fbm(s * 1.6 + vec2(0.2 * t, -0.1 * t));
+  float rim = band * band * (0.05 + 0.50 * sheen * (0.35 + glow)) + pow(d, 16.0) * 0.30;
+
+  // warm light caught at the two sides, the way a drop bends a lamp behind it
+  float sides = pow(abs(cos(a)), 2.5) * smoothstep(0.45, 0.95, d);
+  float warm = sides * smoothstep(0.38, 0.70, noise(vec2(cos(a), sin(a)) * 2.1 + vec2(0.25 * t, -0.2 * t) + 4.0)) * uIri * 1.25;
+
+  vec3 col = vec3(0.0);
+  float alpha = 0.0;
+  // the body: clear water, bluer toward the rim
+  float body = inside * (0.05 + 0.26 * band);
+  col += uDeep * body + uMid * inside * (0.05 * edge + 0.30 * band * sheen + 0.30 * rim);
+  alpha += body + inside * 0.34 * rim;
+  // the light on it: white only where it gathers, blue around that
+  float peak = pow(clamp(caustic, 0.0, 1.5), 1.7);
+  vec3 light = uLite * (0.95 * peak + 0.55 * rim) + uMid * (0.75 * caustic + 0.45 * rim);
+  vec3 lit = uGlint * (0.10 + 2.0 * (glow + fine) * band) * warm;                    // orange where the lines are, not a wash
+  light = light * (1.0 - 0.70 * clamp(warm, 0.0, 1.0)) + lit;
+  float glitter = drops(s * 70.0 + vec2(0.0, -0.4 * t), t * 2.0, 0.22) * clamp(caustic * 1.4, 0.0, 1.0);   // the hard little sparkles of wet light
+  light += uLite * glitter * 1.4;
+  light = 1.0 - exp(-1.25 * light);                  // the brightest parts stay bright without turning to flat white
+  col += light * inside * uBright;
+  alpha += inside * clamp(dot(light, vec3(0.30, 0.50, 0.20)) * 1.15, 0.0, 1.0);
+  // specks of blue inside, like dust lit in water
+  float specks = (drops(p * 120.0 + vec2(0.0, 0.2 * t), t, 0.22) + 0.8 * drops(p * 210.0 + 3.3, t * 1.3, 0.20)) * inside * (1.0 - 0.5 * band);
+  col += (uMid + 0.45 * uLite) * specks * 1.1;
+  alpha += specks * 0.8;
+
+  // beads along the edge, spray thrown off it (more, the louder the voice), and dust around
+  float beads = drops(vec2(a * 52.0, 3.0), t * 1.6, 0.42) * smoothstep(0.06, 0.0, abs(d - 0.985));
+  float off = smoothstep(0.99, 1.02, d) * smoothstep(1.30 + 0.25 * voice, 1.03, d);
+  float spray = drops(vec2(a * 40.0, (d - 1.0) * 52.0 - 0.9 * t - 5.0 * voice), t, 0.16 + 0.26 * voice) * off;
+  float dust = drops(p * 70.0 + vec2(0.05 * t, 0.02 * t), t * 0.6, 0.05) * smoothstep(2.2, 1.05, d) * (1.0 - inside);
+  col += uLite * (1.2 * beads + 0.95 * spray) + uMid * (0.4 * spray + 0.9 * dust);
+  alpha += beads + spray + dust * 0.7;
+
+  // the flare: one hard glint low on the right, with a streak leaving it
+  vec2 at = R * 0.84 * vec2(cos(-0.62), sin(-0.62));
+  vec2 from = p - at;
+  vec2 way = normalize(vec2(1.0, -0.42));
+  float along = dot(from, way), across = dot(from, vec2(-way.y, way.x));
+  float pulse = (0.30 + 0.70 * noise(vec2(t * 1.1, 3.0))) * (0.55 + 0.9 * voice) * uBright;
+  float glint = exp(-dot(from, from) / (0.0006 * (1.0 + voice)));
+  float streak = exp(-across * across / 0.00003) * exp(-abs(along) / 0.20) * smoothstep(-0.02, 0.03, along) * 0.5
+               + exp(-across * across / 0.00002) * exp(-abs(along) / 0.05) * 0.45;
+  streak *= smoothstep(0.49, 0.36, max(abs(p.x), abs(p.y)));   // it fades out before the edge of the orb's box
+  float flare = (glint * 1.5 + streak) * pulse;
+  col += (uLite + uGlint * 0.25) * flare;
+  alpha += flare;
+
+  // a breath of light around it, so it sits in the air instead of on the page
+  float halo = (1.0 - inside) * exp(-max(0.0, d - 1.0) * 8.0) * (0.10 + 0.20 * voice);
+  col += uMid * halo;
+  alpha += halo * 0.8;
+
+  alpha = clamp(alpha, 0.0, 1.0);
+  gl_FragColor = vec4(min(col, vec3(1.0)), alpha) * smoothstep(0.0, 0.25, uOpen);
+}
+`;
+
+  function program(gl, fragment) {
     const make = (type, source) => {
       const shader = gl.createShader(type);
       gl.shaderSource(shader, source);
@@ -149,7 +309,7 @@ void main() {
     };
     const prog = gl.createProgram();
     gl.attachShader(prog, make(gl.VERTEX_SHADER, VERTEX));
-    gl.attachShader(prog, make(gl.FRAGMENT_SHADER, FRAGMENT));
+    gl.attachShader(prog, make(gl.FRAGMENT_SHADER, fragment || FRAGMENT));
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || "link");
     gl.useProgram(prog);
@@ -164,20 +324,22 @@ void main() {
   }
 
   // A painter draws one frame of the orb onto a canvas: the shader when the device can, plain shapes when it can't.
-  function painter(canvas, plain) {
+  function painter(canvas, plain, water) {
     let gl = null, where = null, lost = false;
+    const fragment = water ? WATER : FRAGMENT;
     if (!plain) {
       try {
         gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false, powerPreference: "low-power" });
-        if (gl) where = program(gl);
+        if (gl) where = program(gl, fragment);
       } catch (_) { gl = null; }
     }
     if (gl && where) {
       // A browser may take the drawing surface away (too many at once, or the computer slept). It comes back.
       canvas.addEventListener("webglcontextlost", (event) => { event.preventDefault(); lost = true; });
-      canvas.addEventListener("webglcontextrestored", () => { try { where = program(gl); lost = false; } catch (_) { /* stays blank */ } });
+      canvas.addEventListener("webglcontextrestored", () => { try { where = program(gl, fragment); lost = false; } catch (_) { /* stays blank */ } });
       return {
         liquid: true,
+        water: !!water,
         draw(now, w, h) {
           if (lost) return;
           w = w || canvas.width;
@@ -283,9 +445,9 @@ void main() {
     };
   }
 
-  function look(mood, size) {
-    const from = MOODS[mood] || MOODS.idle;
-    const now = { t: 0, level: 0, open: 1, kick: 0, size: size || 0.30 };
+  function look(mood, size, water) {
+    const from = (water ? WET : MOODS)[mood] || (water ? WET : MOODS).idle;
+    const now = { t: 0, level: 0, open: 1, kick: 0, size: size || (water ? 0.33 : 0.30) };
     for (const key of NUMBERS) now[key] = from[key];
     for (const key of COLORS) now[key] = from[key].slice();
     return now;
@@ -305,19 +467,23 @@ void main() {
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     host.appendChild(canvas);
-    const paint = options.small ? copier(canvas, options.plain) : painter(canvas, options.plain);
+    // Live and large, it's water (unless asked for the marble with look: "marble"); small ones stay the marble.
+    const wet = !options.small && !options.plain && (options.look ? options.look === "water" : true);
+    const paint = options.small ? copier(canvas, options.plain) : painter(canvas, options.plain, wet);
+    const table = paint.water ? WET : MOODS;
     let mood = MOODS[options.mood] ? options.mood : "idle";
-    const now = look(mood, options.size);
+    const now = look(mood, options.size, paint.water);
     now.open = 0;
     now.kick = 1;   // it arrives already moving, and settles
     let want = 1, loud = 0, frame = 0, last = 0, seen = true, gone = false, placed = false, waited = 0;
     const pace = options.small ? 30 : 0;   // a little orb is redrawn about 30 times a second: at that size nobody can tell, and it's half the work
+    let heavy = 0, shrink = 1;             // the water is a lot of drawing: on a computer that can't keep up it's drawn smaller and stretched, never slower
 
     function size() {
       const box = host.getBoundingClientRect();
       const scale = Math.min(window.devicePixelRatio || 1, 2);
-      const most = options.small ? Math.min(options.most || SHARED, SHARED) : options.most || 900;   // a big screen doesn't need more than this to look liquid
-      const w = Math.max(16, Math.min(most, Math.round(box.width * scale))), h = Math.max(16, Math.min(most, Math.round(box.height * scale)));
+      const most = options.small ? Math.min(options.most || SHARED, SHARED) : options.most || (paint.water ? 760 : 900);   // a big screen doesn't need more than this to look liquid
+      const w = Math.max(16, Math.round(shrink * Math.min(most, Math.round(box.width * scale)))), h = Math.max(16, Math.round(shrink * Math.min(most, Math.round(box.height * scale))));
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     }
     function step(time) {
@@ -333,7 +499,11 @@ void main() {
       if (pace && last && time - last < pace) { frame = requestAnimationFrame(step); return; }
       const dt = Math.min(0.05, last ? (time - last) / 1000 : 0.016);
       last = time;
-      const to = MOODS[mood];
+      if (paint.water && shrink > 0.45) {
+        heavy = dt > 0.04 ? heavy + 1 : Math.max(0, heavy - 2);   // under 25 pictures a second, again and again
+        if (heavy > 30) { shrink *= 0.7; heavy = 0; }
+      }
+      const to = table[mood];
       const ease = 1 - Math.pow(0.03, dt);          // moods pour into each other over about a second
       for (const key of NUMBERS) now[key] = mix(now[key], to[key], ease);
       for (const key of COLORS) for (let i = 0; i < 3; i++) now[key][i] = mix(now[key][i], to[key][i], ease);
@@ -372,6 +542,7 @@ void main() {
     return {
       canvas,
       liquid: paint.liquid,
+      look: paint.water ? "water" : "marble",
       get mood() { return mood; },
       get gone() { return gone; },
       get closing() { return want === 0 && !gone; },
@@ -415,5 +586,5 @@ void main() {
     return copier(canvas).liquid;
   }
 
-  window.LumaOrb = { mount, still, liquid, moods: Object.keys(MOODS) };
+  window.LumaOrb = { mount, still, liquid, moods: Object.keys(MOODS), looks: ["water", "marble"] };
 })();

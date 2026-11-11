@@ -419,7 +419,7 @@
     mascotOrb?.set?.(orbMood(name), name === "happy" ? 0.45 : 0);
     dockOrb?.set?.(orbMood(name));
     const ts = $("talk-state");
-    if (ts) ts.textContent = document.body.classList.contains("speaking") ? "Speaking" : /^hearing/i.test(doing || "") ? "Listening" : name === "thinking" || name === "working" ? "Thinking" : /yes or no/i.test(doing || "") ? "Your call" : "Listening";
+    if (ts) ts.textContent = document.body.classList.contains("speaking") ? "Speaking" : /^hearing/i.test(doing || "") ? "Listening" : name === "thinking" || name === "working" ? "Thinking" : /yes or no/i.test(doing || "") ? "Yes or no?" : "Listening";
     $("doing").textContent = name === "sleepy" ? "Can't reach Luma" : doing || "";
     document.body.classList.toggle("thinking", name === "thinking" || name === "working");
     const row = document.querySelector(".thinking-row .shimmer-text");
@@ -5197,7 +5197,7 @@
   function paintVoice() {
     if (voice.on) startAura();
     const ts = $("talk-state");
-    if (ts) ts.textContent = voice.talking ? "Speaking" : state.busy ? "Thinking" : voice.expect ? "Your call" : "Listening";
+    if (ts) ts.textContent = voice.talking ? "Speaking" : state.busy ? "Thinking" : voice.expect ? "Yes or no?" : "Listening";
     $("top-talk").classList.toggle("on", voice.on);
     const mic = $("mic");
     const waking = !voice.on && voice.wake && Boolean(voice.stream);

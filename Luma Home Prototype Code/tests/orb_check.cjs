@@ -97,6 +97,26 @@ async function alone(browser) {
   out.stills = await page.evaluate(() => window.LumaOrb.moods.map((m) => window.LumaOrb.still(64, m)));
   out.surfacesAfterStills = await page.evaluate(() => window.__webgl);
 
+  // the marble (the logo's look) is still there when it's asked for by name (looked at here, after the surfaces are counted:
+  // it gets one of its own)
+  out.bigLook = await page.evaluate(() => window.big.look);
+  await page.evaluate(() => {
+    const d = document.createElement("div");
+    d.id = "marble";
+    d.style.cssText = "width:300px;height:300px";
+    document.body.appendChild(d);
+    window.marble = window.LumaOrb.mount(d, { mood: "idle", look: "marble" });
+  });
+  await page.waitForTimeout(900);
+  out.marble = { look: await page.evaluate(() => window.marble.look), idle: await see(page, "#marble") };
+  await page.evaluate(() => window.marble.set("speaking", 0.6));
+  await page.waitForTimeout(1300);
+  out.marble.speaking = await see(page, "#marble");
+  await page.evaluate(() => window.marble.set("listening", 0));
+  await page.waitForTimeout(1500);
+  out.marble.listening = await see(page, "#marble");
+  await page.evaluate(() => { window.marble.stop(); document.getElementById("marble").remove(); });
+
   // it cleans up: closed, it drains away and takes its canvas with it; taken off the page, it stops by itself
   await page.evaluate(() => window.big.close());
   await page.waitForTimeout(2600);

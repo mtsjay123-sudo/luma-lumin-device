@@ -89,3 +89,24 @@ Natural, unscripted-sounding lines, recorded casually, with laughs and pauses le
 | **Microduck** (Pollen Robotics / Hugging Face, $399) | 25 cm biped robot duck; behaviors are neural policies trained in MuJoCo and exported to ONNX; open-source Rust SDK (Apache-2.0); it beeps and has its own generated vocal identity but doesn't converse | Pre-orders open, ships before Christmas 2026 | Layer 3 (body), phase one. Exactly the R2-D2/WALL-E charm in the timeline. Luma could be its brain and voice. Order one for development. |
 | **Asimov v1** (Menlo Research, open-source humanoid) | 1.2 m, 35 kg, 25 DoF; full CAD, MuJoCo model, BOM; CERN-OHL hardware | Kit about $15,000–20,000 | Layer 3, phase two (after the raise). Its open simulation means Luma's body skills can be trained in sim first. |
 | **Kimi K3.1 Pro** (Moonshot AI) | Open-weight mixture-of-experts model: about 2.8 trillion parameters, 104 billion active, 1M-token context. Released Oct 23, 2026; weights promised by Nov 4 | API now (`kimi-k3.1-pro`) | Built in as a cloud-brain choice next to Claude, on the owner's own Moonshot key. It can't run on a Mac mini or any Mac (full weights are about 1.5 TB; even 1-bit is about 600 GB). What runs locally on a Mac mini is Luma's own brain (Qwen3 30B with 24 GB+ of memory), and the realistic way to make a model "ours" is to fine-tune that one on Luma's own conversations. |
+
+## Looked again for a more human voice (November 11, 2026)
+
+Asked for: the most human voice there is, from GitHub, if one beats what Luma has. Luma has Kokoro (classic),
+Chatterbox-Turbo (expressive), Qwen3-TTS (studio and designed voices), VoxCPM2 and Dia in the contest.
+
+What the open-weights boards say today (Artificial Analysis Speech Arena; rankings move week to week):
+
+| Voice | License | Standing | For Luma |
+|---|---|---|---|
+| Fish Audio S2 Pro | not allowed here | first among open weights | Out (rule 7) |
+| Breeze TTS 2 | research and non-commercial | first on one board | Out (rule 7) |
+| **Step-Audio-EditX** (`stepfun-ai/Step-Audio-EditX`) | Apache-2.0 | second among open weights (Elo 1101; Kokoro 1056) | **The one new candidate** |
+
+Step-Audio-EditX is a 3B model that speaks, and then edits what it said: the feeling, the style, and the small human
+sounds (a laugh, a breath, a sigh). That is the nearest thing in the open to "a person behind the screen". It needs
+about 12 GB (8.3 GB of files; there are 4-bit builds), so it's for a Mac with 24 GB or more, not for the $250 device.
+
+Not done, on purpose: it is not Luma's voice yet. A voice is judged by ear on a real Mac, and none of that can be
+done from the cloud. Next: add it to `scripts/voice_contest_mac.sh` beside VoxCPM2 and Chatterbox-Turbo, check its
+license file and its Apple Silicon path on the Mac, listen, and only then change the first choice.

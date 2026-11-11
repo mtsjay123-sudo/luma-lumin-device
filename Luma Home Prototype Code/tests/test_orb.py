@@ -114,20 +114,31 @@ class Served(unittest.TestCase):
 
         # It really draws: the shader works, the ball is there, and its box's corners are empty.
         self.assertTrue(seen["liquid"] and seen["bigLiquid"], "the shader didn't run; only the plain orb drew")
-        self.assertGreater(seen["big"]["lit"], 0.2)
         self.assertLess(seen["big"]["corner"], 8)
 
-        # Each mood looks like itself, and no two look the same.
+        # Live and large, it's water (the look of the owner's video): clear in the middle, so less of its box is lit
+        # than the marble's. Each mood looks like itself, and no two look the same.
+        self.assertEqual(seen["bigLook"], "water")
+        self.assertGreater(seen["big"]["lit"], 0.15)
         looks = seen["looks"]
         self.assertEqual(len({look["print"] for look in looks.values()}), len(MOODS))
         warm = lambda look: look["tone"][0] - look["tone"][2]
-        self.assertLess(looks["listening"]["middle"], 30, "listening should open its middle into a ring")
+        self.assertLess(looks["listening"]["middle"], 30, "listening should clear its middle")
         self.assertLess(seen["ring"]["middle"], 30)
         self.assertLess(warm(looks["listening"]), -20)      # cool while it listens
-        self.assertGreater(warm(looks["speaking"]), 10)     # warm while it speaks
-        self.assertGreater(warm(looks["waiting"]), 10)
+        self.assertLess(warm(looks["speaking"]), -20)       # speaking is the video: icy water...
+        self.assertGreater(warm(looks["speaking"]), warm(looks["listening"]) + 15)   # ...with warm glints the listening water doesn't have
+        self.assertGreater(warm(looks["waiting"]), warm(looks["idle"]) + 30)         # waiting is the warm one
         self.assertGreater(looks["thinking"]["tone"][2], looks["thinking"]["tone"][1] + 20)   # violet while it thinks
         self.assertGreater(looks["speaking"]["lit"], looks["idle"]["lit"] + 0.05, "its voice should make it glow")
+
+        # The marble is still there when asked for by name (it's the logo and the small avatar), and looks as it did.
+        marble = seen["marble"]
+        self.assertEqual(marble["look"], "marble")
+        self.assertGreater(marble["idle"]["lit"], 0.2)
+        self.assertLess(marble["listening"]["middle"], 30, "listening should open its middle into a ring")
+        self.assertLess(warm(marble["listening"]), -20)
+        self.assertGreater(warm(marble["speaking"]), 10)    # warm while it speaks
 
         # With no WebGL it still draws something.
         self.assertFalse(seen["plainLiquid"])
@@ -202,6 +213,35 @@ class TheFile(unittest.TestCase):
                 parts = [float(v) for v in found.group(1).split(",")]
                 self.assertEqual(len(parts), 3)
                 self.assertTrue(all(0 <= v <= 1 for v in parts), parts)
+
+    def test_the_water_has_every_mood_number_and_color_too(self):
+        block = self.text[self.text.index("const WET = {"):self.text.index("const FRAGMENT")]
+        lines = [line for line in block.splitlines() if re.match(r"    \w+: \{", line)]
+        self.assertEqual([re.match(r"    (\w+):", line).group(1) for line in lines], MOODS)
+        for line in lines:
+            for key in ("flow", "turb", "swirl", "hollow", "bright", "iri"):
+                self.assertRegex(line, rf"\b{key}: -?\d", line[:30])
+            for key in ("deep", "mid", "lite", "glint"):
+                found = re.search(rf"\b{key}: \[([^\]]+)\]", line)
+                self.assertIsNotNone(found, line[:30] + " " + key)
+                parts = [float(v) for v in found.group(1).split(",")]
+                self.assertEqual(len(parts), 3)
+                self.assertTrue(all(0 <= v <= 1 for v in parts), parts)
+
+    def test_the_water_asks_only_for_values_the_orb_gives(self):
+        shader = self.text[self.text.index("const WATER = `"):]
+        shader = shader[:shader.index("}\n`;")]
+        wanted = set()
+        for line in re.findall(r"^uniform \w+ ([^;]+);", shader, re.M):
+            wanted |= {name.strip() for name in line.split(",")}
+        given = set(re.findall(r'"(u[A-Z]\w*)"', self.text[self.text.index("const UNIFORMS = ["):self.text.index("const VERTEX")]))
+        self.assertTrue(wanted)
+        self.assertLessEqual(wanted, given, wanted - given)
+
+    def test_the_water_is_written_for_this_file(self):
+        # No borrowed shader code: the well-known water shaders online are mostly under non-commercial licenses.
+        for word in ("shadertoy", "iChannel", "iTime", "iResolution", "mainImage", "fragCoord"):
+            self.assertNotIn(word, self.text, word)
 
     def test_the_shader_gets_every_value_it_asks_for(self):
         shader = self.text[self.text.index("const FRAGMENT = `"):self.text.index("}`;")]
