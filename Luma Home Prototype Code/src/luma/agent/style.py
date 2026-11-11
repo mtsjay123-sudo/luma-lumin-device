@@ -293,6 +293,29 @@ ACKNOWLEDGED = re.compile(r"\b(?:my bad|got it|gotcha|ah+|oh+|oops|whoops|okay|o
                           r"say less|bet|my mistake)\b", re.I)
 
 
+# Borrowed experience said out of habit: "I can relate", "I've been there", "I know the feeling". Swapped where it stands
+# for something true, so the rest of what the brain said is kept. A claim with a life in it ("I get lonely too", "the same
+# thing happened to me") isn't a habit: that sentence goes (INVENTED_LIFE).
+RELATING = re.compile(
+    r"\bi (?:can )?(?:totally |really |definitely |completely |so |honestly )?relate(?: to (?:that|this|it|you))?(?=\s*(?:[.!,;:]|$))|"
+    r"\bi(?:'ve|’ve| have) (?:definitely |totally |so |all )?been there(?: too| before| myself)?(?=\s*(?:[.!,;:]|$))|"
+    r"\bi know (?:that|the) feeling(?: well| all too well| too)?(?=\s*(?:[.!,;:]|$))|"
+    r"\bi know what (?:that'?s|it'?s|that is|it is|that’s|it’s) like(?=\s*(?:[.!,;:]|$))", re.I)
+GET_IT = "I get it"
+
+
+def own_words(text):
+    """The reply with borrowed experience swapped for "I get it" where it stands. None when there's none to swap, or when
+    it's all the reply says: "I get it." alone isn't an answer, so the second look asks the brain again."""
+    text = str(text or "")
+    if not RELATING.search(text):
+        return None
+    swapped = RELATING.sub(GET_IT, text)
+    swapped = re.sub(rf"\b{GET_IT}\b([.!,;:]*\s+)(?:{GET_IT}\b[.!,;:]*\s*)+", GET_IT + r"\1", swapped)  # said twice, it's said once
+    rest = swapped.replace(GET_IT, " ")
+    return swapped if len(WORD.findall(rest)) >= 3 else None
+
+
 def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None):
     """The reply with the cheap fixes made, and the names of the fixes (for diagnostics). Never touches a safety reply.
     corrected: they're correcting Luma (None: decided from what they said alone)."""
@@ -312,6 +335,9 @@ def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None
     honest = honest_about_itself(text, said)
     if honest is not None:
         text, fixes = honest, fixes + ["claimed human"]
+    own = own_words(text)
+    if own is not None:
+        text, fixes = own, fixes + ["borrowed experience"]
     rules = [("help desk", lambda s: bool(assistantisms(s))), ("pamphlet", lambda s: bool(therapy_speak(s))),
              ("made-up life", lambda s: bool(invented_life(s)))]
     for name, bad in rules:

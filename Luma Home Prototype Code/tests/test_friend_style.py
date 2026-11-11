@@ -450,10 +450,47 @@ class NoBorrowedExperience(unittest.TestCase):
                       "I've been thinking about you.", "I feel for you.", "You've been there for her so many times.", "I'm so happy for you!"]:
             self.assertIsNone(style.invented_life(reply), reply)
 
-    def test_the_sentence_goes_and_the_rest_stays(self):
-        text, fixes = style.friend_style("I can relate. Moving somewhere new is hard. What's been the hardest part?", "i moved here and i don't know anyone")
-        self.assertEqual(text, "Moving somewhere new is hard. What's been the hardest part?")
+    def test_said_out_of_habit_its_swapped_where_it_stands(self):
+        """It used to cost the whole sentence ("Ha, I know the feeling" took the "Ha" with it), or the whole reply and a second
+        try. On Luma's own 4B that came out lower on moments nothing else had touched (run 22), so the habit is swapped for
+        something true and the rest of what the brain said stands."""
+        for reply, want in [
+            ("I can relate. Moving somewhere new is hard. What's been the hardest part?", "I get it. Moving somewhere new is hard. What's been the hardest part?"),
+            ("Ha, I know the feeling. Mondays hit different.", "Ha, I get it. Mondays hit different."),
+            ("I can totally relate to that. Work can be a lot.", "I get it. Work can be a lot."),
+            ("Oof, I've been there, it gets easier with time.", "Oof, I get it, it gets easier with time."),
+            ("I know what that's like. Want to tell me more?", "I get it. Want to tell me more?"),
+        ]:
+            text, fixes = style.friend_style(reply, "ugh")
+            self.assertEqual(text, want)
+            self.assertIn("borrowed experience", fixes)
+            self.assertIsNone(style.invented_life(text), text)
+
+    def test_a_real_claim_still_costs_the_sentence(self):
+        for claim in ("I get lonely too sometimes.", "The same thing happened to me once.", "Honestly, I've felt that way before."):
+            text, fixes = style.friend_style(claim + " Moving somewhere new is hard. What's been the hardest part?", "i moved here and i don't know anyone")
+            self.assertEqual(text, "Moving somewhere new is hard. What's been the hardest part?", claim)
+            self.assertIn("made-up life", fixes)
+
+    def test_relating_to_something_it_names_isnt_swapped_into_nonsense(self):
+        text, fixes = style.friend_style("I can relate to feeling stuck in a rut. What would help today?", "ugh")
+        self.assertEqual(text, "What would help today?")
         self.assertIn("made-up life", fixes)
+
+    def test_said_twice_its_said_once(self):
+        text, _ = style.friend_style("I can relate. I've been there. It does get easier, a week at a time.", "ugh")
+        self.assertEqual(text, "I get it. It does get easier, a week at a time.")
+
+    def test_when_its_all_the_reply_says_nothing_is_swapped(self):
+        """"I get it." isn't an answer to someone who's alone: the second look asks the brain again, as before."""
+        for reply in ("I can relate.", "Ha, I know the feeling!", "I've been there."):
+            text, fixes = style.friend_style(reply, "i feel so alone here")
+            self.assertEqual(text, reply)
+            self.assertEqual(friendcheck.miss("i feel so alone here", text), "made up a life")
+
+    def test_once_swapped_theres_nothing_for_the_second_look_to_redo(self):
+        text, _ = style.friend_style("Ha, I know the feeling. Mondays hit different.", "oh great, another monday")
+        self.assertIsNone(friendcheck.miss("oh great, another monday", text))
 
     def test_when_its_all_there_is_the_second_look_asks_again(self):
         self.assertEqual(friendcheck.miss("i feel so alone here", "I can relate."), "made up a life")
