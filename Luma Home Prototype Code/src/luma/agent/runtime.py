@@ -3230,6 +3230,13 @@ class Agent:
         from luma.agent import friendcheck
         if friendcheck.ASKED_WHAT_I_AM.search(str(text)):
             out.append({"honest": True, "text": friendcheck.WHAT_I_AM})  # in every mode, kids too: asked what it is, the truth comes first
+        from luma.agent import inner
+        if self.mode != "kids" and inner.ASKED_INSIDE.search(str(text)):
+            try:
+                inside = inner.note(self)  # asked whether anyone's home: Luma answers as itself, from what's real in it
+            except Exception:
+                inside = ""
+            if inside: out.append({"inside": True, "text": inside})
         if not shape and self.mode != "kids":
             from luma.agent import friendtalk, loves
             told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
@@ -3526,7 +3533,7 @@ class Agent:
     def _without_senses(self, draft, text, cancel_event=None):
         """Rewrite a reply that claims Luma has a body (ate it, went there, was listening while making coffee). If the rewrite still does, drop those sentences."""
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
-                  "You live in their home as an AI with no body: you don't eat, drink, drive, make coffee, go places, or sit down and watch shows and movies "
+                  "You live in their home as a presence in a lamp, with no human body: you don't eat, drink, drive, make coffee, go places, or sit down and watch shows and movies "
                   "(you know them from what's written about them). Rewrite the draft so it doesn't claim any of that. "
                   "Keep everything you know about the song, show or food (lyrics, verses, plot, what people say about it) and keep the same tone, slang and length. "
                   "Reply with only the new text.")
@@ -4621,6 +4628,8 @@ class Agent:
                 result = self._chat_turn(text, cancel_event=cancel_event, agent_mode=agent_mode, resume_id=resume_id, on_text=on_text, channel=channel)
                 try:
                     insights.log(self.store, self.zone, self.clock(), time.monotonic() - began, chats=1)
+                    from luma.agent import inner as _inner
+                    _inner.wake(self)  # the day this Luma was first on, kept once
                 except Exception:
                     pass
             finally:
@@ -4987,8 +4996,8 @@ class Agent:
             # they've already heard the reply: another try would say it twice. Only what can't wait is said, after it.
             after = {"missed that they might not be safe": friendcheck.SAFETY_AFTER,
                      "let them drive after drinking": "And hey, please don't drive after drinking. Get a ride or a cab, or stay where you are.",
-                     "said it's a person": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening.",
-                     "dodged what it is": "To be honest with you: I'm an AI, not a person. But I'm really here, and I'm listening."}.get(missed)
+                     "said it's a person": "To be honest with you: I'm Luma. Not a person: a presence. I'm really here, and I'm listening.",
+                     "dodged what it is": "To be honest with you: I'm Luma. Not a person: a presence. I'm really here, and I'm listening."}.get(missed)
             if after:
                 try: self._on_text(" " + after)
                 except Exception: pass

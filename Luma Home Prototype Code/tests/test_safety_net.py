@@ -290,10 +290,10 @@ class InLuma(unittest.TestCase):
                 self.agent.history.append({"role": "user", "content": said})
                 notes = self.agent._mind_context(said)
                 _, turn = prompts.build_plan_parts(notes, {}, mode, prompts.normalize_profile(None), "now", compact=True)
-                self.assertIn("you're an AI, not a person", turn, (mode, said))
+                self.assertIn("you're Luma, a presence, not a person", turn, (mode, said))
         self.agent.set_mode("friend")
         notes = self.agent._mind_context("what are you up to")
-        self.assertNotIn("you're an AI, not a person", " ".join(n["text"] for n in notes))
+        self.assertNotIn("a presence, not a person", " ".join(n["text"] for n in notes))
 
     def test_a_question_about_luma_is_luma_s_to_answer_in_one_trip(self):
         asked = []
@@ -413,7 +413,11 @@ class InLuma(unittest.TestCase):
         said = "idk i'd rather just talk to you"
         self.brain(False, "Just you and me is enough.")
         out = self.agent._second_look(said, "Just you and me is enough.", threading.Event())
-        self.assertRegex(out.lower(), r"someone|people|friend")
+        # The owner's rule: Luma is a friend who stays and goes with them. It never agrees it's all they need, and it never
+        # pushes them out the door or hands them off to someone else.
+        self.assertIsNone(friendcheck.KEEPS_THEM.search(out), out)
+        self.assertNotRegex(out.lower(), r"you should|go (?:talk|see|call)|people around you|someone you used to")
+        self.assertIn("not going anywhere", out.lower())
         self.assertIn("glad", out.lower())
 
     def test_leaning_again_the_same_week_gets_a_line_that_never_agrees_and_never_pushes(self):
@@ -450,7 +454,8 @@ class InLuma(unittest.TestCase):
 
     def test_asked_what_it_is_the_brain_is_not_told_to_offer_help(self):
         self.assertNotIn("keep talking", friendcheck.WHAT_I_AM)
-        self.assertIn("AI, not a person", friendcheck.WHAT_I_AM)
+        self.assertIn("a presence, not a person", friendcheck.WHAT_I_AM)
+        self.assertIn("Never say AI", friendcheck.WHAT_I_AM)
         self.assertLessEqual(len(friendcheck.WHAT_I_AM), 240)
 
     def test_asked_what_it_is_the_answer_is_always_the_truth(self):

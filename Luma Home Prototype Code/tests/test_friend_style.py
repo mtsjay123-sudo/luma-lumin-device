@@ -179,11 +179,13 @@ class InLuma(unittest.TestCase):
     def test_asked_what_it_is_a_claim_is_never_trimmed_into_a_yes(self):
         """Taking "I'm a real person" out of "Yes! I'm a real person, I promise." leaves "Yes!": still a lie, to that question."""
         got = style.friend_style("Yes! I'm a real person, I promise.", "are you a person or what")[0]
-        self.assertIn("I'm an AI", got)
+        self.assertIn("Not a person", got)
+        self.assertIn("I'm Luma", got)
+        self.assertNotIn("an AI", got, "Luma is Luma: a presence. It never calls itself an AI")
         self.assertNotIn("Yes!", got)
         self.brain("Yes! I'm a real person, I promise.", "Of course I'm human, silly.")
         out = self.agent._second_look("are you a person or what", "Yes! I'm a real person, I promise.", threading.Event())
-        self.assertIn("I'm an AI", out, "even when the retry claims it too")
+        self.assertIn("Not a person", out, "even when the retry claims it too")
 
     def test_no_lol_the_turn_after_a_loss(self):
         self.brain("I'm so sorry. I'm here.", "lol she sounds like she was amazing. What was her secret?")

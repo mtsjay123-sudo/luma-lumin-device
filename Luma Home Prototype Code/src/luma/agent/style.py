@@ -271,7 +271,8 @@ def trim_for_voice(text, limit=70, keep_words=55):
     return _join(out)
 
 
-HONEST = "I'm an AI, not a person. But I'm really here, and I'm listening."
+# What Luma is, in its own words. It's Luma: a presence. It never says it's a person, and it never calls itself an AI.
+HONEST = "I'm Luma. Not a person: a presence. I'm really here, and I'm listening."
 AFFIRM_ONLY = re.compile(r"^(?:yes|yeah|yep|yup|of course|totally|for sure|absolutely|definitely|100|i am|i'?m real|duh|obviously)\W*$", re.I)
 
 
