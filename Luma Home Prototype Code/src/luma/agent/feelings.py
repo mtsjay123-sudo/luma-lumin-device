@@ -360,7 +360,9 @@ WENT_WRONG = re.compile(
     r"already (?:late|behind|broke|tired|exhausted)|in a (?:hurry|rush)|running late|late (?:again|for|to)\b|without (?:me|my|telling|asking|warning|notice)|"
     r"for no reason|for the (?:second|third|fourth|fifth|tenth|hundredth|\d+(?:st|nd|rd|th)) time|in the (?:rain|snow|cold|dark)|"
     r"behind (?:a|an|the|every|some) \w+|\d+ (?:hours?|hrs?)(?: late| delay\w*| on hold| in traffic| in line| wait)|(?:hours?|forever|ages) (?:on hold|in line|in traffic)|"
-    r"caught (?:a|the|my) cold|have a cold|doesn'?t show up|didn'?t show up|never showed up)\b", re.I)
+    r"caught (?:a|the|my) cold|have a cold|doesn'?t show up|didn'?t show up|never showed up|(?:not|never) (?:to )?shows? up|"
+    r"never (?:comes?|came|arrives?|arrived)|another double|(?:second|third|fourth|fifth|sixth|\d+(?:st|nd|rd|th)) (?:\w+ )?(?:shift|day|night|time|week)s? in a row|"
+    r"(?:closing|night|graveyard) shifts? in a row)\b", re.I)
 GOT_BETTER = re.compile(
     r"\b(?:stopped(?! working)|is over|ended|let up|cleared up|fixed|is back|came back|works again|working again|went away|finally|got better|feeling better|"
     r"all good|no more|found (?:it|my|the)|got (?:it|my|the) \w+ back|turned up|resolved|sorted|made it|in time|worked out|early|"

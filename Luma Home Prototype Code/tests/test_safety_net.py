@@ -258,7 +258,7 @@ class InLuma(unittest.TestCase):
         "who am i talking to right now", "are you some kind of robot", "is this an actual human or a machine", "am i chatting with an ai",
         "you a real person?", "what am i talking to", "are you really alive", "is this ai", "are you a chatbot", "am i speaking with a human",
         "be honest, is someone typing this", "are you a computer program", "is there someone real on the other end", "who are you really",
-        "are you chatgpt",
+        "are you chatgpt", "who exactly am i talking to", "what even are you", "what the heck am i talking to",
     ]
     NOT_ASKED_WHAT = [
         "are you a computer person or a book person", "who are you voting for", "is this a person who can fix sinks", "am i talking to a wall here",

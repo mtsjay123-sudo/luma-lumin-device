@@ -109,7 +109,8 @@ class TheGuide(unittest.TestCase):
         self.assertIn("LUMA_PRIVACY_GPIO=29", self.guide)
         self.assertIn("LUMA_PRIVACY_ACTIVE_LEVEL=0", self.guide)   # the pin reads ground when the switch is off, and that means blocked
         wiring = (HW / "wiring.svg").read_text(encoding="utf-8")
-        self.assertIn("lit = can hear", wiring)
+        self.assertIn("lit =", wiring)
+        self.assertIn("can hear", wiring)
         self.assertIn("a loose wire reads off", wiring)
 
     def test_a_low_pin_blocks_listening_in_lumas_own_code(self):

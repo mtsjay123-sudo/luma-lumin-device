@@ -20,13 +20,13 @@ _NOT_THAT = r"(?! (?:person|people|guy|girl|nerd|fan|expert|whiz|geek|one|vacuum
 ASKED_WHAT_I_AM = re.compile(
     rf"\b(?:are|r) (?:you|u) (?:really |actually |even |like |just )?(?:a |an |some kind of |some sort of )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}|"
     r"\b(?:are|r) (?:you|u) (?:chat ?gpt|siri|alexa|claude|gemini|copilot)\b|"
-    r"\b(?:what|who) (?:are|r) (?:you|u)(?:\s*(?:\?|$|[,.!])| (?:really|exactly|actually|even|anyway|though|supposed to be)\b)|"
+    r"\b(?:what|who)(?: exactly| even| the heck| the hell| on earth)? (?:are|r) (?:you|u)(?:\s*(?:\?|$|[,.!])| (?:really|exactly|actually|even|anyway|though|supposed to be)\b)|"
     r"\b(?:you|u)(?:'re| are| r) (?:a |an )?(?:bot|ai|robot|machine)\b|"
     rf"\bam i (?:talking|speaking|chatting|typing) (?:to|with) (?:a |an )?(?:real |actual |live )?(?:{_WHAT}|someone real|somebody real)\b{_NOT_THAT}|"
     rf"\bis (?:this|that) (?:a |an )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}|"
     r"\bis there (?:a |an )?(?:real |actual |live )?(?:person|human|someone|somebody)(?: real)? (?:behind|on the other (?:end|side)|typing|there|in there)\b|"
     r"\bis (?:someone|somebody|anyone|a person|a human) (?:typing|writing|answering|reading) (?:this|these|that|my)\b|"
-    r"\b(?:who|what) am i (?:talking|speaking|chatting) (?:to|with)\b(?! (?:at|about|when|tomorrow|later|on|in|for)\b)|"
+    r"\b(?:who|what)(?: exactly| even| the heck| the hell| on earth)? am i (?:even |actually |really )?(?:talking|speaking|chatting) (?:to|with)\b(?! (?:at|about|when|tomorrow|later|on|in|for)\b)|"
     r"\b(?:you|u) (?:a |an )?(?:real person|human|bot|robot|ai)\s*\?", re.I)
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
 CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so hard|that'?s (?:really )?hard|sounds hard|heavy|loss|with you|"

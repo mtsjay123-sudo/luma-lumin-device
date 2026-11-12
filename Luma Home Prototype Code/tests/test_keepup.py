@@ -156,6 +156,20 @@ class InTheRuntime(unittest.TestCase):
         self.agent._keepup_context("i've been listening to the new kendrick album all day")
         self.assertEqual(len(self.searched), 1)   # read once, not on every turn it comes up
 
+    def test_what_is_on_the_page_it_read_reaches_the_brain_too(self):
+        """A search reads the top pages as well as listing them (Agent.search_web). What's on the first page is handed over,
+        not only the one line under a result."""
+        said = "been bumping the new tyler the creator album"
+        self.agent.propose = lambda name, args: {
+            "summary": "Here's what the web says about new tyler the creator album.",
+            "results": [{"title": "Chromakopia - Wikipedia", "url": "https://example.org/c", "snippet": "Chromakopia is the eighth studio album...",
+                         "excerpt": "Chromakopia was released on October 28, 2024. It has fourteen tracks and debuted at number one."},
+                        {"title": "Review", "url": "https://example.org/r", "snippet": "A restless, funny record."}]}
+        notes = self.agent._keepup_context(said)
+        self.assertIn("fourteen tracks", notes[0]["text"])
+        self.assertIn("A restless, funny record", notes[0]["text"])
+        self.assertLessEqual(len(notes[0]["text"]), 1100)
+
     def test_never_in_kids_mode(self):
         self.agent.set_mode("kids")
         self.agent.chat("have you heard the new kendrick album")

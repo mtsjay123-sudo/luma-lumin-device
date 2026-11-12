@@ -580,7 +580,9 @@ class SaidDry(unittest.TestCase):
         "really love how my laptop decides to update right before a deadline",
         "don't you just love when the checkout line closes right as you get there", "oh nice, the sink is leaking again",
         "perfect. just perfect. the oven died an hour before the guests show up", "yay, my flight got bumped to tomorrow",
-        "oh lovely, the one day i wear white and it pours",
+        "oh lovely, the one day i wear white and it pours", "so glad the bus decided not to show up today",
+        "living the dream, third closing shift in a row", "oh yay, they put me on another double",
+        "my favorite thing is when the ferry just never comes",
         "so that's fun, my tooth cracked on a popcorn kernel", "oh brilliant, i left my wallet at home",
     ]
     SINCERE = [

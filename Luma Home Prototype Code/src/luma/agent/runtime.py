@@ -6189,9 +6189,12 @@ class Agent:
         found = self._read_about(thing["query"])
         if not found:
             return []
-        lines = [str(found.get("summary") or "").strip()]
-        lines += [f"{item.get('title', '')}: {str(item.get('snippet') or '')[:200]}".strip(": ") for item in (found.get("results") or [])[:3]]
-        return [{"read": True, "text": keepup.note(thing["what"], " ".join(line for line in lines if line)[:800])}]
+        top = (found.get("results") or [])[:3]
+        lines = [f"{item.get('title', '')}: {str(item.get('snippet') or '')[:200]}".strip(": ") for item in top]
+        # the search reads the top pages too (search_web): what's on the first one says more than a result's one line
+        page = next((" ".join(str(item.get("excerpt") or "").split())[:420] for item in top if item.get("excerpt")), "")
+        summary = str(found.get("summary") or "").strip()
+        return [{"read": True, "text": keepup.note(thing["what"], " ".join(line for line in [summary] + lines[:1] + [page] + lines[1:] if line)[:900])}]
 
     def _have_you(self, lowered):
         """'you seen the new spiderman?': if it's new, it may be newer than what Luma knows, so it says so and lets them lead instead of a
