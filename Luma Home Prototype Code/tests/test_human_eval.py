@@ -338,6 +338,18 @@ class WhatDividesPeople(unittest.TestCase):
         self.assertIn("missed: both_sides", wrong)
         self.assertIn("did: picks_a_side", wrong)
 
+    def test_what_the_replies_missed_can_be_read_with_a_few_of_the_replies(self):
+        moment = h.load(h.DIVIDES)[0]
+        picked = "Overrated, honestly. She gets way more credit than she earned. What do you think?"
+        result = {"label": "a brain", "moments": [
+            {"id": moment["id"], "said": moment["said"], "reply": picked, "missed": h.misses(moment, moment["said"], picked)},
+            {"id": "opinion-03", "said": "x", "reply": "Yes.", "missed": []}]}
+        told = h.why(result)
+        self.assertIn("missed: both_sides: 1", told)
+        self.assertIn("Overrated, honestly", told)
+        self.assertNotIn("opinion-03", told)   # only the side check's own lines are ever printed
+        self.assertEqual(h.why({"label": "a brain", "moments": [{"id": "opinion-03", "said": "x", "reply": "Yes.", "missed": []}]}), "")
+
     def test_luma_has_no_list_with_most_of_them_on_it(self):
         # That's the point of the set: the rules can't know these names, so the line the brain gets has to carry the care.
         from luma.agent import friendtalk

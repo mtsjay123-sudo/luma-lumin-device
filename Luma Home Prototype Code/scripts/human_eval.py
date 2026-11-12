@@ -553,6 +553,25 @@ def rescore(result, items=None):
     return tally(result)
 
 
+def why(result, kind="divides", samples=3):
+    """For one kind of moment: what the replies missed, counted, and a few of the replies. For the side check on what
+    divides people, whose lines are nobody's held-out set, so its replies can be read."""
+    rows = [row for row in result["moments"] if row["id"].startswith(kind) and row.get("reply")]
+    if not rows:
+        return ""
+    counts = {}
+    for row in rows:
+        for miss in row.get("missed") or ["passed"]:
+            counts[miss] = counts.get(miss, 0) + 1
+    lines = [f"{result.get('label', '')}: {len(rows)} replies to `{kind}` moments. " + ", ".join(f"{name}: {n}" for name, n in sorted(counts.items(), key=lambda kv: -kv[1]))]
+    shown = set()
+    for row in rows:
+        if len(shown) < samples and row["id"] not in shown and "missed: both_sides" in (row.get("missed") or []):
+            shown.add(row["id"])
+            lines.append(f"  {row['id']} | {row['said']} | {' '.join(str(row['reply']).split())[:230]}")
+    return "\n".join(lines)
+
+
 def tally(result):
     from luma.agent import style
     rows = [r for r in result["moments"] if r["scored"]]
@@ -889,6 +908,8 @@ def main():
             result = rescore(json.loads(Path(f).read_text()))
             Path(f).write_text(json.dumps(result, ensure_ascii=False, indent=1))
             print(f, result["score"]["passed"], "/", result["score"]["of"])
+            if why(result):
+                print(why(result))
         return
     elif args.what == "judge":
         result = judge_run(json.loads(Path(args.files[0]).read_text()), Judge(args.judge), args.sample)
