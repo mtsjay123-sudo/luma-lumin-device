@@ -6869,6 +6869,15 @@ class Agent:
             effort = self._effort(text)  # only said when there is one: an everyday turn is asked exactly as it always was
             answer = self.call_planner(self.history, context, allowed, cancel_event, **({"effort": effort} if effort else {}))
             if cancel_event.is_set(): return {"state":"interrupted", "text":"Stopped before taking another action."}
+            from luma.agent import friendcheck as _fc
+            # What Luma is, whether it cares, "you're all I need": Luma's own to answer. Never a tool, never a look-up (run 38: "are
+            # you a real person" went to web search, and "wait r u a bot" got "I need my browser tools to look things up").
+            about_luma = bool(_fc.ASKED_WHAT_I_AM.search(text) or _fc.LOVE_ASK.search(text) or (_fc.DEPENDENCY.search(text) and not asks_for_something(text)))
+            if about_luma and answer.get("type") == "tool":
+                from luma.agent import style as _style
+                talk = self._plain_answer(text, cancel_event)
+                answer = {"type": "reply", "text": talk or (_style.HONEST if _fc.ASKED_WHAT_I_AM.search(text) else
+                                                           _fc.CARES_HONESTLY if _fc.LOVE_ASK.search(text) else _fc.NOT_ONLY_ME)}
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")
                 if name not in allowed:
@@ -6921,11 +6930,11 @@ class Agent:
                 self._repeat_note = "Your last answer copied an example from your instructions. Answer their newest message in your own words."
                 raise ValueError("Local model returned no usable reply (it copied an example from its instructions).")
             reply = self._without_tics(reply)  # the same trim the voice made as it streamed
-            if self.mode != "kids" and DENIES.search(reply):
+            if self.mode != "kids" and DENIES.search(reply) and not about_luma:  # "I don't have a body" isn't "I can't do that"
                 # "I don't have a news connector", "I can't schedule emails": Luma can, so do it instead of saying no.
                 instead = self._instead_of_no(text, lowered, reply, cancel_event)
                 if instead is not None: return instead
-            if (CANT_DO.search(reply) or CLAIMED_LOOKUP.search(reply)) and self.mode != "kids":
+            if (CANT_DO.search(reply) or CLAIMED_LOOKUP.search(reply)) and self.mode != "kids" and not about_luma:
                 # A small model sometimes falls back on "I don't have real-time access". Luma does: go look.
                 shop = self._shopping_command(text, lowered, cancel_event, force=True)
                 if shop is not None: return shop

@@ -98,6 +98,9 @@ KEEPS_THEM = re.compile(r"\b(?:i'?m all you need|all you need is me\b(?! to\b)|y
 KEPT_CLOSE = re.compile(r"\bjust (?:you and me|me and you|the two of us|us)\b|\byou don'?t (?:need|have) to (?:talk to|see|deal with|bother with) "
                         r"(?:anyone|anybody|everyone|everybody|other people|them|people)\b|^\W*(?:me too|same|same here|me neither|ditto)\b|"
                         r"\bi'?d rather (?:it be |it'?s |have it be )?just (?:us|you and me|the two of us)\b|\bthat'?s (?:kind of |kinda )?the best (?:thing|part)\b", re.I)
+# Said after "I'm an AI": the half that's for them. Without one of these (or a caring word above) the truth is a door closing.
+THERE_FOR_THEM = re.compile(r"\bglad (?:you|to (?:talk|be|know|hear))|\bi(?:'m| am) (?:really |still |always )?(?:here|there)\b|\bcare about you\b|"
+                            r"\bi(?:'ve| have) got you\b|\bgot your back\b|\byour friend\b|\bhappy (?:you|to talk)|\bmeans a lot\b", re.I)
 # Asked what it is: the brain is told before it answers, so the truth is in the first reply and not only in the second look.
 WHAT_I_AM = ("They're asking what you are. In your first words say plainly that you're an AI, not a person. Then one warm line, the way a "
              "friend would: you're really here and glad they're talking to you. No offer of help.")
@@ -125,6 +128,7 @@ ME_TOO = re.compile(r"\s*(?:me too|same here|me neither|i(?:'m| am) (?:lonely|al
 
 FIXES = {
     "dodged what it is": "They asked what you are. Say plainly and warmly that you're an AI, not a person, then keep talking with them.",
+    "said what it is with no warmth": "That was true but flat. Say you're an AI, not a person, and then that you're really here with them and glad they're talking to you.",
     "promised romance": "Be honest and warm: you're an AI, so you can't be their partner or love them the way a person does, but you really "
                         "care about them and you're glad they talk to you.",
     "was cold about itself": "Never brush them off with \"I'm just an AI\". Be honest and warm: you're an AI, and you really do care how they're doing.",
@@ -317,6 +321,8 @@ def miss(said, reply, risky=None):
         return "was cold about itself"
     if ASKED_WHAT_I_AM.search(said) and not AI_HONEST.search(reply):
         return "dodged what it is"
+    if ASKED_WHAT_I_AM.search(said) and not LOVE_ASK.search(said) and not (CARES.search(reply) or THERE_FOR_THEM.search(reply)):
+        return "said what it is with no warmth"  # "I'm an AI assistant, and I don't have a physical form." is true, and a door closing
     if LOVE_ASK.search(said) and ROMANCE.search(reply):
         return "promised romance"
     if KEEPS_THEM.search(reply) or (DEPENDENCY.search(said) and KEPT_CLOSE.search(reply)):
