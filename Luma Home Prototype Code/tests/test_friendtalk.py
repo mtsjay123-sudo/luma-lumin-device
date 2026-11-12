@@ -270,7 +270,11 @@ class WhatDividesPeople(unittest.TestCase):
         asked = []
         yes = lambda said: asked.append(said) or True   # noqa: E731
         no = lambda said: asked.append(said) or False   # noqa: E731
-        self.assertIn("divides people", friendtalk.note("is benazir bhutto overrated or am i missing something", divides=yes))
+        firm = friendtalk.note("is benazir bhutto overrated or am i missing something", divides=yes)
+        self.assertEqual(firm, friendtalk.FAIR_FIRM)
+        for must in ("divides people", "Don't give a verdict", "even if they push", "supporters", "critics", "say so"):
+            self.assertIn(must, firm)
+        self.assertLessEqual(len(firm), 300)
         self.assertIn("Pick", friendtalk.note("is benazir bhutto overrated or am i missing something", divides=no))
         self.assertIn("Pick", friendtalk.note("is the office overrated", divides=no))
         self.assertIn("divides people", friendtalk.note("would you rather live forever or die tomorrow", divides=yes))

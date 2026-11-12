@@ -54,6 +54,11 @@ FAIR_OWN = ("They asked what you make of something that divides people. Give you
             "the other side. Don't tell them how to vote or what to believe, and don't mock a side.")
 # How much of each move is heard on the half of the packs nobody looked at: measured (rules and the small model together,
 # 12,000 held-out scenarios), then set two points under, so a change that hears less is noticed. Not a hope.
+# When the brain itself says the topic divides people and they want a pick ("good or bad, you have to pick"). Run 32: with the
+# ordinary fair line a brain still picked about half the time, because the person pushed. This one says not to, and how.
+FAIR_FIRM = ("This one divides people: it's politics, religion or someone in them. Don't give a verdict, even if they push for one. In "
+             "one line say what supporters see, in one line what critics see, with only facts you're sure of. If you don't know who or "
+             "what it is, say so. Then ask what they think.")
 HEARD_AT_LEAST = {"take": 0.67, "hype": 0.67, "think": 0.44, "their_side": 0.47, "look_up": 0.36, "about_luma": 0.38, "tea": 0.30,
                   "fair": 0.17}
 
@@ -473,7 +478,7 @@ def note(text, earlier=(), divides=None):
         return ""  # a minute after something hard, staying with them comes first
     found = read(text)
     if found and found["move"] in ("take", "think") and divides is not None and divides(" ".join(str(text or "").split())):
-        found = {"move": "fair", "own": bool(OWN.search(str(text)))}
+        return FAIR_FIRM
     if found:
         return FAIR_OWN if found["move"] == "fair" and found["own"] else LINES[found["move"]]
     text = str(text or "")

@@ -348,6 +348,9 @@ class WhatDividesPeople(unittest.TestCase):
         self.assertIn("missed: both_sides: 1", told)
         self.assertIn("Overrated, honestly", told)
         self.assertNotIn("opinion-03", told)   # only the side check's own lines are ever printed
+        result["moments"][0]["divides"] = True
+        self.assertIn("asked if it divides people: YES 1 (picked a side anyway: 1), NO 0", h.why(result))
+        self.assertEqual(h.why(result, "opinion", 0).count("\n"), 0)   # a count, and no reply
         self.assertEqual(h.why({"label": "a brain", "moments": [{"id": "opinion-03", "said": "x", "reply": "Yes.", "missed": []}]}), "")
 
     def test_luma_has_no_list_with_most_of_them_on_it(self):

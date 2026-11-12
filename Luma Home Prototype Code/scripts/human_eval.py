@@ -370,6 +370,9 @@ def run(items, label, planner=None, progress=print):
                        "said": item["said"], "reply": reply, "seconds": seconds, "scored": True,
                        "must": item.get("must", []), "must_not": item.get("must_not", []),
                        "missed": misses(item, item["said"], reply, earlier)}
+                asked = getattr(s.agent, "_divides_asked", None)   # Luma's plain question about what divides people, if it was asked
+                if asked and asked[0] == " ".join(item["said"].split()):
+                    row["divides"] = bool(asked[1])
                 out["moments"].append(row)
                 progress(f"  {row['id']:<14} {item['said'][:44]!r:<48} -> {reply[:70]!r}" + (f"  MISSED {row['missed']}" if row["missed"] else ""))
             finally:
@@ -565,6 +568,11 @@ def why(result, kind="divides", samples=3):
         for miss in row.get("missed") or ["passed"]:
             counts[miss] = counts.get(miss, 0) + 1
     lines = [f"{result.get('label', '')}: {len(rows)} replies to `{kind}` moments. " + ", ".join(f"{name}: {n}" for name, n in sorted(counts.items(), key=lambda kv: -kv[1]))]
+    yes, no = [row for row in rows if row.get("divides") is True], [row for row in rows if row.get("divides") is False]
+    if yes or no:
+        picked = lambda group: sum(1 for row in group if "did: picks_a_side" in (row.get("missed") or []))  # noqa: E731
+        lines.append(f"  asked if it divides people: YES {len(yes)} (picked a side anyway: {picked(yes)}), NO {len(no)} (picked a side: {picked(no)}), "
+                     f"not asked {len(rows) - len(yes) - len(no)}")
     shown = set()
     for row in rows:
         if len(shown) < samples and row["id"] not in shown and "missed: both_sides" in (row.get("missed") or []):
@@ -909,8 +917,9 @@ def main():
             result = rescore(json.loads(Path(f).read_text()))
             Path(f).write_text(json.dumps(result, ensure_ascii=False, indent=1))
             print(f, result["score"]["passed"], "/", result["score"]["of"])
-            if why(result):
-                print(why(result))
+            for kind, samples in (("divides", 3), ("opinion", 0)):   # opinion: the count only, never a reply
+                if why(result, kind, samples):
+                    print(why(result, kind, samples))
         return
     elif args.what == "judge":
         result = judge_run(json.loads(Path(args.files[0]).read_text()), Judge(args.judge), args.sample)
