@@ -105,7 +105,9 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
 | Luma's look: living water on the talk screen's dark stage (`look: "water"`), the marble everywhere else (the first slides, the avatars, the logo) | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright). After a change, copy it to `desktop/assets/orb.js` |
 | The human model: what a close friend does with language, trait by trait, and where each lives | `docs/HUMAN_MODEL.md` |
-| The device you can build: parts, wiring, the microphone switch, a case to print | `hardware/README.md`, `hardware/luma_case.scad`, `hardware/stl/` (tests: `tests/test_hardware_case.py`). A design; no unit has been built |
+| The device you can build: a lamp (a frosted dome on a white base), parts, wiring, the microphone switch, a case to print | `hardware/README.md`, `hardware/luma_case.scad`, `hardware/stl/` (tests: `tests/test_hardware_case.py`). A design; no unit has been built. The dome's glow says nothing about listening: only the amber light on the microphones' power does |
+| Setting a new Luma up from a phone: its own setup network, a page to pick the Wi-Fi, then the same spoken code pairs the phone | `src/luma/hardware/firstrun.py` (tests: `tests/test_firstrun.py`). Only where `LUMA_WIFI_SETUP=1`. The Wi-Fi password goes to NetworkManager and nowhere else; nothing about a setup is logged |
+| Who pays, what a lamp costs, what a seat earns | `docs/BUSINESS_MODEL.md` (tests redo its sums: `tests/test_business_model.py`). Every number says if it's known, ours or an assumption. No ads, no data, nothing earned from minutes |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |

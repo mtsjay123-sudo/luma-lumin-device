@@ -4,6 +4,9 @@ About ten minutes. Everything below runs on what's live today: the Luma page, Lu
 Luma app on your phone. The Luma device itself is a prototype, so say so plainly: the software is real and
 running, and the hardware is in development.
 
+**Two things to have open:** [`BUSINESS_MODEL.md`](BUSINESS_MODEL.md) (who pays, what a lamp costs, what a seat earns, what's
+an assumption) and [`../hardware/README.md`](../hardware/README.md) (the lamp: parts, wiring, the case, what isn't proven).
+
 ## The night before (15 minutes)
 
 1. **Update Luma Desktop.** Download it fresh from the Luma page (`/download/mac`) so you're on the newest build.

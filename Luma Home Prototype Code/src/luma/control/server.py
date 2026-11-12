@@ -1218,8 +1218,12 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
     if root_context:
         write_cli_token(agent, ctx.cli_token, server.server_port)
         ctx.phone_app.start()
-        from luma.hardware import wifi as wifi_watch
-        wifi_watch.start_watch(say=lambda text: ctx.publish({'type':'notice','text':text}))  # on the device only: setup network if it can't get online
+        from luma.hardware import firstrun
+        def pair_phone(ip):  # the home Wi-Fi page for phones comes up at the lamp's new address, with one invite for the phone that knew the code
+            return ctx.start_phone(ip)+'/#pair='+ctx.pairing.create_invite()['token']
+        # On the device only: not online, its own setup network and a page for a phone; online with no phone paired, the door to pair one.
+        firstrun.start_watch(say=lambda text: ctx.publish({'type':'notice','text':text}), pair=pair_phone,
+                             unpaired=lambda: not any(d.get('active') for d in ctx.pairing.list_devices()))
         try: agent.helpers.ensure_system()
         except Exception: pass
         def clock_loop():

@@ -2,7 +2,7 @@
 """Make the printed case's parts again from the drawing (hardware/luma_case.scad). Needs OpenSCAD.
 
     python scripts/case_parts.py              # every part, into hardware/stl
-    python scripts/case_parts.py base lid     # just these
+    python scripts/case_parts.py base dome    # just these
     python scripts/case_parts.py --pictures   # the four pictures in hardware/pictures too (needs xvfb-run where there's no screen)
 
 OpenSCAD writes text STL files; this keeps the small binary kind (a fifth of the size). Then measure them:
@@ -17,9 +17,9 @@ import tempfile
 from pathlib import Path
 
 HW = Path(__file__).resolve().parents[1] / "hardware"
-PARTS = ("base", "mid", "top", "lid", "ring", "plate", "fit")
-VIEWS = {"exploded": ("exploded", "0,0,130,64,0,200,990", "1200,1560"), "cut": ("cut", "0,0,84,72,0,72,570", "1200,1200"),
-         "back": ("assembly", "0,0,84,70,0,205,590", "1200,1200"), "front": ("assembly", "0,0,84,70,0,28,590", "1200,1200")}
+PARTS = ("base", "deck", "dome", "rim", "tag", "fit")
+VIEWS = {"exploded": ("exploded", "0,0,190,66,0,205,1250", "1200,1800"), "cut": ("cut", "0,0,125,78,0,90,760", "1200,1440"),
+         "back": ("assembly", "0,0,125,72,0,200,800", "1200,1440"), "front": ("assembly", "0,0,125,72,0,22,800", "1200,1440")}
 NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 FACET = re.compile(r"facet normal\s+" + r"\s+".join([f"({NUMBER})"] * 3) + r"\s+outer loop" + (r"\s+vertex\s+" + r"\s+".join([f"({NUMBER})"] * 3)) * 3)
 

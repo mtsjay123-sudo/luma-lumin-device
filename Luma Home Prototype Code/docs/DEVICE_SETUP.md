@@ -4,6 +4,34 @@ This checkout runs on the Mac now. The Jetson installer, service generator, priv
 
 The parts, the wiring, the microphone switch and a case you can print are in [`hardware/README.md`](../hardware/README.md).
 
+## Setting it up from a phone
+
+The lamp has no screen, so the phone is the screen. The code is `src/luma/hardware/firstrun.py`; it runs only where the
+device's own settings say `LUMA_WIFI_SETUP=1`, never on someone's laptop.
+
+1. Plugged in and not online after 45 seconds, Luma opens its own network, "Luma Setup" and four numbers, and says its
+   eight-number code out loud.
+2. The phone joins that network with the code. Luma serves one page there: pick the home Wi-Fi, type its password. The
+   password goes to NetworkManager and nowhere else. Nothing about a setup is logged.
+3. Luma joins the home Wi-Fi and says where it is ("open 192.168.1.40 in your phone's browser"). A wrong password: it
+   says so and opens the setup network again with the same code.
+4. At that address the same code pairs the phone: Luma starts its page for phones on the home Wi-Fi and hands that one
+   phone an invite. Five wrong codes, or half an hour, and the door closes. Plugged in again with no phone paired, it
+   opens again with a new code, said out loud.
+
+For the phone's own "sign in to this network" sheet to open by itself, the device image needs two things. Neither is in
+this checkout's installer yet, and neither has been tried on a board:
+
+- The setup page on port 80. The generated service may use it (`AmbientCapabilities=CAP_NET_BIND_SERVICE`). Where it
+  can't, the page is on port 8097 and Luma says so.
+- Every name answered with the lamp's own address while the setup network is up. One line in
+  `/etc/NetworkManager/dnsmasq-shared.d/luma-setup.conf`: `address=/#/10.42.0.1`.
+
+Without them it still works: the person opens `10.42.0.1` by hand, as Luma says.
+
+Not built yet: pairing through Luma's phone app away from home on a lamp with no computer in the house. Today that
+pairing starts from a computer. The plan is a code printed under the lamp that the app scans.
+
 ## Hardware prerequisites
 
 Target: NVIDIA Jetson Orin Nano Super 8 GB, supported JetPack, NVMe storage, USB ReSpeaker microphone, powered speaker, and the verified privacy circuit. Use the kit's **19 V barrel supply**. The USB-C connector is data-only. Follow [NVIDIA's setup guide](https://docs.nvidia.com/jetson/orin-nano-devkit/user-guide/latest/quick_start.html).

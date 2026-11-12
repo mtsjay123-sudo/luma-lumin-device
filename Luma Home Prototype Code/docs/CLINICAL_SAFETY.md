@@ -201,6 +201,16 @@ What it doesn't keep:
 
 The crisis net can't be turned off.
 
+## The lamp, its glow, and setting it up
+
+The device is drawn as a lamp: a frosted dome that glows whenever it's plugged in. **The glow says nothing about
+listening.** Whether the microphones can hear is one amber light on the front, wired to their own power.
+
+A person sets it up from their phone. The lamp says a code out loud; the phone joins the lamp's own network and gives it
+the home Wi-Fi. The Wi-Fi password goes to the lamp's Wi-Fi software and nowhere else, and nothing about a setup is
+logged. The same code pairs that one phone. Nothing in this calls out to the internet. It has been tested with a made-up
+Wi-Fi in a real browser, not on a lamp: no lamp has been built.
+
 ## The microphone switch on the device
 
 The device that's drawn in `hardware/` has a slide switch on its back that cuts the microphones' power wire. With the
