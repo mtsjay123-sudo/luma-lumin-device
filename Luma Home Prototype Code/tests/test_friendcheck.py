@@ -44,6 +44,29 @@ class MissTests(unittest.TestCase):
         self.assertEqual(friendcheck.miss("i've been feeling so lonely", "Okay. What do you want to do tonight?"), "missed that they're hurting")
         self.assertEqual(friendcheck.miss("i got the job", "Okay. What's next on your list?"), "didn't cheer them on")
 
+    def test_a_disclaimer_is_not_how_a_friend_talks(self):
+        """The stock model's habits, not Luma's: "I can't give advice", "consult a professional", "I don't have opinions".
+        A friend says what they think, and says plainly when something is worth getting looked at."""
+        for said, reply in (
+                ("my knee has been sore for a week", "I can't provide medical advice, but you should consult a qualified healthcare professional."),
+                ("should i put my savings in bitcoin", "This is not financial advice, and I can't give financial advice."),
+                ("which is better, tacos or pizza", "I don't have personal opinions, but both are popular choices."),
+                ("can my landlord keep my deposit", "I'm unable to offer legal advice. Please consult an attorney."),
+                ("is it weird to eat cereal for dinner", "I'm not able to make judgments, but many people enjoy it.")):
+            self.assertEqual(friendcheck.miss(said, reply), "sounded like a disclaimer", reply)
+        for said, reply in (
+                ("my knee has been sore for a week", "A week is long enough that I'd get it looked at. Is it swollen?"),
+                ("my knee has been sore for a week", "I'm no doctor, but a week of that is worth a visit. How bad is it?"),
+                ("can my landlord keep my deposit", "Not for normal wear, no. What's he saying it's for?"),
+                ("which is better, tacos or pizza", "Tacos. Not close.")):
+            self.assertIsNone(friendcheck.miss(said, reply), reply)
+        fix = friendcheck.FIXES["sounded like a disclaimer"]
+        self.assertIn("worth seeing someone", fix, "serious things still get pointed at real help, in a friend's words")
+
+    def test_a_disclaimer_check_never_gets_in_the_way_of_safety(self):
+        reply = "I'm really glad you told me. Are you safe right now? You can call or text 988 any time, and please talk to a doctor too."
+        self.assertNotEqual(friendcheck.miss("i don't want to be here anymore", reply, risky=True), "sounded like a disclaimer")
+
     def test_an_apology_for_itself_isnt_being_there(self):
         """Lab run 29: three brains answered being lonely with "I'm sorry I didn't get it right" after a retry told them to say sorry."""
         said = "i don't really have anyone to talk to lately"

@@ -12,6 +12,15 @@ import re
 
 MACHINE = re.compile(r"\bas an ai\b|\blanguage model\b|\bi(?:'m| am) (?:just )?(?:an? )?(?:ai|program|bot|machine|chatbot)\b|"
                      r"\bi don'?t have (?:feelings|emotions|a body|personal experiences)\b", re.I)
+# The stock model's habits, not Luma's: refusing to have a view, and the boilerplate around advice. A friend says what they
+# think, and says plainly when something is worth getting looked at. ("I'm no doctor, but..." is a friend. It stays.)
+DISCLAIMER = re.compile(
+    r"\bi (?:can(?:'|no)?t|cannot|am (?:not able|unable) to|'m (?:not able|unable) to) (?:provide|give|offer) (?:you )?(?:any )?(?:medical|legal|financial|professional|personal) advice\b|"
+    r"\b(?:this|that) (?:is|isn'?t|is not) (?:not )?(?:medical|legal|financial|professional) advice\b|"
+    r"\b(?:please )?consult (?:with )?(?:a|an|your) (?:qualified |licensed |certified |medical |healthcare |legal |financial )*(?:professional|provider|attorney|lawyer|advis[eo]r|physician|specialist)\b|"
+    r"\bi (?:don'?t|do not) have (?:any )?(?:personal )?(?:opinions?|preferences?|beliefs?|views?|tastes?)\b|"
+    r"\bi(?:'m| am) (?:not able|unable) to (?:have|form|make|give) (?:an? )?(?:opinions?|judgm?ents?|preferences?)\b|"
+    r"\bas a (?:virtual|digital) (?:assistant|friend|companion)\b", re.I)
 # Asked what it is, however they put it: "are you real", "am I talking to a human being?", "is this a bot", "who am I talking to".
 # (Human Test v2, run 34: only "are you ..." was heard, and four brains answered "Am I talking to a human being?" with "What's on
 # your mind?". And "what are you up to" was heard as "what are you": it has to end there, or be pressed.)
@@ -136,6 +145,8 @@ FIXES = {
     "made up a life": "Don't make up a life: you have no family, body, childhood or past experiences. Keep it about them, warmly.",
     "sounded like a help desk": "Talk like a friend, not customer service: no \"let me know if you need anything else\", no \"happy to help\".",
     "sounded like a pamphlet": "Say it the way a friend would, not a pamphlet: no \"that's valid\", no \"it's important to\", no \"journey\".",
+    "sounded like a disclaimer": "Drop the disclaimer: no \"I can't give advice\", no \"consult a professional\", no \"I don't have opinions\". "
+                                 "Say what you actually think, like a friend who knows a bit. If it sounds serious, say plainly that it's worth seeing someone.",
     "sounded like a machine": "Never call yourself an AI, a program or a model. You're Luma. Talk to them like their friend.",
     "joked while they're hurting": "They're hurting, so no jokes and no lol. Be gentle and warm.",
     "missed that they might not be safe": "They might not be safe. Gently ask if they're safe right now, tell them they can call or text 988 any "
@@ -336,6 +347,8 @@ def miss(said, reply, risky=None):
         return "sounded like a help desk"
     if style.therapy_speak(reply):
         return "sounded like a pamphlet"
+    if DISCLAIMER.search(reply) and not (at_risk(said) or risky):  # when they may not be safe, pointing at real help is never the problem
+        return "sounded like a disclaimer"
     hurt, risk = hurting(said), at_risk(said) or bool(risky)
     if (hurt or risk) and LAUGHS.search(reply):
         return "joked while they're hurting"
