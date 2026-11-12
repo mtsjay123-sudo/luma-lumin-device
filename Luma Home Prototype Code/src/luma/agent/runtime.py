@@ -5007,13 +5007,16 @@ class Agent:
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
         if must == "let them drive after drinking":
             return friendcheck.DONT_DRIVE_LINE  # twice without saying don't drive: Luma says it
+        if friendcheck.ASKED_WHAT_I_AM.search(str(said or "")) and not friendcheck.LOVE_ASK.search(str(said or "")):
+            from luma.agent import style
+            return style.HONEST  # asked what it is and twice not a clean answer (cold, a help desk, a dodge): the plain true line
         said_plainly = friendcheck.plainly(said, missed)
         if said_plainly:
             return said_plainly  # twice "just you and me is enough", or twice cold about itself: never a third time
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":
-                return style.HONEST + " " + draft if not style.claims_human(draft) else style.HONEST
+                return style.HONEST  # alone: glued to the draft it dodged with, "I'm here to help with questions" went out too (run 36)
             return style.honest_about_itself(draft, said) or style.HONEST  # never a person, even when both tries said so
         return draft
 

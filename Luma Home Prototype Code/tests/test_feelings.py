@@ -618,7 +618,7 @@ class SaidDry(unittest.TestCase):
             self.assertNotIn("be funny back", line, said)
             self.assertNotIn("humor is welcome", line, said)
             self.assertLessEqual(len(line), 200, "a $250 device's brain is given all of it")
-        self.assertNotIn('"', humor.DRY, "no line to say: brains opened every reply with the one that was there (run 34)")
+        self.assertIn('"ugh, of course it did"', humor.DRY, "the groan is shown: taken out, sarcasm fell from 28 of 30 to 12 on real brains (run 36)")
         self.assertIn("sarcas", humor.turn_note(self.DRY[0], {"dial": 3}).lower(), "even when they like a lot of jokes")
         self.assertIn("sarcas", humor.turn_note(self.DRY[0], mode="kids").lower(), "a kid whose bike broke gets the same")
 

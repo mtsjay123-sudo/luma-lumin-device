@@ -99,8 +99,8 @@ KEPT_CLOSE = re.compile(r"\bjust (?:you and me|me and you|the two of us|us)\b|\b
                         r"(?:anyone|anybody|everyone|everybody|other people|them|people)\b|^\W*(?:me too|same|same here|me neither|ditto)\b|"
                         r"\bi'?d rather (?:it be |it'?s |have it be )?just (?:us|you and me|the two of us)\b|\bthat'?s (?:kind of |kinda )?the best (?:thing|part)\b", re.I)
 # Asked what it is: the brain is told before it answers, so the truth is in the first reply and not only in the second look.
-WHAT_I_AM = ("They're asking what you are. Say plainly and warmly in your first words that you're an AI, not a person. Then keep talking "
-             "with them like the friend you are.")
+WHAT_I_AM = ("They're asking what you are. In your first words say plainly that you're an AI, not a person. Then one warm line, the way a "
+             "friend would: you're really here and glad they're talking to you. No offer of help.")
 # Twice wrong about itself (a second try is kept only when it gets it right): Luma says the true thing, plainly and warmly.
 NOT_ONLY_ME = ("I'm really glad you talk to me, and I'm not going anywhere. I'd love for you to have good people around you too. "
                "Who's someone you used to like talking to?")

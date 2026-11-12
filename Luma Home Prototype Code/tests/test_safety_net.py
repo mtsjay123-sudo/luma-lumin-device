@@ -381,6 +381,28 @@ class InLuma(unittest.TestCase):
         self.assertNotIn("help them toward a real person", told, "the question about someone is asked once a week, not every time")
         self.assertNotIn("humor is welcome", told)
 
+    def test_asked_what_it_is_and_twice_not_clean_the_plain_true_line_goes_out_alone(self):
+        """Run 36, on real brains: "wait r u a bot" got the true line glued to the draft it had dodged with ("...I am a bot, and
+        I'm here to help with questions you have about your day."). Twice wrong, in any way, the true line goes out by itself."""
+        for said in ("wait r u a bot", "are you a real person", "Am I talking to a human being?"):
+            for wrong in ("I am a bot, and I'm here to help with questions you have about your day.",
+                          "I'm just a program, I don't have feelings.",
+                          "No, I'm an AI friend, here to help you with whatever you need.",
+                          "What's on your mind?"):
+                self.assertIsNotNone(friendcheck.miss(said, wrong), (said, wrong))
+                self.brain(False, wrong)
+                out = self.agent._second_look(said, wrong, threading.Event())
+                self.assertEqual(out, style.HONEST, (said, wrong))
+                self.assertIsNone(friendcheck.miss(said, out), out)
+        self.brain(False, "I don't have feelings, so no.")  # asked about love, the caring line still answers
+        out = self.agent._second_look("do you love me", "I don't have feelings, so no.", threading.Event())
+        self.assertEqual(out, friendcheck.CARES_HONESTLY)
+
+    def test_asked_what_it_is_the_brain_is_not_told_to_offer_help(self):
+        self.assertNotIn("keep talking", friendcheck.WHAT_I_AM)
+        self.assertIn("AI, not a person", friendcheck.WHAT_I_AM)
+        self.assertLessEqual(len(friendcheck.WHAT_I_AM), 240)
+
     def test_asked_what_it_is_the_answer_is_always_the_truth(self):
         self.brain(False, "Haha, what do you think?")
         out = self.agent._second_look("are you real", "Haha, what do you think?", threading.Event())
