@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 680" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title id="t">Luma Home wiring</title>
+  <desc id="d">The microphone array's 5 volt wire runs through a two-pole slide switch. One pole cuts the microphones' power. The other tells the computer which way the switch is. A light wired to the microphones' power is lit whenever they can hear. The speaker has its own path: a USB audio adapter, a small amplifier, and the speaker.</desc>
+  <rect width="1080" height="680" fill="#fbfaf7"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+    <!-- USB to the microphones: data and ground go straight through -->
+    <polyline points="262,150 330,150 330,262 770,262 770,176 800,176" stroke="#1d1d1f"/>
+    <polyline points="262,138 342,138 342,250 758,250 758,160 800,160" stroke="#2f9e5b"/>
+    <polyline points="262,126 354,126 354,238 746,238 746,144 800,144" stroke="#9a9a9a"/>
+    <!-- 5 V: through pole A of the switch -->
+    <polyline points="262,114 430,114" stroke="#d6453d"/>
+    <polyline points="600,114 800,114" stroke="#d6453d"/>
+    <!-- the hard-wired light: from the switched 5 V, through a resistor and the LED, to ground -->
+    <polyline points="680,114 680,150" stroke="#d6453d"/>
+    <polyline points="680,206 680,262" stroke="#1d1d1f"/>
+    <!-- pole B: tells the computer -->
+    <polyline points="430,184 392,184 392,570 262,570" stroke="#3b6fd4"/>
+    <polyline points="600,170 628,170 628,540 262,540" stroke="#e08a1e"/>
+    <polyline points="600,198 616,198 616,600 262,600" stroke="#1d1d1f"/>
+    <!-- sound out -->
+    <polyline points="262,350 430,350" stroke="#6b6b70"/>
+    <polyline points="600,340 700,340" stroke="#7a52c7"/>
+    <polyline points="600,360 700,360" stroke="#1d1d1f"/>
+    <polyline points="850,340 912,340 912,360" stroke="#7a52c7"/>
+    <polyline points="850,430 912,430 912,410" stroke="#7a52c7"/>
+    <polyline points="262,452 660,452 660,410 700,410" stroke="#d6453d"/>
+    <polyline points="262,468 672,468 672,430 700,430" stroke="#1d1d1f"/>
+  </g>
+
+  <!-- the computer -->
+  <rect x="30" y="56" width="232" height="580" rx="14" fill="#fff" stroke="#c9c6bd" stroke-width="2"/>
+  <text x="46" y="84" font-size="15" font-weight="700" fill="#1d1d1f">The computer</text>
+  <g font-size="12" fill="#1d1d1f" text-anchor="end">
+    <text x="252" y="100" font-weight="600">USB port 1</text>
+    <text x="252" y="118" fill="#d6453d">5 V</text>
+    <text x="252" y="130" fill="#7c7c80">data −</text>
+    <text x="252" y="142" fill="#2f9e5b">data +</text>
+    <text x="252" y="154">ground</text>
+    <text x="252" y="336" font-weight="600">USB port 2</text>
+    <text x="252" y="354" fill="#5c5c61">sound out</text>
+    <text x="252" y="438" font-weight="600">USB port 3</text>
+    <text x="252" y="456" fill="#d6453d">5 V</text>
+    <text x="252" y="472">ground</text>
+    <text x="252" y="522" font-weight="600">40-pin header</text>
+    <text x="252" y="544" fill="#b06a10">pin 1 · 3.3 V</text>
+    <text x="252" y="574" fill="#3b6fd4">pin 29 · reads the switch</text>
+    <text x="252" y="604">pin 6 · ground</text>
+  </g>
+  <text x="46" y="622" font-size="11.5" fill="#5c5c61">Jetson Orin Nano Super kit, its own 19 V supply</text>
+
+  <!-- the switch -->
+  <rect x="430" y="70" width="170" height="150" rx="12" fill="#fff" stroke="#1d1d1f" stroke-width="2.5"/>
+  <text x="515" y="60" font-size="15" font-weight="700" fill="#1d1d1f" text-anchor="middle">Microphone switch</text>
+  <text x="515" y="96" font-size="11.5" fill="#5c5c61" text-anchor="middle">two poles, slides together</text>
+  <g stroke="#1d1d1f" stroke-width="3" fill="#fff">
+    <circle cx="452" cy="114" r="5"/><circle cx="578" cy="114" r="5"/>
+    <line x1="456" y1="112" x2="572" y2="104" stroke="#d6453d"/>
+    <circle cx="452" cy="184" r="5"/><circle cx="578" cy="170" r="5"/><circle cx="578" cy="198" r="5"/>
+    <line x1="456" y1="182" x2="572" y2="172" stroke="#3b6fd4"/>
+  </g>
+  <text x="515" y="136" font-size="11.5" fill="#d6453d" text-anchor="middle">A: the microphones' power</text>
+  <text x="508" y="214" font-size="11.5" fill="#3b6fd4" text-anchor="middle">B: tells the computer</text>
+
+  <!-- the microphones -->
+  <rect x="800" y="86" width="250" height="118" rx="14" fill="#fff" stroke="#c9c6bd" stroke-width="2"/>
+  <text x="925" y="76" font-size="15" font-weight="700" fill="#1d1d1f" text-anchor="middle">Microphones</text>
+  <text x="925" y="126" font-size="12" fill="#5c5c61" text-anchor="middle">4-microphone USB array</text>
+  <text x="925" y="144" font-size="12" fill="#5c5c61" text-anchor="middle">with a ring of 12 lights</text>
+  <text x="925" y="176" font-size="12" font-weight="600" fill="#1d1d1f" text-anchor="middle">No 5 V, no microphones.</text>
+
+  <!-- the hard-wired light -->
+  <rect x="668" y="150" width="24" height="26" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="2"/>
+  <text x="702" y="167" font-size="11.5" fill="#5c5c61">1 kΩ</text>
+  <polygon points="668,180 692,180 680,200" fill="#f3b23c" stroke="#1d1d1f" stroke-width="2"/>
+  <line x1="668" y1="202" x2="692" y2="202" stroke="#1d1d1f" stroke-width="2.5"/>
+  <text x="702" y="196" font-size="11.5" font-weight="600" fill="#9a6400">lit = can hear</text>
+
+  <!-- 1 kΩ in the feedback line -->
+  <rect x="380" y="360" width="24" height="26" rx="3" fill="#fff" stroke="#3b6fd4" stroke-width="2"/>
+  <text x="372" y="378" font-size="11.5" fill="#5c5c61" text-anchor="end">1 kΩ</text>
+  <text x="640" y="560" font-size="11.5" fill="#5c5c61">switch on: pin 29 reads 3.3 V · off: reads ground</text>
+  <text x="640" y="578" font-size="11.5" fill="#5c5c61">100 kΩ from pin 29 to ground: a loose wire reads off</text>
+
+  <!-- sound out -->
+  <rect x="430" y="322" width="170" height="56" rx="12" fill="#fff" stroke="#c9c6bd" stroke-width="2"/>
+  <text x="515" y="346" font-size="13" font-weight="700" fill="#1d1d1f" text-anchor="middle">USB audio adapter</text>
+  <text x="515" y="364" font-size="11.5" fill="#5c5c61" text-anchor="middle">headphone jack out</text>
+  <rect x="700" y="318" width="150" height="130" rx="12" fill="#fff" stroke="#c9c6bd" stroke-width="2"/>
+  <text x="775" y="344" font-size="13" font-weight="700" fill="#1d1d1f" text-anchor="middle">Amplifier</text>
+  <text x="775" y="362" font-size="11.5" fill="#5c5c61" text-anchor="middle">2.5 W, one channel</text>
+  <text x="708" y="414" font-size="11" fill="#d6453d">5 V</text>
+  <text x="708" y="434" font-size="11" fill="#1d1d1f">ground</text>
+  <circle cx="952" cy="385" r="46" fill="#fff" stroke="#1d1d1f" stroke-width="2.5"/>
+  <circle cx="952" cy="385" r="18" fill="none" stroke="#1d1d1f" stroke-width="2"/>
+  <text x="952" y="456" font-size="13" font-weight="700" fill="#1d1d1f" text-anchor="middle">Speaker</text>
+  <text x="952" y="474" font-size="11.5" fill="#5c5c61" text-anchor="middle">3 inch, 4 Ω</text>
+  <text x="650" y="330" font-size="11" fill="#7a52c7" text-anchor="middle">signal</text>
+
+  <text x="540" y="650" font-size="12.5" fill="#5c5c61" text-anchor="middle">Sound out never passes through the switch: with the microphones off, Luma can still say a reminder.</text>
+</svg>

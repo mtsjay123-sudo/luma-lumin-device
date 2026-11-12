@@ -19,6 +19,46 @@ again. What's said about memory, the agent, news and the human tests holds as wr
 - What was built instead: `docs/HUMAN_MODEL.md` (what a close friend does with language, and the feelings reader built on it) and `docs/STORAGE.md` (storage like a phone's).
 - What it measured on real brains: `docs/HUMAN_PLAN.md`, "The feelings reader, and what each feeling needs first".
 
+## Thinking big: one mind at home, many voices (Nov 12)
+
+The owner's direction: make it as smart as it can be, think big, then make the hardware. Here is the big picture, and
+what of it is real.
+
+**The picture.** A home has one Luma. Its mind lives on the biggest computer the owner lets it use. The speaker on the
+counter is its ears and its voice. The phone is a window onto it. The device carries a small brain of its own for when
+the big one is away, and it keeps the three things that must never depend on anything else: the safety net, the
+microphone switch and the memories.
+
+| What's at home | The brain that answers | Measured with the human test? |
+|---|---|---|
+| The smaller device, alone | Qwen3 1.7B | Yes. The weakest: it gives a verdict on about 60% of questions about politics that are on no list |
+| Luma Home (the Jetson), alone | Qwen3 4B | Yes, on GitHub's ARM computers. Not yet on a Jetson |
+| A Mac with 24 to 127 GB of memory | Qwen3.6 35B | No Mac can be reached from where this is built |
+| A Mac Studio with 128 GB or more | Qwen3 235B, or Qwen3.5 397B from 192 GB | Same |
+| 512 GB | GLM-5.2 744B, for the deepest work | Same |
+
+**What's built.**
+
+- A device thinks with a paired computer's brain over Luma Link and falls back to its own (`src/luma/llm/brain.py`, `src/luma/control/link.py`).
+- The Mac picks its brain by its memory, and one command now runs the human test and the safety net on it:
+  `bash scripts/mac_day_one.sh --test`. Until that has been run on the Mac Studio, nothing is claimed about how the big
+  brains talk.
+- The device is drawn and can be built: `hardware/README.md` (parts, wiring, a microphone switch that cuts power, a case
+  to print). No unit exists yet.
+- Luma reads up, unasked, on what they bring up (`agent/keepup.py`), hears sarcasm, says what it is however it's asked,
+  and never agrees it's all they need. The numbers are in `docs/HUMAN_PLAN.md`, "Keeping up, sarcasm, and saying what
+  it is".
+
+**What isn't.**
+
+- "Super intelligence" here means the best open brain a home can hold, plus the rules that keep it a friend. It isn't a
+  claim that Luma is smarter than a person, and no test here says so.
+- The big brains are chosen from what's published about them. The human test decides, and it hasn't been run on them.
+- A search on Nov 12 turned up newer open brains (GLM-5.3, Meta's Muse Spark Open). Their licenses weren't confirmed, so
+  they weren't added (rule 7), and a brain ships only after the human test on the Mac.
+- Luma's own trained brains (the 4B and the small one) did not pick up the new sarcasm line. They follow their practice
+  more than the note. Teaching them is training work that hasn't been done.
+
 ## Where it stands
 
 | Part | State |

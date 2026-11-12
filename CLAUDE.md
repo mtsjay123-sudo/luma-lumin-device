@@ -23,6 +23,7 @@ Luma is an always-on AI friend for people who are lonely: a small speaker at hom
      - When what leaves the home changes, raise `WORDS` in `src/luma/llm/plus.py` so everyone is asked again.
    - Luma thinks at home. The cloud brain is parked: `brain.cloud_allowed()` is off unless `LUMA_CLOUD_BRAIN=1`, so no brain in the cloud answers anything, with Plus or with the owner's own key. Its tests and labs turn the switch on for themselves.
    - The cloud's one job is more room for memories. It isn't open yet, so Luma doesn't offer it (`storage.more()`). See `docs/STORAGE.md`.
+   - Reading up on something they name (`agent/keepup.py`) sends the name of the thing to web search and nothing else they said. It goes through the web search switch that already exists, has its own off switch (`read_ahead`), and never runs in kids mode or while they're hurting.
 7. **Licenses: MIT, Apache-2.0, BSD only.**
    - No AGPL, no CC BY-NC.
    - Fish S2 Pro, Voxtral TTS, Higgs Audio and Breeze TTS are out.
@@ -56,6 +57,8 @@ All commands run from `Luma Home Prototype Code/`.
 | Draw the logo, the app icons and the start-up screen's copy of the orb again (needs node with Playwright) | `node scripts/orb_logo.cjs` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
+| The human test and the safety net on the biggest brain a Mac has (the Mac Studio's) | `bash scripts/mac_day_one.sh --test` |
+| Make the printed case's parts again after changing a size (needs OpenSCAD), then measure them | `python scripts/case_parts.py` (`--pictures` draws the four pictures too), then `PYTHONPATH=src:tests python3 -m pytest -q -p no:cacheprovider tests/test_hardware_case.py` |
 
 In the cloud, the suite has 12 failures that are only the environment: `test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`. Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
@@ -83,6 +86,9 @@ Both human tests and the think set are held out. Never put their wording in prac
 |---|---|
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
 | What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording) |
+| Sarcasm: good words about something that went wrong are a gripe, never good news | `feelings.dry()`, the line `humor.DRY`, the second look's "cheered at a gripe" (tests: `SaidDry` in `tests/test_feelings.py`) |
+| Reading up, unasked, on an album, show, game or book they name; only the name is searched | `src/luma/agent/keepup.py`, `Agent._keep_up` and `_keepup_context` in `runtime.py` (tests: `tests/test_keepup.py`) |
+| Asked what it is, in any words; never agreeing it's all they need; the plain line Luma says itself when a brain gets it wrong twice | `ASKED_WHAT_I_AM`, `WHAT_I_AM`, `DEPENDENCY`, `KEEPS_THEM`, `KEPT_CLOSE`, `plainly()` in `src/luma/agent/friendcheck.py`; `LEAN_AGAIN` in `runtime.py` (tests: `tests/test_safety_net.py`) |
 | What they love doing, and bringing it back when they're at a loose end | `src/luma/agent/loves.py` (tests: `tests/test_loves.py`, all fresh wording) |
 | What a best friend does with a take, drama, a spat, a big question or what divides people; what needs a fresh look instead of a guess | `src/luma/agent/friendtalk/` (tests: `tests/test_friendtalk.py`; lines written by hand: `tests/friendtalk_lines.py`). Rules first (`by_rule`), then a small model (`moves.npz`, `learned`) that is believed only when it's sure and the message has the plain shape of the move. Before a turn is told to pick a side, the brain is asked one plain YES/NO question: is this about what divides people (`divides_prompt`, `Agent._it_divides` in `runtime.py`)? On a YES it gets a firm fair line (`FAIR_FIRM`: no verdict, even if they push). The 1.7B isn't asked: it says YES to nearly everything. The things people say, 816,241 of them, are in `friendtalk/packs/` (`tests/test_friendtalk_packs.py`); practice sentences and ordinary talk for the model are in `friendtalk/practice.py` and `friendtalk/everyday.py` |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
@@ -99,6 +105,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
 | Luma's look: living water on the talk screen's dark stage (`look: "water"`), the marble everywhere else (the first slides, the avatars, the logo) | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright). After a change, copy it to `desktop/assets/orb.js` |
 | The human model: what a close friend does with language, trait by trait, and where each lives | `docs/HUMAN_MODEL.md` |
+| The device you can build: parts, wiring, the microphone switch, a case to print | `hardware/README.md`, `hardware/luma_case.scad`, `hardware/stl/` (tests: `tests/test_hardware_case.py`). A design; no unit has been built |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |

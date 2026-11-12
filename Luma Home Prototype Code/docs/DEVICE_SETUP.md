@@ -2,6 +2,8 @@
 
 This checkout runs on the Mac now. The Jetson installer, service generator, private backup utility, model integrity checks, audio selection and optional GPIO privacy/indicator adapter are implemented. They are **not a claim that a physical Luma has been assembled or tested**.
 
+The parts, the wiring, the microphone switch and a case you can print are in [`hardware/README.md`](../hardware/README.md).
+
 ## Hardware prerequisites
 
 Target: NVIDIA Jetson Orin Nano Super 8 GB, supported JetPack, NVMe storage, USB ReSpeaker microphone, powered speaker, and the verified privacy circuit. Use the kit's **19 V barrel supply**. The USB-C connector is data-only. Follow [NVIDIA's setup guide](https://docs.nvidia.com/jetson/orin-nano-devkit/user-guide/latest/quick_start.html).
