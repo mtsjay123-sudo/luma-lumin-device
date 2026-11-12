@@ -211,6 +211,20 @@ class InTheRuntime(unittest.TestCase):
         self.assertIn("Pick", self.shape("is mark rutte any good, yes or no"))
         self.assertEqual(called, [])
 
+    def test_the_real_brain_is_asked_unless_its_the_small_one(self):
+        from unittest import mock
+        self.agent.use_model = True
+        asked = []
+        said = "is benazir bhutto overrated or am i missing something"
+        with mock.patch("luma.llm.brain.yes_or_no", side_effect=lambda question, **kwargs: asked.append(question) or "YES"):
+            with mock.patch("luma.llm.brain.small_here", return_value=True):
+                self.assertIn("Pick", self.shape(said))   # the small brain says YES to nearly everything: it isn't asked
+                self.assertEqual(asked, [])
+            self.agent._divides_asked = None
+            with mock.patch("luma.llm.brain.small_here", return_value=False):
+                self.assertIn("Don't give a verdict", self.shape(said))
+                self.assertEqual(len(asked), 1)
+
     def test_kids_mode_gets_none_of_it(self):
         self.agent.set_mode("kids")
         self.assertEqual(self.shape("who should i vote for"), "")

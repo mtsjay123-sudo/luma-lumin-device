@@ -4936,7 +4936,7 @@ class Agent:
     def _it_divides(self, said, cancel_event=None):
         """Luma's other plain question, never heard, YES or NO only: is this about what divides people? Asked only when a
         turn would otherwise be told to pick a side (luma.agent.friendtalk). No list knows every leader and every issue;
-        the brain does. With no brain to ask, or no answer, the turn goes on as it would have."""
+        the brain does. With no brain to ask, a small one, or no answer, the turn goes on as it would have."""
         asked = getattr(self, "_divides_asked", None)
         if asked and asked[0] == said:
             return asked[1]
@@ -4950,7 +4950,10 @@ class Agent:
                         yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
                 elif self.use_model:
                     from luma.llm import brain
-                    yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+                    # A small brain isn't asked. Run 33: Luma's own small one said YES to nearly everything, three fun takes in
+                    # four among them, and the stock 1.7B to half of them. The 4B said YES to none of twenty.
+                    if not brain.small_here():
+                        yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
         except Exception:
             yes = False
         self._divides_asked = (said, yes)

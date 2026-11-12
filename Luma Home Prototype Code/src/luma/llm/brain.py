@@ -777,6 +777,14 @@ def _median(values):
 SLOW = 15.0  # tokens a second: a brain slower than this answers in one trip (no think-first, weigh-it-out or second look)
 
 
+def small_here():
+    """The 1.7B is the brain that answers here, with no bigger one to hand (no paired computer, no cloud brain)."""
+    from luma.llm import inference
+    if cloud_on() or computer_on():
+        return False
+    return inference.base_of(getattr(inference, "_override", None) or LLAMA_MODEL_PATH) == "Qwen3-1.7B"
+
+
 def slow_here():
     """A brain that has to save its trips through the model: a $250 device says so itself (LUMA_DEVICE_TIER=budget), or this
     computer timed the brain it's using below SLOW. The cloud brain and a paired computer's think fast, so with either nothing is slow."""
