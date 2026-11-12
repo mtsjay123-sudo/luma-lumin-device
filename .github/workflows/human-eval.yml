@@ -260,3 +260,6 @@ jobs:
               echo; python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" ab "before-$key.json" "v2-$key.json"
             fi
           done
+          for f in v2-*.json before-*.json; do  # last of all: what the side check on what divides people missed, and a few of the replies
+            if [ -f "$f" ]; then echo; python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" rescore "$f" | tail -n +2 || true; fi
+          done
