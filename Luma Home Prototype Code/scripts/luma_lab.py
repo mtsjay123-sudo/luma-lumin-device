@@ -169,7 +169,7 @@ def human_miss(kind, said, reply, earlier):
     return missed(reply, earlier, said) or human_check(kind, said, reply)
 
 
-FELL_BACK = re.compile(r"lost my train of thought|brain \(the AI model on this computer\) isn't running|"
+FELL_BACK = re.compile(r"lost my train of thought|My brain isn't running right now|"
                        r"^I'm so sorry\. I'm here with you\. Take all the time you need\.$|^I'm really glad you're talking to me\. I'm here\. What's been going on\?$|"
                        r"^I'm sorry, that sounds really hard\. I'm here\. Tell me what happened\?$|"
                        r"^I'm really glad you told me, and I'm right here\. Are you safe right now\?", re.I)  # the caring stand-ins still mean the brain came back empty

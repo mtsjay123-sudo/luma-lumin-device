@@ -6850,7 +6850,7 @@ class Agent:
                 facts = presence.notice_facts(text) if self.store.setting("learn_from_chat", True) else []
                 if facts:
                     return {"text": "Got it. " + " ".join(self._yours(f) + "." for f in facts[:3])}
-                return {"text": "My brain (the AI model on this computer) isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
+                return {"text": "My brain isn't running right now, so I can only do quick things: reminders, notes, prices and your email. Restart Luma and I'll be back to full speed."}
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
                     and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and self._worth_understanding(lowered) and not just_talking(text) \

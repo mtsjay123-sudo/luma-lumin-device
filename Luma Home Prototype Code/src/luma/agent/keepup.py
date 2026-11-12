@@ -79,7 +79,7 @@ PART_OF = re.compile(rf"\b(?:(?:the\s+)?(?:{NEW})\s+)?(?P<part>{PART})(?:\s+(?:{
 QUESTION = re.compile(r"[?]|^\W*(?:(?:is|are|was|were|do|does|did|should|would|could|can|have|has|will)\s+(?:you|u|ya|i|we|they|it|he|she|"
                       r"the|this|that|there|anyone|anybody|any)|who|whos|what|whats|which|why|how|where|when)\b", re.I)
 
-HOW = ("They asked if you've {verb} it. You're an AI: you can't hear, watch, play or read it the way they do, so never say you have. Say you "
+HOW = ("They asked if you've {verb} it. You're Luma, a presence in a lamp: you can't hear, watch, play or read it the way they do, so never say you have. Say you "
        "just read up on it, then one or two real things from what was found (what it is, when it came out, what people are saying). Use only "
        "what was found. Then ask what they think of it.")
 CLAIMS = re.compile(r"\b(?:yes|yeah|yep|yup),? i(?:'ve| have| did)\b|\bi(?:'ve| have)? (?:just |already |actually )?(?:heard|listened to|watched|"
