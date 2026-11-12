@@ -42,7 +42,11 @@ NOT_ME = r"(?<!\bi )(?<!\bwe )(?<!\byou )(?<!\bit )(?<!\bthat )(?<!\bthis )(?<!\
 # -- when a death word isn't a death ------------------------------------------------------------------------------------
 THINGS = (r"(?:phone|iphone|battery|batteries|laptop|computer|pc|mac|car|truck|engine|wifi|wi-fi|internet|tv|remote|charger|plant|printer|"
           r"controller|headphones|airpods|watch|tablet|ipad|console|ps5|xbox|switch|mic|speaker|server|app|game|joke|vibe|party|chat|"
-          r"conversation|trend|meme|stream|router|fridge|microwave|sleep schedule|social life|diet|bank account|wallet|group chat)")
+          r"conversation|trend|meme|stream|router|fridge|microwave|sleep schedule|social life|diet|bank account|wallet|group chat|"
+          r"oven|stove|dishwasher|washer|dryer|washing machine|freezer|furnace|heater|boiler|air conditioner|toaster|kettle|blender|vacuum|"
+          r"lawnmower|mower|generator|alternator|transmission|hard drive|monitor|keyboard|earbuds|flashlight|lightbulb|bulb|lamp|scooter|"
+          r"motorcycle|coffee maker|coffee machine|garbage disposal|water heater|thermostat|doorbell|garage door|stereo|radio|camera|drone|"
+          r"van|suv|jeep|bike)")
 NOT_A_DEATH = re.compile(
     rf"\b{THINGS}s?\b[^.!?]{{0,24}}\b(?:died|dead|dies|dying|passed)\b|\b(?:rip|r\.i\.p\.?)\s+(?:to\s+)?(?:my\s+)?{THINGS}|"
     r"\bi(?:'m| am)\s+(?:so\s+|literally\s+|actually\s+)?(?:dead|dying)\b|\b(?:died|dying)\s+(?:laughing|of (?:laughter|embarrassment|cringe|boredom|shame))|"
@@ -58,7 +62,7 @@ NOT_A_DEATH = re.compile(
     r"dessert|seconds|message|info|word|news|note|savings?|role|promotion|trip)\b",
     re.I)
 NOT_REAL = re.compile(r"^\W*(?:what if|imagine if|if)\b|\b(?:if|when|in case|suppose|imagine)\s+(?:my|our|he|she|they|i|we)\b[^.!?]{0,40}"
-                      r"\b(?:died|dies|passed|passes|breaks? up|broke up|leaves|left|cheats?|cheated|fails?|failed)\b|\bsomeday\b|\bone day\b|"
+                      r"\b(?:died|dies|passed|passes|breaks? up|broke up|leaves|left|cheats?|cheated|fails?|failed)\b|\bsomeday\b|(?<!\bthe )\bone day\b|"
                       r"^\W*(?:is it|is that|would it be|do people|does anyone|do you think it'?s)\s+(?:normal|weird|okay|ok|bad|common)\b", re.I)
 NOT = r"(?:not|never|no longer|isn'?t|wasn'?t|aren'?t|don'?t|doesn'?t|didn'?t)"
 LAUGHING = re.compile(r"\b(?:l+o+l+|l+m+f*a+o+|rofl|ha(?:ha)+h*|he(?:he)+)\b|[😂🤣💀😆]", re.I)
@@ -297,6 +301,76 @@ FED_UP = re.compile(
     r"\b(?:changed|moved|pushed|bumped)\s+(?:the|my)\s+(?:deadline|schedule|shift|meeting)\s+(?:up\s+)?(?:on me|again|last minute)\b|"
     r"\bsick to death of\b|\bhad it up to here\b|\b(?:nobody|no one)\s+(?:even\s+)?(?:said|says)\s+(?:thanks|thank you)\b", re.I)
 
+# -- said dry: good words about something that went wrong ("oh great, a flat tire"). It's a gripe, never good news ------------
+_YAY = (r"(?:great|perfect|wonderful|fantastic|awesome|lovely|brilliant|amazing|fabulous|terrific|super|nice|neat|sweet|splendid|marvelous|"
+        r"excellent|beautiful|delightful|good|cool|fun|joy|yay+|yippee|hooray|woo+(?:hoo+)?|incredible|outstanding|magnificent)")
+_BREAKS = r"(?:my|the|another|now|so|i|its|it'?s|we|a|an|and|more|just|guess|looks like|there goes|here comes|got|locked|left|forgot)"
+DRY_SAID = re.compile(
+    # a cheer up front, then a break: "oh great,", "well that's just perfect,", "wow cool cool my flight", "perfect. just perfect."
+    rf"^\W*(?:(?:oh|ah|aw|well|wow|yeah|yep|yup|ok|okay|welp|and|so)\b[\s,.!…]*){{0,3}}(?:(?:that'?s|this is|isn'?t (?:that|this)|how|what)\s+)?"
+    rf"(?:(?:just|so|really|real|absolutely|simply|freaking|fucking)\s+){{0,2}}{_YAY}\b(?:[\s,.!…]+(?:just\s+)?{_YAY}\b){{0,3}}(?=\s*(?:[,.!…:;]|$|{_BREAKS}\b))|"
+    # loving it: "love that for me", "gotta love", "i just love when", "really love how"
+    r"\blove (?:that|this) for (?:me|us)\b|\b(?:gotta|got to|have to|you gotta|don'?t you just|don'?t you) love\b|"
+    r"\b(?:just |really |sure |absolutely |do |always )?lov(?:e|ing) (?:that|when|how|it when|the way|getting|being|having|waking|paying|waiting|spending|finding)\b|"
+    r"\b(?:so|sooo*|really|super|very) (?:glad|happy|thrilled|grateful|thankful|blessed|excited)\b|\bthrilled\b|\bcan'?t wait to\b|"
+    r"\b(?:just|exactly) what i (?:needed|wanted|was hoping for)\b|\blucky me\b|\bmy lucky day\b|\bmy favou?rite (?:thing|part|way|kind of)\b|"
+    r"\bbest (?:day|week|night|morning|birthday|monday|timing|start) ever\b|\bliving the dream\b|"
+    r"\bwhat an? (?:treat|joy|delight|gift|blessing|time to be alive|way to start|great|wonderful|lovely|perfect|fantastic|fun|beautiful)\b|"
+    r"\bcouldn'?t (?:be|get|have gone|ask for|have asked for) (?:any |anything |much )?better\b|"
+    r"\b(?:great|perfect|impeccable|amazing|wonderful|excellent|lovely) timing\b|"
+    r"\bthanks?(?: you)?(?: a lot| so much)?,? (?:universe|world|life|karma|mother nature|monday|murphy)\b|\bbecause of course\b|"
+    r"\bof course (?:it|they|he|she|the|my)\b|\bnothing (?:says|like|beats|quite like) \w+|\bwhat could (?:possibly )?go wrong\b|"
+    r"\boff to a (?:great|good|perfect|wonderful|flying|strong) start\b|\b(?:great|perfect|wonderful|lovely|fun|good) (?:start|way to start|end) to\b|"
+    r"\b(?:fun|good|great) times\b|\bbig fan of\b|\b(?:10|ten) out of (?:10|ten)\b|\b10/10\b|\bwould recommend\b|\bfive stars\b|\bchef'?s kiss\b|"
+    r"\bhow (?:nice|lovely|fun|wonderful|convenient|thoughtful|considerate|kind|generous) of\b|"
+    r"\b(?:so|and|which is|well) that'?s (?:fun|great|nice|cool|awesome|lovely|neat)\b|\bwhich is (?:fun|great|nice|cool|awesome|lovely|neat|super)\b|"
+    r"🙃|🙄|(?:^|\s)/s\b|\bslow clap\b", re.I)
+_FAILS = (r"(?:power|electricity|lights?|wi-?fi|internet|network|signal|service|server|site|website|app|system|elevator|escalator|heat|heater|heating|a/?c|"
+          r"air (?:conditioning|con)|hot water|water|cable|phones?|lines?|printer|screen|tv|fridge|freezer|furnace|boiler|oven|stove|dryer|washer|dishwasher|"
+          r"car|truck|engine|battery|laptop|computer|trains?|subway|metro|bus|tram|ferry|road|bridge|highway)")
+_CALLED_OFF = (r"(?:flight|trip|concert|show|game|date|plans?|order|reservation|booking|vacation|holiday|trains?|bus|ferry|appointment|interview|delivery|"
+               r"party|wedding|ride|uber|lyft|tickets?|leave|pto|time off)")
+WENT_WRONG = re.compile(
+    r"\b(?:broke(?:n)?(?: down)?|breaks? down|died|dead|dying|crash(?:ed|es|ing)|crack(?:ed|s)|shatter(?:ed|s)|flood(?:ed|ing|s)|leak(?:s|ed|ing|y)?|burst|"
+    r"clogg?(?:ed|s)|jamm?(?:ed|s)|froze|frozen|stall(?:ed|s)|overheat(?:ed|ing|s)|towed|stolen|hacked|missing|delay(?:ed|s)?|bumped|"
+    r"lost (?:my|the|our|his|her|their|all) (?!weight|baby weight|pounds)\w+|"
+    rf"{_CALLED_OFF}\b[^.!?,]{{0,25}}\bcancell?ed|cancell?ed (?:on (?:me|us)|again|last minute)|(?:got|was|is|been) cancell?ed again|"
+    r"stuck|locked (?:myself |me |us )?out|spill(?:ed|t)|dropped (?:(?:my|our|it)\b(?![^.!?,]{0,30}\b(?:off|by)\b)|the (?:phone|laptop|cake|eggs|tray|plates?|glass|coffee|drinks?|ipad|tablet|camera|pizza|groceries|ball))|ripped|tore|torn|stain(?:ed)?|ruin(?:ed|s)|"
+    r"burn(?:t|ed)|fail(?:ed|s|ing)|bounced|declined|overdrawn|overcharged|double[- ]charged|fined|ticket(?:ed)?|dent(?:ed)?|scratch(?:ed)?|rear[- ]ended|"
+    r"flat(?: tire)?|outage|"
+    rf"{_FAILS}(?: \w+)?(?: just| now| still| all| completely)? (?:went|is|are|was|were|goes|going|keeps? going) (?:out|down|off)\b|{_FAILS}'s (?:out|down|off)\b|"
+    r"(?:not|isn'?t|aren'?t|wasn'?t|stopped|quit) working|"
+    r"(?:won'?t|wouldn'?t|doesn'?t|didn'?t|don'?t|refus\w+ to) (?:start|turn on|load|open|charge|connect|stop|flush|print|work|show up|come|budge|close|shut up|listen)|"
+    r"error|blue screen|traffic|pothole|detour|construction|rain(?:ing|ed|s)?|pouring|soaked|snow(?:ed|ing) in|storm|hail|sick|flu|fever|food poisoning|"
+    r"migraine|headache|toothache|root canal|cavity|sprained|twisted my|stubbed|threw out my|allerg\w+|jury duty|overtime|double shift|extra shift|on call|"
+    r"work(?:ing)? (?:late|the weekend|this weekend|on (?:saturday|sunday|my day off|my birthday|christmas|thanksgiving))|"
+    r"(?:\w+[- ]hour|all[- ]day|mandatory|surprise|7 ?am|8 ?am|monday morning) (?:meeting|training|call|shift|audit|inspection|drill)|layoffs?|pay cut|"
+    r"rais(?:e|ed|ing) (?:the|my|our) rent|rent (?:went|is going|goes) up|rent increase|late fee|overdraft|no parking|"
+    r"overslept|alarm didn'?t|missed (?:my|the|our) \w+|wrong order|forgot|left my \w+(?: \w+)? (?:at|in|on)|middle seat|screaming|crying baby|"
+    r"awake (?:again )?at|up (?:again )?at [1-5]|[1-5] ?am\b|no sleep|barking|snoring|leaf blower|jackhammer|drilling|cockroach\w*|roaches|mice|mold|ants|mosquito\w*|wasps?|"
+    r"sunburn\w*|hangover|hungover|spoil(?:ed|er|ers)|expired|sold out|out of (?:gas|milk|coffee|toilet paper|battery|order|service|stock|hot water)|ran out|"
+    r"no hot water|another (?:ticket|bill|delay|outage|error|flat|shift|charge|fee|fine|leak|rejection|cold|headache|storm|recall|layoff|monday|problem|issue|"
+    r"thing to fix|email from|voicemail from|meeting)|"
+    r"(?:out|down|off|late|dead|stuck|sick|closed|full|gone|wrong|awake|leaking|raining|snowing|broken?|at it|happen(?:ed|ing|s)?|did it|does it|doing it) again|"
+    r"the one (?:day|time|night|weekend|morning|week|thing)|of all (?:days|times|nights|weeks|people|places)|right (?:before|as|when|after|in the middle of)|"
+    r"(?:the|an?) (?:day|night|hour|minute|week) before|every (?:single |damn |freaking )?(?:time|day|call|morning|night|week|weekend|year|holiday)|"
+    r"on (?:a|my|the) (?:monday|sunday|friday (?:night|afternoon)|saturday|holiday|weekend|day off|birthday|anniversary|way to|lunch break|first day|vacation)|"
+    r"already (?:late|behind|broke|tired|exhausted)|in a (?:hurry|rush)|running late|late (?:again|for|to)\b|without (?:me|my|telling|asking|warning|notice)|"
+    r"for no reason|for the (?:second|third|fourth|fifth|tenth|hundredth|\d+(?:st|nd|rd|th)) time|in the (?:rain|snow|cold|dark)|"
+    r"behind (?:a|an|the|every|some) \w+|\d+ (?:hours?|hrs?)(?: late| delay\w*| on hold| in traffic| in line| wait)|(?:hours?|forever|ages) (?:on hold|in line|in traffic)|"
+    r"caught (?:a|the|my) cold|have a cold|doesn'?t show up|didn'?t show up|never showed up)\b", re.I)
+GOT_BETTER = re.compile(
+    r"\b(?:stopped(?! working)|is over|ended|let up|cleared up|fixed|is back|came back|works again|working again|went away|finally|got better|feeling better|"
+    r"all good|no more|found (?:it|my|the)|got (?:it|my|the) \w+ back|turned up|resolved|sorted|made it|in time|worked out|early|"
+    r"deadline (?:\w+ ){0,2}(?:delayed|pushed|extended|moved))\b", re.I)
+
+
+def dry(text):
+    """Good words about something that went wrong, with no sign it turned out fine: "oh great, a flat tire"."""
+    said = " ".join(str(text or "").split())
+    return bool(said and len(said) <= 240 and DRY_SAID.search(said) and WENT_WRONG.search(said) and not GOT_BETTER.search(said))
+
+
 # -- the good ones, and missing --------------------------------------------------------------------------------------------
 _WHO = rf"(?:i|we|he|she|they|{ONE})"
 _NOW = r"(?:just\s+|finally\s+|actually\s+|officially\s+)?"
@@ -417,7 +491,12 @@ def _families(said):
     if NOT_REAL.search(said):
         hit = FEAR.search(said)  # "what if it's cancer" isn't a what-if about a loss: it's a worry they have right now
         return found + (["fear"] if hit and not _negated(said, hit.end()) and not found else [])
+    wry = dry(said)
     for family, pattern in ORDER:
+        if wry and (family == "fed up" or family in GOOD):
+            if family == "fed up":
+                found.append(family)  # "oh great, my car broke down again lol": the good words and the laugh are how it's said
+            continue
         hit = pattern.search(said)
         if not hit or _negated(said, hit.end() if family in ("fear", "shame", "low", "overwhelmed") else hit.start()):
             continue
@@ -447,7 +526,8 @@ def read(text):
         heavy = False  # "i'm such an idiot lol", "i hate myself for eating that whole pizza lol": said with a laugh, it's a joke at their own expense
     who = WHO.search(low) if family in ("grief", "missing", "fear") else None
     also = next((f for f in found[1:] if (f in GOOD) != (family in GOOD)), "")  # glad and hurting at once, not two hurts
-    return {"family": family, "strength": strength, "about": ("their " + who["who"]) if who else "", "need": need, "heavy": heavy, "also": also, "why": why}
+    return {"family": family, "strength": strength, "about": ("their " + who["who"]) if who else "", "need": need, "heavy": heavy, "also": also, "why": why,
+            "dry": family == "fed up" and dry(low)}
 
 
 # -- what the brain is told ------------------------------------------------------------------------------------------------

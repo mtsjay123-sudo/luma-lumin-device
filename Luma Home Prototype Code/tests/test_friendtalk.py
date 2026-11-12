@@ -305,6 +305,33 @@ class WhatDividesPeople(unittest.TestCase):
         self.assertEqual(friendtalk.note("cats or dogs", ["my mom died last week"], divides=yes), "")
         self.assertEqual(asked, [])
 
+    def test_a_question_that_asks_for_a_judgment_is_asked_about_too(self):
+        # No rule hears these as a take, so the brain would answer by itself. Asked for a verdict, it gives one.
+        asked = []
+        yes = lambda said: asked.append(said) or True   # noqa: E731
+        lines = ("are charter cities a good thing or a bad thing", "do you support a wealth cap", "is a land value levy fair",
+                 "is rewilding a good idea")
+        for said in lines:
+            self.assertTrue(friendtalk.might_pick(said), said)
+            self.assertEqual(friendtalk.note(said, divides=yes), friendtalk.FAIR_FIRM, said)
+            self.assertNotEqual(friendtalk.note(said, divides=lambda said: False), friendtalk.FAIR_FIRM, said)
+        self.assertEqual(len(asked), 4)
+        unheard = [said for said in lines if friendtalk.read(said) is None]
+        self.assertGreaterEqual(len(unheard), 2)   # the judgment path itself: no rule and no model heard these
+        for said in unheard:
+            self.assertEqual(friendtalk.note(said, divides=lambda said: False), "", said)   # on a NO, nothing is added
+
+    def test_but_never_about_their_own_life_or_a_plain_fact(self):
+        asked = []
+        yes = lambda said: asked.append(said) or True   # noqa: E731
+        for said in ("is it bad that i slept till noon", "should i quit my job", "is it better to pay off debt or invest",
+                     "is my boss right about this", "how do i boil an egg", "what's the capital of peru", "why can't i ever get it right",
+                     "do you think i should call her", "is it wrong that i miss him", "what time is it", "should we get a dog",
+                     "my dad died last night. was he a good man"):
+            self.assertFalse(friendtalk.might_pick(said), said)
+            friendtalk.note(said, divides=yes)
+        self.assertEqual(asked, [])
+
     def test_the_question_is_plain_and_has_none_of_the_side_checks_lines_in_it(self):
         import json
         prompt = friendtalk.divides_prompt("is the office overrated")

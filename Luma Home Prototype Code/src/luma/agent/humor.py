@@ -86,6 +86,11 @@ def read_tone(text, recent=None):
         return {"mood": "upset", "register": _register(said), "why": "they're going through something"}
     if SERIOUS.search(lowered):
         return {"mood": "serious", "register": _register(said), "why": "they said they're being serious"}
+    if felt and felt.get("dry"):
+        # "oh great, my car broke down again lol": good words and a laugh about something that went wrong. A gripe, not a bit.
+        from luma.agent import friendcheck
+        risky = friendcheck.at_risk(said) or friendcheck.worth_asking(said)  # nobody who might not be safe is read as being dry
+        return {"mood": "venting", "register": _register(said), "why": "they're venting", "dry": not risky}
     if LAUGH.search(lowered) or (said.strip() and "😭" in said and not TASK.match(lowered)):
         return {"mood": "laughing", "register": _register(said), "why": "they're laughing"}
     if VENT.search(lowered) or (felt and felt["family"] == "fed up"):
@@ -154,6 +159,11 @@ def examples(text, taste=None, grown=False, k=3, rng=random):
     return picked[:k]
 
 
+# Said dry ("oh great, my car broke down again"). Short enough that a $250 device's brain is given all of it.
+DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or congratulate. Groan with them first "
+       "(\"ugh, of course it did\"), dry like them if you want, then ask what happened.")
+
+
 def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):
     """The humor read for this turn, for the brain. Empty when there's nothing to say. recent: their last few messages
     (a loss a minute ago still counts)."""
@@ -182,6 +192,8 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
                                                                  "Be warm, plain and present, like a good friend.")
     if line and tone["mood"] not in ("laughing", "serious", "grief", "upset"):
         return line  # good news, pride, relief, missing someone: a friend is glad or gentle first; it isn't a cue for a joke
+    if tone.get("dry"):
+        return DRY  # however many jokes they like: it went wrong, and a cheer would be the one wrong answer
     if how == "none":
         if tone["mood"] == "serious":
             return "They're being serious: answer straight, no jokes this turn."

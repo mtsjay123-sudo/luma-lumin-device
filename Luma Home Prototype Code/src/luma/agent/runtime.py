@@ -3220,7 +3220,7 @@ class Agent:
         summary = mind.about_summary(self.about, self.profile.get("name") or "")
         if summary: out.append({"about": True, "text": summary})
         lean = self._leaning_note(text)
-        if lean: out.append({"mind": True, "text": lean})
+        if lean: out.append({"lean": True, "text": lean})  # its own note: with the mood notes, a small device was given half of it
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
         if not shape and self.mode != "kids":
@@ -3254,6 +3254,8 @@ class Agent:
             grown = (self.profile.get("preset") == "unhinged" and self.profile.get("adult_confirmed") is True)
             earlier = [h["content"] for h in self.history[-8:-1] if h.get("role") == "user"][-3:]
             funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown, recent=earlier)
+            if lean and "sense of humor" in funny:
+                funny = ""  # "you're my only friend": nobody is looking for a joke there
             if funny: out.append({"humor": True, "text": funny})
             known = lexicon.meanings_note(text)
             if known: out.append({"slang": True, "text": known})
@@ -5181,7 +5183,8 @@ class Agent:
             return self._sum_context(text)  # nothing remembered, but a sum is still the calculator's
         return (self._remembered(text, room=12 if self._roomy() else 5, hear=hear) + self._life_context()
                 + [{"text": r["title"] + ": " + r["details"]} for r in self.household.records(query=text, mode=self.mode)[:3]]
-                + self._news_context(text) + self._mind_context(text, cancel_event) + self._sum_context(text))
+                + self._news_context(text) + self._mind_context(text, cancel_event) + self._keepup_context(text, cancel_event)
+                + self._sum_context(text))
 
     def _sum_context(self, text):
         """Check, don't guess: a sum in the message ("what's 18% of 240", "a 20% tip on $64.50") is worked out with a
@@ -6108,6 +6111,75 @@ class Agent:
                                            "I couldn't check on that one just now, so I won't make stuff up lol. What's the word on it?"])}
         return {"text": "I couldn't look that up just now, and I'd rather not guess. What have you heard about it?"}
 
+    def _read_about(self, query):
+        """One web search for the name of a thing (luma.agent.keepup). The same switch and the same rules as any other look-up,
+        and the owner can turn reading ahead off by itself ("read_ahead"). Read once: asked again within the hour, it's what was
+        found then. None when it's off, blocked, or nothing came back."""
+        if (self.mode == "kids" or not self.integration_on("web_search") or self.rules.for_tool("web.search")[1] == "block"
+                or self.store.setting("read_ahead", True) is False):
+            return None
+        kept = getattr(self, "_read", {})
+        if query in kept and self.clock() - kept[query][0] < 3600:
+            return kept[query][1]
+        try:
+            result = self.propose("web.search", {"query": query})
+        except Exception:
+            return None  # a look-up that fails never costs them the reply: Luma answers as it would have
+        found = result if isinstance(result, dict) and result.get("results") else None
+        self._read = {**dict(list(kept.items())[-20:]), query: (self.clock(), found)}
+        return found
+
+    def _keep_up(self, text, lowered, cancel_event=None):
+        """'have you heard the new kendrick album?' Luma goes and reads about it, then says what it found, like a friend who
+        looked it up. It can't hear, watch or play anything and never says it did. Only the name of the thing is searched, never
+        the rest of what they said (luma.agent.keepup). With the web off, Luma's own honest line answers, as before."""
+        from luma.agent import keepup
+        if self.mode == "kids":
+            return None
+        thing = keepup.asked(text)
+        if not thing or self._hurt_recently(text):
+            return None
+        casual = "lowercase" in str(self.store.setting("their_style") or "") or self.profile.get("language_style") == "contemporary" or text == text.lower()
+        if thing.get("unnamed"):
+            earlier = [str(turn.get("content", "")) for turn in self.history[-7:-1] if turn.get("role") == "user"]
+            if any(keepup.mentioned(line) or (keepup.asked(line) or {}).get("query") for line in earlier):
+                return None  # they've been talking about one: "this album" is that one, and the brain takes it
+            what = thing["unnamed"]
+            return {"text": f"Which {what}? Tell me the name and I'll read up on it real quick." if casual
+                    else f"Which {what} do you mean? Tell me the name and I'll read up on it."}
+        found = self._read_about(thing["query"])
+        if not found:
+            return None
+        spoken = None
+        if self.use_model and cancel_event is not None:
+            prompt = self._observation_prompt(text, "web.search", found) + keepup.HOW.format(verb=thing["verb"])
+            said = self._plain_answer(prompt, cancel_event)
+            spoken = self._grounded(text, found, said, lambda note: self._plain_answer(prompt + note, cancel_event)) if said else None
+            if spoken and keepup.claims_it_did(spoken):
+                spoken = None  # it said it heard it. It can't have: Luma's own line says what it read instead
+        can = {"heard": "hear", "listened to": "hear", "seen": "watch", "watched": "watch", "played": "play", "caught": "watch"}.get(thing["verb"])
+        lead = f"I can't {can} it myself, but I just read up on it." if can else "I just read up on it."
+        top = found.get("results") or [{}]
+        fallback = (lead + " " + str(found.get("summary") or top[0].get("title") or "").strip()).strip()
+        return {**found, "text": spoken or fallback}
+
+    def _keepup_context(self, text, cancel_event=None):
+        """They brought up a new album, game, show or book without asking anything ("i've been listening to the new kendrick
+        album all day"). Luma reads up on it first, and the brain is handed what was found, as information. Only the name is
+        searched (luma.agent.keepup). Never in kids mode, never when they're hurting."""
+        from luma.agent import keepup
+        if self.mode == "kids" or wants_message(text):
+            return []
+        thing = keepup.mentioned(text)
+        if not thing or self._hurt_recently(text):
+            return []
+        found = self._read_about(thing["query"])
+        if not found:
+            return []
+        lines = [str(found.get("summary") or "").strip()]
+        lines += [f"{item.get('title', '')}: {str(item.get('snippet') or '')[:200]}".strip(": ") for item in (found.get("results") or [])[:3]]
+        return [{"read": True, "text": keepup.note(thing["what"], " ".join(line for line in lines if line)[:800])}]
+
     def _have_you(self, lowered):
         """'you seen the new spiderman?': if it's new, it may be newer than what Luma knows, so it says so and lets them lead instead of a
         small brain making it up. A popular song or show it can talk about from what it knows (the brain takes those when it's on).
@@ -6605,6 +6677,8 @@ class Agent:
             if joke is not None: return joke
             hello = self._hello(lowered)
             if hello is not None: return hello
+            kept_up = self._keep_up(text, lowered, cancel_event)  # "have you heard the new kendrick album": it goes and reads
+            if kept_up is not None: return kept_up
             asked_if = self._have_you(lowered)
             if asked_if is not None: return asked_if
             which = self._which_one(text, lowered)

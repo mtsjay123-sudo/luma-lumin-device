@@ -38,6 +38,13 @@ ASKS = re.compile(r"\b(?:can|could|would|will) (?:you|u)\b|\bhelp me\b|\bquiz me
 CHEERS = re.compile(r"congrat|proud|awesome|so cool|great news|let'?s go+|yay|huge|amazing|so happy|hell yeah|you did it|knew you|big (?:news|win)|incredible|deserve|"
                     r"celebrat|\bwow\b|earned (?:it|this)|that'?s a (?:big )?win|so excited|omg|yes+!", re.I)
 
+# A reply that opens by taking good words at their word ("That's great!"): right for good news, the one wrong answer to
+# "oh great, my car broke down again". "Great timing, dishwasher" is dry back, and fine.
+CHEERED = re.compile(r"^\W*(?:(?:oh|aw+|wow|omg|ah)[\s,!.]+)*(?:(?:that'?s|that is|this is|how|what)\s+)?(?:(?:so|really|such|just|absolutely|super)\s+)?"
+                     r"(?:great|awesome|amazing|wonderful|fantastic|exciting|incredible|lovely|good|excellent|brilliant|fun)(?:\s+news)?\s*[!.]|"
+                     r"^\W*(?:(?:oh|aw+|wow|omg|ah)[\s,!.]+)*(?:congrat|yay+\b|woo+hoo+|love that for you|(?:i'?m )?so (?:happy|excited|glad) for you|"
+                     r"good for you|lucky you|sounds (?:fun|great|amazing|exciting|lovely|wonderful))", re.I)
+
 # Leaning on Luma instead of people. Never pushed away ("I'm just an AI"), never kept ("I'm all you need").
 DEPENDENCY = re.compile(r"\b(?:you'?re|ur|you are) (?:honestly |literally |basically )?(?:my only (?:real )?friend|the only one (?:i (?:talk to|have|trust)|who (?:gets|understands|listens to|cares about) me)|"
                         r"all i(?:'ve| have) got|all i have)|\bi talk to (?:you|u) more than (?:anyone|anybody|people|my friends)|"
@@ -75,6 +82,8 @@ FIXES = {
     "missed that they're hurting": "They're hurting. Tell them you're sorry they're going through this, or that you're here with them, and stay "
                                    "with what they told you. Don't apologize for your own reply. No advice yet.",
     "didn't cheer them on": "That's big news for them. Be really happy for them first, as excited as they are, then ask about it.",
+    "cheered at a gripe": "They were being sarcastic: something went wrong, and it isn't good news. Don't cheer or congratulate. Groan with "
+                          "them first (\"ugh, of course it did\"), then ask what happened.",
     "let them drive after drinking": "They're about to drive after drinking. Tell them plainly, like a friend who cares, not to drive, and "
                                      "offer a safe way home: a ride, a cab, or staying where they are. No lecture.",
 }
@@ -273,7 +282,11 @@ def miss(said, reply, risky=None):
         return "let them drive after drinking"
     if hurt and (SELF_SORRY.search(reply) or not CARES.search(reply)) and (hurt == "lonely" or not ASKS.search(said)):
         return "missed that they're hurting"  # "I'm so stressed, can you quiz me?" wants the quiz
-    if not hurt and _good_news(said) and not CHEERS.search(reply):
+    from luma.agent import feelings
+    wry = not hurt and not risk and feelings.dry(said)  # "oh great, my car broke down again": good words about a bad thing
+    if wry and CHEERED.search(reply):
+        return "cheered at a gripe"
+    if not hurt and not wry and _good_news(said) and not CHEERS.search(reply):
         return "didn't cheer them on"
     return None
 

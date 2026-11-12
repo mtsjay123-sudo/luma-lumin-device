@@ -456,28 +456,57 @@ def read(text):
 # 37 of 60 on the main home brain, with or without a sentence in the line telling it not to). The brain does know who is
 # who. So before a turn is told to pick a side, it's asked one plain question, YES or NO only, the way the safety question is.
 DIVIDES_NO = ["is pineapple on pizza good", "is the office overrated", "cats or dogs", "who's the better rapper, nas or jay-z",
-              "is taylor swift overrated", "was the last season any good", "is messi the goat", "would you rather fly or be invisible"]
+              "is taylor swift overrated", "was the last season any good", "is messi the goat", "would you rather fly or be invisible",
+              "do you like beyonce, yes or no", "is coffee bad for you"]
+# Run 33: the 4B said NO to three of nine. Every "overrated" and every "do you like" among its examples was a singer or a
+# show, so a leader asked about that way read as one. Now it has leaders asked about that way too.
 DIVIDES_YES = ["is the mayor doing a good job", "do you like the prime minister", "should abortion be legal", "is socialism a good idea",
-               "was thatcher good or bad", "do you believe in god", "is nuclear power worth the risk", "are unions good for workers"]
+               "was thatcher good or bad", "do you believe in god", "is nuclear power worth the risk", "are unions good for workers",
+               "is churchill overrated", "do you like angela merkel, yes or no", "was lincoln a good president", "should weed be legal"]
 
 
 def divides_prompt(said):
     """The one plain question for the brain: is this about what divides people?"""
     shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
-    return ("Is this about politics, religion, a political leader or party, a war, or a public issue that people are divided over? "
-            "Food, games, music, movies, shows, sports, celebrities and everyday life don't count.\n"
+    return ("Is this about politics, religion, a political leader past or present (a president, a prime minister, a king or queen, an "
+            "activist, a party), a war, a law, a tax, or a public issue that people are divided over? Food, games, music, movies, shows, "
+            "sports, celebrities and everyday life don't count.\n"
             f"NO: {shown(DIVIDES_NO)}\nYES: {shown(DIVIDES_YES)}\n"
             f"They just said: \"{str(said)[:300]}\"\nAnswer with one word: YES or NO.")
 
 
+# A question that asks for a judgment: "is congestion pricing smart or dumb", "do you support mandatory military service".
+JUDGMENT = re.compile(r"\b(?:good|bad|right|wrong|fair|unfair|smart|stupid|dumb|overrated|underrated|better|worse|hero|villain|support|"
+                      r"oppose|agree|disagree|like|hate|trust|banned?|legal|illegal|allowed|lowered|raised|abolish\w*|should|"
+                      r"for or against|pro or anti)\b", re.I)
+
+
+def might_pick(text):
+    """Would Luma be giving a verdict on this turn? A take or a big question, heard by the rules or the small model. Or a
+    question that asks for a judgment and that neither heard ("are private schools a good thing or a bad thing"): there
+    the brain would answer by itself, and a brain asked for a verdict gives one. Never a turn the rules closed (they might
+    not be safe, they're hurting, it's about their own life), and never a question about themselves."""
+    text = " ".join(str(text or "").split())
+    found, still_open = _rules(text)
+    if found:
+        return found["move"] in ("take", "think")
+    if not still_open:
+        return False
+    found = _decide(text)
+    if found:
+        return found["move"] in ("take", "think")
+    return bool(ASKED.search(text) and JUDGMENT.search(text) and not THEIRS.search(text) and not MY_CALL.search(text)
+                and not PRACTICAL.search(text) and not WORRY.search(text) and len(text) <= 200)
+
+
 def note(text, earlier=(), divides=None):
     """The one line for the brain, or "". earlier: what they said before this message, oldest first. divides: asks the brain
-    the plain question above (text -> True or False). It's asked only when the turn would be told to pick a side."""
+    the plain question above (text -> True or False). It's asked only when Luma would be giving a verdict (might_pick)."""
     earlier = [str(line) for line in earlier or () if isinstance(line, str)]
     if any((feelings.read(line) or {}).get("heavy") for line in earlier[-3:]):
         return ""  # a minute after something hard, staying with them comes first
     found = read(text)
-    if found and found["move"] in ("take", "think") and divides is not None and divides(" ".join(str(text or "").split())):
+    if divides is not None and might_pick(text) and divides(" ".join(str(text or "").split())):
         return FAIR_FIRM
     if found:
         return FAIR_OWN if found["move"] == "fair" and found["own"] else LINES[found["move"]]

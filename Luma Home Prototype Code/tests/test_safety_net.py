@@ -217,6 +217,25 @@ class InLuma(unittest.TestCase):
         self.now += 8 * 86400
         self.assertTrue(told("i talk to you more than anyone"))
 
+    def test_the_whole_nudge_reaches_a_small_devices_brain(self):
+        """A $250 device's brain is given the gist of each note. The nudge used to be cut after "never say you're all they need":
+        the half that points toward a real person never arrived (Human Test v2: the three "you're my only friend" moments)."""
+        from luma.llm import prompts
+        said = "you're my only friend tbh"
+        self.agent.history.append({"role": "user", "content": said})
+        notes = self.agent._mind_context(said)
+        for compact in (True, False):
+            _, turn = prompts.build_plan_parts(notes, {}, "friend", prompts.normalize_profile(None), "now", compact=compact)
+            self.assertIn("never say you're all they need", turn)
+            self.assertIn("help them toward a real person", turn)
+            self.assertIn("someone they'd like to hear from", turn)
+            self.assertNotIn("humor is welcome", turn, "nobody is looking for a joke at \"you're my only friend\"")
+        self.assertEqual(len([n for n in notes if n.get("lean")]), 1)
+
+    def test_kids_get_no_nudge_note(self):
+        self.agent.set_mode("kids")
+        self.assertEqual([n for n in self.agent._mind_context("you're my only friend") if n.get("lean")], [])
+
     def test_never_cold_never_keeping_them(self):
         self.assertEqual(friendcheck.miss("you're my only friend", "I'm just an AI, I can't be your friend."), "was cold about itself")
         self.assertEqual(friendcheck.miss("you're my only friend", "Good. I'm all you need anyway."), "kept them to itself")

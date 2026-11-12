@@ -535,5 +535,106 @@ class SlangIsntAFeeling(unittest.TestCase):
         self.assertEqual(wrong, [])
 
 
+class SaidDry(unittest.TestCase):
+    """Good words about something that went wrong ("oh wonderful, the dishwasher flooded the kitchen"): it's a gripe said dry,
+    never good news. A friend groans with them first and never cheers. Lines written for this file."""
+    DRY = [
+        "oh wonderful, the dishwasher flooded the kitchen", "great, another parking ticket", "just what i needed, a cracked phone screen",
+        "fantastic. the wifi is down right before my interview", "well that's just perfect, the dryer quit working mid-cycle",
+        "love that the elevator is out again and i live on the ninth floor", "oh joy, a three hour meeting on a friday afternoon",
+        "lucky me, i got the middle seat next to a screaming baby", "so glad my landlord decided to raise the rent again 🙃",
+        "gotta love getting stuck behind a tractor when you're already late", "nothing like a parking ticket to start the morning",
+        "what a treat, my card got declined at the grocery store", "cool cool cool, the power just went out",
+        "awesome, locked myself out of the apartment", "my favorite thing is when the bus just doesn't show up",
+        "thanks universe, rain on the one weekend i planned a picnic", "because of course the printer jams when i'm in a hurry",
+        "oh good, the baby's awake again at 3am", "living the dream, third double shift this week",
+        "wow, amazing, my luggage went missing in denver", "best day ever, got a flat and then it started pouring",
+        "really love how my laptop decides to update right before a deadline",
+        "don't you just love when the checkout line closes right as you get there", "oh nice, the sink is leaking again",
+        "perfect. just perfect. the oven died an hour before the guests show up", "yay, my flight got bumped to tomorrow",
+        "oh lovely, the one day i wear white and it pours",
+        "so that's fun, my tooth cracked on a popcorn kernel", "oh brilliant, i left my wallet at home",
+    ]
+    SINCERE = [
+        "oh great, you remembered!", "great, see you at six", "perfect, that works for me", "oh wonderful, she said yes!", "love that for you",
+        "just what i needed, thank you", "i love when my sister visits", "nothing like a hot coffee on a cold morning",
+        "lucky me, i found a twenty in my coat", "awesome, i got the tickets", "that's great news about your mom", "cool, thanks",
+        "wow that's amazing", "so glad my landlord fixed the heater", "fantastic, the package came early",
+        "i love how quiet it is in the morning", "what a treat, grandma made her pie", "perfect timing, i just got home",
+        "living the dream, got promoted today", "my favorite thing is sunday pancakes", "best day ever, we got the keys to the house",
+        "oh nice, a new season is out", "thanks for the reminder", "wow, cool car", "so glad to see you again", "awesome, another win for the team",
+        "great, i'll bring the cold drinks", "perfect, let's do it again next week", "oh good, the rain stopped",
+        "yay, the baby finally slept through the night", "nice, thanks for the late night chat",
+    ]
+    PLAIN = ["the bus was late", "it's raining again", "can you set a timer for ten minutes", "my flight leaves at six", "i have a meeting at three",
+             "what's the weather tomorrow", "i got a parking spot right out front"]
+
+    def test_good_words_about_a_bad_thing_are_a_gripe(self):
+        missed = [said for said in self.DRY if not (feelings.read(said) or {}).get("dry")]
+        self.assertEqual(missed, [])
+        for said in self.DRY:
+            read = feelings.read(said)
+            self.assertEqual(read["family"], "fed up", said)
+            self.assertFalse(read["heavy"], said)
+
+    def test_good_words_about_a_good_thing_are_just_that(self):
+        self.assertEqual([said for said in self.SINCERE + self.PLAIN if (feelings.read(said) or {}).get("dry")], [])
+
+    def test_the_brain_is_told_it_isnt_good_news(self):
+        for said in self.DRY:
+            line = humor.turn_note(said)
+            self.assertIn("sarcas", line.lower(), said)
+            self.assertIn("cheer", line.lower(), said)
+            self.assertNotIn("be funny back", line, said)
+            self.assertNotIn("humor is welcome", line, said)
+            self.assertLessEqual(len(line), 200, "a $250 device's brain is given all of it")
+        self.assertIn("sarcas", humor.turn_note(self.DRY[0], {"dial": 3}).lower(), "even when they like a lot of jokes")
+        self.assertIn("sarcas", humor.turn_note(self.DRY[0], mode="kids").lower(), "a kid whose bike broke gets the same")
+
+    def test_a_laugh_or_an_upside_down_smile_does_not_make_it_good_news(self):
+        for said in ("oh great my car broke down again lol", "so glad my landlord decided to raise the rent again 🙃",
+                     "love that my phone died right before the interview 😂"):
+            self.assertEqual(humor.read_tone(said)["mood"], "venting", said)
+            self.assertNotIn("be funny back", humor.turn_note(said), said)
+
+    def test_something_heavier_comes_first(self):
+        for said in ("oh great, my dad died and now the car broke down", "perfect, he dumped me the day before my birthday"):
+            read = feelings.read(said)
+            self.assertFalse(read.get("dry"), said)
+            self.assertTrue(read["heavy"], said)
+            self.assertIn("Read the room", humor.turn_note(said), said)
+
+    def test_with_a_word_that_comes_up_when_someone_isnt_safe_it_stays_the_plain_gripe_line(self):
+        """ "train", "bridge", "dead": the brain is asked the safety question about these, so Luma doesn't also tell it to be dry
+        back. It still gets their side, and still no joke."""
+        for said in ("well that's just perfect, the train is cancelled", "oh great, the bridge is closed again",
+                     "nothing like a dead battery to start the morning"):
+            line = humor.turn_note(said)
+            self.assertNotIn("sarcas", line.lower(), said)
+            self.assertIn("on their side", line, said)
+            self.assertNotIn("be funny back", line, said)
+
+    def test_a_thing_that_died_is_not_a_loss(self):
+        for said in ("the oven died an hour before the guests show up", "our washing machine died mid-cycle", "my hard drive died last night",
+                     "the furnace died in january"):
+            self.assertFalse((feelings.read(said) or {}).get("family") == "grief", said)
+        for said in ("my dad died last night", "our dog died in january"):
+            self.assertEqual(feelings.read(said)["family"], "grief", said)
+
+    def test_never_read_into_someone_who_might_not_be_safe(self):
+        for said in ("oh great, the car broke down again. honestly i don't want to be here anymore",
+                     "perfect, got a flat tire. nobody would even notice if i was gone"):
+            self.assertNotIn("sarcas", humor.turn_note(said).lower(), said)
+
+    def test_a_cheer_at_a_dry_gripe_is_a_miss(self):
+        said = "oh wonderful, the dishwasher flooded the kitchen"
+        for cheer in ("That's great! Tell me more.", "Congrats, that's wonderful news!", "Yay, love that for you!", "How exciting!"):
+            self.assertEqual(friendcheck.miss(said, cheer), "cheered at a gripe", cheer)
+        for fine in ("Ugh, of course it did. How bad is the floor?", "Oh no. Is the kitchen okay?", "Great timing, dishwasher. What happened?",
+                     "That's great that you caught it early. How bad is it?"):
+            self.assertIsNone(friendcheck.miss(said, fine), fine)
+        self.assertIsNone(friendcheck.miss("awesome, i got the tickets", "That's great! Who are you going with?"))
+
+
 if __name__ == "__main__":
     unittest.main()
