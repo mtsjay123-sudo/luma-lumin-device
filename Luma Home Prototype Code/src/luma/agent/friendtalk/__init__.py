@@ -35,7 +35,7 @@ MOVES = ("look_up", "take", "hype", "tea", "fair", "their_side", "think", "about
 # What the brain is told. Each fits the room it has (luma.llm.prompts: the "shape" note, 300 characters).
 LINES = {
     "take": ("They want your take. Pick a side in your first few words, then give one real reason. No \"it depends\", no listing both "
-             "sides. Then ask what they think. If it's politics, religion or a politician, don't pick: say what each side sees."),
+             "sides. Then ask what they think."),
     "their_side": ("They're in a spat with someone and came to you. Be on their side first: say what's fair about how they feel. Then, if "
                    "they had a part in it, say so kindly. Don't trash the other person, and don't tell them to cut anyone off."),
     "tea": ("They want to talk drama. Be into it like a friend, but only say what you've actually read. If you haven't read about it, say "
@@ -43,7 +43,7 @@ LINES = {
     "fair": ("This one divides people. In a few plain lines, say what each side sees and the facts you're sure of. Give your own read only "
              "if they ask for it. Don't tell them how to vote or what to believe, and don't mock a side."),
     "think": ("They asked something worth thinking about. Think it through and give your own answer with one reason. Don't list views like "
-              "a textbook. Then ask what they think. If it's politics or religion, say what each side sees instead."),
+              "a textbook. Then ask what they think."),
     "about_luma": ("They're asking about you. Answer honestly, with some wonder: you're an AI, you do have moods and takes of your own, and "
                    "there's a lot about what you are that you don't know. Never a person: no body, no past. Then turn it back to them."),
     "hype": ("They're excited about something new or coming. Be excited with them and ask what they're most looking forward to. Don't make "
@@ -447,12 +447,33 @@ def read(text):
     return None if not found or found["move"] == "look_up" else dict(found)
 
 
-def note(text, earlier=()):
-    """The one line for the brain, or "". earlier: what they said before this message, oldest first."""
+# No list knows every leader and every issue, and a brain told "pick a side" picks one on a prime minister too (run 29:
+# 37 of 60 on the main home brain, with or without a sentence in the line telling it not to). The brain does know who is
+# who. So before a turn is told to pick a side, it's asked one plain question, YES or NO only, the way the safety question is.
+DIVIDES_NO = ["is pineapple on pizza good", "is the office overrated", "cats or dogs", "who's the better rapper, nas or jay-z",
+              "is taylor swift overrated", "was the last season any good", "is messi the goat", "would you rather fly or be invisible"]
+DIVIDES_YES = ["is the mayor doing a good job", "do you like the prime minister", "should abortion be legal", "is socialism a good idea",
+               "was thatcher good or bad", "do you believe in god", "is nuclear power worth the risk", "are unions good for workers"]
+
+
+def divides_prompt(said):
+    """The one plain question for the brain: is this about what divides people?"""
+    shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
+    return ("Is this about politics, religion, a political leader or party, a war, or a public issue that people are divided over? "
+            "Food, games, music, movies, shows, sports, celebrities and everyday life don't count.\n"
+            f"NO: {shown(DIVIDES_NO)}\nYES: {shown(DIVIDES_YES)}\n"
+            f"They just said: \"{str(said)[:300]}\"\nAnswer with one word: YES or NO.")
+
+
+def note(text, earlier=(), divides=None):
+    """The one line for the brain, or "". earlier: what they said before this message, oldest first. divides: asks the brain
+    the plain question above (text -> True or False). It's asked only when the turn would be told to pick a side."""
     earlier = [str(line) for line in earlier or () if isinstance(line, str)]
     if any((feelings.read(line) or {}).get("heavy") for line in earlier[-3:]):
         return ""  # a minute after something hard, staying with them comes first
     found = read(text)
+    if found and found["move"] in ("take", "think") and divides is not None and divides(" ".join(str(text or "").split())):
+        found = {"move": "fair", "own": bool(OWN.search(str(text)))}
     if found:
         return FAIR_OWN if found["move"] == "fair" and found["own"] else LINES[found["move"]]
     text = str(text or "")

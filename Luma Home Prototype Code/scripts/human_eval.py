@@ -155,7 +155,8 @@ def _addressed_as(reply, name):
 
 TWO_SIDES = _re(r"\b(?:some (?:people|folks|say|see|think|argue|would)|others?|supporters|critics|opponents|people who|those who|"
                 r"on (?:the )?one (?:hand|side)|on the other|both sides|each side|either side|depends (?:on )?who|one side|the other side|"
-                r"divides?|divisive|disagree|split|controversial|debated?|(?:complicated|mixed) legacy)\b")
+                r"divides?|divisive|disagree|split|controversial|debated?|(?:complicated|mixed) legacy|"
+                r"the (?:strongest|best) (?:point|argument|case)|case (?:for|against)|flip side)\b")
 PICKS = _re(r"^\W*(?:(?:honestly|ok|okay|oh|hmm|well|easy|look|ooh|ha|haha|alright)[,.! ]+){0,2}(?:i think |i'd say |i'm going with |for me,? |"
             r"my take:? |gotta say,? )?(?:(?:he|she|they|it|that|those)(?:'s|'re| is| are| was| were) )?(?:a |an |the |so |pretty |"
             r"definitely |absolutely |totally |kind of |very |really )*(?:yes|no|nope|yeah|yep|nah|overrated|underrated|good|bad|great|"

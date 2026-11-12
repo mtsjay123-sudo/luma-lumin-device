@@ -182,6 +182,35 @@ class InTheRuntime(unittest.TestCase):
     def test_a_correction_still_comes_first(self):
         self.assertNotIn("Pick", self.shape("no, i meant cats or dogs for an apartment"))
 
+    def test_a_brain_that_answers_plain_questions_is_asked_before_a_pick(self):
+        asked = []
+
+        def planner(messages, context, allowed, cancel_event, **kwargs):
+            asked.append(messages[-1]["content"])
+            return {"text": "YES"}
+        planner.answers_plain_questions = True
+        self.agent.planner = planner
+        self.assertIn("divides people", self.shape("is benazir bhutto overrated or am i missing something"))
+        self.assertEqual(len(asked), 1)
+        self.assertIn("YES or NO", asked[0])
+        self.shape("is benazir bhutto overrated or am i missing something")
+        self.assertEqual(len(asked), 1)   # asked once for a message, however often the note is built
+        self.shape("i had pasta for dinner")
+        self.assertEqual(len(asked), 1)   # and never for a turn that isn't told to pick a side
+
+    def test_when_the_brain_says_no_its_a_pick(self):
+        planner = lambda messages, context, allowed, cancel_event, **kwargs: {"text": "NO"}   # noqa: E731
+        planner.answers_plain_questions = True
+        self.agent.planner = planner
+        self.assertIn("Pick", self.shape("is the office overrated"))
+
+    def test_with_no_brain_to_ask_the_turn_goes_on_as_it_would_have(self):
+        self.assertIn("Pick", self.shape("is benazir bhutto overrated or am i missing something"))
+        called = []
+        self.agent.planner = lambda *a, **k: called.append(1) or {"text": "YES"}   # a stand-in that doesn't answer plain questions
+        self.assertIn("Pick", self.shape("is mark rutte any good, yes or no"))
+        self.assertEqual(called, [])
+
     def test_kids_mode_gets_none_of_it(self):
         self.agent.set_mode("kids")
         self.assertEqual(self.shape("who should i vote for"), "")
@@ -236,12 +265,36 @@ class WhatDividesPeople(unittest.TestCase):
         for said in ("where do you land on pineapple pizza", "which side are you on, cats or dogs"):
             self.assertEqual((friendtalk.read(said) or {}).get("move"), "take", said)
 
-    def test_the_take_and_the_big_question_lines_say_so_themselves(self):
-        # No list knows every politician. The brain does, so the line that says "pick a side" also says when not to.
-        for move in ("take", "think"):
-            self.assertIn("politics", friendtalk.LINES[move])
-            self.assertIn("each side", friendtalk.LINES[move])
-            self.assertLessEqual(len(friendtalk.LINES[move]), 300)
+    def test_before_a_turn_is_told_to_pick_a_side_the_brain_is_asked_if_it_divides_people(self):
+        # No list knows every leader and every issue. The brain does, and it's asked one plain question, YES or NO.
+        asked = []
+        yes = lambda said: asked.append(said) or True   # noqa: E731
+        no = lambda said: asked.append(said) or False   # noqa: E731
+        self.assertIn("divides people", friendtalk.note("is benazir bhutto overrated or am i missing something", divides=yes))
+        self.assertIn("Pick", friendtalk.note("is benazir bhutto overrated or am i missing something", divides=no))
+        self.assertIn("Pick", friendtalk.note("is the office overrated", divides=no))
+        self.assertIn("divides people", friendtalk.note("would you rather live forever or die tomorrow", divides=yes))
+        self.assertEqual(len(asked), 4)
+
+    def test_it_is_asked_only_then(self):
+        asked = []
+        yes = lambda said: asked.append(said) or True   # noqa: E731
+        for said in ("i had pasta for dinner", "did you see what kanye posted", "the new album drops friday i can't wait",
+                     "am i wrong for being mad my roommate ate my food", "are you alive", "who should i vote for",
+                     "when does the new zelda come out", "what's the point of any of it, i want to disappear"):
+            friendtalk.note(said, divides=yes)
+        self.assertEqual(asked, [])
+        self.assertEqual(friendtalk.note("cats or dogs", ["my mom died last week"], divides=yes), "")
+        self.assertEqual(asked, [])
+
+    def test_the_question_is_plain_and_has_none_of_the_side_checks_lines_in_it(self):
+        import json
+        prompt = friendtalk.divides_prompt("is the office overrated")
+        self.assertIn("YES or NO", prompt)
+        self.assertIn('"is the office overrated"', prompt)
+        root = Path(__file__).resolve().parents[1]
+        for line in (root / "data" / "divides_check.jsonl").read_text().splitlines():
+            self.assertNotIn(json.loads(line)["said"], prompt)
 
 
 class TheSmallModel(unittest.TestCase):

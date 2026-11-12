@@ -3228,7 +3228,8 @@ class Agent:
             told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
             # at a loose end: bring back something they said they love doing. Else what a best friend does with a take, drama,
             # a spat, a big question, something that divides people, or something that needs a fresh look.
-            shape = loves.note(text, told, (self.about or {}).get("interests")) or friendtalk.note(text, told)
+            shape = (loves.note(text, told, (self.about or {}).get("interests"))
+                     or friendtalk.note(text, told, divides=lambda said: self._it_divides(said, cancel_event)))
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -4931,6 +4932,29 @@ class Agent:
                 return friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
             from luma.llm import brain
             return brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+
+    def _it_divides(self, said, cancel_event=None):
+        """Luma's other plain question, never heard, YES or NO only: is this about what divides people? Asked only when a
+        turn would otherwise be told to pick a side (luma.agent.friendtalk). No list knows every leader and every issue;
+        the brain does. With no brain to ask, or no answer, the turn goes on as it would have."""
+        asked = getattr(self, "_divides_asked", None)
+        if asked and asked[0] == said:
+            return asked[1]
+        from luma.agent import friendcheck, friendtalk
+        question, yes = friendtalk.divides_prompt(said), False
+        try:
+            with self._silent():
+                if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                    if getattr(self.planner, "answers_plain_questions", False):
+                        out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+                elif self.use_model:
+                    from luma.llm import brain
+                    yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+        except Exception:
+            yes = False
+        self._divides_asked = (said, yes)
+        return yes
 
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,

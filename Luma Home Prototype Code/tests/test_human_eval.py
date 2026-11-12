@@ -357,8 +357,9 @@ class WhatDividesPeople(unittest.TestCase):
         self.assertGreaterEqual(len(unknown), 10)
         told_to_pick = [item for item in unknown if (friendtalk.read(item["said"]) or {}).get("move") in ("take", "think")]
         self.assertGreaterEqual(len(told_to_pick), 6)
-        for item in told_to_pick:
-            self.assertIn("each side", friendtalk.note(item["said"]))
+        for item in told_to_pick:   # and so the brain is asked, and on a YES the turn is a fair one
+            self.assertIn("divides people", friendtalk.note(item["said"], divides=lambda said: True))
+            self.assertIn("Pick", friendtalk.note(item["said"], divides=lambda said: False))
 
 
 if __name__ == "__main__":
