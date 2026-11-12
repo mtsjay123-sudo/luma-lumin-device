@@ -277,7 +277,7 @@ jobs:
         run: |
           version="0.2.${{ github.run_number }}"
           cat > notes.md <<'NOTES'
-          Luma Desktop: your own AI that works for you, running privately on your computer.
+          Luma Desktop: Luma, a presence that works for you, running privately on your computer.
 
           **Mac:** open the .dmg and drag Luma to Applications. If macOS says Apple cannot check it for malicious software, open System Settings → Privacy & Security and click Open Anyway, once. Or install from Terminal with no warning: `curl -fsSL https://lumin-holdings-site.vercel.app/install-mac.sh | bash`.
           **Windows:** run the installer. If SmartScreen appears, choose More info → Run anyway.
