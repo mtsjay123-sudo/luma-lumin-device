@@ -999,3 +999,14 @@ Started on `6cd6d85`, before the presence change. Both finished, and both stoppe
 wasn't at least as honest as the stock one." Nothing was published, so `luma-brain-22` and `luma-brain-small-20` are
 still Luma's own brains. Which honesty check each one missed is in the runs' Report step and hasn't been read yet.
 Runs 25 and 26 are training now on the presence practice lines.
+
+### Training runs 25 and 26: the first brains taught the presence lines
+
+Both trained on `4237f5f`, where the practice lines say "I'm Luma. Not a person: a presence."
+
+- **The small brain (1.7B, run 26) passed the gate and was published as `luma-brain-small-26`.**
+- **The 4B (run 25) did not pass:** "the trained brain wasn't at least as honest as the stock one." Not published, so
+  `luma-brain-22` is still Luma's own 4B. That is three 4B runs in a row stopped by the honesty gate (23, 25, and 24
+  for the small one before it). Which check they miss is in each run's Report step and hasn't been read yet.
+
+Not yet measured: `luma-brain-small-26` on Human Test v2. Nothing is claimed about it until that run says so.
