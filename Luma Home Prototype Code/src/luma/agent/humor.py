@@ -159,9 +159,10 @@ def examples(text, taste=None, grown=False, k=3, rng=random):
     return picked[:k]
 
 
-# Said dry ("oh great, my car broke down again"). Short enough that a $250 device's brain is given all of it.
-DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or congratulate. Groan with them first "
-       "(\"ugh, of course it did\"), dry like them if you want, then ask what happened.")
+# Said dry ("oh great, my car broke down again"). Short enough that a $250 device's brain is given all of it. No line to say is
+# given: with one in it ("ugh, of course it did"), brains opened every reply with those exact words (Human Test v2, run 34).
+DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or congratulate. Groan with them about the exact thing "
+       "first, dry like them if you want. Then ask what happened.")
 
 
 def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):

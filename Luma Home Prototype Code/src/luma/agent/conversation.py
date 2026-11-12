@@ -20,7 +20,19 @@ def interruption_intent(text):
     return None
 
 
+# Someone texting them, or not: "my old friends don't even text me", "she never texts back", "he finally texted me". It's
+# about their life, not a wish to send anything (run 34: Luma's own 4B answered the first with a draft to Mom about groceries).
+THEIR_TEXTS = re.compile(r"\b(?:text|message|dm|call|write)(?:s|ed|ing)?\s+(?:me|us)\b(?!\s+(?:the|a|an|my|your|that|this|what|when|where|how|if)\b)|"
+                         r"\b(?:text|message|dm|call|write)(?:s|ed|ing)?\s+(?:me\s+|us\s+)?back\b|"
+                         r"\b(?:don'?t|doesn'?t|didn'?t|never|hardly|barely|rarely|haven'?t|hasn'?t|stopped)\s+(?:even\s+|ever\s+)*"
+                         r"(?:text|message|call|reach|check|written|texted|called|messaged)\w*\b", re.I)
+ASKS_TO_SEND = re.compile(r"^\W*(?:(?:please|hey|ok|okay|luma)[,\s]+)*(?:(?:can|could|would|will) (?:you|u)\b|text\b|message\b|send\b|tell\b|let\b|shoot\b)|"
+                          r"\bshould i\b", re.I)
+
+
 def wants_message(text):
+    if THEIR_TEXTS.search(text) and not ASKS_TO_SEND.search(text):
+        return False
     return bool(re.search(r"\b(?:text|message|sms|imessage)\b|\blet .{1,90}? know\b|\btell (?!me\b)(?:my |our )?[A-Z][\w'-]*\b", text, re.I))
 
 

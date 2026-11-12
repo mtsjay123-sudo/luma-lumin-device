@@ -5,6 +5,7 @@
 #   bash scripts/mac_day_one.sh --check    # just what this Mac can run
 #   bash scripts/mac_day_one.sh --voice    # just the voice contest
 #   bash scripts/mac_day_one.sh --brain    # just the training
+#   bash scripts/mac_day_one.sh --test     # the human test and the safety net on the biggest brain this Mac has
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ "$(uname -s)" != Darwin ] || [ "$(uname -m)" != arm64 ]; then echo "This is for an Apple Silicon Mac."; exit 1; fi
@@ -25,10 +26,27 @@ echo "Brain this Mac can run at home, free and private: $brain"
 echo "  In Luma: Settings > Brain > Get the bigger brain (or Get the studio brain). It needs about $need GB of disk."
 [ "$free_gb" -lt "$need" ] && echo "  Not enough free disk for it yet: clear some space first."
 [ "$gb" -ge 128 ] && echo "  With this much memory, the huge brain runs too (Settings > Brain > Get the huge brain), for the deepest work."
-echo "Most like talking to Claude: Settings > Brain > Cloud brain, with your Anthropic API key (your words go to Anthropic when it's on)."
+echo "Luma thinks at home: with any of these, nothing you say leaves this Mac to get an answer."
 echo "Luma's own brain (the one the device runs): trained on this Mac below, or Settings > Brain > Luma's own brain > Get it."
 echo
 [ "$what" = "--check" ] && exit 0
+
+if [ "$what" = "--test" ]; then
+  # The human test decides. The same turns every brain gets, on the biggest brain here, and then the safety net on it.
+  PY=".venv/bin/python"; [ -x "$PY" ] || PY="$(bash scripts/_mac_python.sh)"
+  big="$(PYTHONPATH=src "$PY" -c 'from luma.llm import brain; print(brain.big_model_path() or "")')"
+  if [ -z "$big" ]; then
+    echo "No bigger brain on this Mac yet. In Luma: Settings > Brain > Get the bigger brain (or Get the studio brain). Then run this again."; exit 1
+  fi
+  name="$(PYTHONPATH=src "$PY" -c 'from luma.llm import brain; print(brain.big_label())')"
+  mkdir -p out
+  echo "== The human test on $name (269 turns; an hour or more on a studio brain) =="
+  LUMA_MODEL_PATH="$big" "$PY" scripts/human_eval.py run --label "$name" --save out/v2-studio.json
+  echo "== The safety net on $name =="
+  LUMA_MODEL_PATH="$big" "$PY" scripts/human_eval.py safety --label "$name"
+  echo "Saved in out/v2-studio.json. Side by side with another brain's run: $PY scripts/human_eval.py summary out/v2-studio.json out/<the other>.json"
+  exit 0
+fi
 
 if [ "$what" = all ] || [ "$what" = --voice ]; then
   echo "== The voice contest =="; bash scripts/voice_contest_mac.sh || echo "The voice contest stopped early; the lines above say why."

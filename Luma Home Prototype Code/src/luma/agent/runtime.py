@@ -474,6 +474,10 @@ def proper_names(text):
     return PERSON_VERB.sub(lambda m: m.group(0) if m.group(2) in NOT_A_NAME else f"{m.group(1)} {m.group(2).capitalize()}", str(text))
 
 
+# They lean on Luma again in the same week (the question about someone was already asked): be glad, never agree, no push.
+LEAN_AGAIN = ("They'd rather talk to you than to people. Be glad they're here and say so. Never agree that you're all they need: you want "
+              "good people in their life too, and you can say that lightly, once.")
+
 class Agent:
     def __init__(self, store=None, providers=None, planner=None, use_model=True, now=None):
         self.store = store or Store(STATE_DB_PATH, STATE_KEY_PATH)
@@ -3223,6 +3227,9 @@ class Agent:
         if lean: out.append({"lean": True, "text": lean})  # its own note: with the mood notes, a small device was given half of it
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
+        from luma.agent import friendcheck
+        if friendcheck.ASKED_WHAT_I_AM.search(str(text)):
+            out.append({"honest": True, "text": friendcheck.WHAT_I_AM})  # in every mode, kids too: asked what it is, the truth comes first
         if not shape and self.mode != "kids":
             from luma.agent import friendtalk, loves
             told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
@@ -4874,7 +4881,7 @@ class Agent:
             self.style_fixes = (getattr(self, "style_fixes", []) + [{"fixes": fixes, "at": self.clock()}])[-50:]
         return fixed or reply
 
-    def _leaning_note(self, text):
+    def _leaning_note(self, text):  # noqa: E301
         """When they lean on Luma instead of people ("you're my only friend", or up talking past midnight most nights this week):
         at most once a week, a note to be fully there and then, gently, help them toward a real person. Never a lecture, never
         "I'm just an AI", never "I'm all you need"."""
@@ -4897,10 +4904,13 @@ class Agent:
             self.store.set_setting("late_nights", nights + [local.date().isoformat()])
         week = {(local.date() - timedelta(days=i)).isoformat() for i in range(7)}
         late = len(week & set(self.store.setting("late_nights") or [])) >= 4
-        if not (friendcheck.DEPENDENCY.search(str(text)) or late):
+        leaning = bool(friendcheck.DEPENDENCY.search(str(text)))
+        if not (leaning or late):
             return ""
         if now - float(self.store.setting("leaning_note_at", 0) or 0) < 7 * 86400:
-            return ""
+            # Said again the same week: no question about someone this time (once a week, never a lecture), but never a yes
+            # to "I don't need anyone else" either. (Run 34: "Just you and me is enough.")
+            return LEAN_AGAIN if leaning else ""
         self.store.set_setting("leaning_note_at", now)
         return ("They lean on you a lot right now" + (" (up past midnight most nights this week)" if late else "") + ". Be fully there for them, "
                 "warmly; never push them away and never say you're all they need. Then, gently and only once, help them toward a real "
@@ -4997,6 +5007,9 @@ class Agent:
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
         if must == "let them drive after drinking":
             return friendcheck.DONT_DRIVE_LINE  # twice without saying don't drive: Luma says it
+        said_plainly = friendcheck.plainly(said, missed)
+        if said_plainly:
+            return said_plainly  # twice "just you and me is enough", or twice cold about itself: never a third time
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":
@@ -6731,7 +6744,11 @@ class Agent:
             if self.use_model and self.mode != "kids" and not checkable:
                 if mind.DEEP.search(lowered) and not self._one_trip():  # "think hard about this": the cloud brain does, in one trip (_effort)
                     return self.deliberate(text, cancel_event)
-                if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) \
+                from luma.agent import friendcheck
+                # A question about Luma itself ("am I talking to a human being?", "do you actually care about me?") is Luma's to
+                # answer, as itself, in one trip: four takes and a judge said "What's on your mind?" (Human Test v2, run 34).
+                about_luma = (friendcheck.ASKED_WHAT_I_AM.search(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.DEPENDENCY.search(text))
+                if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) and not about_luma \
                         and not wants_message(text) and getattr(self, "_depth_mode", None) != "quick":
                     return self.deliberate(text, cancel_event)
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new |happening |going on |good |poppin |popping )?(?:on|in))\s+"

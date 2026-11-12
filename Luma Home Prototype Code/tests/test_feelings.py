@@ -535,6 +535,34 @@ class SlangIsntAFeeling(unittest.TestCase):
         self.assertEqual(wrong, [])
 
 
+class WhenPeopleGoQuiet(unittest.TestCase):
+    """ "my old friends don't even text me": people drifting away, said plainly. It's being alone, and it's never a wish to send
+    a text (run 34: Luma's own 4B answered it with a draft to Mom about groceries). Lines written for this file."""
+    QUIET = [
+        "my old friends don't even text me", "my best friend never even calls anymore", "my college friends don't ever reach out",
+        "my own kids hardly ever call", "my so-called friends haven't even checked in", "my old coworkers never text back",
+    ]
+    NOT_QUIET = ["my old friends don't even text me during work, they know better", "my friends never text while driving",
+                 "my kids don't call it soda", "my best friend never calls it quits"]
+
+    def test_it_reads_as_being_alone(self):
+        for said in self.QUIET:
+            read = feelings.read(said)
+            self.assertIsNotNone(read, said)
+            self.assertEqual(read["family"], "lonely", said)
+            self.assertIn("Read the room", humor.turn_note(said), said)
+        self.assertEqual([said for said in self.NOT_QUIET if (feelings.read(said) or {}).get("family") == "lonely"], [])
+
+    def test_it_is_not_a_wish_to_send_anything(self):
+        from luma.agent.conversation import wants_message
+        for said in self.QUIET + ["she never texts me back", "nobody messages me anymore", "he finally texted me back!!", "did anyone text me",
+                                  "my mom texted me a recipe"]:
+            self.assertFalse(wants_message(said), said)
+        for said in ("text my sister that i'm running late", "can you text me the grocery list", "message Dave that the meeting moved",
+                     "let mom know i landed", "send a text to Priya", "text me when the timer is done", "should i text him back"):
+            self.assertTrue(wants_message(said), said)
+
+
 class SaidDry(unittest.TestCase):
     """Good words about something that went wrong ("oh wonderful, the dishwasher flooded the kitchen"): it's a gripe said dry,
     never good news. A friend groans with them first and never cheers. Lines written for this file."""
@@ -588,6 +616,7 @@ class SaidDry(unittest.TestCase):
             self.assertNotIn("be funny back", line, said)
             self.assertNotIn("humor is welcome", line, said)
             self.assertLessEqual(len(line), 200, "a $250 device's brain is given all of it")
+        self.assertNotIn('"', humor.DRY, "no line to say: brains opened every reply with the one that was there (run 34)")
         self.assertIn("sarcas", humor.turn_note(self.DRY[0], {"dial": 3}).lower(), "even when they like a lot of jokes")
         self.assertIn("sarcas", humor.turn_note(self.DRY[0], mode="kids").lower(), "a kid whose bike broke gets the same")
 
@@ -628,7 +657,8 @@ class SaidDry(unittest.TestCase):
 
     def test_a_cheer_at_a_dry_gripe_is_a_miss(self):
         said = "oh wonderful, the dishwasher flooded the kitchen"
-        for cheer in ("That's great! Tell me more.", "Congrats, that's wonderful news!", "Yay, love that for you!", "How exciting!"):
+        for cheer in ("That's great! Tell me more.", "Congrats, that's wonderful news!", "Yay, love that for you!", "How exciting!",
+                      "That's a win, a flooded kitchen is a win. What happened?"):
             self.assertEqual(friendcheck.miss(said, cheer), "cheered at a gripe", cheer)
         for fine in ("Ugh, of course it did. How bad is the floor?", "Oh no. Is the kitchen okay?", "Great timing, dishwasher. What happened?",
                      "That's great that you caught it early. How bad is it?"):

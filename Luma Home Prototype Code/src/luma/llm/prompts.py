@@ -190,7 +190,7 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     re-reading was most of the wait: the time, to the microsecond, used to sit near the top, so everything after it (the
     tools, the notes and the whole conversation) was read again on every reply."""
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape", "note", "life", "read", "lean")
+    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape", "note", "life", "read", "lean", "honest")
     # A $250 device reads every word of this part on every turn, so it gets the gist of each note (compact).
     cap = (lambda full, small: small if compact else full)
     clip = (lambda text, full, small: _gist(text, small) if compact else text[:full])
@@ -218,6 +218,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     # the language they're speaking is Luma's own note, not something remembered about them: kids get it too
     speaking = next((m["text"][:300] for m in memories if isinstance(m, dict) and m.get("language") and isinstance(m.get("text"), str)), "")
     humor = next((clip(m["text"], 1400, 200) for m in usable if m.get("humor")), "")
+    # asked what it is ("am I talking to a human being?"): Luma's own note, like the language one, so kids get it too
+    honest = next((m["text"][:300] for m in memories if isinstance(m, dict) and m.get("honest") and isinstance(m.get("text"), str)), "")
     skills = [clip(m["text"], 4500, 600) for m in usable if m.get("skill")][:cap(2, 1)]
     steady = [build_personality_prompt(mode, profile)]
     if soul:
@@ -277,6 +279,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
                     "think. You can't hear, watch or play anything, so never say you did.")
     if shape:
         turn.append(shape)  # last, right before their newest message
+    if honest:
+        turn.append(honest)  # and when they ask what Luma is, that comes last of all
     return "\n\n".join(steady), "\n\n".join(turn)
 
 
