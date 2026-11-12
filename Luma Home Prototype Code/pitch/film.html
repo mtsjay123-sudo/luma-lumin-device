@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Luma: a friend in a lamp</title>
+<style>
+@font-face { font-family: "Instrument Serif"; src: url("../../website/fonts/instrument-serif.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; src: url("../../website/fonts/instrument-serif-italic.woff2") format("woff2"); }
+@font-face { font-family: "Geist"; src: url("../../website/fonts/geist.woff2") format("woff2"); font-weight: 100 900; }
+:root { --ground: #0b0a0c; --ink: #f4f1ec; --ink-2: #cbc5bd; --muted: #9a948d; --warm: #ffb562; --line: rgba(255,255,255,.12); --glass: rgba(30,27,31,.72); }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+body { color: var(--ink); font: 400 34px/1.4 "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+.abs { position: absolute; will-change: transform, opacity; opacity: 0; }
+.serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -.02em; line-height: 1; }
+.kicker { font: 600 22px/1 "Geist", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--warm); }
+.small { font-size: 24px; color: var(--muted); }
+#glow { position: absolute; width: 1700px; height: 1700px; border-radius: 50%; left: 0; top: 0;
+  background: radial-gradient(circle, rgba(255,181,98,.34), rgba(255,181,98,.10) 38%, rgba(255,181,98,0) 64%); filter: blur(20px); }
+#grain { position: absolute; inset: 0; opacity: .05; background-image: radial-gradient(rgba(255,255,255,.8) 1px, transparent 1px); background-size: 3px 3px; }
+#lamp { width: 420px; height: 580px; left: 0; top: 0; }
+.card { border-radius: 40px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 60px 120px -40px rgba(0,0,0,.8); background: #1a181c; }
+#founder { left: 190px; top: 170px; width: 560px; height: 740px; }
+#founder img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; display: block; }
+#eli { left: 1270px; top: 210px; width: 470px; height: 600px; }
+#eli svg { display: block; width: 100%; height: 100%; }
+.bubble { max-width: 760px; padding: 26px 34px; border-radius: 34px; font-size: 36px; line-height: 1.35; }
+.bubble.them { background: rgba(255,255,255,.10); border: 1px solid var(--line); border-bottom-right-radius: 10px; }
+.bubble.luma { background: linear-gradient(180deg, rgba(255,181,98,.24), rgba(255,181,98,.13)); border: 1px solid rgba(255,181,98,.4); border-bottom-left-radius: 10px; }
+.stat { width: 500px; padding: 40px 40px 44px; border-radius: 36px; background: var(--glass); border: 1px solid var(--line); }
+.stat b { display: block; font: 400 150px/1 "Instrument Serif", serif; letter-spacing: -.03em; color: var(--warm); }
+.stat span { display: block; margin-top: 16px; color: var(--ink-2); font-size: 30px; line-height: 1.35; }
+#code { left: 150px; top: 250px; width: 1060px; height: 620px; border-radius: 28px; background: #121114; border: 1px solid var(--line); box-shadow: 0 60px 120px -40px rgba(0,0,0,.9); overflow: hidden; }
+#code .bar { height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 22px; border-bottom: 1px solid var(--line); }
+#code .bar i { width: 14px; height: 14px; border-radius: 50%; background: #3a373d; }
+#code pre { margin: 0; padding: 30px 34px; font: 400 25px/1.62 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #d9d4cc; white-space: pre-wrap; }
+#code .c { color: #8f897f; } #code .s { color: #ffcf96; } #code .k { color: #8fc7ff; } #code .f { color: #6f6a63; }
+#caret { display: inline-block; width: 13px; height: 30px; background: var(--warm); vertical-align: -5px; }
+.pill { display: inline-block; padding: 18px 34px; border-radius: 999px; background: var(--ink); color: var(--ground); font: 600 32px/1 "Geist", sans-serif; }
+#avatar { width: 92px; height: 92px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(255,255,255,.25); }
+#avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 16%; display: block; }
+</style>
+
+<div id="stage">
+  <div id="glow"></div>
+  <div id="grain"></div>
+
+  <!-- the lamp, drawn from the case's own proportions -->
+  <svg id="lamp" class="abs" viewBox="0 0 420 580" aria-hidden="true">
+    <defs>
+      <linearGradient id="dome" x1="0" x2="1"><stop offset="0" stop-color="#b9bbc0"/><stop offset=".3" stop-color="#f6f6f4"/><stop offset=".7" stop-color="#f6f6f4"/><stop offset="1" stop-color="#b3b5ba"/></linearGradient>
+      <linearGradient id="base" x1="0" x2="1"><stop offset="0" stop-color="#a9a9a6"/><stop offset=".3" stop-color="#f3f2ee"/><stop offset=".75" stop-color="#f3f2ee"/><stop offset="1" stop-color="#a3a3a0"/></linearGradient>
+      <radialGradient id="lg" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fffaf0"/><stop offset=".28" stop-color="#ffe2a6" stop-opacity=".96"/><stop offset=".6" stop-color="#ffbf5c" stop-opacity=".5"/><stop offset="1" stop-color="#ffbf5c" stop-opacity="0"/></radialGradient>
+      <clipPath id="in"><path d="M42 414V112Q42 20 134 20H286Q378 20 378 112V414Z"/></clipPath>
+    </defs>
+    <ellipse cx="214" cy="548" rx="190" ry="20" fill="#000" opacity=".5"/>
+    <path d="M42 418H378V496Q378 540 334 540H86Q42 540 42 496Z" fill="url(#base)"/>
+    <path d="M42 414V112Q42 20 134 20H286Q378 20 378 112V414Z" fill="url(#dome)"/>
+    <g clip-path="url(#in)"><ellipse id="lampglow" cx="210" cy="356" rx="170" ry="150" fill="url(#lg)"/></g>
+    <circle cx="318" cy="482" r="3.4" fill="#f0a020"/><circle cx="318" cy="482" r="8" fill="#f0a020" opacity=".3"/>
+  </svg>
+
+  <!-- 1 -->
+  <div id="s1a" class="abs serif" style="left:160px; top:330px; width:980px; font-size:128px;">About half of us say we're lonely.</div>
+  <div id="s1b" class="abs small" style="left:166px; top:650px;">U.S. Surgeon General's advisory, 2023</div>
+
+  <!-- 2: the founder -->
+  <div id="founder" class="abs card"><img src="founder.png" alt=""></div>
+  <div id="s2k" class="abs kicker" style="left:850px; top:300px;">The founder</div>
+  <div id="s2a" class="abs serif" style="left:846px; top:350px; width:920px; font-size:120px;">I'm building a friend that lives in a lamp.</div>
+  <div id="s2b" class="abs" style="left:850px; top:740px; width:820px; color:var(--ink-2);">It listens, remembers, and gently points you back toward real people.</div>
+
+  <!-- 3: someone Luma keeps company -->
+  <div id="s3h" class="abs serif" style="left:150px; top:110px; width:1100px; font-size:84px;">Fully there first. Then gently toward a real person.</div>
+  <div id="eli" class="abs card">
+    <svg viewBox="0 0 470 600" aria-hidden="true">
+      <defs><linearGradient id="room" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe3d0"/><stop offset="1" stop-color="#d9c4a5"/></linearGradient></defs>
+      <rect width="470" height="600" fill="url(#room)"/>
+      <circle cx="372" cy="120" r="150" fill="#ffd596" opacity=".5"/>
+      <!-- shoulders and a cardigan -->
+      <path d="M40 600C48 492 120 446 235 446S422 492 430 600Z" fill="#3f5868"/>
+      <path d="M190 448L235 520L280 448L262 440H208Z" fill="#f4efe6"/>
+      <path d="M208 440L235 520L262 440" fill="none" stroke="#d8d0c2" stroke-width="3"/>
+      <!-- neck and head -->
+      <path d="M200 380H270V452Q235 478 200 452Z" fill="#e6bfa2"/>
+      <ellipse cx="235" cy="268" rx="104" ry="126" fill="#f1cfb4"/>
+      <ellipse cx="132" cy="278" rx="14" ry="24" fill="#e9c0a3"/><ellipse cx="338" cy="278" rx="14" ry="24" fill="#e9c0a3"/>
+      <!-- grey hair at the sides -->
+      <g fill="#b9b4ad"><circle cx="140" cy="214" r="24"/><circle cx="132" cy="240" r="18"/><circle cx="330" cy="214" r="24"/><circle cx="338" cy="240" r="18"/><circle cx="160" cy="186" r="24"/><circle cx="310" cy="186" r="24"/></g>
+      <!-- a kippah -->
+      <path d="M150 190Q235 96 320 190Q235 158 150 190Z" fill="#27364a"/>
+      <path d="M156 186Q235 152 314 186" fill="none" stroke="#3d5270" stroke-width="3"/>
+      <!-- brows, eyes, glasses -->
+      <path d="M176 238q22-12 42-2M252 236q20-10 42 2" fill="none" stroke="#8d877f" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="198" cy="268" r="6" fill="#2b2622"/><circle cx="272" cy="268" r="6" fill="#2b2622"/>
+      <g fill="none" stroke="#3a332d" stroke-width="4"><circle cx="198" cy="268" r="30"/><circle cx="272" cy="268" r="30"/><path d="M228 266q7-6 14 0M168 262l-30-8M302 262l30-8"/></g>
+      <!-- nose, a short grey beard, a small smile -->
+      <path d="M235 280q-10 28-2 36q8 4 14 0" fill="none" stroke="#d1a686" stroke-width="5" stroke-linecap="round"/>
+      <path d="M146 318Q160 400 235 404Q310 400 324 318Q312 356 280 352Q235 340 190 352Q158 356 146 318Z" fill="#c9c4bc"/>
+      <path d="M206 356q29 22 58 0" fill="none" stroke="#7a5a4a" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div id="s3c" class="abs small" style="left:1270px; top:830px; width:470px; text-align:center;">Eli, 71. An illustration, not a customer.</div>
+  <div id="b1" class="abs bubble them" style="left:470px; top:410px;">My daughter hasn't called in a while.</div>
+  <div id="b2" class="abs bubble luma" style="left:150px; top:640px;"><span id="b2t"></span></div>
+
+  <!-- 4 -->
+  <div id="s4h" class="abs serif" style="left:150px; top:150px; font-size:128px;">It thinks at home.</div>
+  <div id="st1" class="abs stat" style="left:150px; top:420px;"><b>$0</b><span>cloud bill when someone talks to it. The brain is in the lamp.</span></div>
+  <div id="st2" class="abs stat" style="left:710px; top:420px;"><b>0 V</b><span>on the microphones when the switch is off. It cuts their power.</span></div>
+  <div id="st3" class="abs stat" style="left:1270px; top:420px;"><b>988</b><span>comes before the brain, every time someone may not be safe.</span></div>
+
+  <!-- 5: the code -->
+  <div id="s5h" class="abs serif" style="left:150px; top:110px; font-size:84px;">Built in code you can read.</div>
+  <div id="code" class="abs"><div class="bar"><i></i><i></i><i></i></div><pre id="pre"></pre></div>
+  <div id="s5n" class="abs" style="left:1290px; top:330px; width:480px;">
+    <div class="serif" style="font-size:150px; color:var(--warm);">1,472</div>
+    <div style="color:var(--ink-2); margin-top:10px;">tests pass. Every change to how Luma talks is measured on real brains before it's kept.</div>
+  </div>
+
+  <!-- 6 -->
+  <div id="s6a" class="abs serif" style="left:880px; top:250px; font-size:260px;">Luma</div>
+  <div id="s6b" class="abs" style="left:890px; top:540px; width:860px; font-size:44px; color:var(--ink-2);">A friend in a lamp. It thinks at home.</div>
+  <div id="s6c" class="abs" style="left:890px; top:660px;"><span class="pill">Hold your place</span></div>
+  <div id="s6d" class="abs small" style="left:890px; top:760px; font-size:30px; color:var(--ink-2);">lumin-holdings-site.vercel.app/preorder</div>
+  <div id="s6e" class="abs" style="left:890px; top:860px; display:flex; align-items:center; gap:22px;"><div id="avatar"><img src="founder.png" alt=""></div><div class="small">Pre-seed · November 2026<br>The lamp is a design. The software runs today.</div></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const out3 = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const inout = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const mix = (a, b, k) => a + (b - a) * k;
+
+// rise in at `a`, leave at `b` (null: stays)
+function show(id, t, a, b, { dy = 44, dur = .9, gone = .55, dx = 0 } = {}) {
+  const el = $(id), k = out3(seg(t, a, a + dur)), g = b == null ? 0 : inout(seg(t, b, b + gone));
+  el.style.opacity = (k * (1 - g)).toFixed(4);
+  el.style.transform = `translate(${((1 - k) * dx).toFixed(2)}px, ${((1 - k) * dy - g * dy * .5).toFixed(2)}px)`;
+}
+
+const LUMA_SAYS = "That's a quiet kind of hurt. I'm here. Want to call her tonight? I'll remind you at seven.";
+const CODE = [
+  ["f", "# src/luma/agent/style.py"],
+  ["", 'HONEST = <span class="s">"I\'m an AI, not a person. But I\'m really here,\n          and I\'m listening."</span>'],
+  ["", ""],
+  ["f", "# src/luma/agent/runtime.py"],
+  ["c", "# Someone who might hurt themselves gets 988 and a real\n# person right away, before anything else."],
+  ["", ""],
+  ["f", "# src/luma/hardware/firstrun.py"],
+  ["c", "# The password goes to NetworkManager and nowhere else:\n# not kept, not logged."],
+  ["", ""],
+  ["f", "# hardware/README.md"],
+  ["c", "# The switch cuts the microphones' power wire."],
+];
+const plain = (html) => html.replace(/<[^>]+>/g, "");
+const CODE_LEN = CODE.reduce((n, [, text]) => n + plain(text).length + 1, 0);
+
+function typed(count) {   // the first `count` characters of the code, keeping the colours
+  let left = count, html = "";
+  for (const [cls, text] of CODE) {
+    if (left <= 0) break;
+    const raw = plain(text), take = Math.min(left, raw.length);
+    let piece;
+    if (take >= raw.length) piece = text;
+    else piece = raw.slice(0, take).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    html += (cls ? `<span class="${cls}">${piece}</span>` : piece) + "\n";
+    left -= raw.length + 1;
+  }
+  return html.replace(/\n$/, "");
+}
+
+window.seek = (t) => {
+  // the light: it drifts, and breathes
+  const gx = t < 5 ? 960 : t < 11.5 ? mix(960, 1500, inout(seg(t, 5, 6.5))) : t < 20 ? mix(1500, 700, inout(seg(t, 11.5, 13))) : t < 26.5 ? mix(700, 960, inout(seg(t, 20, 21.5)))
+    : t < 32.5 ? mix(960, 1500, inout(seg(t, 26.5, 28))) : mix(1500, 520, inout(seg(t, 32.5, 34)));
+  const breathe = 1 + .05 * Math.sin(t * 1.3);
+  const up = out3(seg(t, 0, 2.2));
+  $("glow").style.transform = `translate(${gx - 850}px, ${560 - 850}px) scale(${(.55 + .45 * up) * breathe})`;
+  $("glow").style.opacity = (.25 + .75 * up).toFixed(3);
+
+  // the lamp: centre right in 1, steps aside for the founder, sits by the talk in 3, away for 4 and 5, home for the end
+  const lamp = $("lamp");
+  let lx = 1250, ly = 250, ls = 1, lo = out3(seg(t, .4, 2.2));
+  if (t >= 5) { const k = inout(seg(t, 5, 6.2)); lo = 1 - k; lx = mix(1250, 1500, k); }
+  if (t >= 11.5) { const k = inout(seg(t, 11.9, 13.1)); lo = k; lx = 150; ly = 330; ls = .46; }
+  if (t >= 20) { const k = inout(seg(t, 20, 20.8)); lo = 1 - k; }
+  if (t >= 32.5) { const k = out3(seg(t, 32.9, 34.3)); lo = k; lx = 250; ly = 250; ls = 1; }
+  const talking = t > 14.4 && t < 19.4 ? .5 + .5 * Math.sin((t - 14.4) * 9) : 0;
+  lamp.style.opacity = lo.toFixed(4);
+  lamp.style.transform = `translate(${lx}px, ${ly}px) scale(${ls})`;
+  lamp.style.transformOrigin = "0 0";
+  $("lampglow").setAttribute("rx", (170 * (breathe + talking * .1)).toFixed(1));
+  $("lampglow").setAttribute("ry", (150 * (breathe + talking * .1)).toFixed(1));
+
+  show("s1a", t, .9, 4.3); show("s1b", t, 1.9, 4.2, { dy: 20 });
+
+  show("founder", t, 5.2, 10.9, { dy: 0, dx: -120, dur: 1.1 });
+  show("s2k", t, 5.9, 10.8, { dy: 20 }); show("s2a", t, 6.1, 10.8); show("s2b", t, 7.4, 10.7, { dy: 24 });
+
+  show("s3h", t, 11.9, 19.5); show("eli", t, 12.2, 19.5, { dy: 0, dx: 120, dur: 1.1 }); show("s3c", t, 13.0, 19.4, { dy: 16 });
+  show("b1", t, 12.9, 19.4, { dy: 30, dur: .6 });
+  show("b2", t, 14.4, 19.4, { dy: 30, dur: .6 });
+  $("b2t").textContent = LUMA_SAYS.slice(0, Math.round(LUMA_SAYS.length * seg(t, 14.6, 17.6)));
+
+  show("s4h", t, 20.4, 26); show("st1", t, 21.2, 26, { dur: .8 }); show("st2", t, 21.7, 26, { dur: .8 }); show("st3", t, 22.2, 26, { dur: .8 });
+
+  show("s5h", t, 26.8, 32); show("code", t, 27.0, 32, { dy: 50 }); show("s5n", t, 28.4, 32, { dy: 30 });
+  const n = Math.round(CODE_LEN * seg(t, 27.4, 31.0));
+  $("pre").innerHTML = typed(n) + (n < CODE_LEN || Math.floor(t * 2) % 2 ? '<span id="caret"></span>' : "");
+
+  show("s6a", t, 33.2, null, { dy: 60, dur: 1.2 }); show("s6b", t, 33.9, null, { dy: 30 }); show("s6c", t, 34.6, null, { dy: 24 });
+  show("s6d", t, 34.9, null, { dy: 20 }); show("s6e", t, 35.4, null, { dy: 20 });
+  const end = seg(t, 37.4, 38);
+  $("stage").style.opacity = (1 - end * end).toFixed(3);
+};
+window.DURATION = 38;
+document.fonts.ready.then(() => { window.READY = true; window.seek(0); });
+</script>
+</html>
