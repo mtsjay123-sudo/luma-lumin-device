@@ -69,6 +69,7 @@ export function memoryDb(clock = null) {
     },
     findAppMessage: async (l, ref) => t.appMessages.find((m) => m.link_id === l && m.client_ref === ref) || null,
     recentAppMessages: async (l, dir, since) => t.appMessages.filter((m) => m.link_id === l && m.direction === dir && m.created_at >= since).length,
+    appMessagesAtLeast: async (l, dir, since, n) => t.appMessages.filter((m) => m.link_id === l && m.direction === dir && m.created_at >= since).length >= n,
     appMessagesForLink: async (l, after, before) => t.appMessages.filter((m) => m.link_id === l && m.direction === "down" && m.created_at > after && m.created_at <= before).slice(0, 50),
     appMessagesForDevice: async (d, after, before) => t.appMessages.filter((m) => m.device_id === d && m.direction === "up" && m.created_at > after && m.created_at <= before).slice(0, 50),
     pruneAppMessages: async (d, before) => { t.appMessages = t.appMessages.filter((m) => !(m.device_id === d && m.created_at < before)); },

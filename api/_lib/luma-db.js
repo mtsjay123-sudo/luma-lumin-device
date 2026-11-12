@@ -115,6 +115,11 @@ export function makeSupabaseDb(env, fetchImpl) {
       const rows = await request("GET", `luma_app_messages?link_id=eq.${enc(linkId)}&direction=eq.${enc(direction)}&created_at=gte.${enc(sinceIso)}&select=id&limit=60`);
       return rows.length;
     },
+    // Are there at least n since then? Asks for the nth row alone, so a big day costs one small read, never a count of them all.
+    async appMessagesAtLeast(linkId, direction, sinceIso, n) {
+      const rows = await request("GET", `luma_app_messages?link_id=eq.${enc(linkId)}&direction=eq.${enc(direction)}&created_at=gte.${enc(sinceIso)}&select=id&order=created_at.asc&offset=${Math.max(0, n - 1)}&limit=1`);
+      return rows.length > 0;
+    },
     appMessagesForLink: (linkId, afterIso, beforeIso) => request("GET", `luma_app_messages?link_id=eq.${enc(linkId)}&direction=eq.down&created_at=gt.${enc(afterIso)}&created_at=lte.${enc(beforeIso)}&order=created_at.asc&limit=50&select=id,payload,created_at`),
     appMessagesForDevice: (deviceId, afterIso, beforeIso) => request("GET", `luma_app_messages?device_id=eq.${enc(deviceId)}&direction=eq.up&created_at=gt.${enc(afterIso)}&created_at=lte.${enc(beforeIso)}&order=created_at.asc&limit=50&select=id,link_id,payload,created_at`),
     pruneAppMessages: (deviceId, beforeIso) => request("DELETE", `luma_app_messages?device_id=eq.${enc(deviceId)}&created_at=lt.${enc(beforeIso)}`),

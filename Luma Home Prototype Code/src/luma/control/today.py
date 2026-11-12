@@ -138,13 +138,49 @@ def projects(agent, limit=4):
         return []
 
 
+def account(agent):
+    """The plan, as the phone shows it: what a month includes, how much is used, when it starts over, and what still
+    works at the end of it. Only what Luma Cloud already told this Luma; nothing is asked for here. The words say what's
+    true and stop: no countdown, no nudge. Talking at home is never metered, so it's never part of a limit."""
+    try:
+        a = agent.cloud.cached_account()
+    except Exception:
+        a = None
+    if not a:
+        return None
+    whole = lambda v: v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+    plus = str(a.get("plan") or "").lower() == "plus"
+    limit, left, used = whole(a.get("texts_limit")), whole(a.get("texts_left")), whole(a.get("texts_used"))
+    if limit and left is None and used is not None:
+        left = max(0, limit - used)
+    name = "Luma Plus. " if plus else ""
+    if not limit or left is None:
+        return {"plan": "plus" if plus else "free", "state": "ok", "texts": None, "line": f"{name}Talking with Luma at home has no limit."}
+    left = min(left, limit)
+    try:
+        ends = datetime.fromisoformat(str(a.get("period_ends")).replace("Z", "+00:00")).astimezone(agent.zone)
+        again = f" They start over on {ends.strftime('%b')} {ends.day}."
+    except (TypeError, ValueError):
+        again = ""
+    state = "out" if left == 0 else "low" if left <= max(3, limit // 10) else "ok"
+    if state == "out":
+        more = (a.get("plus") or {}).get("texts_limit")
+        offer = f" Luma Plus has {more} a month." if not plus and whole(more) and more > limit else ""
+        line = f"{name}This month's {limit} texts are used.{again} Luma still talks at home, and texting from your own number still works.{offer}"
+    elif state == "low":
+        line = f"{name}{left} of {limit} texts left this month.{again}"
+    else:
+        line = f"{name}{left} of {limit} texts left this month. Talking at home has no limit."
+    return {"plan": "plus" if plus else "free", "state": state, "texts": {"used": limit - left if used is None else used, "limit": limit, "left": left}, "line": line}
+
+
 def payload(agent):
     """GET /api/today. Kids mode gets the time of day and nothing personal."""
     if agent.mode == "kids":
         return {"kids": True, "name": "", "chats": [], "memory": None, "device": None, "projects": [], "approvals": 0}
     waiting = sum(1 for r in agent.store.all("action", 40) if r.get("state") == "pending")
     return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "chats": chats(agent), "memory": memory(agent),
-            "device": device(agent), "projects": projects(agent), "approvals": waiting}
+            "device": device(agent), "projects": projects(agent), "approvals": waiting, "account": account(agent)}
 
 
 def compact(agent):
@@ -163,7 +199,7 @@ def compact(agent):
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
     return {"name": full["name"], "now": full["now"], "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
-            "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"]}
+            "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account")}
 
 
 def chain(agent, thread_id, keep=30, limit=14000):

@@ -186,6 +186,15 @@
 
   const DID = { "files.find": "looked for files", "files.read": "read a file", "app.open": "opened an app", "screen.look": "looked at the screen",
     open: "opened a page", play: "played music", read: "read the page", tabs: "checked your tabs" };
+  // The plan: what's left this month and what still works when it's used. Luma's own words; nothing to tap, nothing to chase.
+  function renderPlan(plan) {
+    const row = $("plan-row");
+    row.hidden = !plan || !plan.line;
+    if (row.hidden) return;
+    row.dataset.state = plan.state || "ok";
+    $("plan-sub").textContent = plan.line;
+  }
+
   function renderDevice(dev) {
     const big = $("storage-big"), label = $("storage-label"), bar = $("storage-bar"), legend = $("storage-legend");
     big.replaceChildren(); bar.replaceChildren(); legend.replaceChildren();
@@ -257,6 +266,7 @@
       renderChats(today.chats);
       renderDeck(today.memory);
       renderDevice(today.device);
+      renderPlan(today.account);
       renderProjects(today.projects || []);
     } catch (e) {
       setState(null);

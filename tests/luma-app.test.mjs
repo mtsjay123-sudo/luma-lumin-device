@@ -198,6 +198,39 @@ test("one owner who verifies on a second Luma joins their existing account", asy
   assert.equal(a.json.owner_name, b.json.owner_name);
 });
 
+test("a phone can't flood a Luma: 30 a minute, and a day's worth for one phone, then it opens up again by itself", async () => {
+  const ctx = setup({ ...ENV, LUMA_APP_MESSAGES_PER_DAY: "40" });
+  const device = await registered(ctx);
+  const { app } = await paired(ctx, device);
+  const other = await paired(ctx, device, "Tablet");
+  let n = 0;
+  const send = (who = app) => ctx.call("app-send", { headers: who, body: { payload: payload(), client_ref: `flood-${String(++n).padStart(4, "0")}` } });
+  for (let i = 0; i < 30; i++) await send();
+  await rejects(send(), 429, "slow_down");
+  ctx.tick(61_000);
+  for (let i = 0; i < 10; i++) await send();
+  let said = null;
+  await send().catch((e) => { said = e; });
+  assert.equal(said.status, 429);
+  assert.equal(said.code, "day_full");
+  assert.match(said.message, /still .* at home/, "it says what still works");
+  assert.ok(!/upgrade|plus|\$/i.test(said.message), "a limit that protects the service is never a sales pitch");
+  assert.equal((await send(other.app)).status, 200, "one phone's day doesn't close another's");
+  const again = await ctx.call("app-send", { headers: app, body: { payload: payload(), client_ref: "flood-0001" } });
+  assert.equal(again.json.duplicate, true, "a retry of something already sent is still answered");
+  ctx.tick(24 * 3600_000);
+  assert.equal((await send()).status, 200, "a day later it's open again");
+});
+
+test("with no setting, a phone's day is 2,000 messages: more than a person sends, less than a script does", async () => {
+  const ctx = setup();
+  const device = await registered(ctx);
+  const { app } = await paired(ctx, device);
+  const health = await ctx.call("health");
+  assert.equal(health.json.app_messages_per_day, 2000);
+  for (let i = 0; i < 25; i++) assert.equal((await ctx.call("app-send", { headers: app, body: { payload: payload(), client_ref: `plain-${String(i).padStart(4, "0")}` } })).status, 200);
+});
+
 test("registration is rate limited per address", async () => {
   const ctx = setup();
   for (let i = 0; i < 5; i++) await ctx.call("device-register", { ip: "198.51.100.7" });

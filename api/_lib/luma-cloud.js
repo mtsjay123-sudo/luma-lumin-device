@@ -50,6 +50,7 @@ export function settings(env) {
     plusPriceLabel: env.LUMA_PLUS_PRICE_LABEL || "$9.99/month",
     countries: (env.LUMA_TEXT_COUNTRY_CODES || "1").split(",").map((c) => c.trim()).filter(Boolean),
     perMinute: int(env.LUMA_TEXTS_PER_MINUTE, 6),
+    appPerDay: int(env.LUMA_APP_MESSAGES_PER_DAY, 2000), // one phone to its Luma, in any 24 hours; 0 turns the cap off
     sharedNumber: env.LUMA_SHARED_NUMBER || "",
     messagingService: env.TWILIO_MESSAGING_SERVICE_SID || "",
     twilioSid: env.TWILIO_ACCOUNT_SID || "",
@@ -860,6 +861,11 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       const existing = await db.findAppMessage(link.id, ref);
       if (existing) return { status: 200, json: { id: existing.id, created_at: existing.created_at, duplicate: true, luma: lumaStatus(device) } };
       if ((await db.recentAppMessages(link.id, "up", new Date(now() - 60_000).toISOString())) >= 30) throw new HttpError(429, "slow_down", "That's a lot at once. Give Luma a second.");
+      // A day's worth for one phone. A person never gets near it; a stuck app or a script does. It isn't a plan limit and it
+      // sells nothing: it keeps the relay there for everyone, and it lifts by itself.
+      if (cfg.appPerDay && (await db.appMessagesAtLeast(link.id, "up", new Date(now() - 86_400_000).toISOString(), cfg.appPerDay))) {
+        throw new HttpError(429, "day_full", "That's a lot for one day from this phone. Luma is still right there at home, and this opens up again within a day.");
+      }
       const row = await db.insertAppMessage({ device_id: device.id, link_id: link.id, direction: "up", payload: checkPayload(body.payload), client_ref: ref });
       return { status: 200, json: { id: row.id, created_at: row.created_at, luma: lumaStatus(device) } };
     },
@@ -993,7 +999,7 @@ export function createService({ env, db, fetch: fetchImpl, now = () => Date.now(
       };
       // The phone app needs only the database; notifications need the VAPID keys.
       const app = { accounts: database, pairing: database, notifications: vapidReady(cfg.vapid) };
-      return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks, app } };
+      return { status: 200, json: { ready: Object.values(checks).every(Boolean), checks, app, app_messages_per_day: cfg.appPerDay } };
     },
 
     async "billing-portal"({ headers }) {

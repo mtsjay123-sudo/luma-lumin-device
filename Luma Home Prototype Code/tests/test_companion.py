@@ -113,5 +113,6 @@ class CompanionTests(unittest.TestCase):
         self.assertIn('[hidden] { display: none !important; }',css)
         with self.request('/phone/') as r:page=r.read().decode()
         self.assertIn('id="plus-row" hidden',page)
+        self.assertIn('id="plan-row" hidden',page)  # the plan row is there, and shows only when there's a plan to show
 
 if __name__=='__main__':unittest.main()
