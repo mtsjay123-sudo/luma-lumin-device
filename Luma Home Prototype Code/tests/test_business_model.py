@@ -82,3 +82,24 @@ class TheRules(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Membership(unittest.TestCase):
+    """The membership's sums, redone: what a member costs and what's left over at $19 a month."""
+
+    def test_a_member_adds_up(self):
+        price = 19.00
+        for texts, cost, left in ((2.00, 11.07, 7.93), (5.43, 14.50, 4.50)):
+            total = round(texts + 6.00 + 1.00 + 1.50 + round(price * 0.03, 2), 2)
+            self.assertEqual(total, cost)
+            self.assertEqual(round(price - total, 2), left)
+            self.assertIn(f"${cost:.2f}", DOC)
+            self.assertIn(f"${left:.2f}", DOC)
+        self.assertEqual(1000 * 19 * 12, 228_000)
+        self.assertEqual(round(1000 * 7.93 * 12, -3), 95_000)
+        self.assertIn("$228,000", DOC)
+        self.assertIn("$95,000", DOC)
+
+    def test_talking_at_home_is_never_in_the_membership(self):
+        self.assertIn("a member who\ncancels keeps a Luma that talks", DOC)
+        self.assertIn("No device is sold below its landed cost", DOC)

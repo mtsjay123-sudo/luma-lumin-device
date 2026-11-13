@@ -1414,6 +1414,7 @@ class Agent:
             profile=self.set_profile({**self.profile,**args})
             return {"profile":profile,"summary":"Got it, I'll talk like that from now on."}
         if name == "memory.remember":
+            args = {**args, "text": re.sub(r"^\s*(?:that|to remember that|remember that)\s+", "", str(args["text"]), flags=re.I)}  # "remember that my mom..."
             said = args["text"].strip().casefold()
             existing = next((m for m in self.store.same_as(args["text"]) if m["text"].strip().casefold() == said), None)
             if not existing and self._out_of_room():
@@ -3264,6 +3265,14 @@ class Agent:
             said = [h["content"] for h in self.history[-24:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
             who = people.note(said, text)
             if who: out.append({"people": True, "text": who})
+            from luma.agent import hometime
+            if hometime.REACH.search(str(text)):  # reaching for someone: what time it is where they live, from what Luma remembers
+                try:
+                    homes = [m for m in self.store.all("memory", 400) if hometime.where(m.get("text"))]
+                    when_there = hometime.note(text, homes, self.clock(), self.zone)
+                except Exception:
+                    when_there = ""
+                if when_there: out.append({"people": True, "text": when_there})
         together = mind.days_together(self.store.setting("first_seen"), self.clock())
         out.append({"mind": True, "text": mind.mood_line(self.store.setting("mood")) + (f" You've known them for {together} days." if together > 1 else "")})
         fresh = self._fresh_note()
@@ -6345,6 +6354,10 @@ class Agent:
 
     def _personal_answer(self, text, lowered):
         if self.mode == "kids" or "?" not in text and not re.match(r"\W*(?:remind me what|(?:you |do you |u )?remember (?:my|our))", lowered):
+            return None
+        # "remember my sister lives in Seattle" tells Luma something to keep; "remember my sister's name?" asks for it back
+        if "?" not in text and re.match(r"\W*remember (?:that )?(?:my|our) [\w' ]{1,40}? (?:lives|lived|moved|loves|likes|hates|is|was|has|works|"
+                                        r"goes|plays|just|got|can'?t|doesn'?t|never|always|birthday)\b", lowered):
             return None
         asked, told = self.PERSONAL_Q.match(lowered), self.TOLD_BEFORE.match(lowered)
         if not asked and not told:

@@ -115,6 +115,19 @@ Stripe also reviews pre-order businesses with no ship date and can hold funds.
 | 7: crisis in Japan | The crisis reply gives 119 and the ministry line 0570-064-556 in Japanese, and in English on a Luma set to Japan's time | `src/luma/agent/runtime.py` |
 | No plan to judge against | Timeline, budget, metrics and kill dates | `docs/PREORDER_PLAN.md` |
 
+## Fixed later on November 13
+
+- **Finding 1 is fixed.** The site went live through
+  [mtsjay123-sudo/lumin-holdings-site#1](https://github.com/mtsjay123-sudo/lumin-holdings-site/pull/1).
+  `/api/preorder` on the public site answers `available: true`, with real payments and not test ones.
+- **Paying takes two taps:** pick a Luma, then tap "Hold my place". Apple Pay, Link, Cash App or card, with no email
+  to type on our page. On phones a bar at the bottom brings you back to it.
+- **Cards are saved on every deposit,** so the rest is one tap later, and the deposit says Luma always asks first.
+- **Finding 4, the price:** Luma Home is $549. The founding membership ($14 a month for life, three months free)
+  carries the margin (`docs/BUSINESS_MODEL.md`, "The membership").
+- **Finding 2, the buyer:** Americans in Japan first. Luma now knows what time it is where their people are
+  (`src/luma/agent/hometime.py`).
+
 ## What only the owner can do
 
 1. **Put the site live:** merge `claude/hopeful-feynman-z2294x` into `main` on `lumin-holdings-site`, or ask Claude to

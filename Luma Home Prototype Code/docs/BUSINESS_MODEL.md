@@ -44,7 +44,7 @@ This is the big one, and it's the one that reaches people who can't pay.
 ### 2. Homes: a person or their family buys one
 
 - **Luma Mini, $249.** The lamp with the smaller brain.
-- **Luma Home, $399 to $499.** The lamp with the bigger brain. The price depends on the cost of the computer inside
+- **Luma Home, $549 (the owner's call, November 13).** The lamp with the bigger brain, priced above its parts
   (see "What a lamp costs").
 - **Luma Plus, $9.99 a month (known: the price exists in Stripe today).** Luma's own phone number and 300 texts a month,
   so Luma can text you and the people you choose. At the most use, texts and the number cost $5.43 (ours:
@@ -79,8 +79,8 @@ it lives is one sentence long.
 Two honest notes:
 
 - The website says $199. With today's parts no lamp reaches that. Mini at $249 does.
-- Luma Home at $399 loses money until the computer inside costs less. Until then it's $499, or it's sold through
-  programs where the monthly price carries it.
+- Luma Home at $399 would lose money until the computer inside costs less. It's $549 (decided November 13), or
+  it's sold through programs where the monthly price carries it.
 
 ## What a seat earns
 
@@ -116,6 +116,63 @@ Not a forecast: what the arithmetic gives **if** these happen, at the seat price
 
 For size: New York's program alone started with more than 800 people (known). There are 50 states, and more than 65
 Medicare Advantage plans have already paid for company by the month (known).
+
+## The membership: how a home customer pays, from November 13
+
+A home Luma is sold the way the best devices with a service are: the device at about what it costs, and a membership
+that pays for what costs money to run. Talking to Luma at home is never part of it and never stops: a member who
+cancels keeps a Luma that talks, remembers and stays with them. That's the promise that makes the membership easy to
+say yes to, and it's why it can't be an engagement trick.
+
+**Luma Membership, $19 a month or $190 a year (the owner's call, November 13; whether people pay it is still to learn).** What it pays for:
+
+- Luma's own phone number and 300 texts a month (today's Luma Plus, $5.43 a month at the most use: ours).
+- The phone app away from home, through the relay.
+- What time it is where your people are, family check-ins with their yes, a second phone for family.
+- A replacement if the device breaks.
+- Every new brain and voice as it ships.
+
+**The device:** Luma Mini at $249 (about its parts cost: ours) and Luma Home at $549 (assumption: above its $405 in
+parts, until Luma's own board lowers the cost). No device is sold below its landed cost.
+
+**Founding members (the first 500, the owner's call, November 13; live on the site):** the $25 deposit holds a place and locks **$14 a month for life**,
+with the first three months free.
+
+What a member earns each month, at $19 (each cost an assumption except where marked):
+
+| | A light texter | Texting to the limit |
+|---|---|---|
+| Texts and the number | $2.00 | $5.43 (ours) |
+| Support | $6.00 | $6.00 |
+| Updates, the relay | $1.00 | $1.00 |
+| Replacements | $1.50 | $1.50 |
+| Card fees (3%) | $0.57 | $0.57 |
+| **Cost** | **$11.07** | **$14.50** |
+| **Left over** | **$7.93** | **$4.50** |
+
+1,000 members at $19 is $228,000 a year and about $95,000 left over for light texters. It's a small number on its
+own; the seats in "Programs" above are where the margin is. Members are the proof that people keep paying, which is
+what a program, and an investor, will ask for first.
+
+## Who buys first: Americans in Japan
+
+The owner's first market. Why it's a good first one: lonely by circumstance, in English, far from family by 13 to 17
+hours, paying in dollars, and close enough to reach person by person.
+
+- **About 54,000 active-duty U.S. service members are in Japan** (known: USAFacts and CRS, end of 2025), about
+  61,700 counting civilians. Roughly half are in Okinawa (known: CRS). Their families are on top of that.
+- **The JET Programme has about 866 Americans** teaching in Japan (known: the JET Programme's country table, 2026),
+  the largest group, and thousands more teach English privately.
+- **What Luma does for them that no one else does:** it knows what time it is where their people are ("it's 8 in the
+  morning in Ohio, your mom's up") and helps them reach home at a time home can answer
+  (`src/luma/agent/hometime.py`).
+
+How to reach the first 100, person by person: base spouses' groups and family readiness groups, JET and English
+teacher communities, Americans-in-Japan forums. One referral month free to both people (a thank-you for bringing
+someone, never a reward for talking more).
+
+To check before selling on a base or in Japan: the radio rules (Giteki and PSE off base; what applies in base housing),
+and that the power adapter takes Japan's 100 volts (most do).
 
 ## What's true today
 
@@ -155,6 +212,10 @@ In order, with what each step proves. Costs are for quotes to fill in; the two b
   need anyone to talk more.
 
 ## Where the known numbers come from
+
+- U.S. personnel in Japan: USAFacts, "Where are US troops stationed?"; CRS In Focus IF10199 (Okinawa).
+- JET Programme participants by country: jetprogramme.org/en/countries/ (2026 table).
+
 
 - New York State Office for the Aging, "NYSOFA's Rollout of AI Companion Robot ElliQ Shows 95% Reduction in Loneliness",
   August 1, 2023: https://aging.ny.gov/news/nysofas-rollout-ai-companion-robot-elliq-shows-95-reduction-loneliness
