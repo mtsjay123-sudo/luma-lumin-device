@@ -453,7 +453,12 @@ def wants_a_take(text):
     """Asking what Luma thinks ("should i text him first", "be honest, is it weird..."), not asking it to do anything
     ("should i text him? just write one for me" asks for both)."""
     plain = CHATTER.sub("", understanding.normalize(str(text or "")))
-    return bool(OPINION.match(plain)) and not REQUEST.search(plain)
+    if REQUEST.search(plain):
+        return False
+    # "fr fr. ok should i lead with the lamp or the app": the question can come after a bit of talk (heard Nov 13, when
+    # "app" in it made Luma build a checklist instead of answering).
+    lead = re.compile(r"^(?:(?:for real|fr|ok(?:ay)?|wait|lol|lmao+|haha+|bet|so|yo+|bro|ngl|real talk|hm+|alright|aight|anyway)\W+)+", re.I)
+    return any(OPINION.match(lead.sub("", CHATTER.sub("", part).strip())) for part in re.split(r"(?<=[.!?,])\s+", plain) if part.strip())
 
 
 def just_talking(text):
@@ -5518,6 +5523,14 @@ class Agent:
 
     def _reminder(self, text, cancel_event=None):
         """'remind me to call mom at 5', 'don't let me forget the trash tonight', 'ping me tmrw to pay rent': a reminder, with or without the brain."""
+        # "lmaooo ok ok. remind me friday at 9am to run the pitch": a later sentence that's a whole reminder on its own (it says
+        # what to do) is the reminder; what came before it is talk. "pay rent. remind me tomorrow" keeps the task said first.
+        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        for i in range(1, len(sentences)):
+            whole = self.REMIND_ASK.match(" ".join(sentences[i:]))
+            if whole and re.search(r"\b(?:to|about)\s+\w+", whole["rest"]):
+                text = " ".join(sentences[i:])
+                break
         after = None if self.REMIND_ASK.match(text.strip()) else self.REMIND_AFTER.match(text.strip())
         if after and not re.match(r"(?:remind|set|ping|nudge|alert)\b", after["what"], re.I):
             text = f"remind me to {after['what']}{after['when']}"
