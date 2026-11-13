@@ -29,6 +29,9 @@ FAKE_MLX = textwrap.dedent('''
             self.conds = ref
         def generate(self, text, ref_audio=None, ref_text=None, **kw):
             print("library chatter on stdout")  # must never garble Luma's replies
+            if os.environ.get("FAKE_LOG"):
+                with open(os.environ["FAKE_LOG"], "a") as log:
+                    log.write(repr((self.repo, text, kw.get("lang_code"))) + chr(10))
             if "CRASH" in text:
                 os._exit(3)
             if "SILENT" in text:
@@ -108,6 +111,44 @@ class NaturalVoiceTests(unittest.TestCase):
         out = self.root / "said.wav"
         tts.synthesize("lmaooo you're wild 😭 okay so, what happened next?", str(out))
         self.assertGreater(out.stat().st_size, 20000)
+
+    def test_the_studio_voice_speaks_japanese_in_luma_s_own_voice(self):
+        """English first, Japanese second: Qwen3-TTS (Apache-2.0) speaks Japanese natively, in the voice it learned."""
+        from luma.agent import language
+        log = self.root / "said.log"
+        log.unlink(missing_ok=True)
+        v = natural.voice()
+        with mock.patch.dict(os.environ, {"FAKE_LOG": str(log)}), mock.patch.object(v, "reference", return_value=self.ref):
+            status = v.prepare("studio")
+            self.assertEqual(status["engine"], "studio", status)
+            language.configure("auto")
+            language.for_turn("今日はちょっと疲れた")
+            try:
+                with mock.patch.object(tts, "_get_kokoro") as kokoro:
+                    pcm, rate = tts._samples("おかえり。今日はどうだった？", "luma", None)
+                    kokoro.assert_not_called()
+            finally:
+                language.configure("en")
+        self.assertGreater(len(pcm), 2400)
+        said = log.read_text()
+        self.assertIn("おかえり", said)
+        self.assertIn("'japanese'", said, "the voice is told the language")
+
+    def test_a_voice_that_only_learned_english_leaves_japanese_to_the_classic_voice(self):
+        from luma.agent import language
+        v = natural.voice()
+        with mock.patch.object(v, "reference", return_value=self.ref):
+            v.prepare("expressive")
+        language.configure("auto")
+        language.for_turn("今日はちょっと疲れた")
+        try:
+            with mock.patch.object(tts, "_get_kokoro") as kokoro:
+                kokoro.return_value.create.return_value = (np.full(2400, 0.1, dtype=np.float32), 24000)
+                tts._samples("おかえり。今日はどうだった？", "luma", None)
+                kokoro.return_value.create.assert_called_once()
+                self.assertEqual(kokoro.return_value.create.call_args.kwargs["lang"], "ja")
+        finally:
+            language.configure("en")
 
     def test_a_crash_falls_back_to_the_classic_voice(self):
         v = natural.voice()
@@ -207,6 +248,11 @@ class SoundsRightTests(unittest.TestCase):
         self.assertTrue(natural.sounds_right("Okay, I'm here.", 1.1))
         self.assertTrue(natural.sounds_right("Not gonna lie, that's crazy [laugh]", 3.4))
         self.assertFalse(natural.sounds_right("Bet.", 25.0))  # babble
+        # Japanese says more in fewer characters: a kanji is often two or three sounds.
+        self.assertTrue(natural.sounds_right("今日は本当に疲れたけど、話せてうれしいよ。", 4.8))
+        self.assertTrue(natural.sounds_right("大丈夫、焦らなくていいよ。", 2.6))
+        self.assertFalse(natural.sounds_right("大丈夫だよ。", 25.0))  # babble
+        self.assertFalse(natural.sounds_right("今日は本当に疲れたけど、話せてうれしいよ。", 0.2))  # cut off
         self.assertFalse(natural.sounds_right("So basically the short version is yes, and the long version is a whole story.", 0.3))  # cut off
 
 

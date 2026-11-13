@@ -58,13 +58,26 @@ def _seconds(path):
         return 0.0
 
 
+# The languages each voice can speak in the voice it learned. Qwen3-TTS (Apache-2.0) speaks these natively; the others
+# learned English only, so a sentence in another language goes to the classic voice's own voice for that language.
+SPEAKS = {"studio": {"en", "ja", "zh", "ko", "de", "fr", "ru", "pt", "es", "it"}}
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+
+
+def speaks(code):
+    """Can the new voice that's talking right now say a sentence in this language?"""
+    return code == "en" or (_voice is not None and code in SPEAKS.get(_voice.engine or "", ()))
+
+
 def sounds_right(text, seconds):
     """Speech models sometimes babble on, or stop partway. Real speech of this text can't be this long or this short."""
     tags = len(TAGS.findall(text or ""))
-    n = len(TAGS.sub("", text or "").strip())
+    plain = TAGS.sub("", text or "").strip()
+    n = len(plain)
     if not n:
         return True
-    return n / 60 <= seconds <= 2.0 + n / 5 + 1.5 * tags
+    long = n + 1.5 * len(_CJK.findall(plain))  # a kanji or kana says more than a letter: often two or three sounds
+    return n / 60 <= seconds <= 2.0 + long / 5 + 1.5 * tags
 
 
 def _home():
@@ -309,12 +322,12 @@ class NaturalVoice:
                 self.prepare_in_background(*self.want, delay=0)
         return self.state == "ready"
 
-    def say(self, text, timeout=60):
+    def say(self, text, timeout=60, lang=None):
         """One phrase in the new voice: (16-bit samples, sample rate). Raises if it can't; the caller uses the classic voice."""
         if not self.ready():
             raise RuntimeError("The new voice isn't ready.")
         try:
-            message = self._call("say", timeout, text=text)
+            message = self._call("say", timeout, text=text, **({"lang": lang} if lang and lang != "en" else {}))
         except CouldntSay:
             self._strike()  # one phrase it couldn't make: the classic voice says it
             raise

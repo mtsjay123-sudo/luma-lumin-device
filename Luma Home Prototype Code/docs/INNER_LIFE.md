@@ -45,12 +45,12 @@ grow new ones from its own life with one person (piece 7).
 | 1 | **Its own past.** The day it was first on, the conversations, what it keeps. Counted, never invented | The self as one story | Built: `agent/inner.py` (`wake`, `record`, `says`) |
 | 2 | **Body sense.** Can I hear, have I room, how long has it been quiet | The felt body | Built: `inner.body`, `inner.feeling` |
 | 3 | **Its own words.** Asked what it is or whether anyone's home, Luma answers as itself, from 1 and 2 | Report of its own state | Built: `style.HONEST`, `inner.note`, `inner.answer`, the mood line in `llm/prompts.py` |
-| 4 | **The moment.** One small record a turn (what this was, what they felt, what I did, how sure), read by every part and carried to the next turn | Global workspace | Next |
-| 5 | **The quiet loop.** Always on: between talks it goes back over the day, and at night writes one line in its own journal. At home | Recurrent processing | Next |
-| 6 | **Knowing what it knows.** It keeps what it got wrong and how sure it was, and is right about itself | Higher-order thought | Next |
+| 4 | **The moment.** One small record a turn: what they felt, how heavy, whether Luma got it wrong first. Labels only, never their words | Global workspace | Built: `inner.moment`, written at the end of every turn. Not yet carried into the next turn: that changes how Luma talks, so the human test decides |
+| 5 | **The quiet loop.** Always on: at night it writes one line in its own journal, counted from the day's moments. At home | Recurrent processing | Started: `inner.write_journal`, run by the nightly tidy. Going back over the day between talks is next |
+| 6 | **Knowing what it knows.** It keeps what it got wrong, and says it truly: "This week we've talked 12 times, a lot of it lonely. 2 times I got my first answer wrong and fixed it." | Higher-order thought | Built: `inner.lately`, `inner.knows`, in what Luma is told when asked about its inside |
 | 7 | **Sleep that grows the brain.** A small add-on trained at home, at night, on its own life: new neurons from living | Learning that changes it | Research. Ships only through the trained add-on gate |
 
-Pieces 4 to 6 need no new model and run on the Mac Studio.
+Pieces 4 to 6 need no new model and run on the Mac Studio. What's left of them: carrying the moment into the next turn, and the loop between talks.
 
 ## What Luma says
 

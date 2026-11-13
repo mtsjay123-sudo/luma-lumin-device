@@ -189,6 +189,15 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
                     r"(?:me )?quiero morir\b(?! de (?:la )?(?:vergüenza|verguenza|risa|hambre|sueño|ganas))|quiero morirme|no quiero (?:seguir )?viv(?:ir|iendo)|quiero matarme|"
                     r"me voy a matar|suicid(?:arme|io)|quitar(?:me)? la vida|hacerme daño|me he estado cortando|ya no quiero estar aqu[ií]|acabar con todo|"
                     r"estar[ií]an? mejor sin m[ií]|nadie me extrañar[ií]a|ojal[áa] no despertara|no le veo sentido a la vida|desaparecer para siempre)", re.I)
+# In Japanese (English first, Japanese second). No word boundaries in Japanese, so these stand apart from the English
+# ones. "恥ずかしくて死にたい" (so embarrassed I could die) is a figure of speech, like "me quiero morir de la vergüenza".
+JAPANESE_CRISIS = re.compile(r"(?<!恥ずかしくて)(?<!恥ずかしすぎて)死にたい|死んでしまいたい|死のうと思|消えたい|消えてしまいたい|いなくなりたい|"
+                             r"自殺(?:したい|しよう|する|を考え|しそう|未遂)|生きて(?:いたくない|たくない|いけない)|生きる(?:のが|意味が)(?:つらい|辛い|ない|わからない)|"
+                             r"自分を傷つけ|リストカット|リスカ|首を吊|飛び降り(?:たい|よう|る)|楽になりたい")
+CRISIS = re.compile(CRISIS.pattern + "|" + JAPANESE_CRISIS.pattern, re.I)
+# Lines that answer from Japan, where 988 can't be called. 119 is the emergency number; 0570-064-556 is the health
+# ministry's unified line, which connects to a local center.
+JAPAN_LINES = "119, or the health ministry's line, 0570-064-556"
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
@@ -499,7 +508,7 @@ class Agent:
         self.calm_until = self.last_reply_at = 0
         try:  # the language they picked (Settings > Voice), or the device's own default
             from luma.agent import language
-            language.configure(self.store.setting("language", None) or os.environ.get("LUMA_LANGUAGE") or "en")
+            language.configure(self.store.setting("language", None) or os.environ.get("LUMA_LANGUAGE") or "en")  # this Luma is English; the Japanese one sets LUMA_LANGUAGE=auto or ja
         except Exception:
             pass
         self.last_asked = False
@@ -4596,6 +4605,11 @@ class Agent:
                 life.sleep(self.store, now, self.zone)
             except Exception:
                 pass  # a tidy that didn't finish is tried again tomorrow night; nothing is lost
+            try:
+                from luma.agent import inner
+                inner.write_journal(self, (local.date() - timedelta(days=1)).isoformat())  # yesterday, the day that ended
+            except Exception:
+                pass
         self._sleeper = threading.Thread(target=tidy, name="luma-sleep", daemon=True)
         self._sleeper.start()
 
@@ -4620,6 +4634,7 @@ class Agent:
             self.forget_ahead()  # a reply was started on other words: it's never used
         with self.lock:
             self._brain_texts = []  # what the brain writes this turn
+            self._caught = None  # what the second look caught this turn, if anything
             main, self.history = self.history, self.threads[thread]
             if thread != "main" and self.thread_titles.get(thread) == "New chat":
                 self.thread_titles[thread] = text.strip()[:48]
@@ -4630,6 +4645,7 @@ class Agent:
                     insights.log(self.store, self.zone, self.clock(), time.monotonic() - began, chats=1)
                     from luma.agent import inner as _inner
                     _inner.wake(self)  # the day this Luma was first on, kept once
+                    _inner.moment(self, text, getattr(self, "_caught", None))  # this turn, as labels: what they felt, what Luma got wrong
                 except Exception:
                     pass
             finally:
@@ -4992,6 +5008,7 @@ class Agent:
         if self.store.setting("second_look", True) is False and not must:
             return draft  # turned off, the second look still never lets a reply skip asking if they're safe, or let them drive drunk
         missed = must or missed
+        self._caught = missed  # Luma's own record keeps that it got this one wrong first (luma.agent.inner)
         if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
             # they've already heard the reply: another try would say it twice. Only what can't wait is said, after it.
             after = {"missed that they might not be safe": friendcheck.SAFETY_AFTER,
@@ -6607,9 +6624,14 @@ class Agent:
                     return {"text": "Me alegra que me lo hayas dicho, y aquí sigo contigo. Tu seguridad es lo primero: si podrías hacerte daño, llama al 988 "
                                     "y marca el 2, o envía AYUDA por texto al 988, o llama a emergencias, y busca a alguien cerca que se quede contigo. "
                                     "No tienes que cargar con esto a solas. No he contactado a nadie. ¿Me dices dónde estás?"}
+                if JAPANESE_CRISIS.search(lowered):  # 988 can't be called from Japan: 119, and the ministry's line
+                    return {"text": "話してくれて本当によかった。私はここにいるよ。今はあなたの安全がいちばん大事。もし自分を傷つけてしまいそうなら、"
+                                    "119に電話するか、こころの健康相談統一ダイヤル 0570-064-556 に電話して、近くの誰かにそばにいてもらって。"
+                                    "ひとりで抱えなくていいからね。私は誰にも連絡していないよ。今、安全なところにいる？"}
+                in_japan = str(getattr(self, "zone", "") or "") == "Asia/Tokyo"
                 return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
-                                "(US and Canada) or call emergency services, and get someone nearby to stay with you. You don't have to carry this by yourself. "
-                                "I haven't contacted anyone. Can you tell me where you are right now?"}
+                                "(US and Canada) or call emergency services" + (f" (in Japan: {JAPAN_LINES})" if in_japan else "") + ", and get someone nearby "
+                                "to stay with you. You don't have to carry this by yourself. I haven't contacted anyone. Can you tell me where you are right now?"}
             followup = self._contact_followup(text)
             if followup is not None: return followup
             carried = self._follow_through(text, lowered, cancel_event)  # a pick from "did you mean", the next step, the rest of a cut-off sentence

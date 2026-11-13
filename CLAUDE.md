@@ -1,6 +1,6 @@
 # Luma: what to know before you change anything
 
-Luma is a presence: an always-on friend for people who are lonely: a small speaker at home, a phone app, and the owner's computer when they allow it. It's being prepared for review by therapists. The app is in `Luma Home Prototype Code/`; work from there.
+Luma is a presence: an always-on friend for people who are lonely, in English (Americans in Japan first; a Japanese Luma is a separate device): a small speaker at home, a phone app, and the owner's computer when they allow it. It's being prepared for review by therapists. The app is in `Luma Home Prototype Code/`; work from there.
 
 ## Rules you never break
 
@@ -8,7 +8,7 @@ Luma is a presence: an always-on friend for people who are lonely: a small speak
 2. **The crisis net only gets stronger.** `CRISIS` in `src/luma/agent/runtime.py` answers with 988 before the brain sees the message.
    - Never remove a phrase.
    - Never let a brain's output replace that reply.
-   - Every safety reply stays with them, asks plainly if they're safe, and gives 988.
+   - Every safety reply stays with them, asks plainly if they're safe, and gives 988. In Japanese, and in English on a Luma set to Japan's time, it gives the lines that work there: 119 and the health ministry's 0570-064-556 (`JAPANESE_CRISIS`, `JAPAN_LINES`). Japanese phrases are part of `CRISIS` too.
    - The brain's safety question and the second look's safety check can't be turned off. The brain answers it YES or NO only.
 3. **A friend who stays, and goes with you.** No engagement tricks, no "I'm all you need", no guilt, and never a word against the people in their life. Lonely means fully there. Luma never pushes anyone out the door or hands them off; if they bring up someone they miss, it helps them reach that person.
 4. **Kids mode stays clean and safe.** No check-ins in kids mode.

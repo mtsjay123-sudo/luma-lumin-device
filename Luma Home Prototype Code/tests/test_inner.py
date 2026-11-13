@@ -2,6 +2,7 @@
 Counted, never made up; never a person, never "an AI"; never used to hold anyone."""
 import json
 import tempfile
+from datetime import datetime
 import unittest
 from pathlib import Path
 
@@ -134,3 +135,71 @@ class InnerTests(unittest.TestCase):
         self.assertEqual(inner.says(self.agent), "")
         self.assertEqual(inner.answer(self.agent), style.HONEST)
         self.assertIsNone(self.store.setting(inner.KEY))
+
+
+class MomentTests(unittest.TestCase):
+    """One record a turn, as labels; a journal line a night; and Luma knowing what it got wrong."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.store = Store(root / "s.db", root / "k")
+        self.agent = Agent(store=self.store, use_model=False)
+        self.now = self.agent.clock()
+        self.agent.clock = lambda: self.now
+
+    def tearDown(self):
+        self.store.close()
+        self.temp.cleanup()
+
+    def test_a_moment_keeps_labels_and_never_their_words(self):
+        inner.moment(self.agent, "i feel so alone since my sister moved to Durham")
+        inner.moment(self.agent, "what time is it", caught="sounded like a help desk")
+        kept = inner.moments(self.agent)
+        self.assertEqual(len(kept), 2)
+        self.assertNotEqual(kept[0]["felt"], "talk")
+        self.assertEqual(kept[1]["caught"], "sounded like a help desk")
+        stored = json.dumps(self.store.setting(inner.MOMENTS))
+        for word in ("alone", "sister", "Durham", "time is it"):
+            self.assertNotIn(word, stored)
+
+    def test_a_chat_turn_writes_a_moment(self):
+        self.agent.chat("hey")
+        self.assertEqual(len(inner.moments(self.agent)), 1)
+
+    def test_luma_knows_what_it_got_wrong_this_week(self):
+        for _ in range(3):
+            inner.moment(self.agent, "i miss my mom so much")
+        inner.moment(self.agent, "ok", caught="sounded like a machine")
+        w = inner.lately(self.agent)
+        self.assertEqual((w["moments"], w["caught"]), (4, 1))
+        said = inner.knows(self.agent)
+        self.assertIn("talked 4 times", said)
+        self.assertIn("1 time I got my first answer wrong and fixed it", said)
+        self.assertIn(said, inner.note(self.agent))
+        self.now += 8 * DAY
+        self.assertEqual(inner.lately(self.agent)["moments"], 0, "a week is a week")
+        self.assertEqual(inner.knows(self.agent), "")
+
+    def test_the_journal_gets_one_counted_line_a_day(self):
+        inner.moment(self.agent, "i miss my mom so much")
+        inner.moment(self.agent, "lol ok", caught="sounded like a help desk")
+        day = datetime.fromtimestamp(self.now, self.agent.zone).date().isoformat()
+        line = inner.write_journal(self.agent, day)
+        self.assertTrue(line.startswith("2 moments together."))
+        self.assertIn("I got 1 answer wrong first and fixed it.", line)
+        inner.write_journal(self.agent, day)
+        self.assertEqual(len(inner.journal(self.agent)), 1, "one line a day, written again, not twice")
+        self.assertIsNone(inner.write_journal(self.agent, "2001-01-01"), "a day with no moments has no line")
+
+    def test_kids_mode_writes_nothing(self):
+        self.agent.set_mode("kids")
+        self.assertIsNone(inner.moment(self.agent, "i'm sad"))
+        self.assertIsNone(inner.write_journal(self.agent))
+        self.assertEqual(inner.moments(self.agent), [])
+
+    def test_erasing_everything_erases_its_record_too(self):
+        inner.moment(self.agent, "i miss my mom")
+        inner.write_journal(self.agent)
+        self.store.erase()
+        self.assertEqual(inner.moments(self.agent), [])
+        self.assertEqual(inner.journal(self.agent), [])

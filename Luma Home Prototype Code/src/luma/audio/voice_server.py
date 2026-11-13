@@ -169,12 +169,19 @@ def _describe(audio):
     return f"{audio.size} samples, peak {peak:.2g}, {int((~finite).sum())} not numbers"
 
 
-def say(text):
+# What a model is told when a sentence isn't English: Qwen3-TTS takes the language's name.
+LANG_NAMES = {"ja": "japanese", "zh": "chinese", "ko": "korean", "de": "german", "fr": "french", "ru": "russian",
+              "pt": "portuguese", "es": "spanish", "it": "italian"}
+
+
+def say(text, lang=None):
     import numpy as np
     model = state["model"]
     if model is None:
         raise RuntimeError("No voice loaded yet.")
     kwargs = _limit(state["engine"], model, text, {"text": _script(state["engine"], text)})
+    if lang in LANG_NAMES:
+        kwargs["lang_code"] = LANG_NAMES[lang]
     if state["ref"] and os.path.exists(state["ref"]) and not state.get("conds"):
         kwargs["ref_audio"] = state["ref"]
         if state["engine"] in ("studio", "dia", "csm", "lifelike") and state["ref_text"]:
@@ -211,7 +218,7 @@ def main():
             elif op == "load":
                 result = load(request.get("engine") or "expressive", request.get("ref"), request.get("ref_text"), request.get("repos"))
             elif op == "say":
-                result = say(str(request.get("text") or "")[:600])
+                result = say(str(request.get("text") or "")[:600], request.get("lang"))
             elif op == "quit":
                 reply({"id": ident, "ok": True})
                 return

@@ -181,8 +181,8 @@ def _samples(text, voice, should_stop, speed=None):
     code = language.of_reply(text)  # what this sentence is in: Luma's own lines are English even in a Spanish talk
     try:
         from luma.audio import natural
-        if natural.speaking() and code == "en":  # the natural voices learned Luma's English voice
-            pcm, rate = natural.voice().say(text)
+        if natural.speaking() and natural.speaks(code):  # Luma's own voice, in every language that voice can speak
+            pcm, rate = natural.voice().say(text, lang=code)
             _check_stop(should_stop)
             return pcm, rate
     except SpeechCancelled:

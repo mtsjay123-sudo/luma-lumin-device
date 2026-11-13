@@ -1,0 +1,79 @@
+# A full conversation with Luma, out loud: the owner-style lines in scripts/conversation_demo.py go through Luma's real
+# brain and everything around it, and both sides are spoken. The recording and the words are committed to demo/ on the
+# branch it ran on, with [skip ci] so nothing else runs. Free GitHub machines; nothing is billed. It runs when the
+# script or this file changes on the working branch (a dispatch needs the file on main, which doesn't move).
+name: Luma conversation
+
+on:
+  push:
+    branches: [claude/hopeful-feynman-z2294x]
+    paths:
+      - "Luma Home Prototype Code/scripts/conversation_demo.py"
+      - ".github/workflows/luma-conversation.yml"
+  workflow_dispatch:
+    inputs:
+      brain:
+        description: "4b (Qwen3 4B, the Home's brain) or 1.7b (the Mini's)"
+        default: "4b"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: luma-conversation
+  cancel-in-progress: true
+
+jobs:
+  talk:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    env:
+      TQDM_DISABLE: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      LUMA_THREADS: "4"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50   # enough history to merge the recording onto the branch if it moved while this ran
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Luma's packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata \
+            "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7" "kokoro-onnx>=0.4,<1"
+          CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
+            python -m pip install --no-binary llama-cpp-python "llama-cpp-python==0.3.23"
+          sudo apt-get install -y -qq ffmpeg espeak-ng >/dev/null
+      - name: The brain and the voice
+        run: |
+          mkdir -p "$RUNNER_TEMP/brains" models/kokoro-82m
+          if [ "${{ inputs.brain }}" = "1.7b" ]; then
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/brain.gguf" "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf"
+          else
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/brain.gguf" "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/ae44f08e1392f39c0e474af10c3ff8355c8b6688/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          fi
+          K=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
+          curl -fsSL -o models/kokoro-82m/kokoro-v1.0.int8.onnx "$K/kokoro-v1.0.int8.onnx"
+          curl -fsSL -o models/kokoro-82m/voices-v1.0.bin "$K/voices-v1.0.bin"
+      - name: The conversation
+        run: LUMA_MODEL_PATH="$RUNNER_TEMP/brains/brain.gguf" python scripts/conversation_demo.py --out "$RUNNER_TEMP/demo" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Into demo/ on this branch, where it can be listened to
+        run: |
+          ffmpeg -loglevel error -y -i "$RUNNER_TEMP/demo/conversation.wav" -codec:a libmp3lame -q:a 3 "$RUNNER_TEMP/demo/conversation.mp3"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p demo && cp "$RUNNER_TEMP/demo/conversation.mp3" "$RUNNER_TEMP/demo/conversation.md" demo/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add demo
+          git commit -q -m "A conversation with Luma, out loud (${GITHUB_SHA::7}) [skip ci]"
+          for i in 1 2 3; do git pull -q --no-rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && break; sleep 5; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: luma-conversation
+          path: ${{ runner.temp }}/demo
