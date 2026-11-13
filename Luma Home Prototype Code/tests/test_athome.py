@@ -302,6 +302,7 @@ class House(Base):
     def test_ordinary_sentences_with_on_and_off_are_not_commands(self):
         self.switches.add("home_assistant")
         for line in ["turn on the charm", "he turned off his phone", "turn off your brain for a sec", "switch off for the night",
+                     "turn on unhinged mode", "turn on kids mode", "switch to study mode",
                      "I need to turn my life around", "put on a brave face"]:
             self.assertIsNone(self.say(line), line)
 

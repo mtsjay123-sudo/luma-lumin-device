@@ -161,7 +161,7 @@ HOME_DIM = re.compile(LEAD + r"(?:(?P<dir>dim|brighten|raise|lower|bring (?:up|d
                       r"|set (?:the |my )?(?P<thing2>.+?) (?:brightness )?(?:to|at) (?P<pct2>\d{1,3})(?: ?%| percent))" + END, re.I)
 HOME_HEAT = re.compile(LEAD + r"(?:set|turn|put|change|make) (?:the |my )?(?P<thing>thermostat|heat(?:er|ing)?|a/?c|air(?: conditioning| conditioner)?|temperature|temp)(?: (?:up|down))? (?:to |at )?(?P<deg>\d{2})(?: ?°| degrees?)?(?: ?(?P<scale>f|c|fahrenheit|celsius))?" + END, re.I)
 HOME_LOCK = re.compile(LEAD + r"(?P<act>lock|unlock|open|close|shut|raise|lower) (?:the |my |all (?:of )?the |all )?(?P<thing>(?:[\w' ]{0,20} )?(?:doors?|locks?|garage(?: door)?|gate|blinds|shades|curtains|windows?|shutters))" + END, re.I)
-HOME_SCENE = re.compile(LEAD + r"(?:(?:turn on|activate|start|set|run|switch to) (?:the |my )?(?P<scene>[\w' -]{2,30}?) (?:scene|mode)|(?:set|make) (?:the |it )?(?:mood|scene) (?:to |for )?(?P<scene2>[\w' -]{2,30}?))" + END, re.I)
+HOME_SCENE = re.compile(LEAD + r"(?:(?:turn on|activate|start|set|run|switch to) (?:the |my )?(?P<scene>[\w' -]{2,30}?) scene|(?:set|make) (?:the |it )?(?:mood|scene) (?:to |for )?(?P<scene2>[\w' -]{2,30}?))" + END, re.I)
 HOME_ASK = re.compile(LEAD + r"(?:is (?:the |my )?(?P<thing>[\w' ]{2,30}?) (?P<state>locked|unlocked|on|off|open|closed)|what(?:'s| is) (?:the )?(?:temperature|temp) (?:inside|in here|in the house|at home|upstairs|downstairs))" + END, re.I)
 HOME_WORDS = re.compile(r"\b(?:lights?|lamps?|fans?|plugs?|outlets?|switch(?:es)?|tv|television|heater|ac|a/c|air conditioner|thermostat|kettle|coffee maker|humidifier|"
                         r"purifier|diffuser|speaker|everything|led|leds|strip|bulbs?|porch|hallway|bedroom|kitchen|living room|bathroom|office|garage|closet)\b", re.I)
