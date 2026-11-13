@@ -536,6 +536,18 @@ class Agent:
         self.speaking = False
         self.zone = ZoneInfo(self.providers.env.get("LUMA_TIMEZONE", "America/New_York"))
         self.household = Household(self.store, now=self.clock, zone=str(self.zone))
+        # Alarms, lists, the time anywhere, the volume, sleep sounds, music and the lights: what a speaker in the home does.
+        from luma.agent.athome import AtHome
+        from luma.audio import loudness
+        try:
+            from luma.audio.player import make_player
+            player = make_player() if use_model else None   # brain-free (tests, labs) never touches a speaker
+        except Exception:
+            player = None
+        self.athome = AtHome(self.store, clock=self.clock, zone=lambda: self.zone, player=player,
+                             fetch=lambda *a, **k: self.providers.request(*a, **k), on=self.integration_on, env=self.providers.env,
+                             mode=lambda: self.mode, memories=self.store.memories, audit=self._audit, hush=self.hush)
+        loudness.set_level(self.store.setting("volume", 8))
         self.workflows = Workflows(self)
         self.activity = Activity(clock=time.time)
         from luma.agent.live_view import LiveView
@@ -1129,7 +1141,7 @@ class Agent:
         return feed
 
     def enable(self, service, value):
-        if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser", "mail", "calendar", "connectors"}: raise ValueError("Unknown integration.")
+        if service not in {"web_search", "sms", "home_assistant", "shopping", "booking", "browser", "mail", "calendar", "connectors", "music"}: raise ValueError("Unknown integration.")
         if self.mode == "kids" and value: raise ValueError("Integrations cannot be enabled in kids mode.")
         self.store.set_setting("integration:" + service, bool(value))
 
@@ -1171,7 +1183,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":all(env.get(k) for k in ["HOME_ASSISTANT_URL","HOME_ASSISTANT_TOKEN","LUMA_ALLOWED_LIGHTS"]), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available()}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors"]}, "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "brain_use_computer":self.store.setting("brain_use_computer",True), "thinks_on_computer":self._thinks_on_computer(), "is_device":self.link_host is not None, "lend_brain":self.store.setting("lend_brain",True), "has_device":self._has_device(), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":bool(env.get("HOME_ASSISTANT_URL") and env.get("HOME_ASSISTANT_TOKEN") and (env.get("LUMA_ALLOWED_LIGHTS") or env.get("LUMA_ALLOWED_DEVICES"))), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available(), "music":True}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors","music"]}, "volume":self.store.setting("volume",8), "alarms":len([r for r in self.store.all("alarm", 200) if r.get("on")]), "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "brain_use_computer":self.store.setting("brain_use_computer",True), "thinks_on_computer":self._thinks_on_computer(), "is_device":self.link_host is not None, "lend_brain":self.store.setting("lend_brain",True), "has_device":self._has_device(), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -2600,7 +2612,8 @@ class Agent:
         except Exception: apps = []
         mail = self.mail.status()
         return {"mail": mail.get("connected"), "mail_address": mail.get("address"), "calendar": self.calendar.connected(),
-                "vision": vision.available(), "apps": apps, "chrome": self._hands().connected()}
+                "vision": vision.available(), "apps": apps, "chrome": self._hands().connected(),
+                "home_assistant": self.integration_on("home_assistant") and self.athome._home_ready() is None}
 
     def capabilities_reply(self, text, lowered, cancel_event=None):
         """'What can you do?', 'do you have a connector for news?': answered from what's really here, never a made-up no."""
@@ -4490,6 +4503,9 @@ class Agent:
             timer_events = self.household.timer_events(mode=self.mode, deliver=not self.speaking)
             if timer_events:
                 return {"type":"timer", "text":" ".join(e["text"] for e in timer_events), "created":self.clock()}
+            alarms = self.athome.due() if not self.speaking else []   # an alarm rings through quiet hours and do not disturb
+            if alarms:
+                return {"type": "alarm", "text": " ".join(a["text"] for a in alarms), "created": self.clock()}
             now = self.clock()
             local = datetime.fromtimestamp(now, self.zone)
             start, end = self.store.setting("quiet_hours", [23, 7])
@@ -4735,7 +4751,7 @@ class Agent:
                     from luma.llm.inference import garbled
                     from luma.agent import polish
                     result["text"] = polish.plain_errors(polish.tidy(lexicon.clean(result["text"])))  # "the the", "a apple", a program's error: fixed before anyone sees them
-                    if not agent_mode:  # a small brain's habits in chat: a bare list said to nobody, their own message said back to them
+                    if not agent_mode and not result.get("handy"):  # a small brain's habits in chat: a bare list said to nobody, their own message said back to them
                         result["text"] = polish.unparrot(polish.warm_list(result["text"], text), text)
                         if set(result) <= {"text", "choices", "noticed", "memory_full", "asked"}:  # talk, not a tool's result
                             result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
@@ -6631,6 +6647,8 @@ class Agent:
         with self.lock:
             from luma.agent.later_mail import fix_typos
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
+            stopped = self.athome.stopping(lowered)   # "stop" to a ringing alarm or the music stops that, before it means "hush"
+            if stopped is not None: return stopped
             if lowered in {"hush", "not now", "stop"} and not ((self.store.setting("grilling") or self.walking) and lowered == "stop"):
                 self.hush(); return {"text": "Okay, I'll keep quiet for half an hour."}
             if lowered in {"mute", "privacy on"}:
@@ -6678,6 +6696,15 @@ class Agent:
             if roomy is not None: return roomy
             memo = self._memo(text, lowered)  # "I left my keys on the counter, remind me later", "where are my keys?"
             if memo is not None: return memo
+            handy = self.athome.handle(text, lowered)  # alarms, lists, the time, the volume, sleep sounds, music, the lights
+            if handy is not None:
+                if handy.get("routine") == "morning" and self.mode != "kids":
+                    try:
+                        brief = self.household.briefing(mode=self.mode)
+                        if brief and brief.get("text"): handy = {**handy, "text": handy["text"] + " " + brief["text"]}
+                    except Exception:
+                        pass
+                return {**handy, "handy": True}   # code's own words ("42 days until Christmas"): never trimmed as if a brain had parroted them
             personal = self._personal_answer(text, lowered)  # "where do I work?", "you remember my dog's name, right?": saved, or "I don't know"
             if personal is not None: return personal
             named = self._rename(text)

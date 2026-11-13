@@ -4,7 +4,7 @@ import threading
 import wave
 import numpy as np
 import sounddevice as sd
-from luma.audio import echo
+from luma.audio import echo, loudness
 from luma.config import SAMPLE_RATE
 from luma.hardware.device import resolve_audio_device
 
@@ -19,11 +19,19 @@ def play_chunks(chunks, should_stop=None) -> bool:
     if should_stop(): return False
     device = resolve_audio_device(os.getenv("LUMA_OUTPUT_DEVICE"), sd.query_devices(), direction="output")
     block = max(1, rate // 50)
+    loudness.talking(True)   # music under her dips while she talks
+    try:
+        return _play_stream(first, rate, iterator, device, block, should_stop)
+    finally:
+        loudness.talking(False)
+
+
+def _play_stream(first, rate, iterator, device, block, should_stop):
     with sd.OutputStream(samplerate=rate, channels=1, dtype='float32', device=device, latency='low', blocksize=block) as stream:
         import itertools
         try:
             for pcm, next_rate in itertools.chain([(first, rate)], iterator):
-                audio = np.asarray(pcm).astype(np.float32) / 32767.0
+                audio = loudness.limit(np.asarray(pcm).astype(np.float32) / 32767.0 * loudness.gain())   # her voice follows the volume they set
                 if next_rate != rate and len(audio):  # the voice changed mid-reply (new voice ↔ classic): match the stream
                     n = max(1, int(round(len(audio) * rate / next_rate)))
                     audio = np.interp(np.linspace(0, len(audio) - 1, n), np.arange(len(audio)), audio).astype(np.float32)

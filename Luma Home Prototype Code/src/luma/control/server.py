@@ -803,7 +803,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     elif key=='daily_briefing_enabled' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key in {'learn_from_chat','check_ins','diary_days'}: agent.set_presence(key,value)
                     elif key=='daily_briefing_hour' and type(value) is int and 0<=value<=23: agent.store.set_setting(key,value)
-                    elif key in {'web_search','sms','home_assistant','shopping','booking','browser'} and type(value) is bool: agent.enable(key,value)
+                    elif key in {'web_search','sms','home_assistant','shopping','booking','browser','music'} and type(value) is bool: agent.enable(key,value)
                     elif key in {'think_first','deep_mind','deliberate','show_thoughts'} and type(value) is bool: agent.store.set_setting(key,value)
                     elif key=='thinking_out_loud' and type(value) is bool: agent.store.set_setting(key,value)
                     elif key in {'brain_use_computer','lend_brain'} and type(value) is bool: agent.store.set_setting(key,value)  # the device thinking on the paired computer

@@ -35,7 +35,11 @@ AREAS = [
     ("social", r"instagram|insta|tiktok|twitter|x\.com|facebook|reddit|linkedin|youtube|social(?: media)?"),
     ("vision", r"photos?|pictures?|images?|camera|vision|see"),
     ("voice", r"voice|talk(?:ing)?|speak(?:ing)?|listen(?:ing)?|hear(?:ing)?|mic(?:rophone)?"),
-    ("reminders", r"remind(?:ers?)?|timers?|alarms?|notes?|to-?dos?|tasks?"),
+    ("reminders", r"remind(?:ers?)?|timers?|notes?|to-?dos?|tasks?"),
+    ("alarms", r"alarms?|alarm clocks?|wake me up|wake-?up calls?"),
+    ("lists", r"(?:shopping|grocery|to-?do) lists?|lists?"),
+    ("home", r"lights?|smart home|home assistant|thermostat|smart plugs?|plugs?|locks?|switch(?:es)?|devices?"),
+    ("music", r"music|radio|songs?|spotify|sleep sounds?|white noise|rain sounds?"),
     ("decks", r"slides?|decks?|powerpoint|keynote|presentations?"),
     ("documents", r"documents?|docs?|word docs?|pdfs?|letters?|reports?|resumes?|essays?|trackers?|checklists?|flash ?cards?|apps?|podcasts?|dashboards?"),
     ("chrome", r"(?:google )?chrome|my browser|(?:my )?tabs?"),
@@ -87,6 +91,10 @@ def overview(state):
         f"• Calendar: what's coming up, and plan your day or week{cal}.",
         "• Texts: write them and send them from your number or Luma's.",
         "• Reminders, timers, notes, and anything you want me to remember.",
+        "• Around the house: alarms (“wake me up at 7 on weekdays”), shopping and to-do lists, a stopwatch, the time anywhere, "
+        "days until anything, conversions, a coin or dice, and do not disturb.",
+        "• On the Luma at home: sleep sounds (rain, ocean, white noise, a fire), music from your own folder or the radio, the volume, "
+        "and your lights, plugs and thermostat through Home Assistant once you connect it. I never unlock a door.",
         "• Your sites: open Instagram, X, Reddit or any site in my own browser, catch you up, and repeat a task you show me once.",
         f"• Photos: drop one in and ask me about it{eyes}.",
         "• Voice: tap the mic and just talk. I answer out loud and keep listening.",
@@ -134,6 +142,18 @@ def about(key, state):
         return "Yes. Tap the mic (or press ⌘⇧Space) and just talk. I answer out loud and keep listening, back and forth, until you say stop."
     if key == "reminders":
         return "Yes. “Remind me in 20 minutes to …”, “remind me tomorrow at 9 to …”, timers, notes, and things you want me to remember."
+    if key == "alarms":
+        return "Yes. “Wake me up at 7”, “set an alarm for 6:30 on weekdays”, “what alarms do I have”. They ring through do not disturb, and “snooze” gives you nine more minutes."
+    if key == "lists":
+        return "Yes. “Add milk and eggs to my shopping list”, “what's on my to-do list”, “take eggs off”. Any list you name, kept here at home."
+    if key == "home":
+        if state.get("home_assistant"):
+            return "Yes, your Home Assistant is connected. Say “turn off the living room lights”, “dim the lamp to 20%” or “set the thermostat to 22”. I lock doors but never unlock them."
+        return ("Yes, through Home Assistant: add its address, a token and the devices I may use in my settings, then turn on Home. "
+                "After that, “lights off”, “set the thermostat to 22” and your scenes just work. I lock doors but never unlock them.")
+    if key == "music":
+        return ("Yes. On the Luma at home I play sleep sounds (rain, ocean, white noise, a fire) made right there, songs from your own music folder, "
+                "and the radio once you turn on Music in my settings (only what you ask for, like “jazz”, goes to a free radio directory). On a computer, I open it in YouTube Music.")
     if key == "decks":
         return "Yes. Say “make a pitch deck for …” and I'll build a PowerPoint you can open in Keynote too."
     if key == "documents":
