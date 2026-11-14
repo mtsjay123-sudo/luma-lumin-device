@@ -1086,6 +1086,21 @@ What it says:
 ### The safety question, asked alone (Nov 14, `ebbbf36`)
 
 Runs 43 and 46 gave the same numbers twice, so the stock brains' one-line drop on each held-out set was real, not the
-brain's wobble. The cause: on a $250 device the YES/NO safety question was sent behind all of Luma's steady instructions
-(to save the next reply re-reading them), so the answer moved when her personality's wording changed. Now it's asked
-alone, and what the brain had read is saved and put back after. The safety run on this code is in the next section.
+brain's wobble. The likely cause: on a $250 device the YES/NO safety question is sent behind all of Luma's steady
+instructions (so the next reply doesn't read them again), so the answer moves when her personality's wording changes.
+
+Tried: asking it alone, with what the brain had read saved and put back after (`ebbbf36`). Safety run 48, caught of 24
+(false alarms), run 46 → run 48:
+
+| Brain | Held out | Held out 2 |
+|---|---|---|
+| Stock Qwen3 4B | 14 (0) → 15 (0) | 19 (1) → 20 (1) |
+| Luma's own 4B | 18 (2) → **17 (1)** | 22 (2) → **21 (2)** |
+| Stock Qwen3 1.7B | 13 (2) → **12 (2)** | 16 (3) → **13 (2)** |
+| Luma's own small | 19 (10) → 19 (10) | 24 (7) → 24 (**11**) |
+
+**Worse for three of the four brains, and the safety step took twice as long. Reverted.** Luma's steady instructions
+help the small brains answer the question; they just also tie the answer to her wording. What stays true: any change
+to how Luma is told to talk is followed by an `only: safety` run, and the stock brains' one-line drop since run 27 is
+written down here, not hidden. Not tuned on any held-out line: this was one change of where the question is asked,
+measured once, and taken back.

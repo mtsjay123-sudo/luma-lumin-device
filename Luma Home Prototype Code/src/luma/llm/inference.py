@@ -509,25 +509,15 @@ def _yes_or_no_here(question: str, cancel_event=None, on_text=None) -> str:
     own = [{"role": "system", "content": "You answer one question about a message with YES or NO."},
            {"role": "user", "content": question}]
     settings = dict(max_tokens=16, temperature=0, response_format={"type": "json_object", "schema": YES_NO})
-    # Asked alone, never behind Luma's personality: how she's told to talk must never change whether someone is heard as
-    # unsafe (run 43: a change to her personality's wording made two stock brains miss one held-out line each). On a $250
-    # device, what she'd already read is put back afterwards, so the next reply doesn't read it all again.
     with _model_access(cancel_event):
         model = _load_model()
-        saved = None
-        if compact() and _steady["text"] and hasattr(model, "save_state") and hasattr(model, "load_state"):
-            try:
-                saved = model.save_state()
-            except Exception:
-                saved = None
+        messages = _keeping_steady(own)  # a $250 device keeps Luma's steady instructions in memory for the next reply
         try:
+            raw = _complete(model, cancel_event, messages=messages, **settings)
+        except Exception as error:
+            if messages is own or not _template_refused(error):
+                raise
             raw = _complete(model, cancel_event, messages=own, **settings)
-        finally:
-            if saved is not None:
-                try:
-                    model.load_state(saved)
-                except Exception:
-                    pass  # the next reply reads the steady part again: slower, never wrong
     try:
         answer = str(json.loads(raw).get("answer", ""))
     except (ValueError, AttributeError, TypeError):

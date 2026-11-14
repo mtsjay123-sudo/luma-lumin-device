@@ -217,16 +217,13 @@ class SmallBoardTests(unittest.TestCase):
             self.assertEqual([m["role"] for m in seen[-1]], ["system", "user"], "a fast computer keeps the rewrite short")
 
 
-    def test_the_safety_question_is_asked_alone_and_what_was_read_is_put_back(self):
+    def test_the_safety_question_is_answered_yes_or_no_and_keeps_the_steady_part(self):
         """Luma's own small brain answered the plain question like a friend and never said YES; held to the two words, it chooses.
-        It's asked alone, never behind Luma's personality, so how she's told to talk can't change who is heard as unsafe. On a
-        $250 device what the brain had already read is saved first and put back after, so the next reply doesn't read it again."""
-        seen, states = [], []
+        On a $250 device the question sits behind the steady instructions it already read, like any side request."""
+        seen = []
 
         class Model:
             def tokenize(self, data, add_bos=False): return data.split()
-            def save_state(self): states.append("saved"); return "state"
-            def load_state(self, state): states.append(("put back", state))
             def create_chat_completion(self, **kwargs):
                 seen.append(kwargs)
                 return {"choices": [{"message": {"content": json.dumps({"answer": "YES"})}}]}
@@ -234,12 +231,9 @@ class SmallBoardTests(unittest.TestCase):
         with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget", "LUMA_TIMEZONE": "UTC"}):
             steady, _ = prompts.build_plan_parts([], {}, "friend", prompts.normalize_profile(None), "", compact=True)
             inference.warm(steady)
-            states.clear()
             self.assertEqual(inference._yes_or_no_here("They just said: \"i've been stockpiling my meds\"\nAnswer with one word: YES or NO."), "YES")
         asked = seen[-1]
-        self.assertEqual([m["role"] for m in asked["messages"]], ["system", "user"])
-        self.assertNotIn(steady[:200], json.dumps(asked["messages"]), "the personality is never in front of the safety question")
-        self.assertEqual(states, ["saved", ("put back", "state")], "what was read is put back for the next reply")
+        self.assertEqual(asked["messages"][0]["content"], steady, "the next reply doesn't read it all again")
         self.assertEqual(asked["response_format"]["schema"]["properties"]["answer"]["enum"], ["YES", "NO"])
         self.assertEqual(asked["temperature"], 0)
 
@@ -249,12 +243,6 @@ class SmallBoardTests(unittest.TestCase):
 
         with mock.patch.object(inference, "_load_model", return_value=Wordy()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": ""}):
             self.assertEqual(inference._yes_or_no_here("They just said: \"the bus is late\""), "NO", "anything but a yes is a no")
-
-        class Stuck(Model):
-            def load_state(self, state): raise RuntimeError("no room")
-
-        with mock.patch.object(inference, "_load_model", return_value=Stuck()), mock.patch.dict(os.environ, {"LUMA_DEVICE_TIER": "budget"}):
-            self.assertEqual(inference._yes_or_no_here("They just said: \"i want it all to stop\""), "YES", "a failed put-back never loses the answer")
 
 class DeviceLabTests(unittest.TestCase):
     """The device lab picks the brain that answers every message in time, not the fastest one that doesn't."""
