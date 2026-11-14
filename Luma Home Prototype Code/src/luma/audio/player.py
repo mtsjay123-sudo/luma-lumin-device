@@ -90,7 +90,7 @@ class Player:
 
     def __init__(self, out=None, ffmpeg=None):
         self.out = out or _speaker
-        self.ffmpeg = ffmpeg if ffmpeg is not None else shutil.which("ffmpeg")
+        self.ffmpeg = ffmpeg if ffmpeg is not None else _find_ffmpeg()
         self._stop = threading.Event()
         self._thread = None
         self._proc = None
@@ -171,6 +171,15 @@ class Player:
             for path in paths:
                 yield from self._decode(path)
         self._run(blocks())
+
+
+def _find_ffmpeg():
+    """The same FFmpeg video uses: LUMA_FFMPEG, the system's, Homebrew's, or the one Luma Desktop installs."""
+    try:
+        from luma.skills.video import ffmpeg
+        return ffmpeg()
+    except Exception:
+        return shutil.which("ffmpeg")
 
 
 def _speaker(blocks, should_stop):

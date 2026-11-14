@@ -362,3 +362,12 @@ class NothingElseIsACommand(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Speaker(unittest.TestCase):
+    def test_music_uses_the_ffmpeg_luma_desktop_installs(self):
+        import os
+        from unittest import mock
+        from luma.audio import player
+        with mock.patch.dict(os.environ, {"LUMA_FFMPEG": __file__}):
+            self.assertEqual(player.Player(out=lambda blocks, stop: None).ffmpeg, __file__)
