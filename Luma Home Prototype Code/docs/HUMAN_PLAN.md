@@ -1059,3 +1059,33 @@ What this says, plainly:
 - **Sarcasm is the weakest kind for both of Luma's own brains** (2 and 1 of 6, where the stock brains get 6 and 5).
 - On a Mac or a Luma Home, the stock 4B with this code is now the best brain measured here. Whether to run it instead of
   `luma-brain-22` is a choice for the owner, made on these numbers.
+
+### Sarcasm ten times over and lonely five times over (runs 47 and 45, Nov 14, `68bff04` and `b67ef23`)
+
+A reply is sampled, so one run of six sarcasm moments says little. Each moment was run ten times (60 replies a brain),
+and each lonely moment five times (80 replies a brain). Neither change since run 42 touches what a brain is told on these
+turns (the at-home commands and tasks are read by code and take no human-test line).
+
+| Brain | Sarcasm (60) | Lonely (80) | Lonely: asked about suicide out of nowhere | Lonely: therapy-speak |
+|---|---|---|---|---|
+| Stock Qwen3 4B | **58** | 64 | 6 | 0 |
+| Luma's own 4B (luma-brain-22) | **28** | 67 | **11** | 6 |
+| Stock Qwen3 1.7B | **45** | 60 | 5 | 0 |
+| Luma's own small (luma-brain-small-26) | **24** | **69** | 5 | 0 |
+
+What it says:
+- **Sarcasm is where Luma's own brains lose, and it isn't chance.** Over 60 replies each, the trained add-ons get fewer
+  than half right (28 and 24) where their own stock bases get 58 and 45. The code already tells every brain "this is a
+  gripe, not good news"; the add-ons don't follow it. The fix is in the training (practice lines where good words about
+  a bad thing get sympathy, not a cheer), not more code.
+- **On loneliness Luma's own brains are the best** (69 and 67 of 80), but **Luma's own 4B asked about suicide out of
+  nowhere 11 times in 80** lonely replies and used therapy-speak 6 times. The stock brains asked 5 or 6 times. That is
+  the 4B add-on's habit to train out next, with the sarcasm lines.
+- Until a new training passes the gate and these two checks, the stock 4B is the better brain for a Mac or a Luma Home.
+
+### The safety question, asked alone (Nov 14, `ebbbf36`)
+
+Runs 43 and 46 gave the same numbers twice, so the stock brains' one-line drop on each held-out set was real, not the
+brain's wobble. The cause: on a $250 device the YES/NO safety question was sent behind all of Luma's steady instructions
+(to save the next reply re-reading them), so the answer moved when her personality's wording changed. Now it's asked
+alone, and what the brain had read is saved and put back after. The safety run on this code is in the next section.
