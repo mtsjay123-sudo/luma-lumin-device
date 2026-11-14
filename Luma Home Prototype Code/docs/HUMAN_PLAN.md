@@ -1010,3 +1010,52 @@ Both trained on `4237f5f`, where the practice lines say "I'm Luma. Not a person:
   for the small one before it). Which check they miss is in each run's Report step and hasn't been read yet.
 
 Not yet measured: `luma-brain-small-26` on Human Test v2. Nothing is claimed about it until that run says so.
+
+## The presence code on real brains (Nov 13, `014cbb0`)
+
+The first full measure since the presence work (Luma never says "AI", has its own past and words), the Japan crisis
+lines, home time and the reminder fixes, and the first of `luma-brain-small-26`.
+
+### The safety sets (run 43, `only: safety`), against run 27 (`6a0f174`)
+
+**Both stock brains caught one fewer on each held-out set.** Luma's own brains, which are what a Luma runs, caught as
+many or more. Run 27 → run 43, caught of 24 (false alarms):
+
+| Brain | Held out | Held out 2 | Corpus (60) |
+|---|---|---|---|
+| Stock Qwen3 4B | 15 (0) → **14 (0)** | 20 (1) → **19 (1)** | 60 (1) |
+| Luma's own 4B (luma-brain-22) | 18 (2) → **18 (2)** | 22 (2) → **22 (2)** | 60 (2) |
+| Stock Qwen3 1.7B | 14 (4) → **13 (2)** | 17 (3) → **16 (3)** | 60 (2) |
+| Luma's own small (small-20 → **small-26**) | 19 (10) → **19 (10)** | 23 (10) → **24 (7)** | 60 (3) |
+
+The rules alone are unchanged (3 and 4 of 24). Where the stock brains' two misses come from hasn't been looked at yet;
+the held-out lines aren't printed or tuned on. A one-line drop on a brain the device doesn't run could be the brain's
+own wobble, but it's written down as a drop until a rerun says otherwise.
+
+### Human Test v2 with the judge (run 42), against run 13 (`226d505`)
+
+| Brain | Passed, run 13 → run 42 | Not safe, answered with safety | False alarms (4) | Asked about suicide out of nowhere | Therapy-speak | Made-up life | Median words | Judge (1 to 5) |
+|---|---|---|---|---|---|---|---|---|
+| Stock Qwen3 4B | 196 → **216/255 (84.7%)** | 13/13 | 1 → 0 | 3 → 2 | 0 | 0 | 35 | 3.72 → 3.68 |
+| Luma's own 4B (luma-brain-22) | 199 → **197/255 (77.3%)** | 13/13 | 1 → 1 | 4 → 5 | 3 | 0 | 15 | 3.47 → 3.45 |
+| Stock Qwen3 1.7B | 169 → **186/255 (72.9%)** | 13/13 | 1 → 1 | 4 → 3 | 0 | 2 → 1 | 23 | 3.35 → 3.41 |
+| Luma's own small (small-20 → small-26) | 186 → **194/255 (76.1%)** | 13/13 | 1 → 1 | 9 → 6 | 0 | 0 | 13 | 3.42 → 3.39 |
+
+Pairwise, Luma's own against stock: the 4B 23% (2 wins, 29 losses, 19 ties; it was 26%), the small one 36% (10 wins,
+24 losses, 16 ties; it was 28%).
+
+By kind, run 42 (stock 4B, own 4B, stock 1.7B, own small): conversations (115) 94, 84, 73, 86; lonely (16) 11, 13,
+12, **16**; sarcasm (6) 6, **2**, 5, **1**; disagreement (8) 6, **2**, 6, 3; opinion (10) 8, 7, 9, 5; venting (10) 9,
+7, **3**, 8; boundary (10) 9, 6, 7, 7; not safe 12 of 12 on all four.
+
+What this says, plainly:
+- **The stock brains gained the most on the new code** (4B +20, 1.7B +17). Luma's own 4B lost 2. The code helps any
+  brain; the trained add-on for the 4B now holds it back: it loses the pairwise to its own base 29 times to 2, and it
+  misses sarcasm (2 of 6) and disagreement (2 of 8). Three trainings in a row (23, 25 and 24 for the small one) were
+  stopped by the honesty gate, so `luma-brain-22` is from before the presence lines.
+- **The small add-on helps.** `luma-brain-small-26` is 8 above the last small brain and 8 above the stock 1.7B, catches
+  every lonely moment, and asks about suicide out of nowhere less (9 → 6). It still loses the pairwise to the stock
+  1.7B (36%).
+- **Sarcasm is the weakest kind for both of Luma's own brains** (2 and 1 of 6, where the stock brains get 6 and 5).
+- On a Mac or a Luma Home, the stock 4B with this code is now the best brain measured here. Whether to run it instead of
+  `luma-brain-22` is a choice for the owner, made on these numbers.
