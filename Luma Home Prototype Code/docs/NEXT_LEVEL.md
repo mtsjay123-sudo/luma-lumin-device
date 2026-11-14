@@ -68,6 +68,25 @@ Today: the radio, songs in your own folder, sleep sounds, and YouTube Music on a
 through Home Assistant's media players or Spotify Connect, so "play my Discover Weekly" works. Behind its own switch,
 off by default.
 
+### Done since this plan was first written
+
+- **Tasks by voice** (Nov 14): "every weekday at 8, tell me the weather", "remind me to call Mom every Sunday at 6pm",
+  "every night at 10 ask me how my day went". They run at their time through Luma's own conversation, in a chat of their
+  own, and are said out loud. `src/luma/agent/standing.py`, `tests/test_standing.py`.
+
+### What open-source projects on GitHub have that's worth borrowing (checked Nov 14)
+
+Luma's rule 7 allows MIT, Apache-2.0 and BSD only, and a model inherits the license of the data it was trained on.
+
+| Idea | Where it's seen | License | Verdict |
+|---|---|---|---|
+| A real "Hey Luma" wake word, trained on our own phrase | openWakeWord (Apache-2.0 code); trainers: openwakeword-trainer (MIT), HAwake (Apache-2.0), livekit-wakeword (Apache-2.0) | The code is fine; the usual negative-speech set (ACAV100M) is CC BY-NC-SA, which makes the trained model non-commercial | **Do it, carefully**: train only on speech we're allowed to ship (Luma's own voice saying the phrase, permissively licensed speech for the negatives) and keep a record of every dataset's license. Today "Hey Luma" is only taken off the front of what was heard; there's no always-listening detector yet |
+| Tasks that report back by voice | OpenClaw with Home Assistant voice; ChatGPT's scheduled tasks | not checked | **Done** (above), our own code |
+| Remembering the person across sessions, with a personality | Yumii (MIT), Open-LLM-VTuber | MIT / not checked | Luma already has encrypted life memory and its own past; nothing to copy |
+| Local voice stack (Whisper, Piper, a local brain) | many | mixed (Piper's voices vary) | Luma already runs its own local stack |
+
+Next from this list: the wake word, with the dataset licenses written down before a single model is trained.
+
 ### 7. Small things found along the way
 
 - "I want to play a game" is heard as a music request by the small model that guesses what you want. Teach it games.
