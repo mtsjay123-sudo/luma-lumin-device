@@ -105,6 +105,7 @@ def overview(state):
         "• Get to know you: say “grill me” and I'll interview you, and you can see and edit everything I remember under Identity.",
         "• Thinking through big decisions with you.",
         "• Helpers that run on their own: price watches, a morning inbox check, a daily news card.",
+        "• Tasks on a schedule: “every weekday at 8, tell me the weather”, “remind me to call Mom every Sunday at 6”. I say them out loud.",
     ]
     if apps:
         lines.append(f"• Connected apps: {_join(apps[:6])}.")

@@ -548,6 +548,8 @@ class Agent:
                              fetch=lambda *a, **k: self.providers.request(*a, **k), on=self.integration_on, env=self.providers.env,
                              mode=lambda: self.mode, memories=self.store.memories, audit=self._audit, hush=self.hush)
         loudness.set_level(self.store.setting("volume", 8))
+        from luma.agent.standing import Tasks
+        self.standing = Tasks(self)   # tasks they set by voice; Helpers runs them
         self.workflows = Workflows(self)
         self.activity = Activity(clock=time.time)
         from luma.agent.live_view import LiveView
@@ -4696,6 +4698,7 @@ class Agent:
             return result
 
     def _chat_turn(self, text, *, cancel_event=None, agent_mode=False, resume_id=None, on_text=None, channel="local"):
+        self._turn_channel = channel
         spoken = self._spoken_approval(text, channel)
         if spoken is not None: return spoken
         if text.strip().lower() in {"wait", "stop talking", "stop speaking", "never mind", "nevermind"}:
@@ -6676,6 +6679,9 @@ class Agent:
                 return {"text": "I'm really glad you told me, and I'm not going anywhere. Your safety comes first right now: if you might act on this, call or text 988 "
                                 "(US and Canada) or call emergency services" + (f" (in Japan: {JAPAN_LINES})" if in_japan else "") + ", and get someone nearby "
                                 "to stay with you. You don't have to carry this by yourself. I haven't contacted anyone. Can you tell me where you are right now?"}
+            running_a_task = getattr(self, "_turn_channel", None) == "task"   # a task running never makes another task
+            standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"
+            if standing is not None: return {**standing, "handy": True}
             followup = self._contact_followup(text)
             if followup is not None: return followup
             carried = self._follow_through(text, lowered, cancel_event)  # a pick from "did you mean", the next step, the rest of a cut-off sentence

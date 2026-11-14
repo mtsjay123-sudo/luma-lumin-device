@@ -24,6 +24,7 @@ KINDS = {
     "news": "News",
     "reflect": "Reflection",
     "heartbeat": "Heartbeat",
+    "task": "Task",
 }
 FEED_KEEP = 200
 
@@ -82,7 +83,8 @@ class Helpers:
             hour, minute = map(int, row["at"].split(":"))
             local = datetime.fromtimestamp(after, self.agent.zone)
             when = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            while when.timestamp() <= after:
+            days = (row.get("params") or {}).get("days") or []   # a task on some days only ("every weekday")
+            while when.timestamp() <= after or (days and when.weekday() not in days):
                 when += timedelta(days=1 if row["every"] == "daily" else 7)
             return when.timestamp()
         return after + every
@@ -129,6 +131,13 @@ class Helpers:
             title = title or "Read the news"
         elif kind == "reflect":
             title = title or "Reflect on us"
+        elif kind == "task":
+            ask = " ".join(str(params.get("ask") or "").split())[:200]
+            if len(ask) < 3:
+                raise ValueError("Tell me what to do.")
+            days = sorted({int(d) for d in params.get("days") or [] if 0 <= int(d) <= 6})
+            params = {"ask": ask, "days": days}
+            title = title or ask[:120]
         now = self.agent.clock()
         row = {"kind": kind, "title": str(title)[:120], "params": params, "every": every, "at": at, "enabled": True, "system": system,
                "created": now, "last_run": None, "last_result": None, "last_error": None, "runs": 0, "history": [], "seen": [], "low": None}
@@ -349,6 +358,28 @@ class Helpers:
         body = "\n".join(f"{p['source']}: {p['title']}" for p in picks)
         return {"card": {"kind": "update", "title": "Today's news", "body": body, "items": [], "url": picks[0]["url"] if picks else None},
                 "state": {"carded": today}}
+
+    def _run_task(self, row):
+        """A task they set by voice: a reminder is said as it is; anything else is asked of Luma, in a chat of its own,
+        and the answer is said out loud. Whatever would send, post or buy still waits for their yes."""
+        from luma.agent.standing import reminder
+        ask = row["params"]["ask"]
+        thing = reminder(ask)
+        if thing:
+            said = f"Hey, it's time to {thing}." if not re.match(r"(?:to |that )", thing) else f"Hey, a reminder: {thing}."
+            return {"card": {"kind": "update", "title": ask[:80], "body": said}, "notify": said}
+        thread = self.store.setting("tasks_thread")
+        if thread not in getattr(self.agent, "threads", {}):   # its own chat, so a task never lands in the middle of theirs
+            thread = self.agent.new_thread("Tasks")["id"]
+            self.store.set_setting("tasks_thread", thread)
+        result = self.agent.chat(ask, thread=thread, channel="task")
+        said = result.get("text") or result.get("summary") or ""
+        if not said:
+            return {}
+        card = {"kind": "approval" if result.get("state") == "pending" else "update", "title": ask[:80], "body": said[:1600]}
+        if result.get("state") == "pending":
+            card["action"] = result.get("action")
+        return {"card": card, "notify": said[:600]}
 
     def _run_reflect(self, row):
         if self.agent.use_model:
