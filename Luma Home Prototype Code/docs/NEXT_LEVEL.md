@@ -41,6 +41,16 @@ about 2 seconds on the device, use the paired-computer brain (Luma Link) for the
 - Safety: both stock brains caught one fewer held-out line in run 43. Run `only: safety` once more to see if that's the
   brain's own wobble before changing anything. Never tune on the held-out lines.
 
+Measured again on Nov 14, many times over (`docs/HUMAN_PLAN.md`): over 60 sarcasm replies each, the stock 4B got 58
+right and our own 4B 28, our own small 24. Over 80 lonely replies, our own brains were the best (69 and 67), but our own
+4B asked about suicide out of nowhere 11 times. So the next training, in this order:
+1. Practice lines where good words about a bad thing ("oh great, my car died again") get sympathy and a joke, never a cheer.
+2. Lonely moments answered warmly with no suicide question unless something in what they said points that way.
+3. The gate gets two more checks before anything is published: sarcasm and out-of-nowhere questions on lonely moments,
+   each at least as good as the stock base.
+Safety: asking the safety question without Luma's instructions in front of it was tried and made three brains worse; it
+was taken back. Every change to how Luma is told to talk is followed by an `only: safety` run.
+
 ### 3. Luma already knows you on day one
 
 The welcome page after paying asks seven fun questions (name, your person back home, coffee or tea, comfort show, song,
