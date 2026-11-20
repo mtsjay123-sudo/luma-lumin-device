@@ -216,5 +216,19 @@ class PracticeIsNotTheTest(unittest.TestCase):
         self.assertGreater(sum(1 for label, _ in keeps.FRAMES if label == "today"), 200)
 
 
+class TheModelsShip(unittest.TestCase):
+    def test_every_small_model_file_is_in_the_package(self):
+        """Luma is installed from its source today, so nothing was missing. A built package would have left the models out
+        and Luma would have fallen back to rules without a word."""
+        import fnmatch
+        import tomllib
+        listed = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]
+        files = [f for f in (ROOT / "src" / "luma").rglob("*") if f.suffix in (".npz", ".json") and "web" not in f.parts and "vendor" not in f.parts]
+        self.assertGreaterEqual(len(files), 5)
+        for f in files:
+            package = ".".join(f.relative_to(ROOT / "src").parts[:-1])
+            self.assertTrue(any(fnmatch.fnmatch(f.name, pattern) for pattern in listed.get(package, [])), f"{f.name} in {package}")
+
+
 if __name__ == "__main__":
     unittest.main()

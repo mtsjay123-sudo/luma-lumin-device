@@ -43,4 +43,9 @@ luma = "luma.cli:main"
 markers = ["integration: requires local audio or model files"]
 
 [tool.setuptools.package-data]
+# The small models Luma reads by itself (what a message is, the best-friend moves, leaning and "what are you?", a lasting
+# fact) and the router's weights. Without these lines a built package leaves them out and Luma quietly falls back to rules.
+"luma.agent" = ["*.npz"]
+"luma.agent.friendtalk" = ["*.npz"]
+"luma.llm" = ["*.json"]
 "luma.control" = ["web/*.html", "web/*.css", "web/*.js", "web/phone/*", "web/desktop/*", "web/desktop/brand/*", "web/desktop/fonts/*", "web/desktop/characters/*"]
