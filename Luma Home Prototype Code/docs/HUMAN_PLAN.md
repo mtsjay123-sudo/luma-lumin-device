@@ -1331,3 +1331,29 @@ finishes (one run per branch at a time).
   libraries) and `tld` (MPL/GPL/LGPL, through `trafilatura`). Those are for the owner to decide: the rule says MIT,
   Apache-2.0 and BSD only, and these two are neither. Many newer packages show as unknown on an old pip; the job
   upgrades pip first.
+
+## Game plan, days 5 and 6 (Nov 20): voice timing, as far as it goes without a microphone
+
+What already existed (so it isn't built twice): the voice starts at the reply's first sentence while the brain is still
+writing (`SpeechStream`); Smart Turn is asked at a 300 ms pause whether they're done, "not done" holds the turn open
+1.6 s, and with no model 900 ms of silence ends it (`luma.audio.turn`); a soft "mm-hm" at a mid-thought pause once
+they've talked for a while (`PauseWatch`); talking over Luma on headphones or an echo-cancelling microphone.
+
+Added:
+- **The first clause, not the first sentence** (`SentenceBuffer(first_clause=True)`; the setting `first_clause`, or
+  `LUMA_FIRST_CLAUSE=1`). "Oh no," is spoken while "that's awful." is still being written; the rest of that sentence
+  follows the moment it ends. Never inside a number, never after one short word. Measured on Luma's 1,787 practice
+  replies: the voice can start after a median of **25 characters instead of 41** (90th percentile 66 instead of 87), and
+  894 of them start sooner. **Off by default**: it hasn't been listened to on a real voice, and a clause said alone can
+  land with the wrong tune. To try at home: `LUMA_FIRST_CLAUSE=1`, and listen for whether "Oh no," then the rest sounds
+  like one breath.
+- **The timing test** (`scripts/timing_eval.py`): Nuance's 89% idea on our own conversations. From a timeline of when
+  each stretch of speech starts and stops, with Luma's own rules: turns where Luma would cut in, how long after they
+  stop it decides they're done, where the people in those same conversations started answering, and how often Luma
+  would start inside that window. **It has no number for Luma yet, and can't have one from here**: it needs real
+  conversations (the owner's to record, with consent) and the latency from "they're done" to Luma's first sound,
+  measured on the lamp. Its arithmetic is tested on hand-written timelines, and that's all that's claimed.
+
+Not done, and why: backchannels chosen by the brain, and tone picked per reply. Both change how Luma sounds, neither
+can be heard or measured in this environment, and the timing test should exist with real recordings first so they're
+judged by a number.

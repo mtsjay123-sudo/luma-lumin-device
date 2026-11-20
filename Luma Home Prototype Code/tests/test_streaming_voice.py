@@ -137,3 +137,63 @@ class TtsStreamTests(unittest.TestCase):
         self.assertEqual(len(played), 2)
         self.assertTrue(all(n > 10 for n in played))
         self.assertGreater(played[0], played[1])
+
+
+class FirstClauseTests(unittest.TestCase):
+    """The voice may start at the reply's first clause instead of its first whole sentence (off unless turned on)."""
+
+    def said(self, text, **kwargs):
+        buffer, out = SentenceBuffer(**kwargs), []
+        for char in text:
+            out += buffer.feed(char)
+        return out + buffer.flush()
+
+    def test_off_by_default_nothing_changes(self):
+        self.assertEqual(self.said("Oh no, that's awful. Tell me what happened."), ["Oh no, that's awful.", "Tell me what happened."])
+
+    def test_the_first_clause_is_spoken_first_and_only_the_first(self):
+        got = self.said("Oh no, that's awful, truly. Tell me what happened, all of it, start to finish, slowly.", first_clause=True)
+        self.assertEqual(got[0], "Oh no,")
+        self.assertEqual(got[1], "that's awful, truly.", "after the first clause, whole sentences again")
+        self.assertEqual(" ".join(got), "Oh no, that's awful, truly. Tell me what happened, all of it, start to finish, slowly.")
+
+    def test_never_inside_a_number_or_after_one_short_word(self):
+        self.assertEqual(self.said("That's 1,000 steps already. Nice.", first_clause=True)[0], "That's 1,000 steps already.")
+        self.assertEqual(self.said("So, how did it go? Tell me.", first_clause=True)[0], "So, how did it go?")
+        self.assertEqual(self.said("I, for one, am proud of you. Really.", first_clause=True)[0], "I, for one,")
+
+    def test_nothing_is_lost_or_said_twice(self):
+        import json
+        import random
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import finetune_data
+        texts = set()
+
+        def walk(node):
+            if isinstance(node, dict):
+                if node.get("role") == "assistant" and isinstance(node.get("content"), str):
+                    try:
+                        data = json.loads(node["content"])
+                        if isinstance(data, dict) and data.get("type") == "reply" and isinstance(data.get("text"), str):
+                            texts.add(data["text"])
+                    except ValueError:
+                        if len(node["content"]) < 400:
+                            texts.add(node["content"])  # a reply written out plainly
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, (list, tuple)):
+                for value in node:
+                    walk(value)
+
+        walk(finetune_data.examples(random.Random(7)))
+        texts = sorted(t for t in texts if len(t.split()) >= 4)
+        self.assertGreater(len(texts), 1000)
+        squash = lambda s: "".join(s.split())  # noqa: E731
+        sooner = 0
+        for text in texts:
+            early, whole = self.said(text, first_clause=True), self.said(text)
+            self.assertEqual(squash("".join(early)), squash(text))
+            sooner += len(early[0]) < len(whole[0])
+        self.assertGreater(sooner, len(texts) // 3, f"{sooner} of {len(texts)} of Luma's practice replies start sooner")

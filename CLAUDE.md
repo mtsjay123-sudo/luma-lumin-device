@@ -61,6 +61,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Draw the logo, the app icons and the start-up screen's copy of the orb again (needs node with Playwright) | `node scripts/orb_logo.cjs` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
+| The timing test: does Luma start talking when a person would, without cutting in (needs recorded conversations written down as timelines; none yet) | `python scripts/timing_eval.py score recordings/*.json --latency 0.9` |
 | The human test and the safety net on the biggest brain a Mac has (the Mac Studio's) | `bash scripts/mac_day_one.sh --test` |
 | Make the printed case's parts again after changing a size (needs OpenSCAD), then measure them | `python scripts/case_parts.py` (`--pictures` draws the four pictures too), then `PYTHONPATH=src:tests python3 -m pytest -q -p no:cacheprovider tests/test_hardware_case.py` |
 

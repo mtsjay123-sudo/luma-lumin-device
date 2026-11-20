@@ -75,13 +75,23 @@ class ReplyTextStream:
 SENTENCE_END = re.compile(r'[.!?…]+["”’)\]]*(?:\s+|$)')
 
 
-class SentenceBuffer:
-    """Collects streamed text and hands back whole sentences, the first one as early as possible."""
+# Where a person takes a breath inside a sentence: "Oh no, that's awful." Never inside a number ("1,000") and never after
+# a single short word ("So, ...", "I, ..."): the voice needs a few sounds to start on.
+CLAUSE_END = re.compile(r"(?<=[A-Za-z'’\")])[,;:—–]\s+(?=\S)")
+CLAUSE_MIN = 4   # "So," and "I," are too little to start on; "Oh no," and "Yeah," aren't
 
-    def __init__(self, first_min=8, min_chars=40):
+
+class SentenceBuffer:
+    """Collects streamed text and hands back whole sentences, the first one as early as possible.
+
+    first_clause: the very first thing spoken may be the reply's first clause ("Oh no,") instead of its whole first
+    sentence, so the voice starts while the brain is still writing the rest. Only the first; after that, sentences."""
+
+    def __init__(self, first_min=8, min_chars=40, first_clause=False):
         self.text = ""
         self.first = True
         self.first_min, self.min_chars = first_min, min_chars
+        self.first_clause = first_clause
 
     def feed(self, delta):
         self.text += delta
@@ -93,12 +103,20 @@ class SentenceBuffer:
                 if match.end() >= need and match.end() < len(self.text):
                     cut = match.end()
                     break
+            by_clause = False
+            if self.first and self.first_clause:
+                clause = next((m for m in CLAUSE_END.finditer(self.text) if m.start() >= CLAUSE_MIN), None)
+                if clause and (cut is None or clause.end() < cut):
+                    cut, by_clause = clause.end(), True
             if cut is None:
                 break
             phrase, self.text = self.text[:cut].strip(), self.text[cut:]
             if phrase:
                 ready.append(phrase)
-                self.first = False
+                if by_clause:
+                    self.first_clause = False  # the rest of that first sentence comes as soon as it ends, however short
+                else:
+                    self.first = False
         return ready
 
     def flush(self):

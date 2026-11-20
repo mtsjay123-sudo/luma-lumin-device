@@ -39,6 +39,11 @@ on day 1 and run alongside everything else:
   the lamp's whole service still needs a packet capture). The license check found `pynput` (LGPL) as a direct
   dependency: removed. `certifi` (MPL) and `tld` (MPL/GPL/LGPL) are pulled in by other packages: the owner's call.
 
+- **Days 5 and 6 (Nov 20): the part that can be done without a microphone.** The voice can start at the reply's first
+  clause (median 25 characters in instead of 41 on 1,787 practice replies; off by default until it's been listened to),
+  and the timing test exists and waits for recorded conversations. Brain-chosen backchannels and tone per reply are not
+  started: they need ears and the timing number.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

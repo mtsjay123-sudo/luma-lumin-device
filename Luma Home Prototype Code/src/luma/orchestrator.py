@@ -59,7 +59,11 @@ class SpeechStream:
     def __init__(self, agent, cancel_event, allow_muted=False, speaker=None):
         from luma.llm.streaming import SentenceBuffer
         self.agent, self.event, self.allow_muted = agent, cancel_event, allow_muted
-        self.buffer = SentenceBuffer()
+        # "first_clause" (off unless the owner turns it on, or LUMA_FIRST_CLAUSE=1): start speaking at the reply's first
+        # clause instead of its first whole sentence. Sooner; it hasn't been listened to on a real voice yet.
+        store = getattr(agent, "store", None)
+        early = os.environ.get("LUMA_FIRST_CLAUSE") == "1" or bool(store is not None and store.setting("first_clause", False))
+        self.buffer = SentenceBuffer(first_clause=early)
         self.phrases = queue.Queue()
         self.thread = None
         self.speaker = speaker or speak

@@ -21,7 +21,9 @@ The full plan from Nov 20 (Nuance Labs, the moat, voice, the app walk, the order
      nothing.
    - "Bedtime routine".
    - The lights: only once Home Assistant is connected (its address, a token, and the devices Luma may use).
-4. Write down every reply that felt off, word for word. Those lines are the next fixes. A real person's evening teaches
+4. Start Luma with `LUMA_FIRST_CLAUSE=1` once and listen: it speaks the first few words of a reply ("Oh no,") before the rest is
+   written. Sooner, but does it sound like one breath? Yes or no is the whole test.
+5. Write down every reply that felt off, word for word. Those lines are the next fixes. A real person's evening teaches
    more than another test run.
 
 ## Next level, in order
