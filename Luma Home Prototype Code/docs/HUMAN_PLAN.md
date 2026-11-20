@@ -1731,3 +1731,25 @@ Two things to know about these numbers:
   same wall as hard moments, and it's the brain's to know.
 
 `told-diff`: 0 of 269 turns.
+
+## Two of the plan's proofs, as tests (Nov 20)
+
+**A stranger on the Wi-Fi gets nothing** (`tests/test_stranger_on_the_wifi.py`). Every route the lamp's web server
+knows (148, read out of its own source, so a new one is swept the day it's added) is asked for by a phone that was
+never paired: no cookie, a made-up phone cookie, a made-up owner cookie, as a read and as a write. 888 requests. One
+route answers, "is this phone paired?", with "no" and nothing else. Nothing private comes back anywhere, nothing is
+accepted, and a page on another site can't reach the lamp by its own name. A paired phone is let in, so the sweep is
+asking a live server.
+
+**The power goes out mid-write** (`tests/test_power_cut.py`). A second process keeps memories as fast as it can and
+is killed outright at a different moment, eight times running. Each time the store is opened again: its own check
+passes, every memory it had confirmed is there and readable, what was confirmed forgotten stays forgotten, at most the
+one being written when the power went is extra, it can be searched, and it can be written to. A killed process isn't a
+pulled plug (the disk's own cache survives a kill); that part needs the real lamp.
+
+Two things the plan lists that can't be shown from here:
+- "Each switch turned on alone opens only its own host": web search needs the browser tools, which this sandbox
+  doesn't have, so nothing can be made to reach out here.
+- "Factory reset forgets everything": `Store.erase` takes every record and every key, and a test holds that, but
+  nothing in Luma calls it. There is no "forget everything" for a person to press. That's a decision for the owner
+  (what it covers, where it lives, how it's confirmed) before it's built.
