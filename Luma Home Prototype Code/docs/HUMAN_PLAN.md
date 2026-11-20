@@ -1991,3 +1991,11 @@ other words, 65 of 65 changes; built-on 192 of 192, 130 of 133, 58 of 58).
 Tests: `AskedInAnyWords`, `MovedSaidByName` in `tests/test_month_eval.py`; `SomethingComingUpSaidAnyWay` in
 `tests/test_presence.py`. Run 56 (real brains, held-out lives) was started on the code before the callback change:
 it measures recall and update; the callback change needs one more run after it.
+
+Full suite at the end of Nov 20: 1,722 passed, 14 failed (the 14 that are the environment and the two Japanese-voice
+tests, as before). It was started just before the upcoming-event change; the tests that touch check-ins, the safety
+net and the safety sets were run again on the final code (281 passed).
+
+Still running when this was written, for the next session to read: run 56 (the month test's held-out lives on real
+brains, on the code with the recall and update fixes but before the callback one), and two trainings with every
+round-4 gate (the 1.7B for 150 minutes, the 4B for 270), neither publishing.
