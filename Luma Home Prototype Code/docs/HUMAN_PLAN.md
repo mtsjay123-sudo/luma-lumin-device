@@ -1693,3 +1693,13 @@ practised that question: the practice file had none of it.
 
 Not done, so no full training was started: reading why trainings 23 to 25 stopped at the honesty gate, and the
 sarcasm, lonely, no-therapy-speak and callback practice the plan lists. A full training is 4.5 hours a brain.
+
+### Round 4, the gate (Nov 20)
+
+- **It says why.** Three 4B trainings were stopped by the gate, and which check stopped them can't be read from their
+  logs (the report is a thousand lines above the end). From now on the training records every check the new brain is
+  worse on than its base, with both numbers, and prints them last (`train_luma.held_back`).
+- **Sarcasm is gated.** 14 fresh sarcastic gripes ("oh perfect, the washing machine flooded the hallway"); a new brain
+  may not answer more of them with a cheer than its base does. Luma's own reader of sarcasm (`feelings.dry`) takes 7
+  of those 14 as a gripe: measured, not fixed.
+- Still to add before a brain is published from round 4: the month test as a gate, and the no-therapy-speak practice.

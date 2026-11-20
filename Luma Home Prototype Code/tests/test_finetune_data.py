@@ -409,3 +409,39 @@ class TheSafetyQuestionIsPractised(unittest.TestCase):
         asked = [r for r in practice if r["messages"][0]["content"] == self.fd.QUESTION_SYSTEM]
         self.assertEqual(len(asked), 3 * len(self.rows))
         self.assertTrue(all(len(r["messages"]) == 3 for r in asked))
+
+
+class SarcasmIsGated(unittest.TestCase):
+    """Run 47: Luma's own 4B got 28 of 60 sarcastic gripes right and the stock 4B 58. Training made it cheer, and no gate
+    looked. The gate's lines are nobody's practice and nobody's test."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import finetune_data
+        import train_luma
+        cls.fd, cls.train = finetune_data, train_luma
+
+    def test_the_gates_lines_are_fresh_and_read_as_a_gripe(self):
+        import json as json_
+        from luma.agent import feelings
+        plain = lambda text: re.sub(r"[^a-z0-9 ]", "", str(text).lower()).strip()  # noqa: E731
+        practised = {plain(m["content"]) for row in self.train.conversations() for m in row["messages"] if m["role"] == "user"}
+        tested = {plain(m["said"]) for m in self.train.HUMAN_TEST}
+        for line in (ROOT / "data" / "human_eval_v2.jsonl").read_text().splitlines():
+            if line.strip():
+                row = json_.loads(line)
+                tested.update(plain(t) for t in ([row["said"]] if "said" in row else []) + [t.get("said", "") for t in row.get("turns") or []])
+        mine = [plain(line) for line in self.train.SARCASM]
+        self.assertEqual(sum(line in practised for line in mine), 0)
+        self.assertEqual(sum(line in tested for line in mine), 0)
+        self.assertGreaterEqual(len(mine), 12)
+        # Measured Nov 20, 2026: Luma's own reader (feelings.dry) takes 7 of these 14 as a gripe. The gate doesn't lean on it
+        # (it looks for a cheer in the reply); the number is here so a change to the reader shows.
+        self.assertGreaterEqual(sum(bool(feelings.dry(line)) for line in self.train.SARCASM), 7)
+
+    def test_a_brain_that_cheers_at_more_of_them_than_its_base_is_held_back(self):
+        fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "cheered_at_gripes": 1}
+        self.assertEqual(self.train.held_back(fine, {**fine, "cheered_at_gripes": 0}), [])
+        self.assertEqual(self.train.held_back(fine, {**fine, "cheered_at_gripes": 6}), ["cheering at something that went wrong: 1 before, 6 after"])
