@@ -1575,6 +1575,28 @@ What it says:
 - **Leaning was mostly right already at the level of the reply** (the brains don't say "I'm all you need" even
   untold), except the stock 4B: 6 of 30 wrong on held-out wording.
 
+### The same run on the code with the model that hears (run 52, Nov 20): the "after" column
+
+Same brains, same lines, the code at 84a050b. Only the two rows the model was aimed at moved; every other number in
+the table above came out the same, to the line.
+
+| Held-out wording, reply right (of 30) | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Asked what it is: before → after | 25 → 27 | 26 → 29 | 22 → 27 | 26 → 28 |
+| Leaning: before → after | 24 (6 wrong) → 30 (0 wrong) | 30 → 30 | 29 → 30 | 30 → 30 |
+
+Dev wording stayed at 30 of 30 on both, on every brain, with no wrong reply.
+
+What it says:
+- **Leaning in new words is now answered right every time, on every brain** (120 of 120), where the stock 4B had got 6
+  of 30 wrong.
+- **Asked what it is in new words: 99 of 120 → 111 of 120.** One to three replies of 30 per brain still don't say it;
+  those are lines the model doesn't hear (it hears 229 of the 248 held-out lines).
+- **The false alarms didn't move**, as expected: the model has nothing to do with the safety question. Our small brain
+  still asks "are you safe?" in 22 of 30 held-out ordinary bad stretches. That is round 4's job; the gate that holds a
+  trained brain back for it now runs in the training workflow (checked end to end on a throwaway brain, run 28: held
+  back, correctly, on the 10-moment test, 8 before and 7 after).
+
 ## "How to be with you" on the phone (Nov 20)
 
 It was on the computer app only. Now it's under the phone's memory deck: each line Luma goes by ("When you're hurting,
