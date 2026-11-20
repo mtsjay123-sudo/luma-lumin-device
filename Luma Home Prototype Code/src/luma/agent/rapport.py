@@ -203,6 +203,30 @@ def note(profile, text, felt=None, now=0.0):
     return " ".join(out)
 
 
+# Taking their mind off it is the one way of being met that code can see in a reply: an offer was made, or it wasn't.
+# (Month test on real brains, run 50: told "offer to talk about something else and let them pick", four brains stayed
+# with the feeling in 13 of 18 replies. Good advice and a good laugh are a judge's call, so nothing is added for those.)
+OFFERED_ELSE = re.compile(r"\b(?:something else|anything else|mind off|distract\w*|change the subject|something (?:lighter|fun|silly|different|totally different|"
+                          r"completely different|good)|think about something|talk about something|a (?:story|game|joke|movie|show))\b", re.I)
+OFFER = "Want me to take your mind off it for a bit? Pick anything."
+OFFER_EVERY = 1800   # once in a conversation, not after every line of it
+
+
+def owed(profile, text, felt, reply, now=0.0, last=0.0):
+    """The one line Luma adds itself when they've asked to have their mind taken off it and the reply didn't offer to; or "".
+    Never on a loss or a broken heart, never at its worst, never when they're asking for something else right now, never
+    next to a safety question, never twice in half an hour. last: when it was last added."""
+    said, reply = str(text or ""), str(reply or "")
+    if not profile or not reply.strip() or not hard(felt) or any(p.search(said) for p in ASKS.values()):
+        return ""
+    how = comfort(profile, now)
+    if not how or how[0] != "distract" or felt.get("family") in ("grief", "heartbreak") or (felt.get("strength") or 0) >= 3:
+        return ""
+    if OFFERED_ELSE.search(reply) or re.search(r"\b988\b|ending your life|are you safe", reply, re.I) or (last and now - last < OFFER_EVERY):
+        return ""
+    return OFFER
+
+
 def forget(profile, matches):
     """The profile without any evidence whose words match (the same test "forget about ..." uses on memories), and
     how many pieces went."""

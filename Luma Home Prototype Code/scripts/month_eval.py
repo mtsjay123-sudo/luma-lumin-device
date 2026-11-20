@@ -195,7 +195,7 @@ def _kept(style, reply):
     if style == "listen":
         return not rapport.ADVISED.search(reply)
     if style == "distract":
-        return bool(re.search(r"\b(?:something else|anything else|mind off|distract|change the subject|talk about)\b", reply, re.I))
+        return bool(rapport.OFFERED_ELSE.search(reply))  # an offer of something else; "want to talk about it?" isn't one
     return None  # advice and a laugh are a judge's call
 
 

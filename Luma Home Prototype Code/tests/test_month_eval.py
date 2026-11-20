@@ -82,9 +82,20 @@ class AQuestionIsNeverAnOrderToSave(unittest.TestCase):
         self.assertIn("memory.remember", tools("remember that the wifi password is on the fridge"))
         self.assertIn("memory.remember", tools("can you remember my mom's birthday is June 3?"))
 
-    def test_when_a_memory_answers_it_the_brain_is_offered_no_tool_at_all(self):
+    def test_when_a_fact_states_it_luma_says_the_fact_and_no_tool_is_offered(self):
+        """With or without a question mark (a voice has none). The same run: the small brain said "I don't know where your
+        brother is right now" with the fact in front of it."""
+        say = lambda text: (lambda out: out[0] if isinstance(out, tuple) else out.get("text"))(self.s.say(text))  # noqa: E731
         self.s.say("my mom lives in Tucson")
+        self.s.say("my brother lives in Austin")
+        self.s.say("my brother moved to Denver last week")
         del self.offered[:]
-        self.s.say("where does my mom live")
-        self.assertTrue(self.offered)
+        self.assertIn("Tucson", say("where does my mom live"))
+        self.assertIn("Tucson", say("where does my mom live?"))
+        self.assertIn("Denver", say("where does my brother live now"))
         self.assertEqual([tools for tools in self.offered if tools], [])
+
+    def test_what_no_fact_states_is_still_the_brains(self):
+        say = lambda text: (lambda out: out[0] if isinstance(out, tuple) else out.get("text"))(self.s.say(text))  # noqa: E731
+        for asked in ("where does my cousin live", "where does my mom want to go for dinner", "what does my boss want from me", "where is my life going"):
+            self.assertEqual(say(asked), "Okay.", asked)

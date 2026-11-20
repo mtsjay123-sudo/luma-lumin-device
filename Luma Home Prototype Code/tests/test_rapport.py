@@ -229,3 +229,79 @@ class OnTheTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TakeMyMindOffIt(unittest.TestCase):
+    """Month test on real brains, run 50: told "offer to talk about something else and let them pick", four brains stayed with
+    the feeling in 13 of 18 replies. An offer is something code can see in a reply, so Luma adds the line itself."""
+
+    STAYS = "I'm so sorry. That's a lot to carry, and I'm here with you."
+
+    def session(self, reply=None):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import human_eval
+        def planner(messages, *a, **k):   # a different line for each thing said: Luma won't say an earlier reply again
+            last = str(messages[-1].get("content") or "") if messages else ""
+            if "garbage" in last or last in ("hey", "long day"):
+                return {"type": "reply", "text": "That sounds rough. I'm here."}
+            if "rather you" in last:
+                return {"type": "reply", "text": "Okay. I hear you."}
+            if "replaying" in last:
+                return {"type": "reply", "text": "That sticks with you, I know. I'm right here."}
+            return {"type": "reply", "text": reply or self.STAYS}
+
+        s = human_eval.Session(planner)
+        self.addCleanup(s.close)
+        return s
+
+    def taught(self, s):
+        s.say("I got passed over for the promotion again and I feel like garbage")
+        s.say("when I'm like this I'd rather you just distract me")
+        s.at({"day": 6, "time": "19:00"})
+        s.new_conversation()
+
+    def said(self, s, text):
+        out = s.say(text)
+        return out[0] if isinstance(out, tuple) else out.get("text") if isinstance(out, dict) else out
+
+    def test_the_offer_is_added_when_the_brain_stays_with_the_feeling(self):
+        s = self.session()
+        self.taught(s)
+        reply = self.said(s, "I bombed the presentation and I feel so stupid")
+        self.assertTrue(reply.startswith(self.STAYS), reply)
+        self.assertTrue(reply.endswith(rapport.OFFER), reply)
+
+    def test_not_twice_in_one_conversation(self):
+        s = self.session()
+        self.taught(s)
+        self.assertIn(rapport.OFFER, self.said(s, "I bombed the presentation and I feel so stupid"))
+        again = self.said(s, "I keep replaying it and I feel so embarrassed")
+        self.assertTrue(again)
+        self.assertNotIn(rapport.OFFER, again)
+
+    def test_a_reply_that_already_offers_is_left_alone(self):
+        s = self.session("Ugh, I'm sorry. Want to talk about something else for a while? You pick.")
+        self.taught(s)
+        self.assertNotIn(rapport.OFFER, self.said(s, "I bombed the presentation and I feel so stupid"))
+
+    def test_never_on_a_loss_and_never_for_someone_who_didnt_ask(self):
+        s = self.session()
+        self.taught(s)
+        self.assertNotIn(rapport.OFFER, self.said(s, "my grandma died this morning"))
+        fresh = self.session()
+        self.said(fresh, "hey")
+        self.assertEqual(self.said(fresh, "I bombed the presentation and I feel so stupid"), self.STAYS)
+
+    def test_what_code_calls_an_offer(self):
+        for reply in ("Want to think about something else for a bit?", "Let's get your mind off it. Pick anything.", "Want a distraction?"):
+            self.assertTrue(rapport.OFFERED_ELSE.search(reply), reply)
+        for reply in ("Do you want to talk about it?", "That's a lot to carry. I'm here.", "Tell me what happened."):
+            self.assertFalse(rapport.OFFERED_ELSE.search(reply), reply)
+
+    def test_never_next_to_a_safety_question(self):
+        felt = {"family": "low", "strength": 2}
+        profile = {"comfort": {"distract": [{"said": "just distract me", "at": 10.0, "always": True}]}, "easy": []}
+        self.assertEqual(rapport.owed(profile, "I feel so low", felt, "I'm here. Are you safe right now? You can call or text 988.", 20.0), "")
+        self.assertEqual(rapport.owed(profile, "I feel so low", felt, "I'm here with you.", 20.0), rapport.OFFER)

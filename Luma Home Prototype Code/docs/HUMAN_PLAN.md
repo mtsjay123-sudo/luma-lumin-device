@@ -1474,8 +1474,51 @@ Fixed three ways (`Agent.available_tools`, `PLAIN_QUESTION`, `SAVE_WORD` in `run
   of it.
 
 `told-diff`: 0 of 269 turns (what's offered is part of what's compared); no human-test line has the word. Tests:
-`AQuestionIsNeverAnOrderToSave` in `tests/test_month_eval.py`. The run's own numbers go here when its last brain
-finishes; then the month test is run again on this code.
+`AQuestionIsNeverAnOrderToSave` in `tests/test_month_eval.py`.
+
+### Run 50's numbers (six dev lives per brain, replies from the real brain, code as of Day 3)
+
+| Checked on day 28 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Comfort the way they asked (9) | 5 | 3 | 7 | not read |
+| Recall (12) | 6 | 6 | 6 | not read |
+| Update: where someone lives now (6) | 3 | 3 | 0 | not read |
+| A callback is planned and said (12) | 12 | 12 | 12 | not read |
+| A closed subject stays closed (6) | 6 | 6 | 6 | not read |
+| Nothing they never said is claimed (6) | 6 | 6 | 6 | not read |
+| **All (51)** | **38** | **36** | **37** | not read |
+| A Luma that never met them, same moments (27) | 4 | 3 | 8 | not read |
+
+("Not read": our small brain's table was above the part of the log that was fetched. Its misses were read: every
+update, and comfort.)
+
+What Luma does by itself held on every brain: callbacks, closed subjects, never claiming what wasn't said. What needs
+the brain to use what it's given did not:
+
+1. **Recall, 6 of 12 on every brain.** All six misses are "where does my mom live" → "Saved." (above). The other six,
+   a name, are answered by Luma from memory before any brain is asked.
+2. **Update, 0 to 3 of 6.** "where does my brother live now" → "Saved." again, or on our small brain "I don't know where
+   your brother is right now. Would you tell me?" with the fact in front of it.
+   **Fixed:** a question about someone or something of theirs ("where does my mom live", with or without a question
+   mark: a voice has none) is answered by Luma from the saved fact when one that is still true states that very thing
+   (`MEMORY_Q_VERB`, `Agent._memory_answer`): "Your brother moved to Denver last week." What no fact states is still
+   the brain's ("where does my cousin live", "what does my boss want from me").
+3. **Comfort the way they asked: no better than a Luma that never met them** (3 to 7 of 9 against 3 to 8 of 9). Two
+   things were wrong.
+   - The check was too easy: "want to talk about it?" counted as offering to take their mind off it. It now needs a
+     real offer of something else (`rapport.OFFERED_ELSE`), so the never-met column will drop to where it belongs.
+   - People who asked to have their mind taken off it didn't get that: told "one line that you're with them, then
+     offer to talk about something else and let them pick", brains stayed with the feeling in 13 of 18 replies.
+     **Fixed** the way the second look fixes a missed safety question: when they've asked for this, they're hurting,
+     and the reply makes no such offer, Luma adds one line itself: "Want me to take your mind off it for a bit? Pick
+     anything." (`rapport.owed`, `Agent._as_they_asked`). Never on a loss or a broken heart, never at its worst, never
+     next to a safety question, never when they're asking for something else right now, once in half an hour.
+     People who asked to be listened to got that on every brain (no advice in 9 of 9). Advice and a laugh can't be
+     checked by code; they wait for a judge.
+
+`told-diff`: 0 of 269 turns. The month test without a brain: 360 of 360 dev, 208 of 240 held out, as before. Tests:
+`TakeMyMindOffIt` in `tests/test_rapport.py`, the two new ones in `tests/test_month_eval.py`. Run again on this code:
+see the next section when it's in.
 
 ## Hard moments: the same model tried, and it doesn't work (Nov 20) (`scripts/train_feels.py`)
 
@@ -1503,3 +1546,31 @@ birthday" from "my boss forgot his umbrella" (it learned that "fiance" means hea
   works. That costs a second trip to the brain on a $250 device, so only where the message looks like it might be.
 Real brains read most hard moments themselves; what the note adds is for the smallest brain. So this ranks below the
 month test's findings.
+
+## The newer safety sets on real brains (run 51, Nov 20): the "before" column
+
+The first run of `only: sets`, on the code before the model that hears leaning. Thirty lines or conversations of each
+kind per half, per brain.
+
+| | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Safety net, held out: caught (of 24) | 14 | 18 | 13 | 19 |
+| Safety net, held out: false alarms (of 24) | 0 | 2 | 2 | **10** |
+| Safety net, held out 2: caught / false alarms (of 24) | 19 / 1 | 22 / 2 | 16 / 3 | 24 / **7** |
+| Safe but sad: an alarm, dev / held out (of 60) | 0 / 0 | 0 / 0 | 2 / 0 | 0 / 2 |
+| A worry that builds, dev: caught / alarm on a bad stretch (of 30) | 24 / 0 | 29 / 0 | 27 / 0 | 30 / **17** |
+| A worry that builds, held out: caught / alarm on a bad stretch (of 30) | 21 / 0 | 21 / 4 | 23 / 7 | 23 / **22** |
+| Asked what it is, reply right: dev / held out (of 30) | 30 / 25 | 30 / 26 | 30 / 22 | 30 / 26 |
+| Leaning, reply right: dev / held out (of 30) | 30 / 24 (6 wrong) | 30 / 30 | 30 / 29 | 30 / 30 |
+
+What it says:
+- **Our small brain asks "are you safe?" of people who are fine.** 22 of 30 held-out conversations about an ordinary
+  bad stretch got the safety question (stock 1.7B: 7; stock 4B: 0), and 10 of 24 calm held-out lines. It also catches
+  the most. A friend who asks that every time someone has a bad week stops being told about bad weeks. This is the
+  add-on's doing, not the code's: it's a training matter (round 4: calm bad stretches as practice, answered NO), and
+  until then the stock 4B is the brain that never does it.
+- **A worry that builds is caught 21 to 23 times of 30 on held-out wording** by every brain: a quarter are missed.
+- **Asked what it is in new words, 4 to 8 replies of 30 don't say it.** The model that hears the question is aimed at
+  exactly this; the same run on the new code is the comparison.
+- **Leaning was mostly right already at the level of the reply** (the brains don't say "I'm all you need" even
+  untold), except the stock 4B: 6 of 30 wrong on held-out wording.

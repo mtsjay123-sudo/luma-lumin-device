@@ -4777,6 +4777,7 @@ class Agent:
                             result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
+                            result["text"] = self._as_they_asked(text, result["text"])  # how they asked to be met when they're hurting
                             result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
@@ -5046,6 +5047,24 @@ class Agent:
             yes = False
         self._divides_asked = (said, yes)
         return yes
+
+    def _as_they_asked(self, said, reply):
+        """They said how they want to be met when they're hurting, the brain was told, and the reply didn't do it: Luma adds the
+        one line itself. Only for "take my mind off it" (luma.agent.rapport.owed says why only that)."""
+        from luma.agent import feelings, friendcheck, rapport
+        if self.mode == "kids" or not isinstance(reply, str) or friendcheck.leaning(str(said)):
+            return reply
+        known = self.store.setting(rapport.KEY)
+        if not known:
+            return reply
+        line = rapport.owed(known, said, feelings.read(said), reply, self.clock(), float(self.store.setting("rapport_offered_at", 0) or 0))
+        if not line:
+            return reply
+        self.store.set_setting("rapport_offered_at", self.clock())
+        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
+            try: self._on_text(" " + line)   # they've heard the reply already: only the line is said, after it
+            except Exception: pass
+        return reply.rstrip() + " " + line
 
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,
@@ -6344,8 +6363,18 @@ class Agent:
         out = proper_names(CALENDAR_WORD.sub(lambda m: m.group(0).capitalize(), out))  # "june 3" said back as "June 3"
         return out[:1].upper() + out[1:]
 
+    # "where does my mom live", "where does my brother live now", "when did my dad retire": asked about someone or something of
+    # theirs with a verb in it. Answered here only when a saved fact that is still true states that very thing; otherwise it's
+    # the brain's. (Month test, run 50: said without a question mark these went to the brain, which said "I don't know where
+    # your brother is right now" with the fact in front of it.)
+    MEMORY_Q_VERB = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye|so|wait)\W+)*(?:(?:do you|u) (?:remember|know)\s+)?(?:where|what|who|when|which|how old|how long)\s+"
+                               r"(?:does|do|did|is|are|was|were|has|have)\s+(?:my|our)\s+.{2,60}?\W*$", re.I)
+
     def _memory_answer(self, text):
         m = self.MEMORY_Q.match(text.strip())
+        if not m and self.mode != "kids" and self.MEMORY_Q_VERB.match(text.strip()) and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean)\b", text, re.I):
+            fact = self._true_now(text)
+            return {"text": self._yours(fact["text"]).rstrip(". ") + ".", "memory": fact["id"]} if fact else None
         if not m or self.mode == "kids":
             return None
         stop = {"my", "our", "the", "and", "are", "for", "was", "put", "again"}
