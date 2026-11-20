@@ -2204,5 +2204,7 @@ The third row is the risk: a small brain may take the "if" as a yes and offer to
 shares good news. That's what the run is for (four brains, each conversation twice, this code beside the commit
 before it). If the ordinary evenings get worse, the line comes out.
 
-`told-diff`: 0 of 269 turns. Month test without a brain: unchanged on both halves.
+`told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 and 236 of 240, as before. The test files it
+touches (rapport, the practice data, the month test, the safety net and sets, feelings, the human test's own tests,
+the runtime): 276 passed.
 Tests: `WhenLumaCantTellItsAHardMoment` and `TheSideCheck` in `tests/test_rapport.py`.
