@@ -2521,3 +2521,9 @@ body.live-on .chat-view .thread { padding-right: 296px; }  /* the conversation s
 
 /* The ask bar floats over the bottom right of every page: each page ends with room for it, so nothing sits under it. */
 body:not([data-view="chat"]) .view.page::after { content: ""; display: block; height: 104px; }
+
+/* How to be with you: one learned line a row, their own words under it, and a way to forget it. */
+.how-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.how-row > div { flex: 1; min-width: 0; }
+.how-row b { display: block; font-weight: 600; }
+.how-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 12.5px; }

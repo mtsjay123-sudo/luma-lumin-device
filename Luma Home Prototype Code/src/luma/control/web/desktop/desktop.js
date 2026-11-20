@@ -2627,6 +2627,25 @@
     if (!id) { box.append(el("p", "lede", "Identity is for grown-ups. Switch out of kids mode to see it.")); return; }
     box.append(memoryStage((d?.memories || []).filter((m) => m.text && !m.news)));
 
+    // How to be with me: what Luma has learned about how they like to be met, each line with their own words as the reason.
+    const how = el("div", "card box id-card");
+    how.append(el("div", "t", "How to be with you"), el("div", "s", "What I've learned from what you've told me, in your own words. Forget any line and I'll stop going by it."));
+    const lines = id.rapport || [];
+    if (!lines.length) how.append(el("p", "id-self", "Nothing yet. If you ever say “I don't need advice, just listen” or “please don't bring up my ex”, I keep it, and it shows up here."));
+    for (const r of lines) {
+      const row = el("div", "how-row");
+      const t = el("div");
+      t.append(el("b", null, r.text));
+      for (const b of r.because || []) if (b.said) t.append(el("small", null, `You said: “${b.said}”` + (b.at ? " · " + ago(b.at) : "")));
+      const forget = btn("Forget", "pill quiet small", async () => {
+        try { await api("/api/rapport/forget", { key: r.key }); toast("Forgotten."); await refreshHome(); renderIdentity(); } catch (e) { toast(e.message); }
+      });
+      forget.setAttribute("aria-label", "Forget: " + r.text);
+      row.append(t, forget);
+      how.append(row);
+    }
+    box.append(how);
+
     const soul = el("div", "card box id-card");
     soul.append(el("div", "t", "Soul"), el("div", "s", "Who Luma should be with you, in your words. It shapes every reply. It can't make Luma pretend to be human, or skip asking you before it sends or buys anything."));
     const ta = el("textarea", "id-soul");

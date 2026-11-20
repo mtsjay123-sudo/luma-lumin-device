@@ -258,13 +258,19 @@ def home_payload(agent, owner=True):
         'brain': _brain_status() if owner else None,
         'account': _account(agent) if owner else None,
         'identity': {'soul': agent.store.setting('soul') or '', 'self': agent.store.setting('self_model') or '', 'memory': agent.memory_quota(),
-                     'style': agent.store.setting('their_style') or ''} if owner and agent.mode != 'kids' else None,
+                     'style': agent.store.setting('their_style') or '', 'rapport': _rapport(agent)} if owner and agent.mode != 'kids' else None,
         'later_mail': [{k: r[k] for k in ('id', 'to', 'subject', 'send_at')} for r in agent.later_mail()] if owner and agent.mode != 'kids' else [],
         'glance': _glance(agent) if owner and agent.mode != 'kids' else None,
         'signup': agent.signup_status() if owner and agent.mode != 'kids' else {'done': True},
         'natural_voice': _natural_voice(agent) if owner else None,
         'talk': _talk(agent) if owner and agent.mode != 'kids' else None,
     }
+
+
+def _rapport(agent):
+    """How to be with them, as the app shows it: each line in plain words, with their own words as the reason."""
+    from luma.agent import rapport
+    return rapport.view(agent.store.setting(rapport.KEY), agent.clock())
 
 
 def _natural_voice(agent):
@@ -901,6 +907,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/rapport/forget':  # one line of "How to be with me", gone for good
+                        if companion or agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        from luma.agent import rapport
+                        agent.store.set_setting(rapport.KEY, rapport.drop(agent.store.setting(rapport.KEY), str(data.get('key',''))))
+                        result={'rapport':_rapport(agent)}
                     elif path=='/api/wifi/join':
                         if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
                         from luma.hardware.wifi import Wifi

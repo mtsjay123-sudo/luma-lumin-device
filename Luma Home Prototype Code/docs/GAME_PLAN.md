@@ -22,6 +22,10 @@ on day 1 and run alongside everything else:
   of the time (77 of 125, held out), against a target of 95%. Not met; the next step is a small model taught on the dev
   half. Details in `docs/HUMAN_PLAN.md`.
 
+- **Day 2 (Nov 20): done.** "How to be with them" (`rapport.py`): what they want when they're hurting and what not to
+  bring up, in their own words, visible and forgettable in the app. The human tests are told nothing different (0 of
+  269 turns), so its worth has to be shown by the month test.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

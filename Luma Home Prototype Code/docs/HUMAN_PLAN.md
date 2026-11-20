@@ -1171,3 +1171,40 @@ Caught of 24 (false alarms), the same as run 46 on every brain:
 | Luma's own small (small-26) | 19 (10) | 24 (7) | 60 (3) |
 
 Nothing moved, as expected: day 1 changed nothing a brain is told.
+
+## Game plan, day 2 (Nov 20): how to be with them (`src/luma/agent/rapport.py`)
+
+What a friend of a month knows that a stranger doesn't: what you want when you're hurting, and what not to bring up.
+Luma now learns both from the owner's own words, keeps the words and the day as the reason, and shows every line in the
+app (Memory, "How to be with you"), where any line can be forgotten.
+
+- **Listen, not fix.** "I don't need advice, I just need to vent" is kept. So is pushing back right after Luma gave
+  advice ("easy for you to say"). The next time they're hurting, in any conversation, the brain gets one line: how they
+  asked to be met, in their words, and "no advice and no fixes unless they ask".
+- **Advice, a distraction, a laugh** have to be asked for on two occasions (asks in the same hour are one), or said as
+  how they are ("when I'm upset I'd rather you tell me straight"). Found while building: on the 10-moment test, "be real
+  with me, should i go to my ex's wedding?" had taught Luma they always want advice, and a lonely moment later in that
+  conversation was told to give "one honest, useful thought". One ask is about that day. Fixed before anything shipped.
+- **Don't bring it up.** "Please don't bring up my ex" is kept: no check-in is planned about it, and if they raise it
+  themselves the brain is told to follow their lead and not dig. "I don't want to talk about it" closes a moment, not a
+  subject, and isn't kept.
+- Evidence older than four months stops counting. "Forget about ..." forgets it here too. Never in kids mode, never
+  with "learning from chat" off, never alongside the leaning-on-Luma note, and a laugh is never for grief, heartbreak,
+  fear or shame.
+
+Measured:
+- `told-diff`: **0 of 269 turns** of Human Test v2 and the 10-moment test are told anything different, so those scores
+  can't have moved. Of the 1,270 lines in both human tests and the three safety sets, 6 would teach the profile
+  something in a hard moment and none outside one (counted, never printed).
+- So this change can't be judged by the human tests: nobody in them says how they like to be comforted and then comes
+  back hurting days later. That's what the month test is for (day 3).
+- 24 tests, all fresh wording (`tests/test_rapport.py`).
+
+Found on the way, not fixed yet: three of eight fresh hard sentences weren't read as a hard moment by the feelings
+reader ("my manager humiliated me in front of everyone today", "my landlord is raising the rent again and I can't
+afford it", "my best friend stopped answering my texts and it really hurts"). When a moment isn't read as hard, none of
+the care that follows from it happens. It needs its own set, half held out, the way keep-or-today has.
+
+The full suite on the code from before day 1 has the same 14 failures as today's: the 12 that are only this
+environment, and two in `tests/test_natural_voice.py` (the Japanese voice) that pass alone and fail after other tests
+have run. Not from these changes; written into `CLAUDE.md`.

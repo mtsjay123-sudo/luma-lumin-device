@@ -191,7 +191,7 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     re-reading was most of the wait: the time, to the microsecond, used to sit near the top, so everything after it (the
     tools, the notes and the whole conversation) was read again on every reply."""
     usable = [m for m in memories if isinstance(m, dict) and isinstance(m.get("text"), str)] if mode != "kids" else []
-    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape", "note", "life", "read", "lean", "honest")
+    special = ("news", "about", "mind", "thought", "soul", "guess", "skill", "humor", "slang", "language", "self", "people", "shape", "note", "life", "read", "lean", "honest", "rapport")
     # A $250 device reads every word of this part on every turn, so it gets the gist of each note (compact).
     cap = (lambda full, small: small if compact else full)
     clip = (lambda text, full, small: _gist(text, small) if compact else text[:full])
@@ -212,6 +212,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     mind = clip(" ".join(m["text"][:400] for m in usable if (m.get("mind") or m.get("self")) and not ((compact or self_apart) and m.get("self"))), 900, 240)
     # they lean on Luma instead of people: every word of it, on any device (be there; never "I'm all you need"; then a real person)
     lean = next((m["text"][:600] for m in usable if m.get("lean")), "")
+    # how they've asked to be met when they're hurting, in their own words (luma.agent.rapport): every word, on any device
+    rapport = next((m["text"][:520] for m in usable if m.get("rapport")), "")
     soul = next((m["text"][:1500] for m in usable if m.get("soul")), "")
     thought = next((clip(m["text"], 700, 200) for m in usable if m.get("thought")), "")
     guess = "" if compact else next((m["text"][:400] for m in usable if m.get("guess")), "")
@@ -261,6 +263,8 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
         turn.append(mind if compact else mind + " If they ask how you feel, answer from this mood: it's yours, and it's real in you. Say it the way a friend would, never pretending to be human.")
     if lean:
         turn.append(lean)
+    if rapport:
+        turn.append(rapport)
     if guess:
         turn.append(guess)
     if known:

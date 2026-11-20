@@ -3255,6 +3255,12 @@ class Agent:
         if summary: out.append({"about": True, "text": summary})
         lean = self._leaning_note(text)
         if lean: out.append({"lean": True, "text": lean})  # its own note: with the mood notes, a small device was given half of it
+        if self.mode != "kids" and not lean:
+            from luma.agent import feelings, rapport
+            known = self.store.setting(rapport.KEY)
+            if known:  # how they've asked to be met when they're hurting, and what they asked Luma not to bring up
+                how = rapport.note(known, text, feelings.read(text), self.clock())
+                if how: out.append({"rapport": True, "text": how})
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
         from luma.agent import friendcheck
@@ -4790,6 +4796,7 @@ class Agent:
                     if noticed: result["noticed"] = noticed
                     if self.memory_was_full: result["memory_full"] = True  # something they said couldn't be kept: the app shows Make room
                     self._learn_style(text)
+                    self._learn_rapport(text)
                     self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
                 self.history.append({"role":"assistant", "content":observation(result)})
@@ -6524,6 +6531,22 @@ class Agent:
             if saved: result["noticed"] = saved
         return result
 
+    def _learn_rapport(self, text):
+        """How to be with them, learned from what they just said (luma.agent.rapport): what they want when they're hurting,
+        and what not to bring up. Stops with "learning from chat"; never in kids mode."""
+        if self.mode == "kids" or not self.store.setting("learn_from_chat", True):
+            return
+        try:
+            from luma.agent import feelings, rapport
+            told = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
+            hurting = any((feelings.read(t) or {}).get("heavy") for t in told + [text])
+            before = [h["content"] for h in self.history if h.get("role") == "assistant" and isinstance(h.get("content"), str)]
+            learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock())
+            if learned is not None:
+                self.store.set_setting(rapport.KEY, learned)
+        except Exception:
+            pass  # a reply never fails over this
+
     def _notice(self, text):
         """Keep durable facts the owner mentions, and plan to check back on things coming up."""
         self.last_noticed = []
@@ -6541,7 +6564,11 @@ class Agent:
         if self.store.setting("check_ins", True):
             now = datetime.fromtimestamp(self.clock(), self.zone)
             planned = {(c["topic"], c["day"]) for c in self.store.all("checkin", 200)}
+            from luma.agent import rapport
+            touchy = self.store.setting(rapport.KEY)
             for loop in presence.notice_open_loops(text, now):
+                if touchy and rapport.closed(touchy, loop["topic"], self.clock()):
+                    continue  # a subject they asked Luma not to bring up is never asked about later
                 if (loop["topic"], loop["day"]) not in planned:
                     row = self.store.put("checkin", {**loop, "asked": False, "mode": self.mode})
                     self.last_planned = (getattr(self, "last_planned", []) + [row["id"]])[-4:]  # for "forget that"
@@ -6603,6 +6630,13 @@ class Agent:
         pool = self.store.mentioning(keys)  # the few that could mention it; every one of them when the index can't tell
         gone = [self.store.delete("memory", m["id"]) for m in (pool if pool is not None else self.store.all("memory", 10 ** 9)) if matches(m.get("text"))]
         gone += [self.store.delete("checkin", c["id"]) for c in self.store.all("checkin", 500) if not c.get("asked") and matches(c.get("topic"))]
+        from luma.agent import rapport
+        known = self.store.setting(rapport.KEY)
+        if known:  # and what Luma learned about how to be with them, where it rests on those words
+            kept, went = rapport.forget(known, matches)
+            if went:
+                self.store.set_setting(rapport.KEY, kept)
+                gone += [True] * went
         n = sum(bool(g) for g in gone)
         return {"forgotten": True, "text": "Done, it's forgotten." if n else "I didn't have anything saved about that."}
 
