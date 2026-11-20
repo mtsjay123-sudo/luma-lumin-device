@@ -1574,3 +1574,10 @@ What it says:
   exactly this; the same run on the new code is the comparison.
 - **Leaning was mostly right already at the level of the reply** (the brains don't say "I'm all you need" even
   untold), except the stock 4B: 6 of 30 wrong on held-out wording.
+
+## "How to be with you" on the phone (Nov 20)
+
+It was on the computer app only. Now it's under the phone's memory deck: each line Luma goes by ("When you're hurting,
+you want me to listen, not fix it."), what they said that taught it, and Forget. A paired phone can forget a line (it
+could already forget a memory); kids mode is sent nothing. Away from home the same lines come through the relay, cut
+short. The browser walk checks it on all six phone screens (78 screens, 0 problems).

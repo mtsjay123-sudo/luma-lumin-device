@@ -908,7 +908,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
                     elif path=='/api/rapport/forget':  # one line of "How to be with me", gone for good
-                        if companion or agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)  # a paired phone may: it can forget a memory too
                         from luma.agent import rapport
                         agent.store.set_setting(rapport.KEY, rapport.drop(agent.store.setting(rapport.KEY), str(data.get('key',''))))
                         result={'rapport':_rapport(agent)}

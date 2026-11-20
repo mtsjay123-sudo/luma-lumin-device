@@ -46,6 +46,10 @@ async function skipFirstRun(p) {
         cards: [...document.querySelectorAll("#deck > *")].map((c) => c.innerText).join(" | ") }));
       if (/qwen|llama|gguf/i.test(said.brain)) add(where, "a model's name where a customer reads", said.brain);
       if (/long day at work/i.test(said.cards)) add(where, "a passing remark is a memory card", said.cards);
+      const how = await p.evaluate(() => ({ shown: !!document.getElementById("how") && !document.getElementById("how").hidden,
+        text: document.getElementById("how-rows")?.innerText || "", forget: document.querySelectorAll(".how-forget").length }));
+      if (!how.shown || !/listen, not fix it/i.test(how.text) || !/just need to vent/i.test(how.text) || how.forget < 2)
+        add(where, "how to be with you isn't shown in their own words, each line forgettable", JSON.stringify(how));
       for (const sel of ["#chain-list > *", "#deck > *", "#make-room"]) {
         const el = await p.$(sel); if (!el || !(await el.isVisible())) continue;
         await el.click({ timeout: 3000 }).catch(() => add(where, "couldn't press", sel));

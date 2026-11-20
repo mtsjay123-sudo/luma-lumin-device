@@ -187,8 +187,18 @@ def payload(agent):
     # "zone" is the home's own time zone: every time the apps show is said in it, so a task set for 8 AM reads 8 AM
     # on a phone that's somewhere else.
     return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "zone": getattr(agent.zone, "key", None),
-            "chats": chats(agent), "memory": memory(agent),
+            "chats": chats(agent), "memory": memory(agent), "rapport": how_to_be(agent),
             "device": device(agent), "projects": projects(agent), "approvals": waiting, "account": account(agent)}
+
+
+def how_to_be(agent):
+    """ "How to be with you": what Luma has learned about how they like to be met, each line with their own words as the
+    reason and a key to forget it by (luma.agent.rapport). The same lines the computer app shows."""
+    try:
+        from luma.agent import rapport
+        return rapport.view(agent.store.setting(rapport.KEY), agent.clock())
+    except Exception:
+        return []
 
 
 def compact(agent):
@@ -207,7 +217,9 @@ def compact(agent):
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
     return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
-            "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account")}
+            "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account"),
+            "rapport": [{"key": r.get("key"), "text": cut(r.get("text"), 120),
+                         "because": [{"said": cut(b.get("said"), 90), "at": b.get("at")} for b in (r.get("because") or [])[:1]]} for r in (full.get("rapport") or [])[:6]]}
 
 
 def chain(agent, thread_id, keep=30, limit=14000):

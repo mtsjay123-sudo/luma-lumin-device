@@ -139,6 +139,33 @@
     openSheet("All chats", wrap);
   }
 
+  // How to be with you: what Luma has learned about how they like to be met, in their own words, each one forgettable.
+  function renderHow(lines) {
+    const box = $("how"), rows = $("how-rows");
+    if (!box || !rows) return;
+    box.hidden = lines === undefined || lines === null;   // kids mode and an older Luma send nothing
+    rows.replaceChildren();
+    if (box.hidden) return;
+    $("how-hint").textContent = lines.length ? "What I've learned from what you've told me, in your own words. Forget a line and I'll stop going by it."
+      : "Nothing yet. If you ever say \u201cjust listen\u201d or \u201cplease don't bring up my ex\u201d, I keep it, and it shows up here.";
+    for (const r of lines) {
+      const row = el("div", "how-row");
+      row.setAttribute("role", "listitem");
+      const t = el("div", "how-text");
+      t.append(el("b", null, r.text));
+      const said = (r.because || []).find((b) => b.said);
+      if (said) t.append(el("small", null, `You said: \u201c${said.said}\u201d` + (said.at ? " \u00b7 " + when(said.at) : "")));
+      const forget = el("button", "linkish how-forget", "Forget");
+      forget.type = "button";
+      forget.setAttribute("aria-label", "Forget: " + r.text);
+      forget.onclick = async () => {
+        try { await api("/api/rapport/forget", { key: r.key }); toast("Forgotten."); refresh(); } catch (e) { toast(e.message); }
+      };
+      row.append(t, forget);
+      rows.append(row);
+    }
+  }
+
   // memory deck
   function renderDeck(mem) {
     const deck = $("deck");
@@ -274,6 +301,7 @@
       setState(today.device);
       renderChats(today.chats);
       renderDeck(today.memory);
+      renderHow(today.kids ? null : today.rapport);
       renderDevice(today.device);
       renderPlan(today.account);
       renderProjects(today.projects || []);

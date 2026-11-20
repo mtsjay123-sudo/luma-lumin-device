@@ -351,3 +351,14 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
 .room-h { margin: 20px 0 2px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
 .room .row span { min-width: 0; }
 .room .row b { overflow-wrap: anywhere; }
+
+/* How to be with you: under the memory deck */
+.how { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.how h3 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+.how .hint { margin: 0 0 10px; }
+.how-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.how-row:first-child { border-top: 0; }
+.how-text { flex: 1; min-width: 0; }
+.how-text b { display: block; font-weight: 600; font-size: 15.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.how-text small { display: block; margin-top: 3px; color: var(--ink-2); font-size: 13.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.how-forget { flex: none; min-width: 44px; font-size: 14.5px; }

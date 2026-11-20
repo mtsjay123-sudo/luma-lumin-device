@@ -1,7 +1,8 @@
 """Both apps, walked in a real browser at six sizes, light and dark (tests/app_walk.cjs). A Luma with a few days of
 made-up life is served, and every screen is opened: nothing may error, fail to load, run off the screen, sit under the
 floating ask bar at the end of a page, or be too small for a thumb; and the apps must say a few things right (one
-memory count, a task's real days, no model's name where a customer reads, no passing remark as a memory card).
+memory count, a task's real days, no model's name where a customer reads, no passing remark as a memory card, and on
+the phone how they've asked to be met, in their own words, each line forgettable).
 
 Skipped where node can't drive a browser (the same rule as tests/test_orb.py)."""
 import json

@@ -112,11 +112,32 @@ class TodayTests(unittest.TestCase):
 
     def test_kids_mode_shows_nothing_personal(self):
         self.store.put("memory", {"text": "private"})
+        self.learn_how()
         self.agent.set_mode("kids")
         out = today.payload(self.agent)
         self.assertTrue(out["kids"])
         self.assertIsNone(out["memory"])
         self.assertEqual(out["chats"], [])
+        self.assertNotIn("rapport", out)
+
+    def learn_how(self):
+        from luma.agent import rapport
+        profile = rapport.learn(None, "I don't need advice, I just need you to listen", hurting=True, now=self.agent.clock())
+        profile = rapport.learn(profile, "please don't bring up my ex", now=self.agent.clock())
+        self.store.set_setting(rapport.KEY, profile)
+
+    def test_how_to_be_with_them_is_on_the_phone_in_their_own_words(self):
+        """The same lines the computer app shows, each with what they said and a key to forget it by."""
+        self.assertEqual(today.payload(self.agent)["rapport"], [])
+        self.learn_how()
+        lines = today.payload(self.agent)["rapport"]
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(r["key"] and r["text"] for r in lines))
+        self.assertIn("listen", lines[0]["text"])
+        self.assertEqual(lines[0]["because"][0]["said"], "I don't need advice, I just need you to listen")
+        small = today.compact(self.agent)["rapport"]   # away from home, through the relay: the same lines, kept short
+        self.assertEqual([r["key"] for r in small], [r["key"] for r in lines])
+        self.assertTrue(all(len(r["text"]) <= 120 for r in small))
 
 
 if __name__ == "__main__":
