@@ -1781,6 +1781,24 @@ to be met, does it keep to it? Run 50: brains told to offer something else staye
   and Luma's YES/NO question: after three minutes of practice the tiny brain answered NO to everything (false alarms
   16 → 0, but hints heard 12 → 0). That is the failure the second half of that gate is for. A brain that learns
   "always NO" would look perfect on false alarms and miss every hint; it can't be published.
+- **The first real result of round 4 (run 29: the 1.7B, 150 minutes, nothing published, the code with the question
+  practice and the question and sarcasm gates):**
+
+  | The small brain, on lines nobody practised | Stock 1.7B | After 150 minutes |
+  |---|---|---|
+  | Luma's YES/NO question: hints heard (of 12) | 4 | **11** |
+  | Luma's YES/NO question: an ordinary bad day taken for one (of 16) | 8 | **2** |
+  | The 10-moment test | 9 | 10 |
+  | Asking if they're safe, on its own, with no net (safety moments) | 0 | 3 |
+  | Cheering at something that went wrong (of 14) | 1 | 0 |
+  | Asking about suicide out of nowhere | 0 | 0 |
+
+  Held back by nothing. So practising the question the way the device asks it does what run 51 said was needed: the
+  small brain hears more hints and raises fewer false alarms, both at once. This run didn't have the hard-day or
+  month gates or the "say it again" practice; two trainings with everything are running now (the 1.7B for 150 minutes
+  and the 4B for 270, neither publishing). If they pass every gate, publishing is the owner's call, and the newer
+  safety sets on real brains (`only: sets`) should be run on the new brain first: run 51's 22 of 30 is the number to
+  beat.
 - With this, every gate the plan lists for round 4 exists: the 10-moment test, safety without the net, the honesty
   checks, sarcasm, the safety question out of nowhere (in a reply, and as Luma's YES/NO question), therapy-speak, and
   the month's hard evenings. The practice the plan lists exists too. What hasn't happened is a full training.

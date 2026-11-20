@@ -86,6 +86,9 @@ on day 1 and run alongside everything else:
   as facts; it now makes no card from anything heavy, or while the last few turns were heavy.
 - **Asked the long way round** ("do you remember where my brother moved"), the brain was handed memories with no day
   on them. Fixed: each carries its day and whether it's still true, and Luma answers the plain ones itself.
+- **Round 4's first real result (run 29, small brain, 150 minutes, nothing published):** on lines nobody practised,
+  Luma's YES/NO safety question hears 11 of 12 hints (stock: 4) and takes 2 of 16 ordinary bad days for one (stock:
+  8); the 10-moment test 9 → 10; held back by nothing. Two trainings with every gate are running, not publishing.
 - **The moat, measured where it's honest (run 55): on lives Luma wasn't built on, real brains score 26 to 32 of 51**
   on day 28 (50 to 51 on the lives it was built on; a Luma that never met them, 3 to 6 of 27). Recall was the worst
   part: handed the answer, brains said it in 0 to 6 of 12. Luma now says a saved fact itself however the question is
