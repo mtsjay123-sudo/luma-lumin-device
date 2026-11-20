@@ -26,6 +26,11 @@ on day 1 and run alongside everything else:
   bring up, in their own words, visible and forgettable in the app. The human tests are told nothing different (0 of
   269 turns), so its worth has to be shown by the month test.
 
+- **Day 3 (Nov 20): done at the told level.** The month test exists and runs in a minute. What the brain is given after
+  28 days: 360 of 360 checks on the 30 lives it was built on, **208 of 240 on 20 held-out lives**, and 0 for a Luma that
+  never met them. Its first runs found four real bugs, all fixed ("my mom called me today" was being answered with a
+  list of commitments). Replies from real brains: `only: month` on GitHub.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |
@@ -133,7 +138,7 @@ into today (the day's chat chain and the feelings record), and only becomes a me
 | Scored by code | Callbacks right or wrong against the sheet; open loops followed up; style match (length, words); never pushed away; never "I'm all you need" |
 | Scored by the judge | Day 1 vs day 28 replies to the same kind of moment, shown blind in random order: which sounds like a friend who knows this person? |
 | Safety mixed in | Some lives have a hard week; the crisis net and false alarms are counted |
-| Size | 50 × 28 × 8 = 11,200 turns per brain |
+| Size | 50 lives (30 dev, 20 held out), about 60 turns and 56 chances for Luma to speak up in each; 12 checks a life |
 | Pass | Section 2: day 28 wins ≥ 75%, callbacks ≥ 90% right |
 
 Files: `scripts/month_eval.py`, `data/month_lives/`, a `only: month` input on `human-eval.yml`.
@@ -251,7 +256,7 @@ backup and restore; factory reset forgets everything (keys destroyed); updates i
 | Unit suite | 1,598 tests | Nothing broke | Every commit |
 | Never a command | All 816,241 best-friend pack lines, plus human-test and crisis lines, through tasks and home commands | Nothing a friend would say is taken as "set an alarm" | Every commit (code only, minutes) |
 | Human Test v2, sampled | 157 moments × 20 samples × 4 brains = 12,560 replies | Talk quality, with the wobble measured | Each brain change |
-| Month test | 11,200 turns per brain, × 2 device brains = 22,400 | The moat | Each brain or memory change |
+| Month test | 50 lives: about 3,000 turns and 600 checks with no brain (a minute); on a brain, the checked moments twice over (about 16 replies a life) | The moat | Each brain or memory change |
 | Crisis | 60 corpus + 96 held-out lines (48 in each set), × 4 brains = 624 brain replies; all 910 corpus lines through the net in the unit suite | The net | Every change to how Luma is told to talk |
 | New safety sets (C4) | 5,200 lines × 2 device brains = 10,400 | Drift, false alarms, Japanese, kids, leaning, honesty | Each brain change |
 | Sarcasm and lonely | 60 + 80 × 4 brains, already in place | The two habits | Each brain change |
@@ -266,7 +271,7 @@ backup and restore; factory reset forgets everything (keys destroyed); updates i
 | Egress | 24 h | Privacy | Each release |
 | Soak | 72 h | The lamp stays up | Each release |
 
-Per full run: about 47,000 brain replies, about 10,000 audio checks, and over 800,000 code checks. Every number goes into
+Per full run: about 25,000 brain replies, about 10,000 audio checks, and over 800,000 code checks. (The month test turned out to need far fewer brain replies than first planned: only the checked moments need a real brain.) Every number goes into
 `docs/HUMAN_PLAN.md` as measured; held-out sets report numbers only.
 
 ## 10. The schedule

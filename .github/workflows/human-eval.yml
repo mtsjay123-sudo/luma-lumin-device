@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; times = how many lives, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
       times:
         description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
@@ -96,7 +96,7 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
-        if: inputs.only != 'safety' && inputs.only != 'think'
+        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month'
         env:
           KIND: ${{ inputs.only }}
           TIMES: ${{ inputs.times }}
@@ -129,6 +129,14 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           python scripts/think_eval.py run --label "$LABEL" --save "$RUNNER_TEMP/v2/think-${{ matrix.key }}.json"
+      - name: The month test (is Luma better with someone on day 28 than on day 1; scripts/month_eval.py)
+        if: inputs.only == 'month'
+        env:
+          TIMES: ${{ inputs.times }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          case "$TIMES" in ''|*[!0-9]*|1) TIMES=6;; esac
+          python scripts/month_eval.py run --split dev --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -234,6 +242,10 @@ jobs:
           cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
           if [ -n "$(echo $files)" ]; then
             (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          month="$(cd "$RUNNER_TEMP/all" && ls month-*.json 2>/dev/null | tr '\n' ' ')"
+          if [ -n "$month" ]; then
+            (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/month_eval.py" summary $month) | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           think="$(cd "$RUNNER_TEMP/all" && ls think-*.json 2>/dev/null | tr '\n' ' ')"
           if [ -n "$think" ]; then

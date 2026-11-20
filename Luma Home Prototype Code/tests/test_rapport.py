@@ -76,6 +76,12 @@ class WhatNotToBringUp(unittest.TestCase):
             profile = learned([line])
             self.assertEqual([e["topic"] for e in profile["easy"]], [topic], line)
 
+    def test_a_closed_subject_is_a_whole_word(self):
+        profile = learned(["please don't bring up my ex"])
+        self.assertEqual(rapport.closed(profile, "exam", NOW), "", "found by the month test: no check-in was planned about an exam")
+        self.assertEqual(rapport.closed(profile, "my ex's birthday", NOW), "my ex")
+        self.assertEqual(rapport.closed(profile, "running into my ex", NOW), "my ex")
+
     def test_closing_the_moment_is_not_closing_a_subject(self):
         for line in ["I don't want to talk about it", "can we not do this right now", "let's not talk about that", "I don't want to think about anything"]:
             self.assertIsNone(learned([line]), line)

@@ -1208,3 +1208,54 @@ the care that follows from it happens. It needs its own set, half held out, the 
 The full suite on the code from before day 1 has the same 14 failures as today's: the 12 that are only this
 environment, and two in `tests/test_natural_voice.py` (the Japanese voice) that pass alone and fail after other tests
 have run. Not from these changes; written into `CLAUDE.md`.
+
+## Game plan, day 3 (Nov 20): the month test (`scripts/month_eval.py`)
+
+Is Luma better with someone on day 28 than on day 1? A made-up person (from a seed, never a real one) lives 28 days
+with one Luma through its real conversation path: who their people are, how they like to be met when they're hurting
+(said twice, early), a subject they close, two things coming up, a sibling who moves, and small talk around it all.
+Luma gets the chance to speak up twice every evening. Then the same moments are said to a Luma that never met them.
+
+Checked by code: **comfort** (three later hard moments: is the brain told how this person asked to be met), **recall**
+(a name and a city, weeks on), **update** (where the sibling lives now), **people** ("I miss my sister": is the brain
+given who she is), **callback** (the evening after the interview, Luma asks how it went), **closed** (never asked about
+or raised by Luma), **never** (nothing Luma says by itself holds them).
+
+Two levels. *Told* (no brain, 30 lives in about a minute): a stand-in answers and what a small home brain would be
+given is read. *Brain* (`--brain`, on GitHub as `only: month`): the real brain answers the checked moments for the
+month-old Luma and the fresh one, and both replies are kept side by side.
+
+### What it found on its first runs (all four fixed the same day)
+
+1. **"my mom called me today" was answered "There are no saved commitments due today or household follow-ups."** The
+   small model that guesses what they want read it as asking for a briefing (99.98% sure), and any short message
+   starting with "my" was acted on. Now "my" has to be followed by something Luma keeps or shows and nothing else
+   ("my briefing", "my reminders"); "my mom called me today", "my flight got cancelled", "my day was awful" go to the
+   brain. For someone lonely this was the worst line in the product.
+2. **A sibling who moved was still said to live in the old city.** "My brother Tomas just moved to Denver" wasn't kept
+   as a fact about him, and the question's "now" was reported to the brain as a word no memory mentions.
+3. **"What's my best friend's name again?" was weighed from four sides instead of answered.** Any question of six
+   words was a "hard question". One that a memory answers outright isn't.
+4. **A bug of day 2's own:** someone who had said "don't bring up my ex" never got asked how their exam went.
+
+And one design change: the comfort line now applies on any bad day, not only the heavy ones. Someone who said "I just
+need to vent" means it most when they're venting about a parking ticket.
+
+### Numbers (told level: what the brain is given)
+
+| | Day 28 Luma | A Luma that never met them |
+|---|---|---|
+| Dev, 30 lives (built on) | **360 of 360** | 0 of 210 |
+| Held out, 20 lives (other people, other wording; never tuned on) | **208 of 240** | 0 of 140 |
+
+Held out by kind: comfort 56/60, recall 40/40, update 0/20, people 20/20, callback 32/40, closed 40/40, never 20/20.
+
+Plainly: the machinery works, and it generalizes to wording it wasn't built on about seven times in eight. The
+held-out misses are where the wording matters: a move said another way isn't read as a move (0 of 20), and some ways of
+saying something is coming up plan no check-in (32 of 40). Those are the same lesson as keep-or-today: rules read the
+shapes they were written for. Not tuned on.
+
+**What this doesn't say yet:** whether the brain's reply is better on day 28. That's the `--brain` run, and after it a
+judge reading the two replies blind. Told is the floor: a brain can't use what it isn't given.
+
+Checked that nothing else moved: `told-diff` 0 of 269 turns; the memory test's dev lives score the same.

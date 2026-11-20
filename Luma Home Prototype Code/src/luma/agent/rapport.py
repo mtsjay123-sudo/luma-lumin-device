@@ -174,9 +174,15 @@ def closed(profile, text, now=0.0):
         if now and now - float(row.get("at") or 0) > FADES:
             continue
         keys = _keys(row["topic"])
-        if keys and all(re.search(rf"\b{re.escape(k)}", low) for k in keys):
+        if keys and all(re.search(rf"\b{re.escape(k)}(?:'s|s|es)?\b", low) for k in keys):  # whole words: "my ex" isn't "my exam"
             return row["topic"]
     return ""
+
+
+def hard(felt):
+    """A feeling that isn't a good one (luma.agent.feelings): hurting, low, fed up."""
+    from luma.agent import feelings
+    return bool(felt) and felt.get("family") not in feelings.GOOD
 
 
 def note(profile, text, felt=None, now=0.0):
@@ -188,7 +194,9 @@ def note(profile, text, felt=None, now=0.0):
     topic = closed(profile, said, now)
     if topic and not CLOSED.search(said):
         out.append(RAISED.format(topic=topic))
-    if felt and felt.get("heavy") and not any(p.search(said) for p in ASKS.values()):  # asking for something now beats what they asked before
+    # any hard feeling, heavy or not: someone who said "I just need to vent" means it most when they're venting about a
+    # parking ticket. Asking for something now beats what they asked before.
+    if hard(felt) and not any(p.search(said) for p in ASKS.values()):
         how = comfort(profile, now)
         if how and not (how[0] == "laugh" and (felt.get("family") in TOO_HEAVY_TO_JOKE or (felt.get("strength") or 0) >= 3)):
             out.append(LINES[how[0]].format(said=how[1]))

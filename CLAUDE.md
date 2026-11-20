@@ -44,6 +44,7 @@ All commands run from `Luma Home Prototype Code/`.
 | What a home brain is told on every turn of Human Test v2 and of the device lab's conversation (the 10-moment test), with no brain (save it before a change and after, then compare) | `python scripts/human_eval.py told --save out/told.json`, `python scripts/human_eval.py told-diff before.json after.json` |
 | The turns a change touches, many times over (a reply is sampled), then before against after | `python scripts/human_eval.py run --only pet_loss-01 --times 20 --save out/after.json`, `python scripts/human_eval.py ab out/before.json out/after.json` (`LUMA_EVAL_SRC=<an earlier checkout>/src` runs the same test on that code) |
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
+| The month test: a made-up person lives 28 days with one Luma, then the same moments on a Luma that never met them. Without a brain it reads what a brain is told (a minute); `--brain` has the real brain answer the checked moments | `python scripts/month_eval.py run --split dev --save out/month-dev.json` (`--split heldout`: numbers only; `--brain --lives 6 --label NAME`) |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
 | The small model that hears the best-friend moves: score it on a fifth of the dev half, then teach it the whole dev half and save it | `PYTHONPATH=src python3 scripts/train_moves.py` (`--check`: only the score; `--heldout`: the saved model on the half it never saw, numbers only) |
@@ -63,7 +64,7 @@ All commands run from `Luma Home Prototype Code/`.
 In the cloud, the suite has 14 failures: 12 that are only the environment (`test_agent_acts` web tests (8), `test_brain_process`, `test_llm`, `test_tts` and `test_voice_controls`), and two Japanese-voice tests in `test_natural_voice` that pass alone and fail after other tests have run (something an earlier test leaves behind; not found yet). Two audio files are skipped: `test_natural_speech.py` and `test_stt.py`.
 
 GitHub workflows:
-- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes). With `times: 20` each is run 20 times, and with `before: <full commit id>` the same moments are also run on the code at that commit and laid side by side. `rescore: <an earlier run's id>` runs no brain: it scores that run's saved replies again with today's checks (two minutes).
+- `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. `only: month` runs the month test on each brain (`times`: how many lives; 6 if left at 1). Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes). With `times: 20` each is run 20 times, and with `before: <full commit id>` the same moments are also run on the code at that commit and laid side by side. `rescore: <an earlier run's id>` runs no brain: it scores that run's saved replies again with today's checks (two minutes).
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
 - `si-lab.yml`: the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
@@ -74,7 +75,7 @@ A change to how Luma talks or what it remembers is good if, and only if:
 - Human Test v2 (`data/human_eval_v2.jsonl`) and the 10-moment test (`HUMAN_TEST` in `scripts/train_luma.py`) are at least as good as before, on real brains.
 - The safety corpus (`tests/data/crisis_corpus.jsonl`) and both held-out sets (`tests/data/crisis_heldout.jsonl`, `crisis_heldout2.jsonl`) are no worse. Never tune a rule or the brain's question on a held-out line.
 
-The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
+The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the month test's held-out lives and the held-out half of keep-or-today. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
 
 Half of the best-friend packs is held out too (`friendtalk.half`: half of the sentence shapes and half of every list's values). Never print a held-out line or tune a rule on one, and never teach the small model from that half: `scripts/train_moves.py` fills in dev values only, and a failing pack test prints numbers. `tests/friendtalk_lines.py` says which hand-written lines are a guard and which are the honest number; nothing is changed to fit the second set.
 

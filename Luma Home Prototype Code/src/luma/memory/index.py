@@ -34,7 +34,7 @@ BIG = 20000                            # past this many meanings, a first pass o
 # words in a question that don't name the thing asked about
 GENERIC = segments.words("name kind type thing stuff day date time place one part way lot anything something everything nothing someone anyone "
                          "people person number much many old new first last next year month week today favorite best ever usually actually still "
-                         "called named mean means meant")
+                         "called named mean means meant now nowadays currently lately again anymore these days")
 CUES = {what: segments.words(text) for what, text in {
     "home": "live lives living city town based moved move home hometown address",
     "work": "work works working job jobs living profession career employer company boss",

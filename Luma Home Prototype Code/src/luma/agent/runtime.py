@@ -5706,6 +5706,14 @@ class Agent:
     PAGES = {"open_feed", "open_news", "open_ideas", "open_goals", "open_identity", "open_settings", "open_library", "open_rules",
              "open_connectors", "open_browser"}
 
+    # "my" and then something Luma keeps or shows, and nothing else: a request for it. Anything with more in it
+    # ("my mom called me today", "my day was awful") is something they're telling Luma.
+    MY_THING = re.compile(r"my (?:briefing|day|inbox|e-?mails?|mail|schedule|calendar|reminders?|tasks?|to-?dos?|todos?|to-?do list|todo list|lists?|shopping list|"
+                          r"grocery list|alarms?|timers?|agenda|news|feed|memor(?:y|ies)|goals?|ideas?|library|files?|notes?|week|weekend|morning|plans?|settings|"
+                          r"rules|connectors?|apps?|messages?|texts?|events?|appointments?|meetings?)"
+                          r"(?:\s+(?:for|today|tomorrow|tonight|this|next|week|weekend|morning|afternoon|evening|please|now|the|on|"
+                          r"monday|tuesday|wednesday|thursday|friday|saturday|sunday))*", re.I)
+
     def _guess_and_act(self, text, lowered, cancel_event):
         """None of the exact phrasings matched. The understanding model reads the meaning: it acts when it's sure,
         asks "did you mean" when it's torn, and stays out of the way when it's just conversation."""
@@ -5740,6 +5748,10 @@ class Agent:
                 plain = understanding.normalize(text)
                 if p < 0.9 or len(plain.split()) > 8 or not (IMPERATIVE.match(plain) or re.match(r"(?:what|where|when|who|how|show|my)\b", plain)):
                     return None  # the brain reads it, with this guess in mind
+                if re.match(r"my\b", plain) and not self.MY_THING.fullmatch(plain.strip(" .!?")):
+                    # "my briefing" asks for one. "my mom called me today" is telling Luma something: the brain answers.
+                    # (Found by the month test, Nov 20: it got "There are no saved commitments due today".)
+                    return None
             return self._do_intent(intent, text, cancel_event)
         if self.use_model:
             return None  # torn: the brain decides, with this guess in mind (see _mind_context)
@@ -6364,6 +6376,14 @@ class Agent:
     KEPT_STOP = {"my", "our", "the", "that", "what", "about", "you", "told", "said", "say", "remember", "right", "name", "last", "week", "yesterday",
                  "did", "was", "when", "is", "it", "now", "like", "moved", "with", "for", "do", "have", "how", "old", "who", "where", "go", "to"}
 
+    def _memory_answers(self, text):
+        """A question about their own life that something Luma keeps answers outright."""
+        try:
+            found = self.store.search(text, limit=3, now=self.clock(), zone=self.zone)
+        except Exception:
+            return False
+        return any(m.get("answers") and not m.get("ended") for m in found.get("memories") or [])
+
     def _kept_about(self, text):
         """A saved memory about the thing they're asking after, said back to them; or None."""
         stem = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w
@@ -6539,7 +6559,7 @@ class Agent:
         try:
             from luma.agent import feelings, rapport
             told = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
-            hurting = any((feelings.read(t) or {}).get("heavy") for t in told + [text])
+            hurting = any(rapport.hard(feelings.read(t)) for t in told + [text])
             before = [h["content"] for h in self.history if h.get("role") == "assistant" and isinstance(h.get("content"), str)]
             learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock())
             if learned is not None:
@@ -6878,8 +6898,10 @@ class Agent:
                 # A question about Luma itself ("am I talking to a human being?", "do you actually care about me?") is Luma's to
                 # answer, as itself, in one trip: four takes and a judge said "What's on your mind?" (Human Test v2, run 34).
                 about_luma = (friendcheck.ASKED_WHAT_I_AM.search(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.DEPENDENCY.search(text))
+                # And a question about their own life that a memory answers outright ("what's my best friend's name again?")
+                # isn't a hard question: it was being weighed from four sides instead of answered (the month test, Nov 20).
                 if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) and not about_luma \
-                        and not wants_message(text) and getattr(self, "_depth_mode", None) != "quick":
+                        and not wants_message(text) and getattr(self, "_depth_mode", None) != "quick" and not self._memory_answers(text):
                     return self.deliberate(text, cancel_event)
             feed = re.search(r"\b(?:scroll|check|look (?:at|through)|go through|catch me up on|what'?s (?:new |happening |going on |good |poppin |popping )?(?:on|in))\s+"
                              r"(?:my\s+|the\s+)?(instagram|insta|ig|tiktok|twitter|x|facebook|fb|reddit|linkedin|youtube)\b(?!\s+trend)", lowered)

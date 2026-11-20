@@ -47,7 +47,7 @@ DURABLE = re.compile(r"^(?:(?:really|just|recently|lately|finally|totally|so)\s+
                      r"is (?:(?:so |really |totally |kind of |kinda )?(?:obsessed with|into|allergic to|scared of|afraid of|terrified of|"
                      r"good at|great at|amazing at|bad at|learning|studying|turning \d+|turning|vegan|vegetarian|retired|pregnant|engaged|"
                      r"married|in (?:college|school|high school|grad school|\w+ grade))|an? \w+|\d+(?: years old)?)|"
-                     r"got into|started|loves?|likes?|hates?|plays?|collects?|works (?:at|as|in|for)|lives in|can'?t eat|doesn'?t eat|"
+                     r"got into|started|loves?|likes?|hates?|plays?|collects?|works (?:at|as|in|for)|lives in|moved (?:back )?to|can'?t eat|doesn'?t eat|"
                      r"has (?:a|an|two|three|\d+)|wants to be|is learning|graduated|got (?:a|her|his) (?:first|new))\b", re.I)
 PRONOUN_START = re.compile(r"^\s*(?:and\s+|but\s+|so\s+|like\s+)?(?:he|she|they|his|her|their|him)\b", re.I)
 
