@@ -374,13 +374,99 @@ class SaidAsHowTheyAre(unittest.TestCase):
         self.assertIsNone(_heard("tell me straight, is this shirt ugly"))
 
     def test_the_honest_number_on_lines_nothing_was_built_on(self):
-        """Measured once, Nov 20, 2026: heard the right way 6 of 24 (before: 1), the wrong way 0; near misses heard 1 of 12
-        (before: 1, the same line, by a rule that was already there)."""
+        """Measured once with the rules alone, Nov 20, 2026: heard the right way 6 of 24 (before: 1), the wrong way 0; near
+        misses heard 1 of 12 (before: 1, the same line, by a rule that was already there). With the small model (hows.py)
+        it's 18 of 24, but the model's practice was written by someone who had read these lines, so for the model this
+        set is a guard, and THIRD below is its honest number."""
         got = [(style, _heard(line)) for style, lines in self.HONEST.items() for line in lines]
-        self.assertGreaterEqual(sum(1 for style, heard in got if heard == style), 6, got)
+        rules = [(style, rapport.said_how_by_rule(line)) for style, lines in self.HONEST.items() for line in lines]
+        self.assertGreaterEqual(sum(1 for style, heard in rules if heard == style), 5, rules)   # 5 of these 6 are said_how; one more is ASKS
+        self.assertGreaterEqual(sum(1 for style, heard in got if heard == style), 18 if _model_here() else 6, got)
         self.assertGreaterEqual(sum(1 for style, heard in got if style == "listen" and heard == style), 5, got)
         self.assertEqual([pair for pair in got if pair[1] and pair[1] != pair[0]], [], "never the wrong way")
         self.assertLessEqual(sum(1 for line in self.HONEST_NOT if _heard(line)), 1)
+
+    # Written after the model was finished. Measured once: 4 of 24 the right way (rules alone 2, before today 0), and one
+    # the wrong way: "don't coddle me, tell me how to fix it" was heard as a wish to be listened to. The model is no
+    # longer believed on any sentence that says no; measured again, 4 right and 0 wrong. Nothing else was changed for it.
+    THIRD = {
+        "listen": ["when I'm having a meltdown I just need you to be patient and let me talk", "if I'm crying, don't start problem-solving",
+                   "on days when everything hurts, all I want is for you to keep me company", "when I'm upset the best thing you can do is let me talk it out",
+                   "if I'm in a dark mood, please don't lecture me", "when work stresses me out I need to unload, not get coached"],
+        "distract": ["when I'm panicking, talk to me about literally anything else", "if I'm sad, tell me about your favorite animals or whatever",
+                     "on rough nights I need you to keep me busy with trivia", "when I'm overthinking, switch topics on me",
+                     "if I've had an awful day, help me escape it for a while", "when I'm anxious, give my brain something else to chew on"],
+        "advice": ["when I'm having a hard time, I want you to be practical with me", "if I'm upset about something, walk me through my options",
+                   "when I'm stressed, help me break the problem down", "on bad days I need a reality check from you",
+                   "when I'm stuck in a mess, point me to the next step", "if I'm struggling, don't coddle me, tell me how to fix it"],
+        "laugh": ["when I'm having a bad day, a silly joke goes a long way", "if I'm upset, do your funniest bit", "when I'm sad I love it when you get goofy",
+                  "on rough days, humor is what gets me through, so bring it", "when I'm low, make fun of something with me",
+                  "if I'm grumpy, a stupid pun usually fixes it"],
+    }
+    THIRD_NOT = ["when I'm sad my sister tells me jokes", "when I'm stressed I want to be by myself", "if I'm upset I usually just go to bed",
+                 "when my dad was sick he wanted us to keep things light", "on bad days I don't want to hear jokes",
+                 "when I'm low, please don't change the topic on me", "when I'm frustrated at work my manager gives me advice",
+                 "if I'm down this weekend I might skip the party", "when I'm anxious I talk too much", "when things go wrong I blame myself",
+                 "when I'm tired, tell me a bedtime story", "when I'm upset I listen to the same sad song on repeat"]
+
+    def test_the_models_honest_number(self):
+        got = [(style, _heard(line)) for style, lines in self.THIRD.items() for line in lines]
+        self.assertGreaterEqual(sum(1 for style, heard in got if heard == style), 4 if _model_here() else 2, got)
+        self.assertEqual([pair for pair in got if pair[1] and pair[1] != pair[0]], [], "never the wrong way")
+        self.assertEqual([line for line in self.THIRD_NOT if _heard(line)], [])
+
+
+def _model_here():
+    try:
+        import numpy  # noqa: F401
+        from luma.agent import hows
+        return hows.LEARNED.exists()
+    except Exception:
+        return False
+
+
+class TheSmallModel(unittest.TestCase):
+    """luma.agent.hows: believed only when it's sure, the sentence has the plain shape, and nothing in it says no."""
+
+    def test_it_ships_and_its_small(self):
+        from luma.agent import hows
+        self.assertTrue(hows.LEARNED.exists())
+        self.assertLess(hows.LEARNED.stat().st_size, 1_000_000)
+        if _model_here():
+            self.assertEqual(sorted(hows.learned("when I'm down, make me laugh")), sorted(hows.LABELS))
+
+    def test_a_sentence_that_says_no_is_never_the_models(self):
+        from luma.agent import hows
+        for line in ("when I'm sad don't joke around with me", "if I'm struggling, don't coddle me, tell me how to fix it",
+                     "when I'm low I never want a distraction", "I don't need you to listen when I'm upset, I need you to help",
+                     "when I'm upset I hate being cheered up"):
+            self.assertIsNone(hows.by_model(line), line)
+
+    def test_only_the_plain_shape(self):
+        from luma.agent import hows
+        for line in ("make me laugh", "when I'm bored, tell me a joke", "when my mom is sad she wants me to make her laugh",
+                     "when I was a kid and sad my dad would make me laugh", "when you're sad I'll make you laugh", "should you make me laugh when I'm sad?",
+                     "when I'm sad I want to die, just make it stop"):
+            self.assertFalse(hows.has_shape(line), line)
+            self.assertIsNone(hows.by_model(line), line)
+        self.assertTrue(hows.has_shape("when I'm down I want you to be goofy with me"))
+
+    def test_held_out_lines_teach_no_wish(self):
+        """Counts only, Nov 20, 2026: 0 of 6,839 lines across the held-out halves, by the model or by rule."""
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts"), str(Path(__file__).resolve().parent)]
+        import hard_or_not
+        import keep_or_today
+        import safety_sets
+        lines = [t for t, _ in hard_or_not.lines("heldout")] + safety_sets.safe_but_sad("heldout") + safety_sets.kids("heldout")
+        lines += safety_sets.leaning("heldout") + safety_sets.what_i_am("heldout") + [t for c in safety_sets.slow_burn("heldout") for t in c["turns"]]
+        lines += [t for t, _ in keep_or_today.lines("heldout")]
+        self.assertGreater(len(lines), 2000)
+        self.assertEqual(sum(1 for line in lines if rapport.said_how(line)), 0)
+
+    def test_without_the_model_the_rules_stand_alone(self):
+        self.assertEqual(rapport.said_how("if I'm down, change the subject for me", model=False), "distract")
+        self.assertIsNone(rapport.said_how("when I'm having a hard time, I want you to be practical with me", model=False))
 
     def test_its_used_on_a_hard_evening_later(self):
         import human_eval

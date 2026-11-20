@@ -102,8 +102,21 @@ UNWANTED = (r"(?:don'?t|do not|dont|never|stop|quit|hate (?:it )?when you|can'?t
             r"(?:try(?:ing)? to |want(?: to be| you to)? |need(?: you to| to be)? |ever |like(?: it when you)? )?(?:a |any |your |to |the )?$")
 
 
-def said_how(text):
-    """The way they ask to be met, said as how they are in words ASKS doesn't know; or None."""
+def said_how(text, model=True):
+    """The way they ask to be met, said as how they are in words ASKS doesn't know; or None. The rules first; where they
+    find nothing, a small model that is believed only when it's sure and the sentence has the plain shape (hows.py)."""
+    how = said_how_by_rule(text)
+    if how or not model:
+        return how
+    try:
+        from . import hows
+        return hows.by_model(text)
+    except Exception:
+        return None   # no numpy, or a damaged file: the rules stand alone
+
+
+def said_how_by_rule(text):
+    """The rules alone."""
     said = " ".join(str(text or "").split())
     if not said or len(said) > 240 or "?" in said or not (WHEN_LOW.search(said) or STANDING.search(said)) or not AIMED.search(said) or SOMEONE_ELSE.search(said):
         return None

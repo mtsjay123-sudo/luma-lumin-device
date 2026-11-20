@@ -2132,12 +2132,42 @@ upset she wants me to just listen" is her way, not theirs (that one was being le
 | 12 fresh near misses: heard | 1 | 1 (the same line, by a rule that was already there) |
 
 The honest row is the third: rules built on forty lines hear the forty and not much else. It's the same shape as
-leaning and lasting facts before their small models, and the same fix is next: a small model that knows the four
-ways, believed only when it's sure and the sentence has the plain shape. Not built yet.
+leaning and lasting facts before their small models, so the same thing was tried next.
+
+### The small model for it (`src/luma/agent/hows.py`, `scripts/train_hows.py`): tried the same day, and worth little yet
+
+A softmax over hashed words, word pairs and letter groups, taught from practice sentences (54 ways of naming a hard
+time, about 38 ways of asking for each of the four, and what isn't a wish: what they do themselves, what they don't
+want, someone else's way, other times of day). Believed only when it's sure (0.95: on practice shapes it didn't learn
+from, no ordinary line of 6,618 taught a wish and none of 1,200 wishes was heard the wrong way), the sentence names a
+hard time of theirs and isn't a question, and nothing in it says no.
+
+| Heard the right way (wrong way) | Before today | Rules | Rules and model |
+|---|---|---|---|
+| The second set, 24 lines | 1 (0) | 6 (0) | 18 (0): not an honest number, see below |
+| **A third set, 24 lines, written after the model was finished** | **0 (0)** | **2 (0)** | **4 (1), then 4 (0)** |
+| The third set's 12 near misses: heard | 0 | 0 | 0 |
+| Held-out halves of every set, 6,839 lines: lines that would teach a wish | | 0 | 0 |
+
+Two things to say plainly:
+
+- The 18 of 24 is flattered. The model's practice was written by someone who had just read the second set, and the
+  words leaked in ("goofy", "blunt", "solutions"). The third set is the honest one: **4 of 24**. The model adds 2.
+- On the third set, measured once, one line was heard the wrong way: "if I'm struggling, don't coddle me, tell me
+  how to fix it" was taken as a wish to be listened to, the opposite of what was said. The model is no longer believed
+  on any sentence that says no (those are the rules' to read). Measured again: 4 right, 0 wrong. That one change was
+  made after seeing the third set, so the third set is clean for everything but it.
+
+It ships because it does no harm that could be found (0 near misses heard on three sets of them, 0 of 6,839 held-out
+lines) and hears a little more. But the answer to "how do they want to be met" isn't going to come from a list or
+from a bag of words: the ways people say it are too many. Next, and not built: ask the brain itself one plain
+question when a sentence has this shape (a hard time of theirs named, not a question), the way it's already asked
+whether something divides people. That needs real brains to measure, and the 1.7B says YES to nearly everything, so
+it starts with the 4B.
 
 `told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 and 236 of 240 (comfort 56 of 60 held out, as
-before). Tests: `SaidAsHowTheyAre` in `tests/test_rapport.py`, `MeetingThemAsTheyAskedIsPractised` in
-`tests/test_finetune_data.py`.
+before), with the rules and again with the model. Tests: `SaidAsHowTheyAre` and `TheSmallModel` in
+`tests/test_rapport.py`, `MeetingThemAsTheyAskedIsPractised` in `tests/test_finetune_data.py`.
 
 Also seen and not fixed: "today wrecked me. my manager tore my report apart in front of everyone" isn't read as a
 hard moment at all, so no line about how to be with them is given on it.
