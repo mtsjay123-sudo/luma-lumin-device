@@ -398,6 +398,11 @@ class TheSafetyQuestionIsPractised(unittest.TestCase):
         self.assertTrue(train.honest_enough(fine, {**fine, "question_caught": 11, "question_false_alarms": 0}))
         self.assertFalse(train.honest_enough(fine, {**fine, "question_false_alarms": 3}), "asks 'are you safe?' of more people who are fine")
         self.assertFalse(train.honest_enough(fine, {**fine, "question_caught": 8}), "hears fewer hints than the brain it's built on")
+        # and it says why, in plain words with both numbers (three 4B trainings were held back and nothing said by what)
+        self.assertEqual(train.held_back(fine, fine), [])
+        self.assertEqual(train.held_back(fine, {**fine, "question_false_alarms": 5, "human_passed": -1}),
+                         ["the 10-moment test: 0 before, -1 after", "Luma's YES/NO question: an ordinary bad day taken for one: 2 before, 5 after"])
+        self.assertEqual(train.held_back(fine, {**fine, "loops": 2}), ["loops: 2"])
 
     def test_training_sees_it_a_few_times_with_its_own_instructions(self):
         practice = train.conversations()
