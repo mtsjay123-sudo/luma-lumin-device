@@ -44,6 +44,18 @@ class AMonth(unittest.TestCase):
     def test_held_out_results_are_saved_without_a_line_of_what_was_said(self):
         summary = month_eval.summary({**self.result, "split": "heldout"})
         self.assertNotIn("Missed", summary)
+        import json
+        held = {**self.result, "split": "heldout"}
+        saved = month_eval.to_save(held)
+        text = json.dumps(saved)
+        rows = [row for life in held["lives"] for row in life["rows"]]
+        self.assertTrue(any(row.get("said") for row in rows))
+        for row in rows:   # nothing they said and nothing Luma replied is in the file; only which checks passed
+            for key in ("said", "reply", "fresh_reply"):
+                if isinstance(row.get(key), str) and len(row[key]) > 12:
+                    self.assertNotIn(row[key][:40], text)
+        self.assertEqual(month_eval.tally(saved), month_eval.tally(held), "and the numbers are all still there")
+        self.assertIs(month_eval.to_save(self.result), self.result)   # the lives the code was built on are saved whole
 
 
 if __name__ == "__main__":

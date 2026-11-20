@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; times = how many lives, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; first the lives it was built on, then the held-out lives with numbers only; times = how many lives of each, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
       times:
         description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
@@ -142,6 +142,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/v2"
           case "$TIMES" in ''|*[!0-9]*|1) TIMES=6;; esac
           python scripts/month_eval.py run --split dev --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-${{ matrix.key }}.json"
+          # and the lives nothing was built on: numbers only (the script saves no line of theirs and prints no miss)
+          python scripts/month_eval.py run --split heldout --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-heldout-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

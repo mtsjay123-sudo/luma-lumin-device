@@ -319,6 +319,14 @@ def summary(result):
     return "\n".join(lines)
 
 
+def to_save(result):
+    """What goes in a saved file. For the held-out lives: which checks passed, and never a word that was said or replied."""
+    if result["split"] == "dev":
+        return result
+    return {**result, "lives": [{"seed": life["seed"], "style": life["style"], "rows": [
+        {k: v for k, v in row.items() if k in ("day", "probe", "ok", "fresh_ok")} for row in life["rows"]]} for life in result["lives"]]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -335,9 +343,7 @@ def main():
         result = run(args.split, args.lives, args.brain, args.label)
         if args.save:
             Path(args.save).parent.mkdir(parents=True, exist_ok=True)
-            keep = result if args.split == "dev" else {**result, "lives": [{"seed": l["seed"], "style": l["style"], "rows": [
-                {k: v for k, v in row.items() if k in ("day", "probe", "ok", "fresh_ok")} for row in l["rows"]]} for l in result["lives"]]}
-            Path(args.save).write_text(json.dumps(keep, ensure_ascii=False, indent=1))
+            Path(args.save).write_text(json.dumps(to_save(result), ensure_ascii=False, indent=1))
         print()
         print(summary(result))
     else:
