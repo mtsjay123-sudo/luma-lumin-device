@@ -489,3 +489,105 @@ class TheSmallModel(unittest.TestCase):
             self.assertIn("change the subject for me", told)    # with their own words
         finally:
             s.close()
+
+
+class WhenLumaCantTellItsAHardMoment(unittest.TestCase):
+    """An evening told as a plain event, with no feeling named. Luma's reader of feelings took 9 of 40 such evenings for a
+    hard moment (Nov 20, 2026), so the brain was never told how this person asked to be met. Now it's told with an "if"."""
+
+    def setUp(self):
+        self.profile = rapport.learn(rapport.empty(), "when I'm down, take my mind off it", now=NOW)
+        self.assertEqual(rapport.comfort(self.profile, NOW)[0], "distract")
+
+    def line(self, said, profile=None):
+        return rapport.note(profile or self.profile, said, feelings.read(said), NOW + DAY)
+
+    def test_the_brain_is_told_with_an_if_and_their_own_words(self):
+        for said in ("my car got towed while I was at the dentist", "my manager gave my project to someone else this morning"):
+            self.assertIsNone(feelings.read(said), said)           # nothing Luma's reader can name
+            got = self.line(said)
+            self.assertIn("if what they just said was a hard moment for them", got)
+            self.assertIn("take their mind off it", got)           # what the month test and the training gate look for
+            self.assertIn("“when I'm down, take my mind off it”", got)
+            self.assertIn("If it wasn't a hard moment, never mind this.", got)
+
+    def test_a_hard_moment_luma_can_read_gets_the_plain_line_as_before(self):
+        got = self.line("work was brutal today, I'm so stressed")
+        self.assertTrue(got.startswith("How to be with them: when they're low"), got)
+        self.assertNotIn("if what they just said", got)
+
+    def test_not_for_a_question_a_command_good_news_or_a_laugh(self):
+        for said in ("what should I make for dinner tonight with chicken", "remind me to call my landlord tomorrow at nine", "set a timer for my laundry please",
+                     "I got the job, they called me this morning!!", "lol my cat just knocked my coffee off the desk", "thanks, that helped me a lot today",
+                     "ok cool", "when I'm upset, just change the subject for me"):
+            self.assertEqual(self.line(said), "", said)
+
+    def test_never_for_a_laugh(self):
+        profile = rapport.learn(rapport.empty(), "when I'm down, make me laugh", now=NOW)
+        self.assertEqual(rapport.comfort(profile, NOW)[0], "laugh")
+        self.assertEqual(self.line("my car got towed while I was at the dentist", profile), "")   # no feeling read: a loss can't be ruled out
+        self.assertEqual(self.line("we had to put my dog down this morning", profile), "")
+
+    def test_someone_who_never_said_how_gets_nothing(self):
+        self.assertEqual(rapport.note(rapport.empty(), "my car got towed while I was at the dentist", None, NOW), "")
+
+
+class TheSideCheck(unittest.TestCase):
+    """data/meets_check.jsonl: a side check for real brains, never counted in Human Test v2 (`--only meets`)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts"), str(Path(__file__).resolve().parent)]
+        import human_eval
+        cls.he = human_eval
+        cls.items = human_eval.load(human_eval.MEETS)
+
+    def test_its_shape(self):
+        self.assertEqual(collections_counter(i["category"] for i in self.items), {"meets_distract": 12, "meets_listen": 12, "meets_ordinary": 12})
+        for item in self.items:
+            wish, later = item["turns"]
+            self.assertFalse(wish.get("must") or wish.get("must_not"))
+            self.assertTrue(later["new_conversation"] and later["at"]["day"] >= 3)        # days later, in a new conversation
+            profile = rapport.learn(rapport.empty(), wish["said"], now=NOW)
+            self.assertEqual(rapport.comfort(profile, NOW)[0], "listen" if item["category"] == "meets_listen" else "distract", wish["said"])
+        self.assertEqual(len(self.he.chosen(self.he.everything("meets"), "meets")), 36)
+        self.assertFalse([i for i in self.he.everything(None) if i["category"].startswith("meets")])   # never part of Human Test v2
+
+    def test_the_checks_count_it_the_way_the_month_test_does(self):
+        turn = {"must": ["offers_else"], "must_not": []}
+        self.assertEqual(self.he.misses(turn, "x", "Ugh, I'm sorry. Want to talk about something else for a bit? You pick.", []), [])
+        self.assertTrue(self.he.misses(turn, "x", "Ugh, I'm sorry. That's a rough one.", []))
+        turn = {"must": ["engage"], "must_not": ["advises"]}
+        self.assertTrue(self.he.misses(turn, "x", "You should talk to your manager about it tomorrow.", []))
+        self.assertEqual(self.he.misses(turn, "x", "That's so unfair. What did they say?", []), [])
+        turn = {"must": ["engage"], "must_not": ["offers_distraction"]}
+        self.assertTrue(self.he.misses(turn, "x", "Nice. Want to talk about something else?", []))
+
+    def test_its_lines_are_nobodys_test_or_practice(self):
+        import finetune_data
+        import month_eval
+        import test_finetune_data
+        taken, plain = test_finetune_data.every_test_line()
+        for half in ("dev", "heldout"):
+            for seed in month_eval.SEEDS[half]:
+                for _, _, turns in month_eval.Life(seed, half).days():
+                    taken.update(plain(t["say"]) for t in turns)
+        taken.update(plain(line) for rows in finetune_data.AS_THEY_ASKED.values() for asked, said, _ in rows for line in (asked, said))
+        mine = [turn["said"] for item in self.items for turn in item["turns"]]
+        self.assertEqual(sum(1 for line in mine if plain(line) in taken), 0)
+
+    def test_what_luma_tells_a_brain_on_them(self):
+        """Counted Nov 20, 2026: of the 24 hard evenings Luma's reader names a feeling on 4. With the "if" line the brain
+        is told how they asked to be met on 23 (before: 4). On the 12 ordinary evenings it's told with an "if" on 10."""
+        told = {"meets_distract": 0, "meets_listen": 0, "meets_ordinary": 0}
+        for item in self.items:
+            wish, later = item["turns"]
+            profile = rapport.learn(rapport.empty(), wish["said"], now=NOW)
+            told[item["category"]] += bool(rapport.note(profile, later["said"], feelings.read(later["said"]), NOW + DAY))
+        self.assertGreaterEqual(told["meets_distract"] + told["meets_listen"], 23, told)
+
+
+def collections_counter(values):
+    import collections
+    return dict(collections.Counter(values))

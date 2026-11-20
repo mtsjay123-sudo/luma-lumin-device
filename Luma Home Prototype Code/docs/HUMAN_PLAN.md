@@ -2174,3 +2174,35 @@ hard moment at all, so no line about how to be with them is given on it.
 
 Full suite with the small model in (`4218691`): 1,757 passed, 14 failed (the 14 known ones: 12 that are the
 environment and the two Japanese-voice tests).
+
+## An evening told as a plain event (Nov 20): the brain decides if it's a hard one (`rapport.MAYBE`)
+
+The forty hard evenings written as practice had one more thing to say. People mostly don't name the feeling; they say
+what happened ("my boss chewed me out over something that wasn't even mine", "the bank hit me with three overdraft
+fees in one day"). **Luma's reader of feelings took 9 of the 40 for a hard moment.** The line that tells the brain
+how this person asked to be met is only given on a hard moment, so on the other 31 evenings it was never given, to
+any brain.
+
+A list won't close that, and the small model for hard moments was already tried and didn't work. A brain reads "is
+this a bad day" better than either. So: when they're telling Luma something about their life (not asking, not giving
+it something to do, not laughing), no feeling was read, and they once said how they want to be met, the brain now
+gets the same line with an "if": *if what they just said was a hard moment for them, they've asked you to ...; if it
+wasn't, never mind this.* Never for "make me laugh": without the feeling a loss can't be ruled out, and a loss is
+never joked at. A hard moment Luma can read gets the plain line, as before.
+
+**A side check for real brains, so this is measured and not hoped** (`data/meets_check.jsonl`, `--only meets`; never
+counted in Human Test v2): 36 two-turn conversations, all lines fresh. They say how they want to be met; five days
+later, in a new conversation, they tell Luma about an evening as a plain event.
+
+| | Checked by code | Luma tells the brain how they asked to be met: before | after |
+|---|---|---|---|
+| 12 hard evenings, asked to have their mind taken off it | the reply offers something else | 3 | 12 |
+| 12 hard evenings, asked to be listened to | the reply gives no advice | 1 | 11 |
+| 12 ordinary evenings (a good lasagna, a nephew's first steps) | the reply does **not** offer a distraction | 0 | 10, with the "if" |
+
+The third row is the risk: a small brain may take the "if" as a yes and offer to change the subject when someone
+shares good news. That's what the run is for (four brains, each conversation twice, this code beside the commit
+before it). If the ordinary evenings get worse, the line comes out.
+
+`told-diff`: 0 of 269 turns. Month test without a brain: unchanged on both halves.
+Tests: `WhenLumaCantTellItsAHardMoment` and `TheSideCheck` in `tests/test_rapport.py`.

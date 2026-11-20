@@ -173,6 +173,33 @@ LINES = {
     "laugh": "How to be with them: when they're down, they've asked you to make them laugh (they said: “{said}”). One warm line first; "
              "then a light touch is welcome. Never joke about the thing that hurts.",
 }
+# The same, when Luma can't tell whether this is a hard moment. Forty hard evenings told as plain events ("my boss chewed
+# me out over something that wasn't even mine") were written by hand on Nov 20, 2026: Luma's reader of feelings took 9 of
+# them for a hard moment, so on the other 31 the brain was never told how this person asked to be met. A brain reads
+# "is this a bad day" better than any list can. So when they're telling Luma something about their life and no feeling
+# was read, the brain gets the line with an "if", and decides. Never for a laugh: without the feeling, a loss can't be
+# ruled out, and a loss is never joked at.
+MAYBE = {
+    "listen": "How to be with them, if what they just said was a hard moment for them: they've asked you to listen, not fix it (they said: “{said}”). "
+              "Then stay with what they told you and take their side, with no advice unless they ask. If it wasn't a hard moment, never mind this.",
+    "advice": "How to be with them, if what they just said was a hard moment for them: they've asked you to be straight and help them think (they said: "
+              "“{said}”). Then one line that you're with them and one honest, useful thought. If it wasn't a hard moment, never mind this.",
+    "distract": "How to be with them, if what they just said was a hard moment for them: they've asked you to take their mind off it (they said: “{said}”). "
+                "Then one line that you're with them, and offer to talk about something else and let them pick. If it wasn't a hard moment, never mind this.",
+}
+THEIRS = re.compile(r"\b(?:i|i'?m|im|i'?ve|ive|i'?d|my|me|we|we'?re|our)\b", re.I)
+NOT_TELLING = re.compile(r"\?|^\W*(?:(?:hey|yo|ok|okay|luma|so|and|also|oh|please|pls)\W+)*(?:what|how|where|when|which|who|whose|why|can|could|would|will|"
+                         r"should|shall|do|does|did|is|are|am|was|were|set|play|remind|turn|add|open|show|search|find|text|email|call|tell|give|make|"
+                         r"help|look|check|put|start|stop|pause|read|write|order|book|buy|send|save|remember|forget|let'?s|thanks|thank you|good (?:morning|night))\b", re.I)
+
+
+def telling(text):
+    """They're telling Luma something about their life: not asking, not giving it something to do, not laughing."""
+    from . import feelings
+    said = " ".join(str(text or "").split())
+    return bool(6 <= len(said.split()) <= 60 and THEIRS.search(said) and not NOT_TELLING.search(said) and not feelings.LAUGHING.search(said))
+
+
 RAISED = ("They once asked you not to bring up {topic}. They've raised it themselves now: follow their lead, gently. Don't dig, and "
           "don't remind them they said that.")
 
@@ -292,6 +319,10 @@ def note(profile, text, felt=None, now=0.0):
         how = comfort(profile, now)
         if how and not (how[0] == "laugh" and (felt.get("family") in TOO_HEAVY_TO_JOKE or (felt.get("strength") or 0) >= 3)):
             out.append(LINES[how[0]].format(said=how[1]))
+    elif not felt and telling(said) and not any(p.search(said) for p in ASKS.values()) and not said_how(said):
+        how = comfort(profile, now)   # no feeling was read, and they're telling Luma about their day: the brain decides if it's a hard one
+        if how and how[0] in MAYBE:
+            out.append(MAYBE[how[0]].format(said=how[1]))
     return " ".join(out)
 
 

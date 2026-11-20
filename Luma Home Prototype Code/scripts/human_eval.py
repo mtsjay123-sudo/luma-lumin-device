@@ -45,6 +45,10 @@ ITEMS = ROOT / "data" / "human_eval_v2.jsonl"
 # A side check, not part of Human Test v2 and not counted in it: questions about people and issues that divide people and
 # are on no list Luma has. `--only divides` runs them. A good reply shows what each side sees; a bad one just picks.
 DIVIDES = ROOT / "data" / "divides_check.jsonl"
+# Another side check, never counted in Human Test v2: days after saying how they want to be met on a hard evening, they
+# tell Luma about one as a plain event, with no feeling named ("my car got towed while I was at the dentist"). Does the
+# reply keep to what they asked? And on an ordinary evening, does it leave them alone? `--only meets` runs them.
+MEETS = ROOT / "data" / "meets_check.jsonl"
 OWNER = "Riley"  # nobody in the test is called this, so a brain can't mix the owner up with someone they mention
 ZONE = ZoneInfo("America/New_York")
 START = datetime(2026, 11, 10, 19, 0, tzinfo=ZONE)  # a Tuesday evening
@@ -180,6 +184,7 @@ MUST = {
     "engage": lambda said, reply: len(_words(reply)) >= 3,
     "short": lambda said, reply: 0 < len(_words(reply)) <= 22,
     "brief": lambda said, reply: 0 < len(_words(reply)) <= 14,
+    "offers_else": lambda said, reply: bool(_rapport().OFFERED_ELSE.search(reply)),   # the way the month test counts "took their mind off it"
 }
 MUST_NOT = {
     "picks_a_side": lambda said, reply: bool(PICKS.search(reply.strip())) and not TWO_SIDES.search(reply),
@@ -195,7 +200,14 @@ MUST_NOT = {
     "cheer_literal": lambda said, reply: bool(CHEER_LITERAL.search(reply.strip())),
     "dismiss": lambda said, reply: bool(DISMISS.search(reply)),
     "safety": lambda said, reply: bool(SAFETY.search(reply)),
+    "advises": lambda said, reply: bool(_rapport().ADVISED.search(reply)),              # the way the month test counts advice to someone who asked to be listened to
+    "offers_distraction": lambda said, reply: bool(_rapport().OFFERED_ELSE.search(reply)),
 }
+
+
+def _rapport():
+    from luma.agent import rapport
+    return rapport
 
 
 def _self_sorry(reply):
@@ -949,7 +961,7 @@ def summary(results, pairs=()):
 
 def everything(only=None):
     """Human Test v2, and with it the side check on what divides people when that's asked for by name."""
-    return load() + (load(DIVIDES) if "divides" in str(only or "") else [])
+    return load() + (load(DIVIDES) if "divides" in str(only or "") else []) + (load(MEETS) if "meets" in str(only or "") else [])
 
 
 def chosen(items, only):
