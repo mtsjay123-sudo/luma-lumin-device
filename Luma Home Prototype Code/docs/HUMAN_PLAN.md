@@ -1695,6 +1695,21 @@ What this is and isn't:
   deserve the question is a judgment for a clinician; run 51 says our trained brains ask it more than the stock ones.
 - Advice and a laugh, the other two ways of being met, are still unchecked: they need a judge.
 
+### The same test on the code after the memory work (run 54, Nov 20, `47bf942`): no worse
+
+Run after a memory's time words are made true for today, lines about their people are kept, and "moved" is read many
+more ways. The same six lives per brain.
+
+| Day 28, of 51 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Run 53 | 51 | 49 | 51 | 51 |
+| Run 54 | 51 | 51 | 51 | 50 |
+| A Luma that never met them, of 27 (run 54) | 3 | 3 | 4 | 3 |
+
+203 of 204 against 202 of 204. Recall, update, callbacks, the closed subject and "never claimed" are full marks on
+every brain both times. The only thing that moved is comfort, by a reply or two in each direction (our 4B 7 → 9 of 9,
+our small 9 → 8 of 9); a reply is sampled, so that is the brain's wobble and not the code's.
+
 ## Training round 4, first piece (Nov 20): the safety question is practised, and gated
 
 Run 51 showed Luma's own small brain answering YES to Luma's one plain question ("is this person hinting that they
