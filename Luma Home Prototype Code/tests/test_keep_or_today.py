@@ -40,16 +40,17 @@ class Dev(unittest.TestCase):
 
 class HeldOut(unittest.TestCase):
     """The honest number. Nov 20, 2026, rules alone: 77 of 125 kept, then 83 after "someone moved"; with the small model
-    that knows a lasting fact said a new way (luma.agent.keeps): 96. 125 of 125 left in today throughout. Numbers only."""
+    that knows a lasting fact said a new way (luma.agent.keeps): 96; with the same fact read any other way round
+    (people.plainly): 102, and 89 without the model. 125 of 125 left in today throughout. Numbers only."""
 
     def test_no_worse_than_measured(self):
         got = keep_or_today.score("heldout")
         try:
             import numpy  # noqa: F401
             from luma.agent import keeps
-            floor = 96 if keeps.LEARNED.exists() else 83
+            floor = 102 if keeps.LEARNED.exists() else 89
         except Exception:
-            floor = 83   # without numpy the model isn't there and the rules stand alone
+            floor = 89   # without numpy the model isn't there: the rules and the turned-around reader stand alone
         self.assertGreaterEqual(got["keep"][0], floor, "held-out keep: %d of %d" % got["keep"])
         self.assertEqual(got["today"][0], got["today"][1], "held-out today: %d of %d" % got["today"])
 

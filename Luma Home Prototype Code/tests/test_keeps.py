@@ -134,7 +134,8 @@ class NeverACard(unittest.TestCase):
 
 @unittest.skipUnless(HAVE, "needs numpy and the trained model (scripts/train_keeps.py)")
 class HeldOut(unittest.TestCase):
-    """Nov 20, 2026. A lasting fact becomes a card: rules alone 83 of 125, with the model 96. Counts only; no line is printed."""
+    """Nov 20, 2026. A lasting fact becomes a card: rules alone 83 of 125, with the model 96, and 102 once the same fact
+    is read any other way round (people.plainly). Counts only; no line is printed."""
 
     def test_no_worse_than_measured(self):
         import hard_or_not
@@ -144,7 +145,7 @@ class HeldOut(unittest.TestCase):
         rows = keep_or_today.lines("heldout")
         kept = sum(bool(keeps.cards(t)) for t, label in rows if label == "keep")
         wrong = sum(bool(keeps.cards(t)) for t, label in rows if label == "today")
-        self.assertGreaterEqual(kept, 96, f"lasting facts kept: {kept} of 125")
+        self.assertGreaterEqual(kept, 102, f"lasting facts kept: {kept} of 125")
         self.assertEqual(wrong, 0, f"passing remarks kept: {wrong} of 125")
         new = lambda lines: sum(bool(keeps.card(t)) for t in lines if not by_rule(t))  # noqa: E731
         burn = safety_sets.slow_burn("heldout")

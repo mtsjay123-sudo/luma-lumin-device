@@ -366,12 +366,35 @@ def card(text, recent=()):
     return None
 
 
-def cards(text, recent=(), model=True):
+def cards(text, recent=(), model=True, names=()):
     """Every card one thing they said becomes, the way a turn makes them (Agent._notice): the rules first, then the model
     where the rules found nothing (never in kids mode: model=False)."""
     from . import people, presence
     found = presence.notice_facts(text) + people.facts(text)
-    if found or not model:
-        return found
+    turned = _turned(text, found, names)   # a name or a home said another way round: the plain sentence, so it's a fact Luma can answer from
+    if turned:   # "home for my mom is Tampa" also read as "My mom is Tampa": the turned sentence says what was meant
+        ends = tuple(" is " + plain.rsplit(" ", 1)[-1].lower() for plain in turned)
+        found = [fact for fact in found if not (len(fact.split()) <= 5 and fact.lower().endswith(ends))]
+    if found or turned or not model:
+        return found + turned
     extra = card(text, recent)
     return [extra] if extra else []
+
+
+def _turned(text, found, names=()):
+    """people.plainly()'s sentences, less any the rules already read from this message."""
+    from . import people
+    try:
+        from ..memory import facts
+        read = [slot for fact in list(found) + [text] for slot in (getattr(facts.read(fact), "slots", None) or [])]
+        have = {(who, kind) for who, kind, _ in read} | {(kind, str(value).lower()) for _, kind, value in read}
+        out = []
+        for plain in people.plainly(text, names):
+            slots = getattr(facts.read(plain), "slots", None) or []
+            # not when the rules already read the same thing, from a card or from the line itself ("my brother Marcus lives
+            # in Austin" is one fact, however many ways it can be put)
+            if slots and not any((who, kind) in have or (kind, str(value).lower()) in have for who, kind, value in slots):
+                out.append(plain)
+        return out
+    except Exception:
+        return []

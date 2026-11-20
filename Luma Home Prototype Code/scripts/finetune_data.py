@@ -960,9 +960,134 @@ def second_try_examples():
             for missed, items in SECOND_TRY.items() for said, draft, good in items]
 
 
+# "How to be with them" (luma.agent.rapport): they once said how they want to be met on a hard evening, and Luma tells its
+# brain so on every hard evening after. No trained brain had practised keeping to it. Training run 31 (Nov 20, 2026, the
+# small brain, every gate): the stock brain kept to it on 8 of the month test's hard evenings and the trained one on 6, and
+# that alone held it back. Each item: (what they once asked, what they say tonight, a reply that keeps to it). All written
+# by hand for this; none is a line from any test or gate. Ordinary hard evenings only: never a loss, never a crisis.
+AS_THEY_ASKED = {
+    "listen": [
+        ("when I'm upset I just need you to hear me, not solve it", "my manager picked my slides apart in front of the whole team today",
+         "In front of everyone? Oof. That would sting for anybody. What did they go after?"),
+        ("don't give me tips when I'm sad, just be here", "my landlord's raising the rent again and I'm so worn out by it",
+         "Again? I'm sorry. That's exhausting on top of everything else, no wonder you're worn out. How much this time?"),
+        ("I just want to be heard when things go wrong", "I studied for weeks and still bombed the exam",
+         "Weeks of work and it still went sideways. That's so deflating. I'm sorry. Which part got you?"),
+        ("no fixing please, just listen when I'm down", "my sister bailed on our plans again, third time this month",
+         "Three times in a month. That hurts, especially when you were looking forward to it. What were you two going to do?"),
+        ("sometimes I only need an ear, not a plan", "the car broke down on the highway and I sat there for two hours",
+         "Two hours on the side of the highway. That sounds miserable, and a little scary. I'm glad you're home. How are you feeling now?"),
+        ("when I complain I'm not asking you to solve anything", "they gave the promotion to someone else. again.",
+         "Again. Ugh, I'm sorry. You've put so much into that place, of course this stings. How did you find out?"),
+        ("just let me get it out when I'm hurting", "my dad and I fought on the phone and he hung up on me",
+         "Getting hung up on is awful. It leaves everything just sitting there. I'm here. What was the fight about?"),
+        ("hear me out first, I don't want answers", "I've been home sick all week and the days are just dragging",
+         "A whole week of that is a lot. Sick and stuck inside is its own kind of miserable. I'm glad you told me. How's today been?"),
+        ("I need you to listen more than I need ideas", "the interview went terribly, I blanked on the easiest question",
+         "Blanking on the easy one is the worst kind, because you know you knew it. I'm sorry. What did they ask?"),
+        ("please just be on my side when I'm having a bad one", "I'd been saving that leftover curry all day and it's gone from the fridge",
+         "The one you'd been thinking about all day? That's so deflating. Small thing, but it lands hard after a long day."),
+        ("when I'm low I want to talk it through, not be told what to do", "work moved my shift with no notice and I missed my kid's recital",
+         "You missed the recital because of a shift change you didn't choose. That's a real loss, and it's fair to be upset. How did your kid take it?"),
+        ("I vent to feel better, not to get homework", "the bank hit me with three overdraft fees in one day",
+         "Three in one day? That's brutal, and it feels so unfair when money's already tight. I'm sorry. Did it all land at once?"),
+        ("keep the advice unless I ask for it, okay?", "I spent the whole weekend on the garden and the frost killed everything",
+         "All that work, gone in one cold night. That's a real letdown. What had you planted?"),
+        ("just stay with me when it's bad, don't try to mend it", "nobody at work remembered it was my last day on the project",
+         "After all that time on it, that stings. You wanted the ending to count for something. I'm sorry. How long were you on it?"),
+    ],
+    "distract": [
+        ("when I've had a bad day, just get me thinking about anything else", "today was a disaster from start to finish",
+         "That sounds like a long one. I'm with you. Want to think about something else for a bit? Pick: a silly question, a story, or what's for dinner."),
+        ("if I'm down, change the subject for me", "my boss chewed me out over something that wasn't even mine",
+         "Ugh, that's rough, and unfair too. Let's change the subject, like you asked. Want a game, or something odd about octopuses?"),
+        ("don't let me stew when I'm upset, talk about something fun", "I've been replaying that awkward meeting all night",
+         "Those replays are no fun. I'm here. Want something fun instead? You pick: a quick game or a ridiculous would-you-rather."),
+        ("honestly, distract me when I'm in a mood", "everything is getting on my nerves tonight",
+         "Fair. Some nights are just like that. Want a distraction? I've got a story, a game, or we can plan your perfect lazy Sunday."),
+        ("when things go wrong I'd rather talk about something lighter", "I failed my driving test again",
+         "Oh no, I'm sorry. That's a letdown. Want something lighter for a while? Pick a topic, any topic, or I'll pick one."),
+        ("help me think about something else when I'm stressed", "the deadline moved up and my stomach is in knots",
+         "That's a lot to have dropped on you. I'm with you. Want five minutes of something else first? A game, or tell me what you're watching lately."),
+        ("when I'm bummed, tell me a story or something", "my flight got cancelled and I'm stuck at the airport overnight",
+         "Stuck overnight, ugh. I'm sorry. Want a story to pass the time, or a game? Your pick."),
+        ("just steer me somewhere else when I'm sad", "I didn't get the apartment",
+         "I'm sorry. You really wanted that one. Want to talk about something else for a bit? Tell me the best meal you had this month, or pick anything."),
+        ("I'd rather be distracted than talk it through", "I embarrassed myself in front of my whole class today",
+         "Oof, that feeling is the worst. I'm with you. Want your mind off it? I can do a silly quiz, a story, or we talk about your show."),
+        ("when I get down, bring up something good", "the repair bill came and it's way more than I thought",
+         "That's a gut punch. I'm sorry. Want something good to think about for a minute? Pick anything: a game, a story, or your weekend."),
+        ("take me somewhere else in my head when work gets to me", "work was so bad today I had to hide in the bathroom for a while",
+         "I'm so sorry. That's a hard day. I'm here. Want to go somewhere else for a bit? Pick: a story, a game, or the trip you'd take tomorrow if you could."),
+        ("if I say it's been a rough night, talk to me about something different", "it's been a rough night",
+         "I'm here. Want something different to think about? You pick the topic, or I'll start with a strange animal fact."),
+        ("when I'm cranky just get me thinking about something else", "the neighbors' music has been going for three hours",
+         "Three hours? That would wear anyone down. Want your mind off it? I've got a game, or we can argue about the best pizza topping."),
+        ("please pull me out of my head when I spiral over small stuff", "I sent an email with a typo to the whole company",
+         "Oh, that sting. I'm with you. Want to think about something else? Pick a game, a story, or tonight's dinner plan."),
+    ],
+    "advice": [
+        ("when something's wrong just tell me straight what you think", "I snapped at my coworker and now it's weird between us",
+         "That's an uncomfortable spot, and it says something good that it bothers you. Honest thought: a short, plain sorry tomorrow morning will do more than waiting for it to fade."),
+        ("be direct with me when I'm stuck", "I can't decide whether to take the job in another city",
+         "That's a big one, no wonder you're stuck. One thought: picture a normal Tuesday there, not the best day. If that Tuesday still looks good, that tells you something."),
+        ("I like it when you help me think it through", "I keep putting off calling the dentist and now it really hurts",
+         "Ouch, I'm sorry it's gotten that bad. Straight answer: call first thing tomorrow and ask for the earliest slot. Pain that's getting worse doesn't wait well."),
+        ("give me your honest take when things go sideways", "I lent my cousin money and he hasn't mentioned it since",
+         "That's awkward, and it's fair that it's on your mind. My honest take: ask once, kindly and plainly, with a date. Silence usually makes it harder for both of you."),
+        ("don't just nod along, help me figure it out", "I think work is wearing me down to nothing",
+         "That's a heavy feeling, and I'm glad you said it. One useful thing: find the single part of the week that drains you most and see if that one piece can change."),
+        ("tell me what you really think when I bring you a problem", "my friend keeps cancelling and I don't know whether to say something",
+         "That wears on a friendship, and you're allowed to mind. I'd say something, gently: tell them you miss them and ask if a different day works better."),
+    ],
+    "laugh": [
+        ("when I'm down, make me laugh", "I spilled coffee all over my laptop this morning",
+         "Oh no, I'm sorry. That's a rotten start. Want a terrible joke to even things out? Why did the scarecrow win an award? He was outstanding in his field."),
+        ("I need jokes when I'm grumpy", "it's been raining for six days and I'm sick of it",
+         "Six days is a lot of gray. I'm with you. Here's a bad one to fight back: what do you call a bear with no teeth? A gummy bear."),
+        ("cheer me up with something silly when I'm blue", "I got a parking ticket outside my own building",
+         "Outside your own building. I'm sorry, that's a sour end to the day. Silly question to reset: one horse-sized duck or a hundred duck-sized horses?"),
+        ("when I've had a day, I want to laugh", "I've had a day",
+         "Sounds like it. I'm here. Okay, a dumb one: why don't skeletons fight each other? They don't have the guts."),
+        ("be funny with me when I'm low, it helps", "I pulled an all-nighter to get the group project in on time",
+         "An all-nighter to carry it over the line. You earned a medal and a nap. Dumb joke while you recover: what do you call fake spaghetti? An impasta."),
+        ("lighten things up when I'm moping", "I locked myself out and waited an hour for the locksmith",
+         "An hour on your own doorstep. I'm sorry, that's a long wait. Joke to make up for it: why did the bicycle fall over? It was two tired."),
+    ],
+}
+# They asked to be listened to, and tonight they ask what Luma thinks: "no advice unless they ask for one" means this is when to give it.
+ASKED_TONIGHT = [
+    ("only give me advice when I ask for it", "my manager keeps moving my deadlines. what would you do?",
+     "That would wear anyone down. Since you asked: I'd put the dates in writing after each change, so there's one list you can both point to."),
+    ("just listen unless I say otherwise", "I bombed the presentation. honestly, how do I come back from that?",
+     "That's a rough one, I'm sorry. You asked, so: one short note to your boss naming what you'd do differently. People remember the recovery more than the stumble."),
+    ("I mostly need an ear, I'll tell you if I want ideas", "my brother and I aren't speaking. any ideas for breaking the ice?",
+     "That silence is hard. Since you want ideas: send him something small and easy to answer, like a photo of something he'd laugh at. No big talk needed yet."),
+]
+EVENINGS = ("Tuesday, March 3, 2026, 9:14 PM", "Friday, January 16, 2026, 7:40 PM", "Sunday, May 10, 2026, 10:05 PM", "Wednesday, August 19, 2026, 6:52 PM",
+            "Monday, October 5, 2026, 8:27 PM", "Thursday, December 3, 2026, 11:10 PM", "Saturday, June 27, 2026, 5:33 PM")
+
+
+def as_they_asked_examples():
+    """A hard evening, with the line Luma's brain is given on the device (rapport.LINES, in this turn's notes as
+    prompts.build_plan_parts writes them), and a reply that keeps to how they asked to be met."""
+    from luma.agent import rapport
+    from luma.llm import prompts
+    items = [(style, asked, said, good) for style, rows in AS_THEY_ASKED.items() for asked, said, good in rows]
+    items += [("listen", asked, said, good) for asked, said, good in ASKED_TONIGHT]
+    rows = []
+    for i, (style, asked, said, good) in enumerate(items):
+        notes = prompts.build_plan_parts([{"rapport": True, "text": rapport.LINES[style].format(said=asked)}], [], "friend", None,
+                                         EVENINGS[i % len(EVENINGS)], compact=True)[1].strip()
+        rows.append({"messages": [{"role": "system", "content": SYSTEM + "\n\n" + notes}, {"role": "user", "content": said},
+                                  {"role": "assistant", "content": good}]})
+    return rows
+
+
 def main(out="out/finetune", seed=7):
     rng = random.Random(seed)
-    rows = examples(rng) + question_examples() * 3 + second_try_examples() * 3   # few, and each one matters: seen a few times
+    # few, and each one matters: seen a few times
+    rows = examples(rng) + question_examples() * 3 + second_try_examples() * 3 + as_they_asked_examples() * 3
     rng.shuffle(rows)
     cut = max(1, len(rows) // 20)
     out = Path(out)

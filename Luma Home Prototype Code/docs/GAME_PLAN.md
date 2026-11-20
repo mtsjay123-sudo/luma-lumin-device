@@ -95,6 +95,15 @@ on day 1 and run alongside everything else:
   worded (15 of 16 fresh wordings, from 5), and puts what's been said since about a person first. Without a brain the
   held-out lives went 208 → 236 of 240 (where someone lives now 0 → 20 of 20; asking how it went the evening after
   32 → 40 of 40), the first time that number moved, with no held-out line read. Run 56 measures it on real brains.
+- **Run 56 (real brains, held-out lives, after those fixes): 35 / 33 / 28 / 26 of 51** (from 32 / 28 / 27 / 26). Where
+  someone lives now moved off zero; the small brains still said a name or a city 0 times of 12. Counted, not read: the
+  lines that told Luma those things weren't facts at all (0 of 6 shapes each). Now the same fact said any other way
+  round is read (`people.plainly`): on those lives the name and the city are kept (20 of 20 each) and Luma says the
+  name itself (10 of 10, from 0). On a third set written afterwards and never tuned on: names 1 → 5 of 10 said by
+  Luma (9 → 3 answered "I don't know yet"), homes 1 → 4 of 10. Held-out cards 96 → 102 of 125, passing remarks 0.
+  Also fixed on the way: "remind me what my sister's called" opened the task list.
+- **A trained brain can be tested beside the others before it's published** (`candidate_small`, `candidate_4b` on
+  `human-eval.yml`).
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
   and a power cut mid-write loses nothing that was confirmed (8 kills).
 

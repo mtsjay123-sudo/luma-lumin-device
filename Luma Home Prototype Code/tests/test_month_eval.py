@@ -194,8 +194,13 @@ class SomeoneMoved(unittest.TestCase):
         for move in ("my brother's whole life is in Denver these days",
                      "my brother says Austin got too expensive so he's out, living with our cousin up in Denver"):
             reply, shown = self.ask(move)
-            self.assertEqual(reply, "Okay.", move)
-            self.assertTrue(any("Denver" in told and "Austin" in told for told in shown), move)
+            self.assertNotIn("Austin", reply, move)   # the rule this test is for: never the old city, said flat
+            if reply == "Okay.":   # no rule reads it: the brain weighs both
+                self.assertTrue(any("Denver" in told and "Austin" in told for told in shown), move)
+            else:                  # since Nov 20 the second of these is read by the signs of a move (people.plainly): Luma says the new city
+                self.assertIn("Denver", reply, move)
+        reply, shown = self.ask("my brother's whole life is in Denver these days")
+        self.assertEqual(reply, "Okay.")   # this one still isn't read, and still goes to the brain with both
 
 
 class AskedWhereTheyLiveNow(unittest.TestCase):

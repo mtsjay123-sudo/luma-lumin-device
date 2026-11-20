@@ -37,7 +37,12 @@ SHORT_SYSTEM = ("You are Luma, a warm, funny friend who lives in a small speaker
 def conversations(seed=7):
     import finetune_data
     rows = finetune_data.examples(random.Random(seed)) + finetune_data.second_try_examples() * 3  # "say it again, like a friend", as the device asks
+    rows += finetune_data.as_they_asked_examples() * 3  # a hard evening met the way they once asked, with the line the device gives
+    seen = set()
     for row in rows:  # the short system line: the same instructions, a fraction of the tokens to train through, plus the dictionary note
+        if id(row) in seen:
+            continue  # a row that's practised three times is one row: shortened twice, its notes would lose their first words
+        seen.add(id(row))
         row["messages"][0]["content"] = SHORT_SYSTEM + row["messages"][0]["content"][len(finetune_data.SYSTEM):]
     rows += finetune_data.question_examples() * 3  # Luma's YES/NO safety question, under its own one line of instructions, untouched
     random.Random(seed).shuffle(rows)

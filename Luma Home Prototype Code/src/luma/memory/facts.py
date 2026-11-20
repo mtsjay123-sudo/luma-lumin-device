@@ -99,7 +99,9 @@ ASKS = [
                         r"\bstill (?:in|out in|over in|up in|down in)\b", re.I)),
     ("pet", re.compile(rf"\b(?P<species>{SPECIES}|pet)\b.*\b(?:name|named|call|called)\b|\b(?:name|named|call|called)\b.*\b(?P<species2>{SPECIES}|pet)\b", re.I)),
     ("into", re.compile(r"\binto\b|\bhobb(?:y|ies)\b|\binterested in\b", re.I)),
-    ("name", re.compile(r"\bname\b|\bcalled\b|^\W*who(?:'s|’s| is) my\b", re.I)),
+    # (last of the kinds, so "who is my sister married to" is still about the marriage: who + their person, and nothing else asked)
+    ("name", re.compile(r"\bname\b|\bcalled\b|\bgo(?:es)? by\b|^\W*who(?:'s|’s| is) my\b|\bwho\b[^?]{0,30}\b(?:my|our)\b|\b(?:my|our)\b[^?]{0,40}\bwho\b|"
+                        r"\bwhat (?:do|should|can|did) (?:i|we|you) call (?:my|our)\b", re.I)),
 ]
 WHERE_ASK = re.compile(r"\bwhere(?:'s|’s| is| are| was| were| did i (?:put|leave|park|keep|set|stash|hide)| do i keep| have i put)\s+(?:my|the|our)\s+"
                        r"(?P<obj>[a-z][a-z' -]{1,40}?)(?:\s+(?:at|kept|stored|again|now|these days|right now))*\s*(?:[?.!]|$)", re.I)

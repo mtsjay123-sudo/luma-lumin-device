@@ -146,3 +146,180 @@ def facts(text):
         if rest and DURABLE.match(rest) and 2 <= len(rest.split()) <= 16:
             out.append(f"{name} (their {rel}) {rest}")
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Said another way round. The month test on real brains, on the lives Luma wasn't built on (run 56, Nov 20, 2026): asked a
+# sister's name or where a mom lives, the small brains said it 0 times of 12. The lines that had told Luma weren't read as
+# facts at all: of 12 fresh ways of giving a sister's name, asked "what's my sister's name" Luma itself said "I don't know
+# your sister's name yet" after 9. These read the same two facts however the sentence is turned, and hand back the plain
+# sentence the rest of Luma already understands ("My sister's name is Priya", "My mom lives in Tampa").
+_REL = r"(?:my|our)\s+" + _ADJ + r"(?P<rel>" + RELATIONS + r")"
+_NAME = r"(?P<name>[A-Z][a-z]{1,14})"
+_PLACE = r"(?P<place>[A-Z][a-zA-Z.'-]+(?: [A-Z][a-zA-Z.'-]+){0,2})"
+_END = r"(?=\s*(?:[,.!?;]|$|\b(?:by the way|btw|fyi|after|for short|now)\b))"
+NAMED_PLAINLY = [re.compile(p) for p in (
+    r"\b" + _REL + r"\s+(?:goes by|is called|is named|'s called|'s named|answers to|is known as)\s+" + _NAME + r"\b",
+    r"\b(?:[Ee]veryone|[Ee]verybody|[Ww]e|[Pp]eople|[Tt]hey|[Yy]ou can|[Yy]ou could|I|[Ff]olks)(?:\s+all|\s+just)?\s+calls?\s+" + _REL + r"\s+" + _NAME + r"\b",
+    r"\b" + _REL + r"\s*[?,:-]+\s*(?:[Hh]er|[Hh]is|[Tt]heir)\s+name(?:'s| is)\s+" + _NAME + r"\b",
+    r"\b" + _REL + r"\s*,\s*(?:she|he|they)(?:'s| is|'re| are)\s+(?:called|named)\s+" + _NAME + r"\b",
+    r"\b[Tt]he name of\s+" + _REL + r"\s+is\s+" + _NAME + r"\b",
+    r"\b" + _REL + r"\s+is\s+" + _NAME + _END,
+    r"\b" + _NAME + r"(?:'s| is)\s+" + _REL + r"'s name\b",
+    r"\b[Ii]t'?s\s+" + _NAME + r"\s*,\s*" + _REL + r"'s name\b",
+    r"\b" + _NAME + r"\s*,\s*that'?s\s+" + _REL + r"\b",
+    r"\b" + _NAME + r"(?:'s| is)\s+" + _REL + _END,
+    r"\bI(?:'ve| have)?\s+(?:got\s+)?an?\s+" + _ADJ + r"(?P<rel>" + RELATIONS + r")\s*,\s*" + _NAME + _END,
+    r"\b(?:[Ww]e|[Mm]y parents|[Tt]hey|[Mm]om|[Dd]ad)\s+named\s+" + _REL + r"\s+" + _NAME + r"\b",
+)]
+# Not a name, however it's capitalised: what someone is, not what they're called.
+NOT_A_NAME = re.compile(r"(?:ese|ish|ian|ican|can|lic|ist|ite|ean)$|^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|"
+                        r"July|August|September|October|November|December|Catholic|Jewish|Muslim|Christian|Buddhist|Hindu|Democrat|Republican|Black|White|"
+                        r"Asian|Latino|Latina|Deaf|Type|Dr|Mr|Mrs|Ms|God|OK|Okay|Mom|Dad|Home|Here|There|Back|Fine|Good|Great|Sick|Dead|Gone|Luma|"
+                        r"Pregnant|Engaged|Married|Single|Divorced|Retired|Alive|Happy|Sad|Mad|Angry|Upset|Tired|Busy|Away|Out|In|Late|Early|Right|Wrong|Gay|"
+                        r"Trans|Vegan|Sober|Blind|Autistic|Diabetic|Awesome|Amazing|Crazy|Wild|Funny|Sweet|Nice|Mean|Cool|Hot|Cold|Old|Young|Tall|Short|Rich|"
+                        r"Broke|Lost|Free|Ready|Done|Next|First|Last|Number|Team|Queen|King|Boss|Family|Everything|Nothing|Something|Love)$", re.I)
+_IN = r"(?:(?:way |far )?(?:out|down|up|over|back)\s+)"
+LIVES_PLAINLY = [re.compile(p) for p in (
+    r"\b" + _REL + r"(?:'s| is| has been|'s been|'s living| is living| lives| stays| resides| is based|'s based)\s+" + _IN + r"in\s+" + _PLACE,
+    r"\b" + _REL + r"(?: has been|'s been|'s living| is living| stays| resides| is based|'s based)\s+in\s+" + _PLACE,
+    r"\b" + _REL + r"\s*,\s*(?:she|he|they)(?:'s| is|'re| are)\s+" + _IN + r"?in\s+" + _PLACE,
+    r"\b" + _PLACE + r"\s+is where\s+" + _REL + r"\s+(?:lives|is|stays|settled|ended up|is based)\b",
+    r"\b" + _REL + r"\s+calls\s+" + _PLACE + r"\s+home\b",
+    r"\b" + _REL + r"\s+has\s+(?:a|her|his|their|her own|his own)\s+(?:place|house|apartment|condo|home|flat)\s+in\s+" + _PLACE,
+    r"\b" + _REL + r"'s\s+(?:place|house|apartment|condo|home|flat)\s+is\s+" + _IN + r"?in\s+" + _PLACE,
+    r"\b[Hh]ome for\s+" + _REL + r"\s+is\s+" + _PLACE,
+)]
+# There for now, not living there.
+ONLY_VISITING = re.compile(r"\b(?:this (?:week|weekend|month|morning|afternoon|evening)|today|tonight|tomorrow|right now|for (?:the|a) (?:weekend|week|day|night|few days|"
+                           r"holidays?|conference|wedding|funeral|trip)|for (?:work|business|christmas|thanksgiving|vacation)|until|till|visiting|on vacation|"
+                           r"on a trip|travell?ing|flying|driving|stuck|stranded|passing through|for now|temporarily)\b", re.I)
+ASKING_IT = re.compile(r"\?\s*$|^\W*(?:what|who|where|when|which|why|how|is|are|does|do|did|can|could|would|should|remind|tell)\b", re.I)
+
+
+# Someone moved, said by the signs of a move and not by a sentence shape: "Marcus packed up and left for Denver", "Marcus and
+# his wife bought a house in Denver", "my brother made the move to Denver". Who it is has to be someone Luma already
+# knows as theirs (a name it was told, or "my brother"); the place is the last one said like a place.
+MOVE_SIGN = re.compile(r"\b(?:mov(?:ed?|ing) (?:to|back|out|over|up|down|in|into|here|away)|relocat\w+|transferr\w+|left (?:for|(?-i:[A-Z]))|leaving (?:for|(?-i:[A-Z]))|for good|settled|settling|new (?:place|apartment|house|home|city)|"
+                       r"bought (?:a|their|his|her) (?:house|place|condo|home)|got (?:a|his|her|their) (?:own )?(?:place|house|apartment)|(?:a|new|the) job (?:in|out in)|"
+                       r"swapped|traded|packed up|made the (?:move|jump|leap)|lives?|(?:'s|has|have) lived|living|based|calls|retired to|settl\w+ into)\b", re.I)
+HAS_A_PLACE = re.compile(r"\bhas (?:an?|her|his|their)(?: own)? (?:place|house|apartment|condo|home|flat) (?:in|near|outside|out in|down in|up in) [A-Z]")
+NOT_SURE_OF_IT = re.compile(r"\b(?:might|maybe|thinking (?:of|about)|wants? to|would like|considering|if|whether|hopes? to|hoping|talks? about|talking about|"
+                            r"should|could|would|used to|grew up|was born|born|visit\w*|trip|vacation|flew|flying|drove|driving|when (?:she|he|they|i|we) (?:was|were)|"
+                            r"as a (?:kid|child|girl|boy)|growing up|back then|at the time|before (?:she|he|they|i|we))\b", re.I)
+PLACE_AFTER = re.compile(r"\b(?:in|to|for|into)\s+" + _PLACE)
+
+
+def _moved(text, names):
+    who = None
+    rel = re.search(r"\b" + _REL + r"\b(?!'s\s+(?!in\b|out\b|down\b|up\b|over\b|back\b|been\b|living\b|moved\b|lived\b))", text)
+    for name in names or ():
+        if re.search(rf"\b{re.escape(name)}\b", text):
+            who = name
+            break
+    if not who and rel:
+        who = "My " + rel["rel"].lower()
+    if not who or not (MOVE_SIGN.search(text) or HAS_A_PLACE.search(text)) or NOT_SURE_OF_IT.search(text) or ONLY_VISITING.search(text) or len(text.split()) > 24:
+        return None
+    places = [m["place"].rstrip(".,") for m in PLACE_AFTER.finditer(text)]
+    places = [p for p in places if not NOT_A_NAME.search(p.split()[0]) and p.split()[0] not in (names or ()) and p.lower() != who.lower()]
+    return f"{who} lives in {places[-1]}" if places else None
+
+
+# A name by what stands between it and the person, not by the shape of the sentence: "meet my sister, Priya", "that's Priya,
+# my sister", "I've got a sister called Priya", "my sister - Priya - is the funny one". Only linking words may stand between
+# them ("my sister loves Priya" and "my sister's friend Priya" have more), and the name has to end its phrase.
+LINKS = set("is 's called named name names goes by go known as that's thats this she's he's they're shes hes her his their the a an we i you everyone everybody "
+            "people folks call calls it's its meet say hi to".split())
+_TOKEN = re.compile(r"[A-Za-z][A-Za-z']*|[,;:()-]|[.!?]")
+_MARK = (",", "-", ":", "(", ";")
+_STOPS = ("", ",", "-", ".", "!", ")", ";")
+
+
+def _a_name(token, text, rels):
+    return (token[:1].isupper() and len(token) > 2 and token.lower() not in LINKS and not token.lower().endswith("'s") and _name_ok(token, text)
+            and not NOT_A_NAME.search(token) and token.lower() not in rels)
+
+
+def _named_by_links(text):
+    """(relation, Name) when only linking words stand between someone of theirs and a name; or None."""
+    tokens = _TOKEN.findall(text.replace("’", "'"))
+    rels = RELATIONS.split("|")
+    first_person = bool(re.search(r"\bI(?:'ve| have| got)\b", text))
+    for i, tok in enumerate(tokens):
+        low = tok.lower()
+        base = low[:-2] if low.endswith("'s") else low
+        two = (tokens[i - 1].lower() + " " + base) if i else ""
+        rel = two if two in rels else base if base in rels else None   # "best friend" is two words
+        start = i - 1 if rel == two else i
+        if not rel:
+            continue
+        j = start - 1
+        while j >= 0 and tokens[j].lower() in ("little", "big", "older", "younger", "baby", "twin"):
+            j -= 1
+        if j < 0 or not (tokens[j].lower() in ("my", "our") or (tokens[j].lower() in ("a", "an", "one") and first_person)):
+            continue
+        possessive = low.endswith("'s")
+        # the name after the person: "my sister, Priya" / "my sister is called Priya" / "a sister called Priya"
+        k, between = i + 1, (["'s"] if possessive else [])
+        while k < len(tokens) and k <= i + 6:
+            t = tokens[k]
+            if t[:1].isupper() and t.lower() not in LINKS:
+                after = tokens[k + 1] if k + 1 < len(tokens) else ""
+                words = [b for b in between if b not in _MARK]
+                # "my mom called Priya" is a phone call; "my sister is called Priya" and "a sister called Priya" are a name
+                phoned = "called" in words and tokens[j].lower() in ("my", "our") and not ({"is", "'s", "she's", "he's", "they're"} & set(words))
+                if _a_name(t, text, rels) and between and words != ["'s"] and not phoned and (after in _STOPS or after.lower() in ("is", "by", "btw", "and")):
+                    return rel, t
+                break
+            if t.lower() not in LINKS and t not in _MARK:
+                break
+            between.append(t.lower())
+            k += 1
+        # the name before the person: "that's Priya, my sister" / "Priya is my sister"
+        if possessive:
+            continue
+        k = j - 1
+        while k >= 0 and k >= j - 5:
+            t = tokens[k]
+            if t[:1].isupper() and t.lower() not in LINKS:
+                nxt = tokens[k + 1] if k + 1 < len(tokens) else ""
+                tail = tokens[i + 1] if i + 1 < len(tokens) else ""
+                if _a_name(t, text, rels) and (k > 0 or nxt in (",", "is", "'s")) and tail in _STOPS:
+                    return rel, t
+                break
+            if t.lower() not in LINKS and t not in _MARK:
+                break
+            k -= 1
+    return None
+
+
+def plainly(text, names=()):
+    """["My sister's name is Priya", "My mom lives in Tampa"]: the same facts, read from a sentence turned any other way.
+    Only from a statement, never a question; a name has to be said like a name and a place like a place. names: the
+    people Luma already knows as theirs, by name."""
+    text = " ".join(str(text or "").replace("’", "'").split())
+    if not text or len(text) > 200 or ASKING_IT.search(text):
+        return []
+    out, place = [], None
+    moved = _moved(text, names)
+    if moved:
+        return [moved]
+    if not ONLY_VISITING.search(text):
+        for pattern in LIVES_PLAINLY:
+            m = pattern.search(text)
+            if m and not NOT_A_NAME.search(m["place"].split()[0]):
+                place = m["place"].rstrip(".,")
+                out.append(f"My {m['rel'].lower()} lives in {place}")
+                break
+    if not place:   # one sentence, one fact: "home for my mom is Tampa" doesn't also name her Tampa
+        for pattern in NAMED_PLAINLY:
+            m = pattern.search(text)
+            if m and len(m["name"]) > 2 and _name_ok(m["name"], text) and not NOT_A_NAME.search(m["name"]) and m["name"].lower() not in RELATIONS.split("|"):
+                out.append(f"My {m['rel'].lower()}'s name is {m['name']}")
+                break
+        if not out:
+            found = _named_by_links(text)
+            if found:
+                out.append(f"My {found[0]}'s name is {found[1]}")
+    return out

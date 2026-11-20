@@ -25,6 +25,12 @@ on:
       rescore:
         description: "An earlier run's id (the number in its address). No brain runs: that run's saved replies are scored again with today's checks, so an old run and a new one are measured the same way"
         default: ""
+      candidate_small:
+        description: "A training run's id (the number in its address). Luma's own small is then that run's add-on, not the newest published one: a new brain is tested beside the others before anyone publishes it"
+        default: ""
+      candidate_4b:
+        description: "The same, for Luma's own 4B"
+        default: ""
 
 concurrency:
   group: human-eval-${{ github.ref }}
@@ -41,6 +47,9 @@ jobs:
     if: inputs.rescore == ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 150
+    permissions:
+      contents: read
+      actions: read  # to fetch a training run's add-on (candidate_small, candidate_4b)
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +97,17 @@ jobs:
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/${{ matrix.brain }}" "${{ matrix.url }}"
           echo "LUMA_MODEL_PATH=$RUNNER_TEMP/brains/${{ matrix.brain }}" >> "$GITHUB_ENV"
           label="${{ matrix.label }}"
-          if [ -n "${{ matrix.addon }}" ]; then
+          CANDIDATE=""
+          if [ "${{ matrix.key }}" = "own-1.7b" ]; then CANDIDATE="${{ inputs.candidate_small }}"; fi
+          if [ "${{ matrix.key }}" = "own-4b" ]; then CANDIDATE="${{ inputs.candidate_4b }}"; fi
+          if [ -n "$CANDIDATE" ]; then
+            # a brain nobody has published: the add-on a training run saved, tested beside the others first
+            case "$CANDIDATE" in *[!0-9]*) echo "a candidate must be a training run's id (digits only)"; exit 1;; esac
+            gh run download "$CANDIDATE" --repo "$GITHUB_REPOSITORY" --name luma-brain --dir "$RUNNER_TEMP/candidate"
+            cp "$RUNNER_TEMP/candidate/luma-brain-lora.gguf" "$RUNNER_TEMP/brains/${{ matrix.addon_file }}"
+            echo "LUMA_LORA_PATH=$RUNNER_TEMP/brains/${{ matrix.addon_file }}" >> "$GITHUB_ENV"
+            label="$label (not published: training run $CANDIDATE)"
+          elif [ -n "${{ matrix.addon }}" ]; then
             tag=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq "[.[] | select(.draft | not) | select(.tag_name | test(\"^${{ matrix.addon }}[0-9]+\$\"))] | sort_by(.published_at) | last | .tag_name // empty")
             gh release download "$tag" -p "${{ matrix.addon_file }}" -D "$RUNNER_TEMP/brains"
             echo "LUMA_LORA_PATH=$RUNNER_TEMP/brains/${{ matrix.addon_file }}" >> "$GITHUB_ENV"

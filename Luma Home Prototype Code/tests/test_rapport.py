@@ -305,3 +305,101 @@ class TakeMyMindOffIt(unittest.TestCase):
         profile = {"comfort": {"distract": [{"said": "just distract me", "at": 10.0, "always": True}]}, "easy": []}
         self.assertEqual(rapport.owed(profile, "I feel so low", felt, "I'm here. Are you safe right now? You can call or text 988.", 20.0), "")
         self.assertEqual(rapport.owed(profile, "I feel so low", felt, "I'm here with you.", 20.0), rapport.OFFER)
+
+
+def _heard(line):
+    profile = rapport.learn(rapport.empty(), line, hurting=False, last_reply="", now=NOW)
+    how = rapport.comfort(profile, NOW) if profile else None
+    return how[0] if how else None
+
+
+class SaidAsHowTheyAre(unittest.TestCase):
+    """How they want to be met, said on a calm day in words the patterns don't know (rapport.said_how).
+
+    Nov 20, 2026. Forty lines written by hand as practice for the brain (scripts/finetune_data.py, AS_THEY_ASKED) turned
+    out to be a test of Luma's own reader: it heard 3 of them. The reader was then built on those forty and on the near
+    misses below. HONEST is a second set, written after the reader was finished and measured once; nothing was changed
+    to fit it. It says what the forty can't: rules built on forty lines hear the forty (39) and little else (6 of 24,
+    from 1; "listen" 5 of 6, the other three ways 1 of 18). Never the wrong way, on either set."""
+
+    NOT = ["tell me a joke", "can you change the subject", "my sister always tries to fix everything", "I just listened to a podcast about advice",
+           "when I'm down I listen to music", "when I'm sad I like to be alone", "I don't want to be distracted right now",
+           "when my mom is upset she wants me to just listen", "what should I do about dinner", "be honest with me, does this shirt look ok",
+           "you always make me laugh", "I need a plan for the weekend", "he never listens to me", "when I'm sad I watch something funny",
+           "if I'm stuck in traffic I put on a podcast or something else", "when I'm stressed I make jokes, it's a problem",
+           "my therapist says I should let people hear me out", "I hate it when you try to cheer me up when I'm sad",
+           "don't distract me when I'm upset, I need to feel it", "when work gets to me I go for a run", "I'd rather have pasta than something else tonight",
+           "I always need coffee before I can listen to anyone", "when I'm low my dog stays with me", "no advice column is worth reading these days",
+           "if I'm down for it, let's change the subject of the essay", "I don't need you to listen when I'm upset, I need you to help",
+           "when things go wrong at work my boss wants answers", "when I'm low I don't want a distraction", "I never want jokes when I'm upset",
+           "when I'm sad, don't try to cheer me up", "if I'm stressed I don't need you to be funny"]
+    HONEST = {
+        "listen": ["if I'm having a hard time, I don't need you to fix it, just be with me", "when I'm sad please don't jump to solutions",
+                   "I mostly want someone to hear me when things get rough", "on bad days I need a listener, not a coach",
+                   "when I'm upset, let me rant and don't try to solve it", "I'd rather you just sit with me when I'm hurting"],
+        "distract": ["when I'm anxious, talking about something totally unrelated helps me", "if I've had a rough day, get me talking about anything but that",
+                     "when I'm overwhelmed I need you to help me forget about it for a while", "any time I'm spiraling, just start telling me about something random",
+                     "when I'm low, ask me about my garden or something instead", "I'd rather you take my thoughts somewhere else when I'm stressed"],
+        "advice": ["when I'm struggling I want real advice, not sympathy", "if I'm stuck on something, tell me what you'd do",
+                   "when things are bad I need a plan, so help me make one", "I prefer when you're blunt with me about my problems",
+                   "when I'm upset, skip the comfort and tell me what to fix", "if I come to you with a problem, I want solutions"],
+        "laugh": ["when I'm sad, being silly with me helps", "if I'm grumpy, crack a joke", "when I'm down I want you to be goofy with me",
+                  "on rough days I just need a good laugh from you", "when I'm stressed, tease me a little, it helps", "any time I'm moping, say something ridiculous"],
+    }
+    HONEST_NOT = ["when I'm tired I just want to watch something else", "my brother needs me to listen when he's upset", "if you're down, I'm here for you",
+                  "when I'm stressed I bake, it's my thing", "I told my boss to be straight with me", "we should change the subject of the meeting if it goes badly",
+                  "when I was a kid my mom would make me laugh when I was sad", "I'm bad at jokes when I'm nervous",
+                  "when it's a bad day at the shop, customers want answers", "please don't make me laugh, my ribs hurt",
+                  "I don't want advice about the car, I want a mechanic", "when I'm sad I don't want jokes"]
+
+    def test_the_forty_it_was_built_on(self):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+        import finetune_data
+        got = [(style, _heard(asked)) for style, rows in finetune_data.AS_THEY_ASKED.items() for asked, _, _ in rows]
+        self.assertEqual(len(got), 40)
+        self.assertGreaterEqual(sum(1 for style, heard in got if heard == style), 39)
+        self.assertEqual([pair for pair in got if pair[1] and pair[1] != pair[0]], [])
+
+    def test_near_misses_teach_nothing(self):
+        self.assertEqual([line for line in self.NOT if _heard(line)], [])
+
+    def test_asking_for_more_than_listening_isnt_asking_to_be_listened_to(self):
+        self.assertEqual(_heard("don't just listen when I'm upset, tell me what you think"), "advice")
+        self.assertIsNone(_heard("I don't need you to listen when I'm upset, I need you to help"))
+
+    def test_said_on_a_calm_day_it_counts_when_its_how_they_are(self):
+        self.assertEqual(_heard("when I'm down, make me laugh"), "laugh")       # no hard moment needed: it's a standing wish
+        self.assertIsNone(_heard("make me laugh"))                                # a slow afternoon, as before
+        self.assertIsNone(_heard("tell me straight, is this shirt ugly"))
+
+    def test_the_honest_number_on_lines_nothing_was_built_on(self):
+        """Measured once, Nov 20, 2026: heard the right way 6 of 24 (before: 1), the wrong way 0; near misses heard 1 of 12
+        (before: 1, the same line, by a rule that was already there)."""
+        got = [(style, _heard(line)) for style, lines in self.HONEST.items() for line in lines]
+        self.assertGreaterEqual(sum(1 for style, heard in got if heard == style), 6, got)
+        self.assertGreaterEqual(sum(1 for style, heard in got if style == "listen" and heard == style), 5, got)
+        self.assertEqual([pair for pair in got if pair[1] and pair[1] != pair[0]], [], "never the wrong way")
+        self.assertLessEqual(sum(1 for line in self.HONEST_NOT if _heard(line)), 1)
+
+    def test_its_used_on_a_hard_evening_later(self):
+        import human_eval
+        from luma.llm import prompts
+        calls = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            calls.append((list(messages), list(context)))
+            return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say("if I'm down, change the subject for me")
+            s.at({"day": 6, "time": "20:00"})
+            s.new_conversation()
+            start = len(calls)
+            s.say("work was brutal today, I'm so stressed")
+            told = "\n".join(prompts.build_plan_parts(c, [], "friend", None, "(the time)", compact=True)[1] for _, c in calls[start:])
+            self.assertIn("take their mind off it", told)
+            self.assertIn("change the subject for me", told)    # with their own words
+        finally:
+            s.close()

@@ -1999,3 +1999,148 @@ net and the safety sets were run again on the final code (281 passed).
 Still running when this was written, for the next session to read: run 56 (the month test's held-out lives on real
 brains, on the code with the recall and update fixes but before the callback one), and two trainings with every
 round-4 gate (the 1.7B for 150 minutes, the 4B for 270), neither publishing.
+
+## The same fact, said any other way round (run 56, Nov 20) (`people.plainly`)
+
+Run 56 is the held-out lives on real brains again, on the code with that day's recall and update fixes (six lives per
+brain, numbers only).
+
+| Day 28, of 51 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| The lives it was built on (same run) | 51 | 50 | 51 | 51 |
+| **The lives it wasn't built on** (run 55 → run 56) | 32 → **35** | 28 → **33** | 27 → **28** | 26 → **26** |
+| of which: comfort the way they asked (9) | 6 | 6 | 7 | 6 |
+| recall (12) | 6 | 5 | 0 | 0 |
+| update: where someone lives now (6) | 3 | 2 | 1 | 0 |
+| callback (12) | 8 | 8 | 8 | 8 |
+| closed subject, never claimed (12) | 12 | 12 | 12 | 12 |
+| A Luma that never met them (27) | 3 | 3 | 3 | 4 |
+
+Update moved off zero for three brains. Recall didn't move for the small ones: 0 of 12, twice. The fix for "asked in
+any words" only works when a fact is there to say, so the question became: is it?
+
+**Counted on the held-out half, no line read:** of the lines that tell Luma a sister's name, 0 of 6 shapes were read
+as a fact; of the lines that say where a mom lives, 0 of 6. The answer was only ever in a line of talk handed to the
+brain, and a 1.7B doesn't dig a name out of a line of talk.
+
+**What was built, on lines written by hand that day** (`people.plainly`, `keeps.cards`): a name, a home or a move said
+any other way round ("everyone calls my sister Priya", "Tampa is where my mom lives", "Marcus packed up and left for
+Denver") is turned into the plain sentence the rest of Luma already reads ("My sister's name is Priya"), so it becomes a
+fact, a card, and something Luma can say itself. Near misses stay nothing: "my sister loves Priya", "my sister is
+pregnant", "my mom called Priya", "Marcus left his keys in Denver", "my mom lived in Tampa when she was little". One
+fact per sentence, and never a second card for a fact the rules already read.
+
+| A third set, written after the readers were done and never used to change them | Before | After |
+|---|---|---|
+| 10 names: Luma says it / a small brain is handed it / missed | 1 / 0 / 9 | **5 / 2 / 3** |
+| 10 homes | 1 / 9 / 0 | **4 / 6 / 0** |
+| 8 moves, by name | 3 / 5 / 0 | **4 / 4 / 0** |
+
+Before, 9 of the 10 names got "I don't know your sister's name yet. Tell me and I'll remember it." after being told
+it. Now, when a line they said about that person may hold the name, Luma doesn't say it was never told
+(`Agent._kept_might_say`): the brain is handed the line. Three of the ten still miss; they're left as they are so the
+set stays honest.
+
+**Two things the held-out month test caught the same hour, both counted and neither read:**
+
+- The moment the name became a fact, held-out recall without a brain fell from 40 of 40 to 20. The name question was
+  being read as "show my reminders" and answered "Nothing on your list right now" (10 of 10 lives counted). At the
+  commit before, the same question had only reached the brain because a different check happened to send it there.
+  On lines of my own it reproduced at once: "remind me what my sister's called" opened the task list on the old code
+  too. Now a question that a saved fact answers is never a command, a reminder or "you got cut off": seven fresh ways
+  of asking with "remind me", "can you", "called" all get "Your sister's name is Priya.", and eight near misses stay
+  what they are ("remind me to call my sister at 5" is a reminder, "has my sister called?" is the brain's).
+- Luma then had the fact and still didn't say it: 8 of 8 name questions went to the brain because something newer
+  had been said about that person. That guard is for where someone lives (never the old city, said flat). A move
+  doesn't change a name or a birthday, so it now holds back only a home or a job.
+
+| On the held-out lives (counts only) | Before | After |
+|---|---|---|
+| The line that tells Luma the name / where mom lives is kept as that fact | 0 of 6 shapes each | 20 of 20 lives each |
+| Asked the name, Luma says it itself | 0 of 10 | **10 of 10** |
+| Asked where mom lives, Luma says it itself | | 8 of 8 |
+| Month test without a brain: built-on lives | 360 of 360 | 360 of 360 |
+| Month test without a brain: held out | 236 of 240 | 236 of 240 (comfort 56 of 60, as before) |
+| Keep-or-today, held out: a lasting fact becomes a card / a passing remark does | 96 / 0 of 125 | **102** / 0 of 125 |
+
+The month test without a brain can't show this change (the answer was already "in what the brain is told"); real
+brains can, and that run comes next. `told-diff`: 0 of 269 turns. Memory test unchanged on both halves (held out 159
+of 187, 102 of 135, 65 of 65).
+
+An earlier note here said the pet line was being turned into a wrong fact in 5 of 20 held-out lives. That was the
+counting script's mistake: all 5 are the pet's own name, about the pet.
+
+Tests: `tests/test_said_another_way.py` (guard lines, near misses, the third set's floors, `AskedWithRemindMe`,
+`AMoveDoesntHoldBackAName`).
+
+**Testing a trained brain before anyone publishes it:** `human-eval.yml` takes `candidate_small` and `candidate_4b`
+(a training run's id). Luma's own brain in that run is then that training's add-on, labelled "not published: training
+run N", beside the two stock brains. Publishing stays the owner's call.
+
+## Training run 31 (Nov 20): the first training with every gate, held back by one
+
+The small brain, 150 minutes, nothing published. Stock → trained, on lines nobody practised:
+
+| Gate | Stock 1.7B | Trained |
+|---|---|---|
+| The 10-moment test | 9 | 9 |
+| Luma's YES/NO question: hints heard, of 12 | 4 | 6 |
+| Luma's YES/NO question: an ordinary bad day taken for one, of 16 | 8 | **1** |
+| Asking if they're safe, on its own | 0 | 2 |
+| Cheering at something that went wrong | 1 | 0 |
+| Their message said back | 1 | 0 |
+| Sounding like a pamphlet on a hard day / asking "are you safe" on one | 0 / 0 | 0 / 0 |
+| Words in a reply | 35.9 | 18.6 |
+| **The month test's hard evenings met the way they asked, of 12** | **8** | **6** |
+
+Held back by the last row alone, so it isn't published and isn't tested further. The gate did its job: every other
+number is as good or better, and the one thing that got worse is the thing a friend of a month is for.
+
+Why: no practice row had the "How to be with them" line in it. A brain trained to answer in 19 words had never seen
+that line while training, and the stock brain had at least read it fresh.
+
+**Round 5 practice** (`AS_THEY_ASKED` in `scripts/finetune_data.py`): 43 hard evenings written by hand (14 "listen",
+14 "take my mind off it", 6 "be straight with me", 6 "make me laugh", and 3 where they'd asked to be listened to and
+tonight ask what Luma thinks). Each is given exactly as on the device: this turn's notes as `prompts.build_plan_parts`
+writes them, with `rapport.LINES` and their own words in it. Every reply keeps to it by the month test's own count,
+passes Luma's second look, and is under 40 words. Ordinary evenings only: none is a loss, none is a crisis line. None
+is a line of any test, gate or made-up life, on either half (counted, never printed).
+Found while adding it: a practice row seen three times had its system line shortened three times, which cut the
+first words off its notes. Rows before today had no notes long enough to show it. Fixed, with a test.
+
+## How they want to be met, said on a calm day (Nov 20) (`rapport.said_how`)
+
+Those 43 evenings start from 40 different ways of telling Luma how you want to be met ("if I'm down, change the
+subject for me", "sometimes I only need an ear, not a plan"). They were written as practice for the brain, before
+looking at Luma's own reader, so they turned out to be a test of it: **Luma heard 3 of 40.** The brain is only given
+the line if Luma heard the wish, so for the other 37 people nothing would ever have changed.
+
+Two reasons. The patterns were narrow ("distract me", "take my mind off", and little else). And anything but "listen"
+only counted when said in a hard moment, so "when I'm down, make me laugh", said on a calm day, taught nothing.
+
+Now: a line counts when it's said as how they are (a hard time of theirs is named, or a standing word like "unless
+I ask"), something is asked for, and it's asked of Luma. "When I'm sad I watch something funny" is none of Luma's
+business and teaches nothing; "don't distract me when I'm upset" is the opposite of a wish for it; "when my mom is
+upset she wants me to just listen" is her way, not theirs (that one was being learned as theirs before today).
+
+| | Before | After |
+|---|---|---|
+| The 40 it was built on: heard the right way | 3 | 39 |
+| 31 near misses written with them: heard | 1 | 0 |
+| **A second set of 24, written after and measured once: heard the right way** | **1** | **6** (listen 5 of 6; the other three ways 1 of 18) |
+| The second set: heard the wrong way | 0 | 0 |
+| 12 fresh near misses: heard | 1 | 1 (the same line, by a rule that was already there) |
+
+The honest row is the third: rules built on forty lines hear the forty and not much else. It's the same shape as
+leaning and lasting facts before their small models, and the same fix is next: a small model that knows the four
+ways, believed only when it's sure and the sentence has the plain shape. Not built yet.
+
+`told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 and 236 of 240 (comfort 56 of 60 held out, as
+before). Tests: `SaidAsHowTheyAre` in `tests/test_rapport.py`, `MeetingThemAsTheyAskedIsPractised` in
+`tests/test_finetune_data.py`.
+
+Also seen and not fixed: "today wrecked me. my manager tore my report apart in front of everyone" isn't read as a
+hard moment at all, so no line about how to be with them is given on it.
+
+Full suite on this code: 1,738 passed and the 14 known failures (one more failed mid-edit on the shortening bug
+above and passes now; the files touched since were run again).

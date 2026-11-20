@@ -41,7 +41,10 @@ ASKS = {
         r"\bnot (?:looking|asking) for (?:any |your )?(?:advice|solutions?|a fix|answers)\b|"
         r"\bjust (?:need|needed|want|wanted|wanna|have|had) to (?:vent|rant|talk|say it|get (?:it|this|that) (?:out|off my chest))\b|"
         r"\b(?:don'?t|stop) (?:try(?:ing)? to )?(?:fix(?:ing)? (?:it|this|me|everything)|solv(?:e|ing) (?:it|this))\b|"
-        r"\bstop (?:giving|with the) (?:me )?advice\b|\bi (?:just )?need (?:you|someone) to listen\b", re.I),
+        r"\bstop (?:giving|with the) (?:me )?advice\b|\bi (?:just )?need (?:you|someone) to listen\b|"
+        r"\b(?:don'?t|do not|dont) (?:want|need) (?:any |your |the )?(?:answers|tips|ideas|suggestions|a plan|homework)\b|"
+        r"\bno (?:advice|fixing|fixes|tips|solutions|suggestions)\b(?=[^.?!]{0,20}\b(?:please|unless|okay|ok|just)\b)|"
+        r"\b(?:keep|hold|save|skip) (?:the|your) (?:advice|tips|suggestions)\b|\b(?:don'?t|do not|dont) give me (?:any )?(?:tips|advice|answers|suggestions|solutions)\b", re.I),
     "advice": re.compile(
         r"\bwhat (?:should|do|would|can) (?:i|you think i should) do\b|\bwhat would you do\b|\bi need (?:your |some |real )?advice\b|"
         r"\btell me what to do\b|\b(?:give it to me|tell me) straight\b|\bbe (?:honest|real|straight) with me\b|"
@@ -56,6 +59,74 @@ ASKS = {
 GENERAL = re.compile(r"\b(?:when(?:ever)? i'?m (?:upset|sad|down|low|stressed|hurting|like this|struggling|in a mood)|"
                      r"i (?:always|usually|generally|mostly) (?:just )?(?:want|need|like|prefer)|i(?:'d| would) rather you|i (?:like|love|prefer) (?:it )?when you|"
                      r"next time|from now on|in general|as a rule|that'?s (?:just )?how i am)\b", re.I)
+# The same thing in words ASKS doesn't know ("if I'm down, change the subject for me", "sometimes I only need an ear, not a
+# plan"). Forty ways of saying it, written by hand on Nov 20, 2026 as practice for the brain: Luma heard 3. This reader
+# counts a line only when all three are there: it's said as how they are (a hard time of theirs is named, or a standing
+# word like "unless I ask" or "I'd rather"), something is asked for, and it's asked of Luma (an order, or "you", "me",
+# "I need"). "When I'm sad I watch something funny" is none of Luma's business and teaches nothing.
+WHEN_LOW = re.compile(
+    r"\b(?:when(?:ever)?|if|any ?time|every ?time|on (?:the )?days?)\b[^.?!;]{0,45}?"
+    r"\b(?:upset|sad|down(?! (?:for|to|with)\b)|low|blue|stressed|hurting|struggling|bummed|grumpy|cranky|moping|mopey|anxious|overwhelmed|in a mood|"
+    r"(?:bad|rough|hard|long|awful|terrible|crummy|lousy) (?:day|one|night|week|time|patch|stretch)|had a day|"
+    r"go(?:es)? (?:wrong|sideways|badly|south)|(?:is|'s|’s) (?:wrong|bad|rough)|stuck|gets? to me|get(?:s|ting)? on top of me|spiral\w*|"
+    r"complain\w*|vent\w*|a problem|not (?:okay|ok|doing (?:well|great))|falling apart)\b", re.I)
+STANDING = re.compile(r"\b(?:unless i (?:ask|say)|i'?ll (?:tell|ask) you (?:if|when)|sometimes i (?:only|just)|i (?:only|mostly|mainly|usually|always|generally) "
+                      r"(?:just )?(?:need|want)|i'?d rather|i would rather|i (?:like|love|prefer) (?:it )?when you|more than i need|i vent to)\b", re.I)
+MORE = {
+    "listen": re.compile(
+        r"\b(?:hear me(?: out)?|be heard|listen(?: to me)?|an ear|be (?:here|there)(?: (?:with|for) me)?|be on my side|stay with me|sit with me|"
+        r"let me (?:talk|vent|get it out|say it)|talk it through)\b|"
+        r"\b(?:no|not|don'?t|do not|dont|without|instead of)\b[^.?!]{0,25}?\b(?:tips?|advice|answers|ideas|a plan|plans|homework|fix(?:es|ing)?|solutions?|"
+        r"suggestions|solve|mend|told what to do)\b", re.I),
+    "advice": re.compile(
+        r"\b(?:tell me|give it to me|say it) straight\b|\bbe (?:direct|straight|honest|real|blunt) with me\b|\b(?:your )?honest (?:take|opinion|answer)\b|"
+        r"\bwhat you (?:really |actually |honestly )?think\b|\bhelp me (?:think|figure|sort|work) (?:(?:it|this|things|that) )?(?:out|through)\b|"
+        r"\bdon'?t just (?:nod|agree|listen)\b", re.I),
+    "distract": re.compile(
+        r"\b(?:something|anything|somewhere) (?:else|different|fun|lighter|light|good)\b|\bchange the subject\b|\bdistract(?:ed|ion)?\b|"
+        r"\bout of my (?:own )?head\b|\b(?:tell me|with) a story\b", re.I),
+    "laugh": re.compile(
+        r"\bmake me (?:laugh|smile|giggle)\b|\bjokes?\b|\bcheer me up\b|\bsomething (?:silly|funny)\b|\bbe funny\b|"
+        r"\blighten (?:things|it|me|the mood) up\b|\b(?:want|need|like) to laugh\b|\bget me laughing\b", re.I),
+}
+# Asked of Luma: "you", "me", "I need", or an order at the start of a clause.
+AIMED = re.compile(r"\b(?:you|me|my (?:mind|head|side)|i'?d rather|i would rather|i (?:just |only |mostly |really )?(?:need|want)|i vent)\b|"
+                   r"(?:^|[,.;:!?]\s*|\b(?:just|please|then)\s+)(?:be|hear|listen|stay|sit|tell|give|make|cheer|lighten|change|distract|take|get|keep|pull|"
+                   r"steer|bring|talk|help|let|don'?t|no|keep|hold|skip)\b", re.I)
+# Someone else's way of being comforted, or something they don't want: neither is how to be with them.
+SOMEONE_ELSE = re.compile(r"\b(?:she|he|they|everyone|people|nobody|no one|my (?!mind\b|head\b|side\b)[a-z]+(?: [a-z]+)?) (?:just |always |only |never |really )?"
+                          r"(?:wants?|needs?|likes?|loves?|hates?|asks?|asked|tells?|told|says?|said|tries|tried|listens?|makes?|cheers?)\b", re.I)
+THEIR_WAY = re.compile(r"\b(?:she|he|they|everyone|my (?!mind\b|head\b)[a-z]+) (?:just |always |only |really )?(?:wants?|needs?|asks?|asked|tells?|told|likes?) "
+                       r"(?:me|us|people|someone|everyone) to\s+(?:\w+\s+){0,2}$", re.I)
+UNWANTED = (r"(?:don'?t|do not|dont|never|stop|quit|hate (?:it )?when you|can'?t stand (?:it )?when you|not)\s+(?:you\s+)?"
+            r"(?:try(?:ing)? to |want(?: to be| you to)? |need(?: you to| to be)? |ever |like(?: it when you)? )?(?:a |any |your |to |the )?$")
+
+
+def said_how(text):
+    """The way they ask to be met, said as how they are in words ASKS doesn't know; or None."""
+    said = " ".join(str(text or "").split())
+    if not said or len(said) > 240 or "?" in said or not (WHEN_LOW.search(said) or STANDING.search(said)) or not AIMED.search(said) or SOMEONE_ELSE.search(said):
+        return None
+    found = {}
+    for style, pattern in MORE.items():
+        m = pattern.search(said)
+        if m and not (style != "listen" and re.search(UNWANTED, said[:m.start()], re.I)):
+            found[style] = m
+    if "distract" in found and not WHEN_LOW.search(said) and re.match(r"(?:something|anything|somewhere)\b", found["distract"].group(0), re.I):
+        found.pop("distract")       # "I'd rather have pasta than something else": no hard time named, and nothing but "something else"
+    if "advice" in found and re.match(r"don'?t just", found["advice"].group(0), re.I):
+        found.pop("listen", None)   # "don't just listen, tell me what you think" asks for a take
+    if "listen" in found and re.search(r"(?:don'?t|do not|dont|never|not)\s+(?:need |want |have )?(?:you )?(?:to )?(?:just )?$", said[:found["listen"].start()], re.I) \
+            and not re.match(r"(?:no|not|don'?t|do not|dont|without|instead of)\b", found["listen"].group(0), re.I):
+        found.pop("listen")         # "I don't need you to listen": the opposite
+    if not found:
+        return None
+    if "listen" in found and len(found) > 1 and re.match(r"(?:no|not|don'?t|do not|dont|without|instead of)\b", found["listen"].group(0), re.I):
+        # "I'd rather be distracted, not given advice": what they do want outranks what they don't
+        found.pop("listen")
+    return min(found, key=lambda style: found[style].start())
+
+
 # Being listened to is the safe way to be met, so once is enough. The others have to be asked for on two occasions (or said
 # as how they are): "be real with me, should I go to the wedding?" asks for a take on one thing, and says nothing about
 # how to comfort them a month from now.
@@ -122,18 +193,26 @@ def learn(profile, text, hurting=False, last_reply="", now=0.0):
     profile = _clean(profile)
     changed = False
 
-    def add(style):
+    def add(style, always=False):
         nonlocal changed
         rows = profile["comfort"].setdefault(style, [])
         if any(r["said"].lower() == _quote(said).lower() for r in rows):
             return
-        rows.append({"said": _quote(said), "at": float(now), **({"always": True} if GENERAL.search(said) else {})})
+        rows.append({"said": _quote(said), "at": float(now), **({"always": True} if always or GENERAL.search(said) else {})})
         del rows[:-KEEP]
         changed = True
 
+    how = said_how(said)
     for style, pattern in ASKS.items():
-        if pattern.search(said) and (style == "listen" or hurting):
+        m = pattern.search(said)
+        if not m or THEIR_WAY.search(said[:m.start()]) or (style == "listen" and re.search(r"(?:don'?t|do not|dont|never)\s+$", said[:m.start()], re.I)
+                                                             and m.group(0).lower().startswith("just")):
+            continue  # "when my mom is upset she wants me to just listen" is her way; "don't just listen" asks for more than listening
+        # "when I'm down, make me laugh", said on a calm day, is how they are: it counts without a hard moment
+        if style == "listen" or hurting or (GENERAL.search(said) and how == style):
             add(style)
+    if how and not changed:
+        add(how, always=True)   # said as how they are, in words the patterns above don't know
     if last_reply and ADVISED.search(str(last_reply)) and PUSHBACK.search(said):
         add("listen")
     closed = CLOSED.search(said)

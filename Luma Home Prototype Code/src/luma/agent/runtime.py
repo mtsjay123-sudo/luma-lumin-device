@@ -5675,6 +5675,8 @@ class Agent:
         what = self.TAGS.sub("", what).strip(" ,.;:!?")
         if re.fullmatch(r"(?:instead|instead of (?:that|it)|of (?:it|that)|it|that|this|about (?:it|that|this))", what, re.I):
             return None  # "just remind me instead": the conversation it belongs to knows what
+        if due is None and self._asks_their_own_life(text) and self._memory_answers(text):
+            return None  # "remind me my sister's name": no time said, and a saved fact states it. A question, answered below.
         if not what:
             self.unfinished = {"prefix": "remind me to ", "suffix": (" " + said_when) if said_when else "", "at": now}
             return {"text": "Sure. What should I remind you about?" if due else "Remind you to what?", "asked": True}
@@ -5713,6 +5715,8 @@ class Agent:
         ask = understanding.cut_off(text)
         if not ask:
             return None
+        if self._asks_their_own_life(text) and self._memory_answers(text):
+            return None  # "my sister's name, remind me" isn't cut off: it's a whole question, and a saved fact answers it
         self.unfinished = {"text": text.strip(), "at": self.clock()}
         return {"text": ask, "asked": True, "cut_off": True}
 
@@ -5806,6 +5810,11 @@ class Agent:
             return None
         top = understanding.guess(text, 4)
         if not top or top[0][0] == "chat":
+            return None
+        if self.RECALL_Q.search(text) and self._asks_memory(text) and self._memory_answers(text):
+            # "remind me what my sister's called" was read as "show my reminders" and got "Nothing on your list right now"
+            # (the month test's held-out lives, counted Nov 20). A saved fact states what they asked: Luma either said it
+            # just above or left it to the brain on purpose. Either way it's a question, never a command.
             return None
         intent, p = top[0]
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
@@ -6450,15 +6459,26 @@ class Agent:
                   "allergy", "allergies", "from", "stay", "stays", "staying", "ended", "end", "settled", "moved", "move", "relocated", "who", "what", "where",
                   "when", "which", "does", "did", "is", "are", "was", "the", "that", "for", "you", "know", "remember", "remind", "tell", "say", "said", "told"}
 
+    # "can you remind me my sister's name" is "remind me my sister's name" said politely: the "can" isn't asking for more.
+    POLITE_ASK = re.compile(r"^\W*(?:(?:hey|yo|ok|okay|luma|aye|so|wait)\W+)*(?:can|could|would|will) (?:you|u) (?:(?:please|just|quickly)\s+)*(?=(?:remind|tell) me\b)", re.I)
+    # A name asked with "called" ("remind me what my sister's called", "what do I call my sister again"). Only these shapes:
+    # "has my mom called?" asks about a phone call, and "call" anywhere else is in OWN_LIFE_MORE for that reason.
+    NAME_ASKED = re.compile(r"\bwhat(?:'s|’s| is| was)?\s+(?:my|our)\s+[\w'’]+(?:\s+[\w'’]+)?\s+(?:(?:is|are)\s+)?called\b|"
+                            r"\bwhat do (?:i|we) call (?=(?:my|our)\b)", re.I)
+
     def _asks_their_own_life(self, text):
-        text = str(text or "").strip()
-        return bool(len(text.split()) <= 12 and re.search(r"\b(?:my|our)\b", text, re.I) and self.OWN_LIFE_ASK.search(text) and not self.OWN_LIFE_MORE.search(text))
+        text = self.POLITE_ASK.sub("", str(text or "").strip())
+        rest = self.NAME_ASKED.sub(lambda m: "what " if m.group(0).lower().endswith("call ") else "what my ", text)
+        return bool(len(text.split()) <= 12 and re.search(r"\b(?:my|our)\b", text, re.I) and self.OWN_LIFE_ASK.search(text) and not self.OWN_LIFE_MORE.search(rest))
 
     def _something_newer(self, question, fact):
         """Has something been said about the same person since this fact that Luma couldn't read as a fact? ("my brother
         lives in Austin", then "my brother's whole life is in Denver these days".) Then the fact may be out of date, and
         saying it flat would be worse than letting the brain weigh both."""
         from luma.memory import facts
+        if facts.asked(question)["what"] not in ("home", "work", None):
+            return []  # a sister's name or a mom's birthday isn't out of date because she moved since. (Counted on the month
+            #            test's held-out lives, Nov 20: 8 of 8 name questions were held back by what was said about a move.)
         who = facts.REL_IN_QUESTION.search(str(question or ""))
         rel = who["rel"].lower() if who else None
         if not rel:   # asked by name ("where's Marcus these days"): the same person, if Luma knows whose name it is
@@ -6502,7 +6522,34 @@ class Agent:
         except Exception:
             return words
 
+    def _kept_might_say(self, question):
+        """Asked a name or where someone lives, with no fact that states it: does a line they said about that person have a
+        name in it, or a place? Then "I don't know your sister's name yet" would be wrong."""
+        from luma.agent import people
+        from luma.memory import facts
+        who = facts.REL_IN_QUESTION.search(str(question or ""))
+        kind = facts.asked(question)["what"]
+        if not who or kind not in ("name", "home"):
+            return False
+        rel = who["rel"].lower()
+        try:
+            rows = self.store.recall(rel, limit=8)
+        except Exception:
+            return False
+        rels = people.RELATIONS.split("|")
+        for row in rows:
+            words = str(row.get("text", ""))
+            if not re.search(rf"\b{re.escape(rel)}\b", words, re.I):
+                continue
+            tokens = re.findall(r"[A-Za-z][A-Za-z']*", words)
+            if kind == "name" and any(people._a_name(t, words, rels) for t in tokens[1:]):
+                return True
+            if kind == "home" and re.search(r"\b(?:in|to|near|outside|from)\s+[A-Z][a-z]", words):
+                return True
+        return False
+
     def _memory_answer(self, text):
+        text = self.POLITE_ASK.sub("", str(text or "").strip())
         m = self.MEMORY_Q.match(text.strip())
         if (not m and self.mode != "kids" and (self.MEMORY_Q_VERB.match(text.strip()) or self.MEMORY_Q_TOLD.match(text.strip()) or self._asks_their_own_life(text))
                 and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean|before|used to|originally)\b", text, re.I)):
@@ -6543,6 +6590,8 @@ class Agent:
             if re.search(r"\b(?:living|staying|doing|working|at|now|nowadays|these days|lately|up to|going|feeling|based|been|\w{3,}ing|tonight|today|tomorrow|"
                          r"right now|this (?:week|weekend|morning|afternoon|evening))\b", about, re.I):
                 return None  # "where's my brother living these days": a whole question, not a thing with a name. ("I don't know your brother living these days yet.")
+            if self._kept_might_say(text):
+                return None  # something they said about that person may hold it ("meet my sister, Priya"): the brain is handed it; Luma doesn't say it was never told
             guess = understanding.guess(text, 1)
             personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
             if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
@@ -6767,7 +6816,11 @@ class Agent:
             # the rules first ("Lily (their daughter) is obsessed with dinosaurs"); where they find nothing, a small model that
             # knows a lasting fact said a new way. Never in kids mode, and never while the last few turns have been heavy.
             before = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
-            for fact in keeps.cards(text, recent=before, model=self.mode != "kids"):
+            try:   # the people Luma already knows as theirs, by name: "Marcus packed up and left for Denver" is about the brother
+                known = [shown[0] for shown in self.store.index().people.display.values() if shown]
+            except Exception:
+                known = []
+            for fact in keeps.cards(text, recent=before, model=self.mode != "kids", names=known):
                 row = self.remember_fact(fact)
                 if not row or row == "full": continue
                 self.last_noticed.append(row["id"])

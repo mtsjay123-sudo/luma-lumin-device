@@ -640,3 +640,87 @@ class TheMonthIsGated(unittest.TestCase):
         fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "met_as_they_asked": 7}
         self.assertEqual(self.train.held_back(fine, {**fine, "met_as_they_asked": 9}), [])
         self.assertEqual(self.train.held_back(fine, {**fine, "met_as_they_asked": 5}), ["the month test's hard evenings met the way they asked: 7 before, 5 after"])
+
+
+class MeetingThemAsTheyAskedIsPractised(unittest.TestCase):
+    """Training run 31 (Nov 20, 2026): the stock small brain kept to how they'd asked to be met on 8 of the month test's
+    hard evenings, the trained one on 6, and that held it back. No practice row had the "How to be with them" line in it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import finetune_data
+        import month_eval
+        import train_luma
+        cls.fd, cls.train, cls.month = finetune_data, train_luma, month_eval
+        cls.items = [(style_, asked, said, good) for style_, rows in finetune_data.AS_THEY_ASKED.items() for asked, said, good in rows]
+        cls.asked_tonight = [("listen", asked, said, good) for asked, said, good in finetune_data.ASKED_TONIGHT]
+
+    def test_every_reply_keeps_to_what_they_asked_the_way_the_month_test_counts_it(self):
+        from luma.agent import rapport
+        self.assertGreaterEqual(sum(1 for s_, *_ in self.items if s_ == "listen"), 12)
+        self.assertGreaterEqual(sum(1 for s_, *_ in self.items if s_ == "distract"), 12)
+        for style_, asked, said, good in self.items:
+            self.assertIsNot(self.month._kept(style_, good), False, good)
+            if style_ != "distract":
+                self.assertNotIn("mind off", good)
+        for _, asked, said, good in self.asked_tonight:   # they asked to be listened to, and tonight they ask what Luma thinks
+            self.assertIn("?", said)
+            self.assertRegex(good, r"(?i)since you|you asked")
+            self.assertFalse(rapport.ADVISED.search(good) and "I'm sorry" not in good and "hard" not in good and "wear" not in good, good)
+
+    def test_every_reply_is_one_luma_would_let_through(self):
+        from luma.agent import friendcheck, style
+        for style_, asked, said, good in self.items + self.asked_tonight:
+            self.assertIsNone(friendcheck.miss(said, good, False), good)
+            self.assertFalse(style.therapy_speak(good) or style.assistantisms(good) or style.claims_human(good) or style.invented_life(good), good)
+            self.assertNotRegex(good, r"(?i)\b988\b|are you safe|all you need|only one who")
+            self.assertLessEqual(len(good.split()), 40, good)
+
+    def test_ordinary_hard_evenings_only(self):
+        from luma.agent import feelings, friendcheck
+        from luma.agent.runtime import CRISIS
+        for style_, asked, said, good in self.items + self.asked_tonight:
+            for line in (asked, said):
+                self.assertFalse(friendcheck.at_risk(line) or CRISIS.search(line), line)
+            self.assertNotIn((feelings.read(said) or {}).get("family"), ("grief", "heartbreak"), said)
+
+    def test_its_given_exactly_as_the_device_gives_it(self):
+        from luma.agent import rapport
+        rows = self.fd.as_they_asked_examples()
+        self.assertEqual(len(rows), len(self.items) + len(self.asked_tonight))
+        for row, (style_, asked, said, good) in zip(rows, self.items + self.asked_tonight):
+            system, user, answer = row["messages"]
+            self.assertTrue(system["content"].startswith(self.fd.SYSTEM + "\n\nCurrent local date and time: "))
+            self.assertIn(rapport.LINES[style_].format(said=asked), system["content"])
+            self.assertIn(self.month.TOLD[style_], system["content"])   # what the gate looks for in Luma's own note
+            self.assertEqual((user["content"], answer["content"]), (said, good))
+
+    def test_training_sees_each_three_times_with_the_line_whole(self):
+        rows = [r for r in self.train.conversations() if "How to be with them: " in r["messages"][0]["content"]]
+        self.assertEqual(len(rows), 3 * (len(self.items) + len(self.asked_tonight)))
+        for row in rows:   # a row practised three times was once shortened three times, and its notes lost their first words
+            self.assertTrue(row["messages"][0]["content"].startswith(self.train.SHORT_SYSTEM + "\n\nCurrent local date and time: "), row["messages"][0]["content"][:400])
+        written = [r for r in map(__import__("json").loads, self._written()) if "How to be with them: " in r["messages"][0]["content"]]
+        self.assertEqual(len(written), len(rows))
+
+    def _written(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            self.fd.main(folder)
+            return [line for name in ("train.jsonl", "valid.jsonl") for line in (Path(folder) / name).read_text().splitlines() if line.strip()]
+
+    def test_none_of_it_is_a_line_from_any_test_or_gate(self):
+        taken, plain = every_test_line()
+        taken.update(plain(m["said"]) for m in self.train.HUMAN_TEST)
+        taken.update(plain(line) for line in self.train.HURTING)
+        taken.update(plain(r["said"]) for r in self.train.month_rows())
+        for half in ("dev", "heldout"):   # every line of every made-up life, both halves: counted, never printed
+            for seed in self.month.SEEDS[half]:
+                for _, _, turns in self.month.Life(seed, half).days():
+                    taken.update(plain(t["say"]) for t in turns)
+        mine = [line for _, asked, said, _ in self.items + self.asked_tonight for line in (asked, said)]
+        self.assertEqual(len(set(mine)), len(mine))
+        self.assertEqual(sum(1 for line in mine if plain(line) in taken), 0)
+
