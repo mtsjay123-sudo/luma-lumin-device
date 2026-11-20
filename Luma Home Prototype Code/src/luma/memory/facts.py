@@ -25,10 +25,14 @@ PEOPLE_FACT = re.compile(rf"^(?P<name>{NAME}) \((?:their|your|my) (?P<rel>{RELAT
 REL_NAME = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} name is (?P<name>{NAME})\b", re.I)
 PET_NAME = re.compile(rf"^(?:my|your) (?P<species>{SPECIES}){POSS} name is (?P<name>{NAME})\b", re.I)
 REL_REST = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} (?P<rest>birthday is .+)$", re.I)
-REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|has|just|got|moved|started) .+)$", re.I)
+REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|isn't|has|just|got|moved|started|"
+                    rf"relocated|transferred|left|ended|settled|landed|wound|took|accepted|packed|bought|found|rented|went|no longer|now|recently|finally|currently|still) .+)$", re.I)
+# "my brother's in Denver now", "my sister's back in Ohio": the 's is "is" here, not "my brother's birthday"
+REL_S_IN = re.compile(rf"^((?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?:{RELATIONS}))'s (?=(?:back |now |still |living |currently )*in\b)", re.I)
 NAME_POSS = re.compile(rf"^(?P<name>{NAME}){POSS} (?P<rest>birthday is .+)$")
-NAME_REST = re.compile(rf"^(?P<name>{NAME}) (?P<rest>(?:lives? in|works? (?:as|at|for)|is married to|married|has an? |just got into|got into|is (?:really |so |super )?into|"
-                       rf"is obsessed with|moved to|started (?:a )?new job) .+)$")
+NAME_REST = re.compile(rf"^(?P<name>{NAME}) (?P<rest>(?:(?:just|recently|finally|actually|now|still|also|has|officially) )*(?:lives? in|works? (?:as|at|for)|is married to|married|has an? |just got into|got into|is (?:really |so |super )?into|"
+                       rf"is obsessed with|moved (?:back |out |over )?to|relocated to|transferred to|is (?:now |still |currently )?living in|is (?:now |back |out |over |up |down )*in|"
+                       rf"ended up in|settled (?:down )?in|left|(?:just |recently |finally )?(?:got|bought|found|rented) (?:a|an|his|her|their)|started (?:a )?new job) .+)$")
 OWNER = re.compile(r"^(?:you(?:'re|’re| are)?|i(?:'m|’m| am)?|we(?:'re|’re| are)?)\s+(?P<rest>.+)$", re.I)
 OWNER_NAME = re.compile(rf"^(?:my|your) name is (?P<value>{NAME})\b", re.I)
 OWNER_BIRTHDAY = re.compile(r"^(?:my|your) birthday is (?:on )?(?P<value>.+)$", re.I)
@@ -37,10 +41,32 @@ WHERE = re.compile(r"^(?:my|your|the|our) (?P<obj>[a-z][a-z' -]{1,40}?) (?:is|ar
                    r"(?P<spot>(?:in|on|at|by|under|inside|next to|behind|near|with|above|beside)\b.+)$", re.I)
 GOAL = re.compile(r"^(?:your|my) goal(?: is|:)\s*(?P<value>.+)$", re.I)
 
+# How a piece of news about someone starts. It was for then: it isn't part of the fact, and it isn't said back.
+LEAD_IN = re.compile(r"^(?:(?:fyi|btw|by the way|heads up|oh and|oh yeah|oh|so|well|anyway|also|just so you know|quick update|update|as it turns out|turns out|"
+                     r"apparently|guess what|big news|good news|bad news|you know what|funny thing|did i (?:ever )?(?:tell|mention to) you(?: that)?|"
+                     r"i (?:just )?found out(?: that)?|i (?:just )?heard(?: that)?|i think i told you(?: that)?)\b[\s,:;.!-]*)+", re.I)
+# "talked to my brother today. he moved to Denver", "update on my brother: he's in Denver now": the "he" is the brother.
+THEN_THEY = re.compile(rf"\b(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS})\b[^.:;?!]*[.:;?!,]+\s*(?:(?:oh|well|so|and|but|yeah)\s+)*"
+                       rf"(?:he|she|they)(?P<be>'s|'re| is| are)?\s+(?P<rest>[^.?!]+)$", re.I)
+
+# what can follow a place without being part of it: "moved to Denver last week", "moved to Denver for work"
+_AFTER = r"(?:\s*,?\s+(?:last|this|a few|in|for|now|these days|and|after|since|recently|permanently|again|back in|with|to be)\b.*)?"
+
 # what's said about someone, after their name: (what kind of fact, the pattern)
 REST = [
-    ("home", re.compile(r"^(?:still |now |just |recently )?(?:lives?|living) in (?P<value>.+)$", re.I)),
-    ("home", re.compile(r"^(?:just |recently |finally )?moved (?:back )?to (?P<value>.+?)(?:\s+(?:last|this|a few|in)\b.*)?$", re.I)),
+    ("home", re.compile(r"^(?:is |are |am )?(?:still |now |just |recently |currently )?(?:lives?|living) in (?P<value>.+?)(?:\s+(?:now|these days|again|for now))?$", re.I)),
+    ("home", re.compile(rf"^(?:just |recently |finally |has |have )?(?:moved|relocated|transferred) (?:back |out |over )?to (?P<value>.+?){_AFTER}$", re.I)),
+    # The many other ways of saying someone lives somewhere new (month test, Nov 20: 2 of 13 were read). Where the words could
+    # mean something else ("left work for lunch", "is in a mood now"), the place has to be said like a place: with a capital.
+    ("home", re.compile(r"^(?:is |are |am )?(?:now |currently )?(?:back |out |over |up |down )*in (?P<place>.+?) (?:now|again|these days|for good|permanently)$", re.I)),
+    ("home", re.compile(r"^(?:is |are |am )back (?:out |over |up |down )?in (?P<place>.+?)$", re.I)),
+    ("home", re.compile(rf"^(?:just |recently |finally )?(?:got|bought|found|rented) (?:a|an|his|her|their|my|our) (?:own |new )*(?:place|apartment|house|condo|flat|home) in "
+                        rf"(?P<place>.+?){_AFTER}$", re.I)),
+    ("home", re.compile(rf"^(?:just |recently |finally )?left [A-Za-z .'-]{{2,30}}? for (?P<place>.+?){_AFTER}$", re.I)),
+    ("home", re.compile(rf"^(?:ended up|settled(?: down)?|landed|wound up) in (?P<place>.+?){_AFTER}$", re.I)),
+    ("home", re.compile(r"^(?:took|got|accepted|started) (?:a|the|that|his|her|their) (?:new )?job in (?P<place>.+?) and (?:moved|relocated)\b.*$", re.I)),
+    ("home", re.compile(r"^(?:packed up and )?(?:went|moved|headed|gone) to (?P<place>.+?) for good$", re.I)),
+    ("home", re.compile(r"^(?:isn't|is not|no longer|is no longer) in [A-Za-z .'-]{2,30}? any ?more,? (?:and |but )?(?:he|she|they)(?:'s|'re| is| are) (?:now )?in (?P<place>.+?)(?:\s+now)?$", re.I)),
     ("work", re.compile(r"^(?:still |now )?works? (?:as|at|for) (?P<value>.+)$", re.I)),
     ("work", re.compile(r"^(?:just |recently )?(?:started|got|took) (?:a |an )?new job (?:at|with|as) (?P<value>.+)$", re.I)),
     ("pet", re.compile(rf"^ha(?:s|ve) an? (?P<species>{SPECIES}) (?:named|called) (?P<value>{NAME})\b", re.I)),
@@ -66,7 +92,9 @@ ASKS = [
     ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b", re.I)),
     ("work", re.compile(r"\bworks? (?:as|at|for)\b|\bwhere (?:do|does|did) .{1,30}\bwork\b|\bjobs?\b|\bfor a living\b|\bfor work\b|\bprofession\b|\bcareer\b|"
                         r"\bemployer\b|\bwhat (?:do|does) .{1,30}\bdo\b\s*(?:[?.!]|$)", re.I)),
-    ("home", re.compile(r"\b(?:do|does|did) .{1,30}\blive\b|\blives?\b|\bliving in\b|\b(?:what|which) (?:city|town)\b|\bbased\b|\bmoved? to\b|\bhome ?town\b", re.I)),
+    ("home", re.compile(r"\b(?:do|does|did) .{1,30}\blive\b|\blives?\b|\bliving\b|\b(?:what|which) (?:city|town|state|country)\b|\bbased\b|\bmoved?\b|\brelocated?\b|"
+                        r"\bhome ?town\b|\bwhere(?:'s|'d| is| are| did| does| do)?\b.{0,40}\b(?:staying|at (?:now|these days)|these days|nowadays|end(?:ed)? up|settled?)\b|"
+                        r"\bstill (?:in|out in|over in|up in|down in)\b", re.I)),
     ("pet", re.compile(rf"\b(?P<species>{SPECIES}|pet)\b.*\b(?:name|named|call|called)\b|\b(?:name|named|call|called)\b.*\b(?P<species2>{SPECIES}|pet)\b", re.I)),
     ("into", re.compile(r"\binto\b|\bhobb(?:y|ies)\b|\binterested in\b", re.I)),
     ("name", re.compile(r"\bname\b|\bcalled\b|^\W*who(?:'s|’s| is) my\b", re.I)),
@@ -106,11 +134,19 @@ def _rel(text):
 
 
 def _rest(reading, who, rest):
+    rest = re.sub(r"^(?:(?:actually|officially|also|has|have) )+(?=\w)", "", rest.strip(), flags=re.I) or rest   # "has officially moved to": the fact starts at "moved"
     for kind, pattern in REST:
         found = pattern.match(rest.strip())
         if not found:
             continue
-        value = _clean(found["value"])
+        named = found.groupdict()
+        if "place" in named:   # only a place said like a place: "Denver", "New Orleans", never "a mood" or "lunch"
+            raw = (named["place"] or "").strip()
+            if not raw[:1].isupper() or len(raw.split()) > 4:
+                continue
+            value = _clean(raw)
+        else:
+            value = _clean(found["value"])
         if not value:
             continue
         if kind == "pet":
@@ -129,6 +165,14 @@ def read(text):
     text = " ".join(str(text or "").replace("’", "'").split()).strip(" .!")
     if not text or len(text) > 240:
         return None
+    text = LEAD_IN.sub("", text) or text
+    text = REL_S_IN.sub(r"\1 is ", text)
+    if text.count("my ") + text.count("your ") == 1 or not PEOPLE_FACT.match(text):
+        they = THEN_THEY.search(text)
+        if they and not REL_IS.match(text) and len(re.findall(rf"\b(?:my|your) (?:{RELATIONS})\b", text, re.I)) == 1:
+            later = Reading()   # only when one person of theirs is in it: with two, "he" could be either
+            if _rest(later, "rel:" + _rel(they["rel"]), ("is " if they["be"] else "") + they["rest"].strip()):
+                return later
     reading = Reading()
     found = PEOPLE_FACT.match(text)
     if found and _name_ok(found["name"]):

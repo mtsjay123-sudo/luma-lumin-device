@@ -272,6 +272,10 @@ jobs:
           if [ -n "$(echo $files)" ]; then
             python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files | grep -E '^\||^\*\*Pairwise|^#' || true
           fi
+          month="$(ls month-*.json 2>/dev/null | tr '\n' ' ')"
+          if [ -n "$month" ]; then  # the month test's tables alone (what it missed is printed once, in the Summary step)
+            python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/month_eval.py" summary $month | grep -E '^\||^#' || true
+          fi
           for key in stock-4b own-4b stock-1.7b own-1.7b; do  # before and after, turn by turn, when a commit was given to compare with
             if [ -f "before-$key.json" ] && [ -f "v2-$key.json" ]; then
               echo; python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" ab "before-$key.json" "v2-$key.json"

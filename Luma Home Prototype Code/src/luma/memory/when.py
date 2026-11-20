@@ -122,3 +122,91 @@ def window(text, now=None, zone=timezone.utc):
 def about_the_past(text):
     """ "where did i live before", "my old job": the answer is what used to be true, not what's true now."""
     return bool(BEFORE.search(str(text or "")))
+
+
+# ------------------------------------------------------------------------------------------- said then, said back now ---
+# "my dentist appointment is tomorrow at 3", asked about 26 days later, is not tomorrow. When Luma says a memory back,
+# the time words in it are made true for today: the day they pointed at, said the way it's said now.
+_COUNT = r"(?P<n>\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|a couple(?: of)?|a few)"
+THEN = re.compile(
+    r"\b(?:(?P<day>the day after tomorrow|tomorrow (?:morning|afternoon|evening|night)|tomorrow|yesterday (?:morning|afternoon|evening)|yesterday|"
+    r"last night|tonight|today|this (?:morning|afternoon|evening))"
+    r"|(?P<which>this|next|last|this past|this coming)\s+(?P<unit>week|weekend|month|year)"
+    rf"|in\s+{_COUNT}\s+(?P<ahead>day|week|month|year)s?(?!\s+ago)"
+    rf"|{_COUNT.replace('<n>', '<m>')}\s+(?P<back>day|week|month|year)s?\s+ago)\b", re.I)
+_BE = re.compile(r"\b(is|are)\b(?!.*\b(?:is|are)\b)", re.I | re.S)   # the last "is" or "are" before the time words
+
+
+def _number(raw):
+    raw = raw.lower()
+    return int(raw) if raw.isdigit() else next(NUMBERS[w] for w in reversed(raw.split()) if w in NUMBERS)
+
+
+def _date(day, today):
+    return f"{day:%b} {day.day}" + (f", {day.year}" if day.year != today.year else "")
+
+
+def _day_words(day, today):
+    gap = (day - today).days
+    return {0: "today", 1: "tomorrow", -1: "yesterday"}.get(gap) or "on " + _date(day, today)
+
+
+def said_later(text, said_at, now, zone=timezone.utc):
+    """A memory's own words with its time words made true for now. Said the same day, nothing changes."""
+    text = str(text or "")
+    if not said_at or not now:
+        return text
+    then, today = datetime.fromtimestamp(float(said_at), zone).date(), datetime.fromtimestamp(float(now), zone).date()
+    if then == today or then > today:
+        return text
+    found = THEN.search(text)
+    if not found:
+        return text
+    monday = lambda d: d - timedelta(days=d.weekday())                      # noqa: E731
+    month = lambda d, n: ((d.year * 12 + d.month - 1 + n) // 12, (d.year * 12 + d.month - 1 + n) % 12 + 1)   # noqa: E731
+    over, words = None, None   # over: the last day the words covered
+    if found["day"]:
+        word = found["day"].lower()
+        shift = 2 if word.startswith("the day after") else 1 if word.startswith("tomorrow") else -1 if word.startswith(("yesterday", "last night")) else 0
+        day = then + timedelta(days=shift)
+        over, words = day, _day_words(day, today)
+    elif found["unit"]:
+        unit = found["unit"].lower()
+        step = {"next": 1, "last": -1, "this past": -1}.get(found["which"].lower(), 0)
+        if unit == "week":
+            start = monday(then) + timedelta(days=7 * step)
+            gap = (start - monday(today)).days // 7
+            over, words = start + timedelta(days=6), {0: "this week", 1: "next week", -1: "last week"}.get(gap) or "the week of " + _date(start, today)
+        elif unit == "weekend":
+            start = monday(then) + timedelta(days=5 + 7 * step)   # the Saturday
+            gap = (start - (monday(today) + timedelta(days=5))).days // 7
+            over, words = start + timedelta(days=1), {0: "this weekend", 1: "next weekend", -1: "last weekend"}.get(gap) or "the weekend of " + _date(start, today)
+        elif unit == "month":
+            year, mon = month(then, step)
+            gap = (year * 12 + mon) - (today.year * 12 + today.month)
+            name = MONTHS[mon - 1].capitalize() + (f" {year}" if year != today.year else "")
+            over = datetime(*month(datetime(year, mon, 1), 1), 1).date() - timedelta(days=1)
+            words = {0: "this month", 1: "next month", -1: "last month"}.get(gap) or "in " + name
+        else:
+            year = then.year + step
+            over, words = datetime(year, 12, 31).date(), {0: "this year", 1: "next year", -1: "last year"}.get(year - today.year) or f"in {year}"
+    else:
+        ahead = bool(found["ahead"])
+        count = _number(found["n"] if ahead else found["m"])
+        unit = (found["ahead"] or found["back"]).lower()
+        day = then + timedelta(days=round(count * UNITS[unit])) * (1 if ahead else -1)
+        over = day
+        if unit == "day":
+            words = _day_words(day, today)
+        elif unit == "year":
+            words = f"in {day.year}" if day.year != today.year else "this year"
+        else:
+            words = ("around " + _date(day, today)) if abs((day - today).days) > 10 or day <= today else "in about " + (
+                "a week" if (day - today).days <= 10 else f"{round((day - today).days / 7)} weeks")
+    if words.lower() == found.group(0).lower():
+        return text
+    before, after = text[:found.start()], text[found.end():]
+    if over < today and not re.search(r"\b(?:was|were|did|had|went|moved|got|came|left|started|finished|ended|[a-z]{3,}ed)\b", before, re.I):
+        # it's over now: "is tomorrow" becomes "was on Nov 11". Only a plain "is" or "are" that isn't "I am" is touched.
+        before = _BE.sub(lambda m: {"is": "was", "are": "were"}[m.group(1).lower()], before, count=1)
+    return before + words + after

@@ -531,7 +531,9 @@ class InLuma(unittest.TestCase):
         self.agent.history.clear()
         self.now[0] += 2 * 86400
         back = handed_back("i still can't believe my dad passed away")
-        self.assertTrue(any("my dad passed away last night" in line and line.startswith("(They said, ") for line in back), back)
+        # Two days on, "last night" isn't last night: the line says the day it was (luma.memory.when.said_later).
+        self.assertTrue(any("my dad passed away on Oct 31 and i can't stop thinking about it" in line and line.startswith("(They said, ") for line in back), back)
+        self.assertFalse(any("last night" in line for line in back), back)
         # And in a long conversation, once it has scrolled out of what the brain is given.
         self.agent.history.clear()
         self.agent.chat("my sister moved to a tiny town in the mountains last month")

@@ -226,7 +226,7 @@ class LifeIndex:
         links = list(reading.links) if reading else []
         slots = list(reading.slots) if reading else []
         mentions = []
-        if "my " in text or "My " in text:
+        if "my " in text or "My " in text or " named " in text or " called " in text:
             from luma.agent import people as who
             for name, rel, _ in who.mentions(text):
                 if name in text and (name.lower(), rel) not in links:  # said with a capital: a name, not a verb

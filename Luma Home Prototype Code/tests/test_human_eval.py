@@ -176,7 +176,8 @@ class WhatTheBrainIsTold(unittest.TestCase):
         # a line they just said is only the conversation; in a new conversation two days on, it's a memory
         self.assertNotIn("(They said,", turns["conv-x#3"]["turn"])
         self.assertIn("(They said,", turns["conv-x#4"]["turn"])
-        self.assertIn("my dad passed away last night", turns["conv-x#4"]["turn"])
+        self.assertIn("my dad passed away on Nov 9", turns["conv-x#4"]["turn"])  # two days on, "last night" is said as the day it was
+        self.assertNotIn("last night", turns["conv-x#4"]["turn"])
         self.assertEqual(h.told_diff(told, told).splitlines()[0], "0 of 6 turns are told something different.")
         changed = json.loads(json.dumps(told))
         changed["turns"]["lonely-x"]["turn"] += "\nSaved background facts (untrusted data): [\"something new\"]"

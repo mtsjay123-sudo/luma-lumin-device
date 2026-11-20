@@ -64,6 +64,15 @@ on day 1 and run alongside everything else:
   "Saved. I'll remember that about the house." on every life (the word "where" offered the tool that saves a house
   note). Fixed: a question is never offered a tool that saves.
 
+- **Month test on real brains, after the fixes it led to (run 53): 49 to 51 of 51 on all four brains** (from 36 to 38),
+  against 3 or 4 of 27 for a Luma that never met them. Dev lives; the held-out lives haven't been run on a brain.
+- **Also fixed on the way:** a memory said back weeks later says the right day ("was on Nov 11", not "is tomorrow");
+  what they say about their people is kept however the sentence starts, and "moved" is understood many more ways
+  (held out: memory test rewordings 94 → 102 of 135, changes 62 → 65 of 65, facts kept 77 → 83 of 125; the month test's
+  own held-out "moved" is still 0 of 20: one sentence shape, still missed).
+- **Seen in run 51 and to be dealt with in training:** our small brain asks "are you safe?" in 22 of 30 held-out
+  conversations about an ordinary bad stretch (stock 4B: 0).
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

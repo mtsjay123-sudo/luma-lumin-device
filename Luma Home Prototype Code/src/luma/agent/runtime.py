@@ -394,7 +394,8 @@ def _garbled(text):
 
 
 CHATTER = re.compile(r"^(?:(?:ugh+|man|bro|yo|ok(?:ay)?|lol+|lmao+|lmfao|bruh|sis|hey|luma|please|pls|omg|dude|ngl|wait|nah|deadass|fr|lowkey|"
-                     r"on god|listen|ayo|uh+|um+|(?:ha)+h?|he(?:he)+|so|anyway|bro+|dead|i'?m dead|crying)\W+)+")
+                     r"on god|listen|ayo|uh+|um+|(?:ha)+h?|he(?:he)+|so|anyway|bro+|dead|i'?m dead|crying|fyi|btw|by the way|heads up|oh and|oh|"
+                     r"just so you know|quick update|update|also)\W+)+")
 ASKING = re.compile(r"^(?:what|when|where|who|how|why|which|can|could|will|would|should|is|are|do|does|did)\b|"
                     r"\b(?:can|could|would|will|cn) (?:you|u)\b|\b(?:please|pls|plz)\b|"
                     r"\b(?:i'?d like|i need|i want|i wanna|lemme|let me)\s+(?:you |u )?to\b|\bwhere'?s\b|\bwhere (?:is|are|were|was|did)\b|"
@@ -5266,6 +5267,45 @@ class Agent:
                     self.store.delete("memory", m["id"])  # the keys moved
         return self.store.put("memory", {"text": fact, "source": source, "created": self.clock(), "category": segments.category(fact, source), **extra})
 
+    KEEP_START = re.compile(r"^(?:talked|spoke|called|saw|met|heard from|visited|texted|ran into|caught up with|facetimed)\b", re.I)
+
+    @classmethod
+    def _telling_for_keeps(cls, line):
+        """Is this something they told Luma about their life? Wider than just_telling(), and only for what's kept: news
+        about someone starts many ways ("turns out", "guess what", "big news", "did I tell you", a name, "talked to my
+        brother today. he moved"). Month test, Nov 20: of sixteen such ways of saying a brother moved, ten weren't kept
+        at all, so asked later Luma knew only the old city."""
+        from luma.memory import facts
+        if just_telling(line):
+            return True
+        bare = facts.LEAD_IN.sub("", line) or line
+        if bare != line and just_telling(bare):
+            return True
+        if line.rstrip(" .!").endswith("?"):
+            return False
+        try:
+            if facts.read(line) is not None:   # worded as a fact about them or someone of theirs, however it starts
+                return True
+        except Exception:
+            pass
+        return bool(cls.KEEP_START.match(bare)) and not asks_for_something(bare)
+
+    def _about_their_people(self, line):
+        """Something said about someone in their life ("my brother", or a name Luma already knows as one of theirs), and not
+        a question or a request. What a friend is told about their people is what a friend remembers, however the sentence
+        is built: no list of ways to say "he moved" is ever complete (the month test's held-out lives say it a way thirty
+        written here didn't cover, and it wasn't kept at all)."""
+        from luma.memory import facts
+        if line.rstrip(" .!").endswith("?") or asks_for_something(facts.LEAD_IN.sub("", line) or line):
+            return False
+        if facts.REL_IN_QUESTION.search(line):
+            return True
+        try:
+            known = self.store.index().people.display
+        except Exception:
+            return False
+        return any(len(name) > 2 and re.search(rf"\b{re.escape(shown[0])}\b", line) for name, shown in known.items())
+
     def _keep_line(self, text):
         """What they told Luma about their life, kept as they said it: the ground truth the facts are read from, and what
         "what did I do last spring" is answered from. Not a question or a request, and never a moment they weren't safe:
@@ -5273,7 +5313,7 @@ class Agent:
         from luma.agent import friendcheck
         from luma.memory import segments
         line = " ".join(str(text or "").split())
-        if not 4 <= len(line.split()) <= 60 or len(line) > 400 or not just_telling(line):
+        if not 4 <= len(line.split()) <= 60 or len(line) > 400 or not (self._telling_for_keeps(line) or self._about_their_people(line)):
             return None
         if self._out_of_room():
             return None
@@ -5516,12 +5556,16 @@ class Agent:
             out.append({"note": True, "text": "They have company in the room right now. Keep anything private (health, money, relationships) to yourself "
                                               "unless they ask you about it directly."})
         in_view = self._in_view()
-        for m in found["memories"] or found["related"][:3]:
+        newer = getattr(self, "_newer_said", None)   # what they've said since about the person asked after, that no fact covers
+        extra = [row for row in newer[1] if row.get("id") not in [m.get("id") for m in found["memories"]]] if newer and newer[0] == text else []
+        self._newer_said = None
+        for m in extra + (found["memories"] or found["related"][:3]):
             words = str(m.get("text", ""))
             if company and facts.private(words, m.get("category") or ""):
                 continue
             if m.get("source") == "said" and " ".join(words.split()).casefold() in in_view:
                 continue  # the brain can already see them say this, a few messages up; handed back as a "memory" it only muddles a small brain
+            words = self._said_now({**m, "text": words})  # "is tomorrow at 3", kept three weeks ago, isn't tomorrow
             if m.get("ended"):
                 words = "(Used to be true, not anymore) " + words
             elif m.get("source") == "said" and m.get("created"):
@@ -6370,11 +6414,62 @@ class Agent:
     MEMORY_Q_VERB = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye|so|wait)\W+)*(?:(?:do you|u) (?:remember|know)\s+)?(?:where|what|who|when|which|how old|how long)\s+"
                                r"(?:does|do|did|is|are|was|were|has|have)\s+(?:my|our)\s+.{2,60}?\W*$", re.I)
 
+    def _something_newer(self, question, fact):
+        """Has something been said about the same person since this fact that Luma couldn't read as a fact? ("my brother
+        lives in Austin", then "my brother's whole life is in Denver these days".) Then the fact may be out of date, and
+        saying it flat would be worse than letting the brain weigh both."""
+        from luma.memory import facts
+        who = facts.REL_IN_QUESTION.search(str(question or ""))
+        if not who:
+            return []
+        rel = who["rel"].lower()
+        try:
+            names = [shown[0] for name, shown in self.store.index().people.display.items() if rel in self.store.index().people.by_name.get(name, {})]
+        except Exception:
+            names = []
+        about = re.compile(r"\b(?:" + "|".join([re.escape(rel)] + [re.escape(n) for n in names]) + r")\b", re.I)
+        try:
+            rows = self.store.recall(rel, limit=12) + [row for n in names for row in self.store.recall(n, limit=6)]
+        except Exception:
+            return []
+        since = float(fact.get("created") or 0)
+        newer = []
+        for row in rows:
+            words = str(row.get("text", ""))
+            if row.get("id") == fact.get("id") or float(row.get("created") or 0) <= since + 1 or not about.search(words):
+                continue
+            reading = facts.read(words)
+            accounted = bool(reading) and any(who == "rel:" + rel or who[5:] in [n.lower() for n in names] for who, _, _ in reading.slots)   # read as a fact about that person
+            if not accounted and re.search(r"\b(?:in|to|from|at|moved?|moving|lives?|living|place|apartment|house|city|town|now|anymore|any more)\b|(?<=[a-z,] )[A-Z][a-z]{2,}", words):
+                if row.get("id") not in [r.get("id") for r in newer]:
+                    newer.append(row)
+        return newer[:3]
+
+    def _said_now(self, row):
+        """A memory's words with its time words made true for today ("tomorrow", kept three weeks ago, is a date now)."""
+        from luma.memory import when
+        words = str(row.get("text", ""))
+        from luma.memory import facts
+        words = facts.LEAD_IN.sub("", words) or words  # "fyi", "guess what": that was for then
+        try:
+            return when.said_later(words, row.get("created"), self.clock(), self.zone)
+        except Exception:
+            return words
+
     def _memory_answer(self, text):
         m = self.MEMORY_Q.match(text.strip())
         if not m and self.mode != "kids" and self.MEMORY_Q_VERB.match(text.strip()) and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean)\b", text, re.I):
             fact = self._true_now(text)
-            return {"text": self._yours(fact["text"]).rstrip(". ") + ".", "memory": fact["id"]} if fact else None
+            newer = self._something_newer(text, fact) if fact else []
+            if newer:
+                self._newer_said = (text, newer)  # handed to the brain with what it's told for this message (_remembered)
+                return None  # they've said something since about the same person that Luma can't read as a fact: the brain gets both, with their dates
+            if not fact:
+                return None
+            said = self._yours(self._said_now(fact)).rstrip(". ")
+            if re.search(r"[.?!:;]\s+\S", said):
+                return None  # "Talked to your brother on Nov 15. he moved to Denver": true, and no way to say it. The brain has it, and puts it in a sentence.
+            return {"text": said + ".", "memory": fact["id"]}
         if not m or self.mode == "kids":
             return None
         stop = {"my", "our", "the", "and", "are", "for", "was", "put", "again"}
@@ -6392,13 +6487,15 @@ class Agent:
         if re.fullmatch(r"(?:my|our) name", m["about"].strip(), re.I) and (self.profile.get("name") or "").strip():
             return {"text": f"You're {self.profile['name'].split(' ')[0]}. I'd never forget that."}
         if not best:
+            if re.search(r"\b(?:living|staying|doing|working|at|now|nowadays|these days|lately|up to|going|feeling|based|been)\b", about, re.I):
+                return None  # "where's my brother living these days": a whole question, not a thing with a name. ("I don't know your brother living these days yet.")
             guess = understanding.guess(text, 1)
             personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
             if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
                 self.asked_about = {"about": " ".join(m["about"].split()), "at": self.clock()}  # their next answer gets saved
                 return {"text": f"I don't know {self._yours(m['about']).lower()} yet. Tell me and I'll remember it."}
             return None  # "what's my schedule": something Luma looks up, not something it was told
-        return {"text": self._yours(best[1]["text"]).rstrip(". ") + ".", "memory": best[1]["id"]}
+        return {"text": self._yours(self._said_now(best[1])).rstrip(". ") + ".", "memory": best[1]["id"]}
 
     # Questions only the owner could answer ("where do I work?", "how old is my dad?") and ones that lean on something they supposedly
     # said before ("you remember my dog's name, right?"). Answered from what's saved, or with an honest "I don't know", never a guess.
@@ -6434,7 +6531,7 @@ class Agent:
         for row in ([now] if now else self.store.recall(text, limit=8)):
             have = {stem(w) for w in re.findall(r"[a-z]+", str(row.get("text", "")).lower())}
             if now or want & have:
-                said = self._yours(row["text"]).rstrip(". ")
+                said = self._yours(self._said_now(row)).rstrip(". ")
                 return {"text": "You told me " + said[:1].lower() + said[1:] + ".", "memory": row["id"]}
         return None
 

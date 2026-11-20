@@ -36,7 +36,11 @@ class PresenceTests(unittest.TestCase):
         self.assertEqual([n["text"] for n in result["noticed"]], ["Maya's birthday is October 18"])
         self.assertIn("Maya's birthday is October 18", self.memories())
         self.agent.chat("ugh, Maya's birthday is October 18 and I still don't know")
-        self.assertEqual(len(self.memories()), 1, "no duplicates")
+        self.assertEqual(self.memories().count("Maya's birthday is October 18"), 1, "no duplicates")
+        self.assertEqual(len(self.store.kept(10)), 1, "one fact, one card")
+        # What they said about Maya is also kept as they said it, for recall (a line of talk, never a card): she's someone of theirs now.
+        self.assertEqual(sorted(m["text"] for m in self.store.all("memory") if m.get("source") == "said"),
+                         ["ugh, Maya's birthday is October 18 and I have no idea what to get her", "ugh, Maya's birthday is October 18 and I still don't know"])
         self.agent.chat("I'm allergic to shellfish by the way")
         self.assertEqual(self.agent.chat("forget that")["text"], "Forgotten.")
         self.assertNotIn("I'm allergic to shellfish", self.memories())

@@ -99,3 +99,137 @@ class AQuestionIsNeverAnOrderToSave(unittest.TestCase):
         say = lambda text: (lambda out: out[0] if isinstance(out, tuple) else out.get("text"))(self.s.say(text))  # noqa: E731
         for asked in ("where does my cousin live", "where does my mom want to go for dinner", "what does my boss want from me", "where is my life going"):
             self.assertEqual(say(asked), "Okay.", asked)
+
+
+class SomeoneMoved(unittest.TestCase):
+    """The month test's held-out lives say a move in words the rules weren't built on, and scored 0 of 20. Thirteen ways
+    written fresh on Nov 20, 2026: 2 were read. These are the dev lines the rules were then built on (a guard, not a
+    measure: the held-out lives are the measure)."""
+
+    MOVED = ["my brother moved to Denver", "my brother relocated to Denver", "my brother's in Denver now", "my brother is living in Denver now",
+             "my brother just got a place in Denver", "my brother transferred to Denver for work", "my brother left Austin for Denver",
+             "my brother's back in Denver", "my brother lives in Denver now", "my brother ended up in Denver",
+             "my brother took a job in Denver and moved out there", "my brother packed up and went to Denver for good",
+             "fyi my brother isn't in Austin anymore, he's in Denver", "heads up, my brother moved to Denver"]
+    NOT_A_MOVE = ["my brother is in a mood now", "my brother left work for lunch", "my brother ended up in the hospital", "my brother is back in school",
+                  "my brother's in trouble again", "my brother got a place in the finals", "my brother is back in town",
+                  "my brother went to Denver for the weekend", "my brother's birthday is June 3"]
+
+    def test_each_way_of_saying_it_is_read_as_where_they_live(self):
+        from luma.memory import facts
+        for line in self.MOVED:
+            reading = facts.read(line)
+            self.assertTrue(reading and ("rel:brother", "home", "denver") in reading.slots, line)
+        for line in self.NOT_A_MOVE:
+            reading = facts.read(line)
+            self.assertFalse(reading and any(kind == "home" for _, kind, _ in reading.slots), line)
+
+    def ask(self, move):
+        import human_eval
+        shown = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            shown.append(" | ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
+            return {"type": "reply", "text": "Okay."}
+
+        s = human_eval.Session(planner)
+        self.addCleanup(s.close)
+        say = lambda text: (lambda out: out[0] if isinstance(out, tuple) else out.get("text"))(s.say(text))  # noqa: E731
+        say("my brother lives in Austin")
+        s.at({"day": 5, "time": "19:00"})
+        s.new_conversation()
+        say(move)
+        s.at({"day": 9, "time": "19:00"})
+        s.new_conversation()
+        del shown[:]
+        return say("where does my brother live now"), shown
+
+    def test_asked_later_luma_says_the_new_city(self):
+        for move in ("my brother relocated to Denver", "my brother's back in Denver", "fyi my brother isn't in Austin anymore, he's in Denver"):
+            reply, _ = self.ask(move)
+            self.assertIn("Denver", reply, move)
+            self.assertFalse(reply.lower().startswith("fyi"), reply)
+
+    NEWS = ["turns out my brother moved to Denver", "so apparently my brother moved to Denver", "guess what, my brother moved to Denver",
+            "did I tell you my brother moved to Denver", "Marcus moved to Denver", "Marcus is in Denver now"]
+    IN_TWO_BREATHS = ["talked to my brother today. he moved to Denver", "update on my brother: he's in Denver now", "my brother? oh he's out in Denver these days"]
+
+    def test_news_about_someone_is_kept_however_it_starts(self):
+        """Sixteen more ways, the same day: ten weren't kept at all (a line had to start with "I", "my", "he"...)."""
+        from luma.agent.runtime import Agent
+        from luma.memory import facts
+        for line in self.NEWS + self.IN_TWO_BREATHS:
+            self.assertTrue(Agent._telling_for_keeps(line), line)
+            reading = facts.read(line)
+            self.assertTrue(reading and any(kind == "home" and value == "denver" for _, kind, value in reading.slots), line)
+        for line in ("what's the weather in Denver", "remind me to call my brother", "did my brother move to Denver?", "play something by Marcus",
+                     "my brother and my sister had a fight. she moved to Denver"):
+            reading = facts.read(line)
+            self.assertFalse(reading and any(kind == "home" for _, kind, _ in reading.slots), line)
+        for line in ("what's the weather in Denver", "remind me to call my brother", "did my brother move to Denver?", "play something by Marcus"):
+            self.assertFalse(Agent._telling_for_keeps(line), line)
+
+    def test_said_in_two_breaths_the_brain_puts_it_in_a_sentence(self):
+        """ "Talked to your brother on Nov 15. he moved to Denver." is true and no way to say it: the brain is handed it."""
+        for move in self.IN_TWO_BREATHS:
+            reply, shown = self.ask(move)
+            self.assertEqual(reply, "Okay.", move)
+            self.assertTrue(any("Denver" in told for told in shown), move)
+
+    def test_what_luma_cant_read_goes_to_the_brain_with_both_instead_of_the_old_city(self):
+        """Something newer about the same person that no rule reads: saying "Your brother lives in Austin" flat would be worse
+        than letting the brain weigh both, each with its date."""
+        for move in ("my brother's whole life is in Denver these days",
+                     "my brother says Austin got too expensive so he's out, living with our cousin up in Denver"):
+            reply, shown = self.ask(move)
+            self.assertEqual(reply, "Okay.", move)
+            self.assertTrue(any("Denver" in told and "Austin" in told for told in shown), move)
+
+
+class AskedWhereTheyLiveNow(unittest.TestCase):
+    """Twelve ways of asking, written fresh on Nov 20, 2026: 9 worked, and two got "I don't know your brother living these
+    days yet." from Luma itself. A guard on the dev wording."""
+
+    @classmethod
+    def setUpClass(cls):
+        import human_eval
+        cls.shown = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            cls.shown.append(" | ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
+            return {"type": "reply", "text": "Okay."}
+
+        cls.s = human_eval.Session(planner)
+        cls.s.say("my brother lives in Austin")
+        cls.s.say("my keys are on the hook by the door")
+        cls.s.at({"day": 5, "time": "19:00"})
+        cls.s.new_conversation()
+        cls.s.say("my brother moved to Denver")
+        cls.day = 9
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.s.close()
+
+    def ask(self, question):
+        type(self).day += 1
+        self.s.at({"day": self.day, "time": "19:00"})
+        self.s.new_conversation()
+        del self.shown[:]
+        out = self.s.say(question)
+        return (out[0] if isinstance(out, tuple) else out.get("text")), " ".join(self.shown)
+
+    def test_however_its_asked_the_new_city_is_said_or_handed_to_the_brain(self):
+        for question in ("where does my brother live now", "where's my brother living these days", "where is my brother now", "what city is my brother in",
+                         "where did my brother end up", "is my brother still in Austin", "where's my brother based now", "which state is my brother in now",
+                         "remind me where my brother lives", "where's my brother at these days", "my brother's in which city again"):
+            reply, told = self.ask(question)
+            self.assertNotIn("I don't know", reply, question)
+            self.assertTrue("Denver" in reply or (reply == "Okay." and "Denver" in told), f"{question}: {reply}")
+            self.assertNotIn("lives in Austin.", reply, question)
+
+    def test_things_are_still_things(self):
+        reply, _ = self.ask("where are my keys")
+        self.assertIn("hook by the door", reply)
+        reply, _ = self.ask("where's my phone")
+        self.assertIn("haven't told me", reply)

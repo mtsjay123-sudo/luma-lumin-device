@@ -20,6 +20,11 @@ MENTION = re.compile(r"\bmy\s+(?:(?:little|big|older|younger|baby|twin|step|half
                      + r")\s+(?P<name>[A-Za-z][a-z'’]{1,14})\b(?P<rest>[^.!?]{0,90})", re.I)
 NAMED = re.compile(r"\b(?P<name>[A-Z][a-z]{1,14})\s+(?:is|was)\s+my\s+(?:(?:little|big|older|younger|best)\s+)?(?P<rel>" + RELATIONS
                    + r")\b(?P<rest>[^.!?]{0,90})")
+# Three more ways a name comes with who they are. Only with a capital: "a friend called earlier" names nobody.
+_ADJ = r"(?:(?:little|big|older|younger|best|baby|twin)\s+)?"
+APPOSED = re.compile(r"\b(?P<name>[A-Z][a-z]{1,14}),\s+my\s+" + _ADJ + r"(?P<rel>" + RELATIONS + r")\b,?(?P<rest>[^.!?]{0,90})")           # "Marcus, my brother, called"
+NAMED_AS = re.compile(r"\b(?:a|an|my|one|our)\s+" + _ADJ + r"(?P<rel>" + RELATIONS + r")\s+(?:named|called)\s+(?P<name>[A-Z][a-z]{1,14})\b(?P<rest>[^.!?]{0,90})")
+IN_BRACKETS = re.compile(r"\bmy\s+" + _ADJ + r"(?P<rel>" + RELATIONS + r")\s+\((?P<name>[A-Z][a-z]{1,14})\)(?P<rest>[^.!?]{0,90})", re.I)
 NOT_NAMES = set("""a an the and or but if so to of in on at for with from is are was were be been being it its this that these those
 you your i me my we us our they them their he him his she her do does did have has had just not no yes yeah got get can will would
 could should like know let what how why when where who maybe some something really all up out about as more one too very much any
@@ -47,7 +52,9 @@ DURABLE = re.compile(r"^(?:(?:really|just|recently|lately|finally|totally|so)\s+
                      r"is (?:(?:so |really |totally |kind of |kinda )?(?:obsessed with|into|allergic to|scared of|afraid of|terrified of|"
                      r"good at|great at|amazing at|bad at|learning|studying|turning \d+|turning|vegan|vegetarian|retired|pregnant|engaged|"
                      r"married|in (?:college|school|high school|grad school|\w+ grade))|an? \w+|\d+(?: years old)?)|"
-                     r"got into|started|loves?|likes?|hates?|plays?|collects?|works (?:at|as|in|for)|lives in|moved (?:back )?to|can'?t eat|doesn'?t eat|"
+                     r"got into|started|loves?|likes?|hates?|plays?|collects?|works (?:at|as|in|for)|lives in|moved (?:back )?to|relocated to|transferred to|"
+                     r"is (?:now |still )?living in|is back in (?-i:[A-Z])|ended up in (?-i:[A-Z])|settled (?:down )?in (?-i:[A-Z])|(?:got|bought|found|rented) (?:a|an|his|her|their) (?:own |new )*"
+                     r"(?:place|apartment|house|condo) in (?-i:[A-Z])|can'?t eat|doesn'?t eat|"
                      r"has (?:a|an|two|three|\d+)|wants to be|is learning|graduated|got (?:a|her|his) (?:first|new))\b", re.I)
 PRONOUN_START = re.compile(r"^\s*(?:and\s+|but\s+|so\s+|like\s+)?(?:he|she|they|his|her|their|him)\b", re.I)
 
@@ -73,9 +80,11 @@ def mentions(text):
             continue  # "where does my sister live": no capital, and it's where a verb goes
         if _name_ok(m["name"], text) and not PHRASAL.match(m["rest"]):  # "my dad passd away": a verb, typo and all
             found.append((m["name"].capitalize(), m["rel"].lower(), m["rest"].strip(" ,")))
-    for m in NAMED.finditer(text):
-        if _name_ok(m["name"], text):
-            found.append((m["name"].capitalize(), m["rel"].lower(), m["rest"].strip(" ,")))
+    for pattern in (NAMED, APPOSED, NAMED_AS, IN_BRACKETS):
+        for m in pattern.finditer(text):
+            row = (m["name"].capitalize(), m["rel"].lower(), m["rest"].strip(" ,"))
+            if m["name"][:1].isupper() and _name_ok(m["name"], text) and row[:2] not in [f[:2] for f in found]:
+                found.append(row)
     return found
 
 

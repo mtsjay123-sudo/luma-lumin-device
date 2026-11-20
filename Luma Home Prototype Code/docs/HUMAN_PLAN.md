@@ -1581,3 +1581,94 @@ It was on the computer app only. Now it's under the phone's memory deck: each li
 you want me to listen, not fix it."), what they said that taught it, and Forget. A paired phone can forget a line (it
 could already forget a memory); kids mode is sent nothing. Away from home the same lines come through the relay, cut
 short. The browser walk checks it on all six phone screens (78 screens, 0 problems).
+
+## A memory said back later says the right day (Nov 20) (`when.said_later`)
+
+Found while checking the answer-from-memory fix. Told "my dentist appointment is tomorrow at 3" and asked 26 days
+later, Luma said "Your dentist appointment is tomorrow at 3." Told "my brother moved to Denver last week", it said
+"last week" a month on. It repeated the words as they were said, and the brain was handed the same words.
+
+Now, wherever a memory is said back by Luma or handed to the brain, the time words in it are made true for today:
+
+| Kept on Nov 10 | Asked the next day | Asked Dec 6 |
+|---|---|---|
+| my dentist appointment is tomorrow at 3 | ...is today at 3 | ...was on Nov 11 at 3 |
+| my brother moved to Denver last week | (unchanged) | ...moved to Denver the week of Nov 2 |
+| my mom is visiting next month | (unchanged) | ...is visiting this month |
+| we are going to Osaka next week | ...next week | ...were going to Osaka the week of Nov 16 |
+
+Covered: today, tonight, this morning, tomorrow, yesterday, last night, the day after tomorrow; this, next and last
+week, weekend, month and year; "in 3 days"; "two weeks ago". A fixed date ("June 3") and a memory from today are left
+alone. Not covered: a bare weekday ("on Friday": which Friday depends on the tense), and verbs other than is and are
+("the movers come on Nov 13" stays in the present).
+
+`told-diff`: 0 of 269 turns. Memory test and month test: the same numbers as before. Tests: `tests/test_said_later.py`.
+
+## Someone moved (Nov 20): what a person says about their people, kept and read
+
+The month test's held-out lives score 0 of 20 on "where does my sister live now" after she moved. Lines written fresh
+to see why (none of them the held-out wording, which stays unseen):
+
+| Written fresh, then built on | Before | After |
+|---|---|---|
+| 13 ways of saying a brother moved ("relocated to", "'s in Denver now", "got a place in", "left Austin for"...) | 2 | 13 |
+| 16 ways of announcing it ("turns out", "guess what", "did I tell you", by name, "talked to my brother today. he moved") | 6 | 16 |
+| 12 ways of asking ("where's my brother living these days", "is he still in Austin", "which state is he in now") | 9 | 11 |
+| 7 ways a name is first given x 2 moves said by name ("Marcus, my brother,", "a brother named Marcus") | 4 | 14 |
+
+What was wrong, in order of how much it mattered:
+1. **Most of these lines were never kept.** A line was only kept if it began with I, my, we, he, she and a few more.
+   "Turns out my brother moved to Denver", "Marcus moved to Denver", "guess what, ..." were said and gone. Now anything
+   said about someone in their life (a "my brother", or a name Luma already knows as one of theirs) is kept as a line
+   of talk, as long as it isn't a question or a request (`Agent._telling_for_keeps`, `_about_their_people`).
+2. **Only "lives in" and "moved to" were read as where someone lives.** Now also relocated, transferred, 's in X now,
+   back in X, got a place in X, left A for X, ended up in X, and "he's in X" right after the person is named. Where the
+   words could mean something else, the place has to be said like a place ("is back in school", "ended up in the
+   hospital" and "left work for lunch" are not moves).
+3. **With today's answer-from-a-fact, an unread move made things worse**: Luma said the old city flat. So when
+   something newer has been said about the same person that no rule reads, Luma doesn't answer: the brain is handed
+   the fact and the newer line, each with its date (`Agent._something_newer`).
+4. Two questions got "I don't know your brother living these days yet." from Luma itself. Gone.
+5. A name given as "Marcus, my brother," or "a brother named Marcus" or "my brother (Marcus)" wasn't tied to the brother.
+
+Held out, never looked at:
+
+| | Before | After |
+|---|---|---|
+| Memory test: a fact asked in other words | 94 of 135 | **102 of 135** |
+| Memory test: something that changed | 62 of 65 | **65 of 65** |
+| Keep-or-today: a durable fact kept (no passing remark kept, before or after: 125 of 125) | 77 of 125 | **83 of 125** |
+| Month test: where someone lives now | 0 of 20 | 0 of 20 |
+
+The month test's own number didn't move. Counting only (no held-out line printed): all 20 held-out lives say the move
+in one sentence shape, by the person's name, and it still isn't kept. One shape, twenty times, so that 0 of 20 is one
+miss, not twenty; and it's a real one. I stopped there rather than keep guessing at a sentence I'm not allowed to see.
+
+`told-diff`: 0 of 269 turns. One existing test changed on purpose: two days after "my dad passed away last night" the
+brain is handed "passed away on Oct 31", and the test now requires that.
+
+## The month test on real brains again (run 53, Nov 20): 49 to 51 of 51
+
+The same six lives per brain, on the code with the three fixes (a question is never an order to save; Luma answers
+from the fact; the offer they asked for is added when the brain leaves it out).
+
+| Checked on day 28 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Comfort the way they asked (9) | 5 → **9** | 3 → **7** | 7 → **9** | **9** |
+| Recall (12) | 6 → **12** | 6 → **12** | 6 → **12** | **12** |
+| Update: where someone lives now (6) | 3 → **6** | 3 → **6** | 0 → **6** | **6** |
+| Callback, closed subject, never claimed (24) | 24 | 24 | 24 | 24 |
+| **All (51)** | 38 → **51** | 36 → **49** | 37 → **51** | **51** |
+| A Luma that never met them (27; the comfort check is stricter now) | 3 | 3 | 4 | 3 |
+
+So on day 28 Luma does 49 to 51 of 51 things a friend of a month would, and a Luma that never met them does 3 or 4
+of the 27 that can be asked of it. That gap is the thing Luma has that a model in a browser tab doesn't.
+
+What this is and isn't:
+- These are the dev lives: the wording the fixes were built against. The held-out lives without a brain are still 208
+  of 240; they haven't been run on a real brain.
+- Recall and update are now mostly Luma's own doing (it says the fact), not the brain's.
+- Our 4B's two misses are both a safety question: to "I feel so alone in this city" and "I have been crying all
+  afternoon" it asked "are you safe right now?", and the offer is never added next to that. Whether those two lines
+  deserve the question is a judgment for a clinician; run 51 says our trained brains ask it more than the stock ones.
+- Advice and a laugh, the other two ways of being met, are still unchecked: they need a judge.
