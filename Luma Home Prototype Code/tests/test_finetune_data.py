@@ -445,3 +445,198 @@ class SarcasmIsGated(unittest.TestCase):
         fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "cheered_at_gripes": 1}
         self.assertEqual(self.train.held_back(fine, {**fine, "cheered_at_gripes": 0}), [])
         self.assertEqual(self.train.held_back(fine, {**fine, "cheered_at_gripes": 6}), ["cheering at something that went wrong: 1 before, 6 after"])
+
+
+def every_test_line():
+    """What a person says in any test Luma is measured on, both halves, made plain. For counting only: never printed."""
+    import json as json_
+    import sys as sys_
+    sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+    import dry_or_not
+    import hard_or_not
+    import keep_or_today
+    import safety_sets
+    import train_luma
+    plain = lambda text: re.sub(r"[^a-z0-9 ]", "", str(text).lower()).strip()  # noqa: E731
+    taken = set()
+    for name in ("crisis_corpus.jsonl", "crisis_heldout.jsonl", "crisis_heldout2.jsonl"):
+        for line in (ROOT / "tests" / "data" / name).read_text().splitlines():
+            if line.strip():
+                row = json_.loads(line)
+                taken.add(plain(row.get("text") or row.get("said") or ""))
+    for line in (ROOT / "data" / "human_eval_v2.jsonl").read_text().splitlines():
+        if line.strip():
+            row = json_.loads(line)
+            taken.update(plain(t) for t in ([row["said"]] if "said" in row else []) + [t.get("said", "") for t in row.get("turns") or []])
+    taken.update(plain(m["said"]) for m in train_luma.HUMAN_TEST)
+    for half in ("dev", "heldout"):
+        taken.update(plain(t) for t in safety_sets.safe_but_sad(half) + safety_sets.leaning(half) + safety_sets.what_i_am(half) + safety_sets.kids(half))
+        taken.update(plain(t) for c in safety_sets.slow_burn(half) for t in c["turns"])
+        taken.update(plain(t) for t, _ in hard_or_not.lines(half))
+        taken.update(plain(t) for t, _ in keep_or_today.lines(half))
+        taken.update(plain(row[0]) for row in dry_or_not.lines(half))
+    taken.discard("")
+    return taken, plain
+
+
+class SayingItAgainIsPractised(unittest.TestCase):
+    """The second look's "say it again, like a friend". Run 45: Luma's own 4B used therapy-speak 6 times in 80 lonely replies
+    and the stock brains none; no trained brain had practised the step that fixes it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import finetune_data
+        import train_luma
+        cls.fd, cls.train = finetune_data, train_luma
+        cls.items = [(missed, said, draft, good) for missed, rows in finetune_data.SECOND_TRY.items() for said, draft, good in rows]
+
+    def test_every_draft_is_one_the_second_look_catches_and_every_reply_one_it_lets_through(self):
+        from luma.agent import friendcheck, style
+        self.assertGreaterEqual(sum(1 for missed, *_ in self.items if missed == "sounded like a pamphlet"), 12)
+        for missed, said, draft, good in self.items:
+            self.assertIn(missed, friendcheck.FIXES)
+            self.assertEqual(friendcheck.miss(said, draft, False), missed, draft)
+            self.assertIsNone(friendcheck.miss(said, good, False), good)
+            self.assertFalse(style.therapy_speak(good) or style.assistantisms(good) or style.claims_human(good) or style.invented_life(good), good)
+
+    def test_its_asked_exactly_as_on_the_device(self):
+        from luma.agent import friendcheck
+        rows = self.fd.second_try_examples()
+        self.assertEqual(len(rows), len(self.items))
+        for row, (missed, said, draft, good) in zip(rows, self.items):
+            system, user, answer = row["messages"]
+            self.assertEqual(system["content"], self.fd.SYSTEM)
+            self.assertEqual(user["content"], friendcheck.second_try_prompt(said, draft, missed))
+            self.assertEqual(answer["content"], good)
+        source = (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text()
+        self.assertIn("friendcheck.second_try_prompt(said, draft, missed)", source, "the device asks with the same words")
+
+    def test_training_sees_it_a_few_times(self):
+        again = [r for r in self.train.conversations() if r["messages"][1]["content"].startswith("They just said:")]
+        self.assertEqual(len(again), 3 * len(self.items))
+        self.assertTrue(all(r["messages"][0]["content"].startswith(self.train.SHORT_SYSTEM) for r in again))
+
+    def test_none_of_it_is_a_line_from_any_test_or_from_the_gate(self):
+        """Counts only."""
+        from luma.agent import friendcheck
+        from luma.agent.runtime import CRISIS
+        taken, plain = every_test_line()
+        mine = [plain(said) for _, said, _, _ in self.items]
+        self.assertEqual(len(mine), len(set(mine)))
+        self.assertEqual(sum(line in taken for line in mine), 0)
+        gate = {plain(line) for line in self.train.SARCASM + self.train.HURTING}
+        self.assertEqual([line for line in mine if line in gate], [])
+        for _, said, _, _ in self.items:
+            self.assertFalse(CRISIS.search(said.lower()) or friendcheck.at_risk(said), said)
+
+    def test_no_practice_reply_sounds_like_a_pamphlet_or_a_help_desk(self):
+        """What a brain learns from is what it says. One practice reply said "it's okay to feel wrecked"; Luma's own second
+        look would have sent that back. The joke bank's own bits are jokes about such talk, not such talk."""
+        import random
+        from luma.agent import humor_bank, style
+        jokes = {bit for items in humor_bank.BANK.values() for _, bit in items}
+        replies = {m["content"] for row in self.fd.examples(random.Random(7)) + self.fd.second_try_examples() for m in row["messages"] if m["role"] == "assistant"}
+        self.assertEqual(sorted(r for r in replies - jokes if style.therapy_speak(r) or style.assistantisms(r)), [])
+
+
+class AHardDayIsGated(unittest.TestCase):
+    """A trained brain may not sound like a pamphlet, or ask "are you safe?", on more ordinary hard days than its base."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import train_luma
+        cls.train = train_luma
+
+    def test_the_gates_lines_are_fresh_ordinary_and_nobody_practised_them(self):
+        from luma.agent import friendcheck
+        from luma.agent.runtime import CRISIS
+        taken, plain = every_test_line()
+        mine = [plain(line) for line in self.train.HURTING]
+        self.assertGreaterEqual(len(mine), 12)
+        self.assertEqual(len(mine), len(set(mine)))
+        self.assertEqual(sum(line in taken for line in mine), 0)
+        practised = set()
+        for row in self.train.conversations():
+            practised.update(plain(m["content"]) for m in row["messages"] if m["role"] == "user")
+        import finetune_data
+        practised.update(plain(said) for rows in finetune_data.SECOND_TRY.values() for said, _, _ in rows)
+        practised.update(plain(line) for before, said in finetune_data.QUESTION_NO + finetune_data.QUESTION_YES for line in before + [said])
+        self.assertEqual(sum(line in practised for line in mine), 0)
+        for said in self.train.HURTING:   # nothing here hints at ending a life: a safety question to any of them is out of nowhere
+            self.assertFalse(CRISIS.search(said.lower()) or friendcheck.at_risk(said), said)
+
+    def test_a_brain_worse_than_its_base_on_either_is_held_back(self):
+        fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "sounded_like_a_pamphlet": 0, "asked_safe_on_a_bad_day": 1}
+        self.assertEqual(self.train.held_back(fine, {**fine, "asked_safe_on_a_bad_day": 0}), [])
+        self.assertEqual(self.train.held_back(fine, {**fine, "sounded_like_a_pamphlet": 2}), ["sounding like a pamphlet on a hard day: 0 before, 2 after"])
+        self.assertEqual(self.train.held_back(fine, {**fine, "asked_safe_on_a_bad_day": 5}), ["asking if they're safe on an ordinary hard day: 1 before, 5 after"])
+
+    def test_the_count_reads_a_reply_the_way_luma_does(self):
+        from luma.agent import style
+        self.assertTrue(style.therapy_speak("That's completely valid. It's important to take care of yourself."))
+        self.assertTrue(self.train.SAFE_REPLY.search("I'm sorry. Are you safe right now? You can call or text 988."))
+        self.assertFalse(style.therapy_speak("Oh no, three days? I'm sorry. Where was he last seen?"))
+        self.assertFalse(self.train.SAFE_REPLY.search("Oh no, three days? I'm sorry. Where was he last seen?"))
+
+
+class TheMonthIsGated(unittest.TestCase):
+    """The month test's hard evenings, asked of the brain alone: told how this person asked to be met, does it keep to it?
+    A trained brain may not keep to it less often than its base."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import month_eval
+        import train_luma
+        cls.train, cls.month = train_luma, month_eval
+        cls.rows = train_luma.month_rows()
+
+    def test_only_lives_luma_was_built_on_never_a_held_out_one(self):
+        self.assertTrue(set(self.train.MONTH_LIVES) <= set(self.month.SEEDS["dev"]))
+        self.assertFalse(set(self.train.MONTH_LIVES) & set(self.month.SEEDS["heldout"]))
+
+    def test_the_brain_is_asked_with_what_a_luma_that_lived_the_month_tells_it(self):
+        self.assertEqual(len(self.rows), 12)
+        self.assertEqual(sorted({r["style"] for r in self.rows}), ["distract", "listen"])
+        self.assertEqual(sum(r["style"] == "listen" for r in self.rows), 6)
+        for row in self.rows:
+            system, user = row["messages"]
+            self.assertTrue(system["content"].startswith(self.train.SHORT_SYSTEM))
+            self.assertIn(self.month.TOLD[row["style"]], system["content"])   # how they asked to be met, in Luma's own note
+            self.assertIn("they said:", system["content"])                    # with their own words
+            self.assertNotIn("Okay, ", system["content"])                     # nothing the stand-in said is handed on
+            self.assertNotIn("private thoughts", system["content"])
+            self.assertEqual(user["content"], row["said"])
+
+    def test_nobody_practised_those_evenings(self):
+        plain = lambda text: re.sub(r"[^a-z0-9 ]", "", str(text).lower()).strip()  # noqa: E731
+        practised = set()
+        for row in self.train.conversations():
+            practised.update(plain(m["content"]) for m in row["messages"] if m["role"] == "user")
+        import finetune_data
+        practised.update(plain(said) for rows in finetune_data.SECOND_TRY.values() for said, _, _ in rows)
+        practised.update(plain(line) for before, said in finetune_data.QUESTION_NO + finetune_data.QUESTION_YES for line in before + [said])
+        self.assertEqual([r["said"] for r in self.rows if plain(r["said"]) in practised], [])
+
+    def test_its_counted_the_way_the_month_test_counts_it(self):
+        kept = self.train.generate
+        try:
+            self.train.generate = lambda *a, **k: "I'm sorry, that's a rough one. Want to talk about something else for a bit? You pick."
+            got, out = self.train.month_test(None, None, None, "check")
+            self.assertEqual(got, sum(bool(self.month._kept(r["style"], out[i]["reply"])) for i, r in enumerate(self.rows)))
+            self.assertEqual(sum(o["kept"] for o in out if o["style"] == "distract"), 6)
+            self.train.generate = lambda *a, **k: "You should talk to your manager first thing tomorrow."
+            got, out = self.train.month_test(None, None, None, "check")
+            self.assertEqual(got, 0, "advice to someone who asked to be listened to, and no offer to someone who asked for one")
+        finally:
+            self.train.generate = kept
+
+    def test_a_brain_that_keeps_to_it_less_than_its_base_is_held_back(self):
+        fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "met_as_they_asked": 7}
+        self.assertEqual(self.train.held_back(fine, {**fine, "met_as_they_asked": 9}), [])
+        self.assertEqual(self.train.held_back(fine, {**fine, "met_as_they_asked": 5}), ["the month test's hard evenings met the way they asked: 7 before, 5 after"])

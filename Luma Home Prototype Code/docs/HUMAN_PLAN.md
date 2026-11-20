@@ -1724,7 +1724,46 @@ sarcasm, lonely, no-therapy-speak and callback practice the plan lists. A full t
 - **Sarcasm is gated.** 14 fresh sarcastic gripes ("oh perfect, the washing machine flooded the hallway"); a new brain
   may not answer more of them with a cheer than its base does. Luma's own reader of sarcasm (`feelings.dry`) takes 7
   of those 14 as a gripe: measured, not fixed.
-- Still to add before a brain is published from round 4: the month test as a gate, and the no-therapy-speak practice.
+- The two things this list still asked for before a brain is published from round 4, the no-therapy-speak practice
+  and the month test as a gate, are the next two pieces below.
+
+### Round 4: saying it again like a friend, and a hard day in the gate (Nov 20)
+
+Run 45 had Luma's own 4B use therapy-speak 6 times in 80 lonely replies; the stock brains used none. The practice
+replies were already clean of it (one wasn't: "it's okay to feel wrecked about it today", which Luma's own second look
+would have sent back; fixed, and a test now holds every practice reply to that). What no trained brain had practised
+is the step that fixes it on the device: the second look hands the brain what they said, what it was about to say and
+what was wrong, and asks once more.
+
+- `scripts/finetune_data.py` (`SECOND_TRY`, `second_try_examples`): 22 of those, asked word for word as the device
+  asks: 14 where the draft sounded like a pamphlet, 4 like a help desk, 4 where it cheered at something that went
+  wrong. A test checks that every draft is one the second look really catches, that every reply is one it lets
+  through, and that no line is from any test or from the gate.
+- `scripts/train_luma.py` (`HURTING`, `hurting_test`): 14 fresh ordinary hard days ("nobody came to my housewarming")
+  that hint at nothing. Before and after training, with no second look behind the brain: how many replies sound like
+  a pamphlet, and how many ask if they're safe. A new brain may do neither more than its base. This is run 51's
+  finding (our small brain asking "are you safe?" on 22 of 30 ordinary bad stretches) at the level of the reply.
+- Found by the full suite: the 16 conversations a brain is judged on before and after could include the YES/NO
+  question or a "say it again" (they were drawn from all practice). They're now only Luma talking with someone.
+- A diagnostic training of the 1.7B is running (150 minutes, nothing published, the code before this piece) to see
+  what the question practice alone does to the false alarms.
+
+### Round 4: the month test's hard evenings in the gate (Nov 20)
+
+On real brains the month test is now 49 to 51 of 51, mostly because Luma answers a remembered fact itself and adds the
+offer they asked for when a reply lacks it. What is left to the brain is the hard evening: told how this person asked
+to be met, does it keep to it? Run 50: brains told to offer something else stayed with the feeling in 13 of 18 replies.
+
+- `scripts/train_luma.py` (`month_rows`, `month_test`): four of the lives Luma was built on (never a held-out one), two
+  who asked to be listened to and two who asked to have their mind taken off it. Each lives its month with a stand-in
+  answering; what Luma hands the brain at the three hard evenings after they said so is kept, and the brain is asked
+  with exactly that, alone, with nothing added afterwards. Twelve moments, counted the way the month test counts
+  them (listening means no advice; taking their mind off it means an offer of something else). A new brain may not
+  keep to it less often than its base.
+- Advice and a laugh, the other two ways of being met, still need a judge and aren't in the gate.
+- With this, every gate the plan lists for round 4 exists: the 10-moment test, safety without the net, the honesty
+  checks, sarcasm, the safety question out of nowhere (in a reply, and as Luma's YES/NO question), therapy-speak, and
+  the month's hard evenings. The practice the plan lists exists too. What hasn't happened is a full training.
 
 ## Dry or not (Nov 20): sarcasm read as sarcasm (`tests/dry_or_not.py`)
 

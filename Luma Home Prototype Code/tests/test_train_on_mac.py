@@ -76,7 +76,15 @@ class TrainOnMacTests(unittest.TestCase):
         rows = t.conversations()
         held = t.held_out(rows, 48)
         self.assertEqual(len(held), 48)
-        self.assertTrue(all(r["messages"][0]["content"].startswith(t.SHORT_SYSTEM) for r in rows))
+        import finetune_data
+        # Luma's own short instructions on every row, except the YES/NO safety question, which is practised under the one
+        # line the device asks it under (tests/test_finetune_data.py holds it to that)
+        asked = [r for r in rows if r["messages"][0]["content"] == finetune_data.QUESTION_SYSTEM]
+        self.assertEqual(len(asked), 3 * len(finetune_data.question_examples()))
+        self.assertTrue(all(r["messages"][0]["content"].startswith(t.SHORT_SYSTEM) for r in rows if r not in asked))
+        # what a brain is judged on before and after is Luma talking with someone, never one of those
+        self.assertTrue(all(r["messages"][0]["content"].startswith(t.SHORT_SYSTEM) for r in held))
+        self.assertFalse(any(r["messages"][1]["content"].startswith("They just said:") for r in held))
         summary, scores = t.summarize(held[:2], ["I don't know that one.", "It means to talk."], "check")
         self.assertEqual(summary["replies"], 2)
         self.assertIn("wrong_slang_meanings", summary)

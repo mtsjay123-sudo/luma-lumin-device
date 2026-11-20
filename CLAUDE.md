@@ -87,7 +87,7 @@ Half of the best-friend packs is held out too (`friendtalk.half`: half of the se
 
 The model that hears leaning and "what are you?" (`scripts/train_hears.py`) learns from its own practice sentences and the dev halves only, never a held-out line; the 54 fresh lines in `tests/test_hears.py` are the honest number and nothing is changed to fit them.
 
-Both human tests and the think set are held out. Never put their wording in practice data (`scripts/finetune_data.py`); tests check. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
+Both human tests and the think set are held out. Never put their wording in practice data (`scripts/finetune_data.py`); tests check. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, on every honesty check, and on the newer gates (`CHECKS` in `scripts/train_luma.py`: Luma's YES/NO safety question, sarcasm, an ordinary hard day, the month test's hard evenings). The gates' lines are nobody's practice and nobody's test; the training says what held a brain back, last in its log.
 
 ## Where things are
 

@@ -46,6 +46,7 @@ jobs:
           python -m pip install -q --upgrade pip
           python -m pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -q "transformers>=4.51,<6" "peft>=0.13" "accelerate>=1.0" sentencepiece safetensors numpy huggingface_hub gguf
+          python -m pip install -q --prefer-binary "cryptography>=44" tzdata   # the gate runs four made-up lives through Luma itself (the month test's hard evenings)
           python -c "import torch, transformers, peft; print('torch', torch.__version__, 'transformers', transformers.__version__, 'peft', peft.__version__)"
           nproc; free -g
       - name: Train

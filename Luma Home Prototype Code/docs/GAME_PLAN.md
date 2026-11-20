@@ -72,6 +72,17 @@ on day 1 and run alongside everything else:
   own held-out "moved" is still 0 of 20: one sentence shape, still missed).
 - **Seen in run 51 and to be dealt with in training:** our small brain asks "are you safe?" in 22 of 30 held-out
   conversations about an ordinary bad stretch (stock 4B: 0).
+- **The model that hears, on real brains (run 52 beside run 51):** leaning said in new words is answered right on
+  every brain (120 of 120; the stock 4B had 6 of 30 wrong), and asked what it is in new words 99 → 111 of 120. Nothing
+  else in the table moved.
+- **Training round 4 is ready to run.** Practised now, each exactly as the device asks it: Luma's YES/NO safety
+  question (a bad stretch is a NO) and the second look's "say it again like a friend" (pamphlet, help desk, a cheer at
+  a gripe). Gated now: the question on lines nobody practised, sarcasm, an ordinary hard day (no pamphlet talk, no
+  "are you safe?"), and the month test's hard evenings (told how they asked to be met, does the brain keep to it). The
+  training says what held a brain back, last in its log. A diagnostic training of the small brain is running; nothing
+  is published from it. A full round is 4.5 hours a brain and hasn't been started.
+- **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
+  and a power cut mid-write loses nothing that was confirmed (8 kills).
 
 ## 1. Where Luma stands (measured)
 
