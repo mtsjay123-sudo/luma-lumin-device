@@ -35,6 +35,7 @@ on day 1 and run alongside everything else:
   sad-but-safe lines. Held out, by rules alone: asked what it is 191 of 248, leaning 44 of 164, a building worry reaches
   the brain in 62 of 75, Japanese 5 of 20. Rules built on the dev half fixed all of it and moved the held-out half by
   nothing. On real brains: `only: sets`.
+- **Day 7: done.** The app walk is a test now: 78 screens across six sizes, light and dark, 0 problems.
 - **Day 7, early: done.** Nothing leaves the home in an ordinary conversation or a day of background work (0 hosts;
   the lamp's whole service still needs a packet capture). The license check found `pynput` (LGPL) as a direct
   dependency: removed. `certifi` (MPL) and `tld` (MPL/GPL/LGPL) are pulled in by other packages: the owner's call.

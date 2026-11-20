@@ -1357,3 +1357,13 @@ Added:
 Not done, and why: backchannels chosen by the brain, and tone picked per reply. Both change how Luma sounds, neither
 can be heard or measured in this environment, and the timing test should exist with real recordings first so they're
 judged by a number.
+
+## Game plan, day 7 (Nov 20): the app walk as a test (`tests/test_app_walk.py`, `tests/app_walk.cjs`)
+
+The browser walk from day 1 is now a test that runs with the suite wherever node can drive a browser. A Luma with a few
+days of made-up life is served, and both apps are opened at six sizes (phone 360, 390, 430; computer 1024, 1280, 1440),
+light and dark: 78 screens. Nothing may error, fail to load, run off the screen, be too small for a thumb, or sit under
+the floating ask bar at the end of a page; and the apps must say a few things right: one memory count, a task's real
+days, no model's name where a customer reads, no passing remark as a memory card, and "How to be with you" present.
+**78 screens, 0 problems.** It doesn't compare pictures to earlier ones: that needs stored pictures and a person to
+bless them.

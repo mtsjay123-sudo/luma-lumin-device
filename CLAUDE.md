@@ -114,6 +114,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Luma Plus: the yes screen and its words; one interface for every cloud brain | `src/luma/llm/plus.py`, `cloudbrain.py` |
 | The relay (Luma Cloud): the brain route, metering, the yes on record | `api/_lib/luma-cloud.js` and `tests/luma-brain.test.mjs`, both at the top of the repo |
 | Chat path | `Agent.chat` → `_chat_turn` → polish → `_friend_style` → `_second_look` (`src/luma/agent/runtime.py`) |
+| Both apps walked in a real browser at six sizes, light and dark (78 screens): no errors, nothing off the screen or under the ask bar, and the few things they must say right | `tests/test_app_walk.py`, `tests/app_walk.cjs` (skipped where node has no Playwright) |
 | Luma's look: living water on the talk screen's dark stage (`look: "water"`), the marble everywhere else (the first slides, the avatars, the logo) | `src/luma/control/web/orb.js` (tests: `tests/test_orb.py`, which opens it in a browser when node has Playwright). After a change, copy it to `desktop/assets/orb.js` |
 | The human model: what a close friend does with language, trait by trait, and where each lives | `docs/HUMAN_MODEL.md` |
 | The device you can build: a lamp (a frosted dome on a white base), parts, wiring, the microphone switch, a case to print | `hardware/README.md`, `hardware/luma_case.scad`, `hardware/stl/` (tests: `tests/test_hardware_case.py`). A design; no unit has been built. The dome's glow says nothing about listening: only the amber light on the microphones' power does |
