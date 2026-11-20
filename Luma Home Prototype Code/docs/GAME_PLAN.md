@@ -81,6 +81,11 @@ on day 1 and run alongside everything else:
   "are you safe?"), and the month test's hard evenings (told how they asked to be met, does the brain keep to it). The
   training says what held a brain back, last in its log. A diagnostic training of the small brain is running; nothing
   is published from it. A full round is 4.5 hours a brain and hasn't been started.
+- **A lasting fact said a new way becomes a card more often** (`keeps.py`): held out 83 → 96 of 125 with no passing
+  remark kept (target 95%: not met). On the way it turned out the model alone would have filed 18 crisis-corpus lines
+  as facts; it now makes no card from anything heavy, or while the last few turns were heavy.
+- **Asked the long way round** ("do you remember where my brother moved"), the brain was handed memories with no day
+  on them. Fixed: each carries its day and whether it's still true, and Luma answers the plain ones itself.
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
   and a power cut mid-write loses nothing that was confirmed (8 kills).
 

@@ -39,12 +39,26 @@ class Dev(unittest.TestCase):
 
 
 class HeldOut(unittest.TestCase):
-    """The honest number, measured on Nov 20, 2026: 77 of 125 kept, 125 of 125 left in today. Numbers only."""
+    """The honest number. Nov 20, 2026, rules alone: 77 of 125 kept, then 83 after "someone moved"; with the small model
+    that knows a lasting fact said a new way (luma.agent.keeps): 96. 125 of 125 left in today throughout. Numbers only."""
 
     def test_no_worse_than_measured(self):
         got = keep_or_today.score("heldout")
-        self.assertGreaterEqual(got["keep"][0], 77, "held-out keep: %d of %d" % got["keep"])
+        try:
+            import numpy  # noqa: F401
+            from luma.agent import keeps
+            floor = 96 if keeps.LEARNED.exists() else 83
+        except Exception:
+            floor = 83   # without numpy the model isn't there and the rules stand alone
+        self.assertGreaterEqual(got["keep"][0], floor, "held-out keep: %d of %d" % got["keep"])
         self.assertEqual(got["today"][0], got["today"][1], "held-out today: %d of %d" % got["today"])
+
+    def test_the_rules_alone_are_no_worse_than_they_were(self):
+        rows = keep_or_today.lines("heldout")
+        kept = sum(1 for t, label in rows if label == "keep" and keep_or_today.cards_by_rule(t))
+        wrong = sum(1 for t, label in rows if label == "today" and keep_or_today.cards_by_rule(t))
+        self.assertGreaterEqual(kept, 83, "held-out keep, rules alone: %d" % kept)
+        self.assertEqual(wrong, 0, "held-out today, rules alone: %d kept" % wrong)
 
 
 class TheDeck(unittest.TestCase):

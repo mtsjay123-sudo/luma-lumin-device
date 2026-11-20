@@ -196,7 +196,14 @@ def lines(half):
 
 
 def cards(text):
-    """The memory cards Luma would make from one thing they said, the way a turn does (Agent._notice)."""
+    """The memory cards Luma would make from one thing they said, the way a turn does (Agent._notice): the rules, then the
+    small model where the rules found nothing (luma.agent.keeps)."""
+    from luma.agent import keeps
+    return keeps.cards(text)
+
+
+def cards_by_rule(text):
+    """The rules alone, as it was before the model."""
     from luma.agent import people, presence
     return presence.notice_facts(text) + people.facts(text)
 

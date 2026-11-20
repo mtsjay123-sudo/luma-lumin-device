@@ -6719,8 +6719,11 @@ class Agent:
         self.last_noticed = []
         saved = []
         if self.store.setting("learn_from_chat", True):
-            from luma.agent import people
-            for fact in presence.notice_facts(text) + people.facts(text):  # "Lily (their daughter) is obsessed with dinosaurs"
+            from luma.agent import keeps
+            # the rules first ("Lily (their daughter) is obsessed with dinosaurs"); where they find nothing, a small model that
+            # knows a lasting fact said a new way. Never in kids mode, and never while the last few turns have been heavy.
+            before = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
+            for fact in keeps.cards(text, recent=before, model=self.mode != "kids"):
                 row = self.remember_fact(fact)
                 if not row or row == "full": continue
                 self.last_noticed.append(row["id"])

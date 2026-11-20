@@ -59,15 +59,21 @@ class PowerCut(unittest.TestCase):
             writer = subprocess.Popen([sys.executable, "-c", WRITER, str(db), str(key), str(ROOT / "src"), str(round_)],
                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             wanted = rng.randint(15, 140)
+            def heard(line):
+                if line.endswith("\n") and line.strip():   # a whole line: the writer says it only after the store confirmed
+                    (deleted if line.startswith("-") else confirmed).add(line.strip().lstrip("-"))
+
             try:
                 for _ in range(wanted):
-                    line = writer.stdout.readline().strip()
+                    line = writer.stdout.readline()
                     if not line:
                         break
-                    (deleted if line.startswith("-") else confirmed).add(line.lstrip("-"))
+                    heard(line)
             finally:
                 os.kill(writer.pid, signal.SIGKILL)   # mid-write, as often as not
                 writer.wait(10)
+                for line in writer.stdout:   # what it had already confirmed and this test hadn't read yet (on a busy machine the
+                    heard(line)              # writer runs ahead: three "unconfirmed" memories were only unread confirmations)
                 writer.stdout.close()
             store = Store(db, key)
             try:
