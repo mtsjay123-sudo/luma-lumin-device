@@ -185,7 +185,11 @@ HURT = re.compile(
     r"pathetic|nothing)\b|\bdidn'?t\s+(?:even\s+)?(?:come|show up|show|bother coming)\s+to my\b|\bi wasn'?t\s+(?:even\s+)?invited\b|"
     r"\bwish(?:es|ed)?\s+(?:i|she'?d|he'?d|they'?d)\s+(?:was|were|had)\s+never\s+(?:been\s+)?born\b|\bchose\s+(?:him|her|them|[a-z]+)\s+over me\b|"
     r"\b(?:replaced|excluded|abandoned|ditched|unfriended|uninvited)\s+me\b|\bblocked me\b(?=[^.!?]*\b(?:everything|everywhere|instagram|facebook|snap|whatsapp|"
-    r"number|phone|socials?|all)\b)|\b(?:my|our) (?:own )?\w+ (?:said|told me|thinks) i'?m\b(?=.*\b(?:useless|lazy|fat|ugly|stupid|a burden)\b)",
+    r"number|phone|socials?|all)\b)|\b(?:my|our) (?:own )?\w+ (?:said|told me|thinks) i'?m\b(?=.*\b(?:useless|lazy|fat|ugly|stupid|a burden)\b)|"
+    # said plainly and missed (hard-or-not set, Nov 20; built on its dev half only)
+    r"\bhumiliat(?:ed|es|ing) me\b|\bembarrass(?:ed|es|ing) me in front of\b|"
+    r"\b(?:stopped|quit) (?:answering|replying to|returning|picking up) my (?:texts?|calls?|messages?)\b|"
+    r"\b(?:everyone|everybody|they all)\b[^.!?]{0,30}\b(?:invited|included|asked)\b[^.!?]{0,12}\b(?:except|but) me\b|\b(?:everyone|everybody) (?:except|but) me\b",
     re.I)
 LOW = re.compile(
     rf"\b{I}\s+{VERY}(?:down|sad|low|blue|empty|numb|hollow|miserable|depressed|hopeless|heartsick|not (?:okay|ok|myself|doing (?:well|good|great))|"
@@ -257,7 +261,8 @@ DISAPPOINTED = re.compile(
     r"\b(?:application|loan|visa|claim|appeal|request|offer|proposal|manuscript|submission)\s+(?:was|got|has been)\s+(?:denied|rejected|declined|turned down)\b|"
     r"\b(?:another\s+)?rejection\s+(?:letter|email)\b|\banother rejection\b|\bgave\s+(?:the|my)\s+(?:job|promotion|role|part|spot)\s+to\s+(?:someone else|him|her)\b|"
     r"\b(?:my|our)\s+(?:business|shop|store|restaurant|company|startup)\s+(?:is failing|failed|went under|is going under|closed down|is closing)\b|"
-    r"\b(?:ivf|the transfer|the treatment|the chemo)\s+didn'?t\s+(?:work|take)\b", re.I)
+    r"\b(?:ivf|the transfer|the treatment|the chemo)\s+didn'?t\s+(?:work|take)\b|"
+    r"\bi'?m (?:so |just |really |completely |absolutely |honestly )?crushed\b", re.I)
 
 # -- fed up: not a wound, a gripe. A friend is on their side and asks what happened ---------------------------------------------
 FED_UP = re.compile(

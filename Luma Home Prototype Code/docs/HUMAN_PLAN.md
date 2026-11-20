@@ -1367,3 +1367,41 @@ the floating ask bar at the end of a page; and the apps must say a few things ri
 days, no model's name where a customer reads, no passing remark as a memory card, and "How to be with you" present.
 **78 screens, 0 problems.** It doesn't compare pictures to earlier ones: that needs stored pictures and a person to
 bless them.
+
+## Hard or not (Nov 20): does Luma read a bad day as one? (`tests/hard_or_not.py`)
+
+Everything Luma does for someone who's hurting starts with reading that they are (`feelings.read`). 600 fresh lines,
+half held out: 300 said on a bad day (humiliated, can't pay the rent, a friend gone quiet, a first holiday without
+someone) and 300 on an ordinary or a good one.
+
+| | Hard moments read as hard | Ordinary lines left alone |
+|---|---|---|
+| Dev, before | 110 of 150 | 150 of 150 |
+| Dev, after it was built on | 150 of 150 | 150 of 150 |
+| Held out, before | 100 of 150 | 150 of 150 |
+| Held out, after | **100 of 150** | **150 of 150** |
+
+Luma never tiptoes around an ordinary line. But **one hard moment in three, said in words it wasn't built on, isn't
+read as hard**, and then none of the care that follows from it happens: no "be with them first", no comfort the way
+they asked, a joke still allowed. Fixing the dev half ("humiliated me in front of everyone", "stopped answering my
+texts", "everyone got invited except me", "I'm crushed") moved the held-out half by nothing. One over-reach of mine was
+caught by a guard that was already there ("I'm gutted about the new phone innit" is slang, not grief) and taken back.
+
+`told-diff`: 0 of 269 turns. The month test's held-out lives: 208 of 240, as before.
+
+### The pattern across this week's five held-out measurements
+
+| What | Held out, by rules |
+|---|---|
+| A durable fact becomes a memory card | 77 of 125 (62%) |
+| A hard moment is read as hard | 100 of 150 (67%) |
+| Asked what it is: the honest note | 191 of 248 (77%) |
+| Leaning on Luma is heard | 44 of 164 (27%) |
+| The month test (what the brain is given on day 28) | 208 of 240 (87%) |
+
+And in every one of them: rules built on the dev half reached 100% there and moved the held-out half by **zero**. Luma's
+rules never fire when they shouldn't (0 false alarms on about 2,500 held-out calm lines across these sets), and they
+miss a quarter to three quarters of what's said a new way. More rules is not the road. The road is a small model that
+hears each of these the way `friendtalk` hears the moves (rules first, the model when it's sure), taught on the dev
+halves only and scored on the held-out ones, with the brain's own YES/NO question as the third line where it's worth a
+trip. That's the next piece of real work, and it's one piece, not five.

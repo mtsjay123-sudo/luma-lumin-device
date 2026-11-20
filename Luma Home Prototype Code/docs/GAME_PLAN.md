@@ -45,6 +45,12 @@ on day 1 and run alongside everything else:
   and the timing test exists and waits for recorded conversations. Brain-chosen backchannels and tone per reply are not
   started: they need ears and the timing number.
 
+- **The lesson of the week, measured five times:** Luma's rules never fire when they shouldn't, and they miss a quarter
+  to three quarters of what's said a new way (held out: a fact kept 62%, a hard moment read 67%, "what are you" 77%,
+  leaning 27%). Rules built on the dev halves moved the held-out halves by zero, every time. **Next: one small model
+  that hears these, taught on the dev halves only.** That is now the most valuable piece of code work, ahead of
+  anything in voice.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

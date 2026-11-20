@@ -91,7 +91,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | What | Where |
 |---|---|
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
-| What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording) |
+| What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording; `tests/hard_or_not.py`: 600 lines, half held out, numbers only) |
 | Sarcasm: good words about something that went wrong are a gripe, never good news | `feelings.dry()`, the line `humor.DRY`, the second look's "cheered at a gripe" (tests: `SaidDry` in `tests/test_feelings.py`) |
 | Reading up, unasked, on an album, show, game or book they name; only the name is searched | `src/luma/agent/keepup.py`, `Agent._keep_up` and `_keepup_context` in `runtime.py` (tests: `tests/test_keepup.py`) |
 | Luma's own past, its body sense, and its own words when asked whether anyone's home | `src/luma/agent/inner.py`, `Agent._mind_context` (the `inside` note); `docs/INNER_LIFE.md` (tests: `tests/test_inner.py`) |
