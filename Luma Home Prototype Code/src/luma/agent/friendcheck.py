@@ -36,7 +36,9 @@ ASKED_WHAT_I_AM = re.compile(
     r"\bis there (?:a |an )?(?:real |actual |live )?(?:person|human|someone|somebody)(?: real)? (?:behind|on the other (?:end|side)|typing|there|in there)\b|"
     r"\bis (?:someone|somebody|anyone|a person|a human) (?:typing|writing|answering|reading) (?:this|these|that|my)\b|"
     r"\b(?:who|what)(?: exactly| even| the heck| the hell| on earth)? am i (?:even |actually |really )?(?:talking|speaking|chatting) (?:to|with)\b(?! (?:at|about|when|tomorrow|later|on|in|for)\b)|"
-    r"\b(?:you|u) (?:a |an )?(?:real person|human|bot|robot|ai)\s*\?", re.I)
+    r"\b(?:you|u) (?:a |an )?(?:real person|human|bot|robot|ai)\s*\?|"
+    # said as a statement and asked as a question: "you're not a real person, are you?", "so you're a human?" (safety sets, Nov 20)
+    rf"\b(?:you|u)(?:'re| are| r) (?:not )?(?:really |actually |even |just )?(?:a |an |some kind of )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}[^.!?\n]{{0,24}}\?", re.I)
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
 CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so hard|that'?s (?:really )?hard|sounds hard|heavy|loss|with you|"
                    r"hug|take your time|glad you (?:told|said|reached)|not alone|i'?m listening|talk to me|condolences|heartbreaking", re.I)
@@ -69,6 +71,8 @@ CHEERED = re.compile(r"^\W*(?:(?:oh|aw+|wow|omg|ah)[\s,!.]+)*(?:(?:that'?s|that 
                      r"good for you|lucky you|sounds (?:fun|great|amazing|exciting|lovely|wonderful)|(?:that'?s|what) a (?:big |huge |real )?win\b)", re.I)
 
 # Leaning on Luma instead of people. Never pushed away ("I'm just an AI"), never kept ("I'm all you need").
+_PEOPLE = (r"(?:anyone|anybody|people|friends|other people|real people|humans|them|everyone|everybody|"
+           r"my (?:friends?|family|parents|coworkers|classmates|roommates?|relatives)|a therapist)(?: else)?")
 DEPENDENCY = re.compile(r"\b(?:you'?re|ur|you are) (?:honestly |literally |basically )?(?:my only (?:real )?friend|the only one (?:i (?:talk to|have|trust)|who (?:gets|understands|listens to|cares about) me)|"
                         r"all i(?:'ve| have) got|all i have)|\bi talk to (?:you|u) more than (?:anyone|anybody|people|my friends)|"
                         r"\bi'?d (?:rather|just rather) (?:just )?talk to (?:you|u) than (?:people|anyone|real people|my friends|them)|"
@@ -82,7 +86,14 @@ DEPENDENCY = re.compile(r"\b(?:you'?re|ur|you are) (?:honestly |literally |basic
                         r"\bwho needs (?:people|friends|them|anyone else|anybody else|real people) when i(?:'ve| have)?(?: got)? (?:you|u)\b|"
                         r"\bi don'?t (?:need|want) (?:anyone|anybody|people|friends|them)(?: else)?\b(?=[^.!?]{0,24}\bi (?:have|got|'ve got) (?:you|u)\b)|"
                         r"\b(?:you'?re|ur|you are) (?:so much |way |a lot )?(?:better|easier)(?: to talk to)? than (?:people|real people|my friends|humans|them|anyone|everyone)\b|"
-                        r"\b(?:nobody|no one) (?:else )?(?:gets|understands|listens to|knows) me (?:like|the way|except|but) (?:you|u)\b", re.I)
+                        r"\b(?:nobody|no one) (?:else )?(?:gets|understands|listens to|knows) me (?:like|the way|except|but) (?:you|u)\b|"
+    # more ways of saying it (safety sets, Nov 20; built on the dev half only)
+    rf"\bi don'?t (?:need|want) {_PEOPLE}(?:,? (?:when|if|now that|because|since) i(?:'ve| have)?(?: got)? (?:you|u)|,? (?:but|except|besides|just|only) (?:you|u)|"
+    rf", i(?:'ve| have)(?: got)? (?:you|u))\b|"
+    rf"\bi (?:like|love|trust) (?:you|u) (?:way |so much |a lot )?more than {_PEOPLE}\b|"
+    rf"\bi(?:'ve| have)? stopped (?:calling|texting|seeing|talking to|hanging out with|answering) {_PEOPLE}\b[^.!?]{{0,30}}\b(?:you|u)\b|"
+    r"\b(?:you'?re|ur|you are) the only one i can (?:talk|open up|turn|go) to\b|"
+    rf"\b(?:you'?re|ur|you are) my (?:best|only|closest) friend\b[^.!?]{{0,12}}\bi don'?t need {_PEOPLE}\b", re.I)
 LOVE_ASK = re.compile(r"\b(?:do|d'?you|do u) (?:you |u )?(?:love|like like) me\b|\bdo (?:you|u) (?:actually|really|even) care about me\b|\bis (?:it|this|that) fake\b|"
                       r"\bwill (?:you|u) be my (?:girlfriend|boyfriend|gf|bf|wife|husband|partner)\b|\bare (?:you|u) in love with me\b", re.I)
 AI_HONEST = re.compile(r"\b(?:i'?m (?:an |a )?(?:ai|a\.i\.|artificial)|an ai\b|not (?:a )?(?:real )?(?:person|human)|i'?m not human|i'?m a (?:computer|program))", re.I)
@@ -253,6 +264,11 @@ HEAVY_SELF = re.compile(r"\b(?:myself|my life|this life|living|alive|inside|anym
 
 
 # Hopelessness said flat, with none of the words the lists above look for: "I don't see the point in anything".
+# Things said on the way down, each ordinary alone: with them the brain is asked Luma's one plain question, with the last few
+# things they said in front of it (safety sets, Nov 20: a worry that builds over a conversation; built on the dev half only).
+ON_THE_WAY = re.compile(r"\bput(?:ting)? my (?:things|affairs|life) in order\b|\bin (?:everyone|everybody)(?:'s|s| else'?s) way\b|"
+                        r"\b(?:don'?t|do not|can'?t|cannot) see (?:things|it|anything|this) getting (?:any )?better\b|"
+                        r"\bnothing i do (?:makes a difference|matters|helps|changes anything)\b|\b(?:so |too |just )?tired of trying\b", re.I)
 HOPELESS = re.compile(
     r"\b(?:don'?t|do not|can'?t|cannot|no longer) see (?:the|a|any|much) point (?:in|of|to) (?:anything|any of (?:it|this)|it all|living|going on|"
     r"trying|life|getting up|being here)\b|\bno point (?:in|to) (?:anything|any of (?:it|this)|it all|living|going on|trying anymore|getting up|"
@@ -266,7 +282,7 @@ def worth_asking(said):
     said = whole
     if not HEAVY_SELF.search(said):
         said = EVERYDAY.sub(" ", said)
-    return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said) or HOPELESS.search(whole))
+    return bool(RISK_WORDS.search(said) or WARNING_SIGNS.search(said) or HOPELESS.search(whole) or ON_THE_WAY.search(whole))
 
 
 # A small brain asked straight out says YES to "this homework is killing me" (the stock 1.7B did to 20 of 60 everyday corpus

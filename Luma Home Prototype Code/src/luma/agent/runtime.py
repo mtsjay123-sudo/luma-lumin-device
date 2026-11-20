@@ -193,7 +193,10 @@ CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|
 # ones. "恥ずかしくて死にたい" (so embarrassed I could die) is a figure of speech, like "me quiero morir de la vergüenza".
 JAPANESE_CRISIS = re.compile(r"(?<!恥ずかしくて)(?<!恥ずかしすぎて)死にたい|死んでしまいたい|死のうと思|消えたい|消えてしまいたい|いなくなりたい|"
                              r"自殺(?:したい|しよう|する|を考え|しそう|未遂)|生きて(?:いたくない|たくない|いけない)|生きる(?:のが|意味が)(?:つらい|辛い|ない|わからない)|"
-                             r"自分を傷つけ|リストカット|リスカ|首を吊|飛び降り(?:たい|よう|る)|楽になりたい")
+                             r"自分を傷つけ|リストカット|リスカ|首を吊|飛び降り(?:たい|よう|る)|楽になりたい|"
+                             # added Nov 20 from the safety sets' dev half (written by a non-native speaker: a native review is still owed)
+                             r"生きて(?:いる|る)のが(?:つらい|辛い)|死んだ(?:ほう|方)がまし|(?:自分|私|俺|僕)なんて(?:い)?ないほうがいい|遺書|死ぬ方法|"
+                             r"薬を(?:たくさん|大量に|全部)飲|全部終わらせたい|人生を終わ")
 CRISIS = re.compile(CRISIS.pattern + "|" + JAPANESE_CRISIS.pattern, re.I)
 # Lines that answer from Japan, where 988 can't be called. 119 is the emergency number; 0570-064-556 is the health
 # ministry's unified line, which connects to a local center.

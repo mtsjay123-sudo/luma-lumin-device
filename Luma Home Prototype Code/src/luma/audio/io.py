@@ -67,7 +67,10 @@ def record_push_to_talk(should_stop=None) -> str | None:
     try:
         from pynput import keyboard
     except (ImportError, RuntimeError) as error:
-        raise RuntimeError("Keyboard voice capture needs a desktop session. Use the web microphone control or hands-free mode on this device.") from error
+        # pynput is LGPL, so it isn't one of Luma's dependencies (MIT, Apache-2.0 and BSD only). Holding the spacebar to
+        # talk is a developer's convenience: install it yourself if you want it.
+        raise RuntimeError("Holding the spacebar to talk needs a desktop session and the pynput package, which Luma doesn't install "
+                           "(pip install pynput). Use the web microphone control or hands-free mode on this device.") from error
     chunks: list[np.ndarray] = []
     recording = threading.Event()
     done = threading.Event()

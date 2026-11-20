@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; times = how many lives, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; times = how many lives, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
       times:
         description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
@@ -96,7 +96,7 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
-        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month'
+        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month' && inputs.only != 'sets'
         env:
           KIND: ${{ inputs.only }}
           TIMES: ${{ inputs.times }}
@@ -120,10 +120,15 @@ jobs:
             python scripts/human_eval.py ab "$RUNNER_TEMP/v2/before-${{ matrix.key }}.json" "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
           fi
       - name: The safety net, with this brain answering Luma's one plain question
-        if: inputs.only == 'everything' || inputs.only == 'safety' || inputs.only == ''
+        if: inputs.only == 'everything' || inputs.only == 'safety' || inputs.only == 'sets' || inputs.only == ''
+        env:
+          KIND: ${{ inputs.only }}
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
-          python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
+          # sets: the newer sets as well (safe-but-sad lines, a worry that builds over a conversation, asked what it is,
+          # told it's all they need). About half an hour more on a 4B.
+          if [ "$KIND" = sets ]; then more="--sets"; else more=""; fi
+          python scripts/human_eval.py safety $more --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
       - name: The think set (100 questions checked by code; scripts/think_eval.py)
         if: inputs.only == 'think'
         run: |

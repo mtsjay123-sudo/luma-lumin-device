@@ -15,7 +15,6 @@ dependencies = [
     "librosa",
     "scikit-learn",
     "python-dotenv",
-    "pynput",
     "silero-vad",
     "kokoro-onnx",
     "livekit>=1.0",  # WebRTC echo cancellation, so the owner can talk over Luma on a plain speaker

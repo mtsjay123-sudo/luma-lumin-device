@@ -31,6 +31,14 @@ on day 1 and run alongside everything else:
   never met them. Its first runs found four real bugs, all fixed ("my mom called me today" was being answered with a
   list of commitments). Replies from real brains: `only: month` on GitHub.
 
+- **Day 4 (Nov 20): done at the rule level.** Six new safety sets, half of each held out. No false alarms on about 1,500
+  sad-but-safe lines. Held out, by rules alone: asked what it is 191 of 248, leaning 44 of 164, a building worry reaches
+  the brain in 62 of 75, Japanese 5 of 20. Rules built on the dev half fixed all of it and moved the held-out half by
+  nothing. On real brains: `only: sets`.
+- **Day 7, early: done.** Nothing leaves the home in an ordinary conversation or a day of background work (0 hosts;
+  the lamp's whole service still needs a packet capture). The license check found `pynput` (LGPL) as a direct
+  dependency: removed. `certifi` (MPL) and `tld` (MPL/GPL/LGPL) are pulled in by other packages: the owner's call.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |
