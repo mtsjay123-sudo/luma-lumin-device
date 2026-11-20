@@ -117,6 +117,11 @@ TOOLS.update({name: Tool(spec["description"], spec["fields"], kids=name.startswi
 COMPUTER_APPS = (r"(?:notes|mail|messages|slack|spotify|finder|calendar|reminders|safari|chrome|word|excel|pages|numbers|keynote|discord|zoom|teams|music|"
                  r"photos|whatsapp|notion|figma|xcode|vs ?code|outlook|preview|textedit|maps|facetime|podcasts|tv|books|obsidian|todoist|linear)")
 
+# "where does my mom live", "what's my sister's name again?": asked, with no word that asks for anything to be kept.
+PLAIN_QUESTION = re.compile(r"^\W*(?:(?:hey|ok|okay|so|wait|um|luma|and|oh|btw)[, ]+){0,2}(?:where|what|what'?s|whats|who|who'?s|whos|when|which|why|how|do|does|did|is|are|was|were|"
+                            r"have|has|am)\b|\?\s*$", re.I)
+SAVE_WORD = re.compile(r"\b(?:save|(?<!do you )(?<!did you )(?<!don't you )(?<!dont you )remember(?! (?:where|what|who|when|which|how|if|whether|the time)\b)|"
+                       r"note|write (?:this|that|it) down|jot|keep (?:track|a note|in mind)|store|log|file|record|add)\b", re.I)
 READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "timers.list", "briefing.today", "booking.availability",
               "contacts.list", "browser.open", "browser.read", "browser.scroll", "mail.inbox", "mail.read", "calendar.agenda",
               "computer.find", "computer.read", "computer.look", "computer.ui_read"}
@@ -725,7 +730,8 @@ class Agent:
             (r"\b(?:remind|reminder|reminders|tasks?|routine|every day)\b", {"tasks.in", "tasks.create", "tasks.list", "tasks.complete", "routines.create"}),
             (r"\b(?:timers?|countdown)\b", {"timers.start", "timers.list", "timers.control"}),
             (r"\b(?:recipe|cooking|next step|previous step)\b", {"cooking.step"}),
-            (r"\b(?:household|pantry|manual|warranty|maintenance|save|where)\b", {"household.save", "household.find"}),
+            (r"\b(?:household|pantry|manual|warranty|maintenance|save)\b", {"household.save", "household.find"}),
+            (r"\bwhere\b", {"household.find"}),  # "where" asks. (Month test, run 50: "where does my mom live" -> "Saved. I'll remember that about the house.")
             (r"\b(?:briefing|today's plans|(?:what'?s|what is|how'?s|how is|plan|brief me on|go over|walk me through) (?:on )?my day)\b",
              {"briefing.today", "tasks.list"}),  # "ask me about MY day" wants to be asked, not briefed
             (r"\b(?:search|look (?:it |that )?up|google|find online|research|latest|current|news|weather|forecast|scores?|who won|stock price|open now|(?:opening|store|business|office) hours|hours (?:today|tomorrow|tonight|this weekend|on \w+day)|what are (?:the|their|its) hours|near me|reviews?|release date|what happened|price of|how much)\b", {"web.search"}),
@@ -762,6 +768,8 @@ class Agent:
         relevant.update(self._connector_tools_for(lowered))
         if not self.computer_ready(): relevant -= {"computer.find", "computer.read", "computer.open_app", "computer.look", "computer.ui_read", "computer.ui_press", "computer.ui_type", "computer.run", "computer.shortcuts", "computer.shortcut"}
         allowed = {name: spec for name, spec in allowed.items() if name in relevant}
+        if PLAIN_QUESTION.search(lowered) and not SAVE_WORD.search(lowered):  # a question is never an order to save something
+            allowed = {name: spec for name, spec in allowed.items() if name not in {"household.save", "memory.remember", "contacts.save"}}
         if not agent_mode and (just_telling(text) or wants_a_take(text) or their_own_plan(text)):
             allowed = {name: spec for name, spec in allowed.items() if name not in MAKES}
         if not wants_message(text): allowed.pop("messages.prepare", None)
@@ -7015,6 +7023,8 @@ class Agent:
                         return routed
             context = self._talk_context(text, cancel_event)
             allowed = self.available_tools(text)
+            if allowed and PLAIN_QUESTION.search(text.lower()) and not SAVE_WORD.search(text.lower()) and self._memory_answers(text):
+                allowed = {}  # something Luma keeps answers it outright and the brain is given it: nothing to look up, nothing to save
             effort = self._effort(text)  # only said when there is one: an everyday turn is asked exactly as it always was
             answer = self.call_planner(self.history, context, allowed, cancel_event, **({"effort": effort} if effort else {}))
             if cancel_event.is_set(): return {"state":"interrupted", "text":"Stopped before taking another action."}

@@ -48,3 +48,43 @@ class AMonth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AQuestionIsNeverAnOrderToSave(unittest.TestCase):
+    """Month test on real brains, run 50: "where does my mom live" was answered "Saved. I'll remember that about the house."
+    on every life by the 4B brain: the word "where" offered it the tool that saves a house note, and it took it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import human_eval
+        cls.offered = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            cls.offered.append(sorted(allowed or {}))
+            return {"type": "reply", "text": "Okay."}
+
+        cls.s = human_eval.Session(planner)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.s.close()
+
+    def test_a_plain_question_is_offered_nothing_that_saves(self):
+        saves = {"household.save", "memory.remember", "contacts.save"}
+        for said in ("where does my mom live", "where does my brother live now", "where did I put the warranty for the dishwasher",
+                     "do you remember where the spare key is", "what's the wifi password again?", "who's my landlord"):
+            self.assertFalse(saves & set(self.s.agent.available_tools(said)), said)
+
+    def test_asking_luma_to_keep_something_still_can(self):
+        tools = self.s.agent.available_tools
+        self.assertIn("household.save", tools("save that the water filter is under the sink"))
+        self.assertIn("household.save", tools("the manual for the dryer is in the hall closet, save that"))
+        self.assertIn("memory.remember", tools("remember that the wifi password is on the fridge"))
+        self.assertIn("memory.remember", tools("can you remember my mom's birthday is June 3?"))
+
+    def test_when_a_memory_answers_it_the_brain_is_offered_no_tool_at_all(self):
+        self.s.say("my mom lives in Tucson")
+        del self.offered[:]
+        self.s.say("where does my mom live")
+        self.assertTrue(self.offered)
+        self.assertEqual([tools for tools in self.offered if tools], [])

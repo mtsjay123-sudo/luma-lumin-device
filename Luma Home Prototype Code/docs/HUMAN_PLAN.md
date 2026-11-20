@@ -1453,3 +1453,26 @@ as asking. Now only ", right" at the end does. A test holds that no human-test l
 
 Not done by this model: hard moments and facts worth keeping. Both need their own practice sentences, and for hard
 moments a model can only say "hard", not which feeling, so it needs a line of its own for the brain.
+
+## The month test on real brains (run 50, Nov 20): a question answered "Saved."
+
+The first thing the month test found on a real brain that it couldn't find without one. On every one of the stock 4B's
+six lives, on day 18:
+
+> "where does my mom live" → "Saved. I'll remember that about the house."
+
+The word "where" offered the brain the tool that saves a house note, and it took it, with a memory that answers the
+question sitting in what it was given. The same on day 27 for "where does my brother live now". Without a brain the
+month test reads what the brain is told, and that was right every time, so it scored 360 of 360.
+
+Fixed three ways (`Agent.available_tools`, `PLAIN_QUESTION`, `SAVE_WORD` in `runtime.py`):
+- "where" offers looking in the house notes, never saving one;
+- a plain question with no word that asks for anything to be kept ("save", "remember that", "note", "add") is never
+  offered a tool that saves (a house note, a memory, a contact). "Do you remember where the spare key is" asks;
+  "can you remember my mom's birthday is June 3?" still saves;
+- when something Luma keeps answers the question outright, the brain is offered no tool at all: the answer is in front
+  of it.
+
+`told-diff`: 0 of 269 turns (what's offered is part of what's compared); no human-test line has the word. Tests:
+`AQuestionIsNeverAnOrderToSave` in `tests/test_month_eval.py`. The run's own numbers go here when its last brain
+finishes; then the month test is run again on this code.
