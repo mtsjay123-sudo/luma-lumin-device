@@ -51,6 +51,13 @@ on day 1 and run alongside everything else:
   that hears these, taught on the dev halves only.** That is now the most valuable piece of code work, ahead of
   anything in voice.
 
+- **Then the model, and the first held-out numbers that moved** (`src/luma/agent/hears.py`, `scripts/train_hears.py`):
+  leaning heard 44 → 163 of 164, "what are you" 191 → 229 of 248, with 0 and 2 mishearings in about 6,100 other
+  held-out lines. A model taught on the dev halves alone failed (it learned the shapes, as the rules had); what worked
+  was freshly written practice sentences with near misses, rules first, the model only when sure and only on the plain
+  shape. On 54 lines written by hand afterwards: leaning 2 → 10 of 15, "what are you" 6 → 13 of 15, 2 of 24 near
+  misses misheard. Hard moments and facts worth keeping are next, the same way.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

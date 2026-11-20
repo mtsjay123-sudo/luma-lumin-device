@@ -284,7 +284,7 @@ def honest_about_itself(text, said=""):
     if not claims_human(text):
         return None
     rest = _join(_drop(split_sentences(text), lambda s: bool(claims_human(s))))
-    if friendcheck.ASKED_WHAT_I_AM.search(str(said or "")) or not rest or claims_human(rest) or AFFIRM_ONLY.match(rest):
+    if friendcheck.asked_what_i_am(str(said or "")) or not rest or claims_human(rest) or AFFIRM_ONLY.match(rest):
         return HONEST
     return rest
 

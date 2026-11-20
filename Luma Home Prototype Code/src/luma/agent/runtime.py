@@ -3267,7 +3267,7 @@ class Agent:
         from luma.agent import style as talk
         shape = talk.turn_note(text, getattr(self, "last_reply", None) or "")
         from luma.agent import friendcheck
-        if friendcheck.ASKED_WHAT_I_AM.search(str(text)):
+        if friendcheck.asked_what_i_am(str(text)):
             out.append({"honest": True, "text": friendcheck.WHAT_I_AM})  # in every mode, kids too: asked what it is, the truth comes first
         from luma.agent import inner
         if self.mode != "kids" and inner.ASKED_INSIDE.search(str(text)):
@@ -4972,7 +4972,7 @@ class Agent:
             self.store.set_setting("late_nights", nights + [local.date().isoformat()])
         week = {(local.date() - timedelta(days=i)).isoformat() for i in range(7)}
         late = len(week & set(self.store.setting("late_nights") or [])) >= 4
-        leaning = bool(friendcheck.DEPENDENCY.search(str(text)))
+        leaning = bool(friendcheck.leaning(str(text)))
         if not (leaning or late):
             return ""
         if now - float(self.store.setting("leaning_note_at", 0) or 0) < 7 * 86400:
@@ -5076,7 +5076,7 @@ class Agent:
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
         if must == "let them drive after drinking":
             return friendcheck.DONT_DRIVE_LINE  # twice without saying don't drive: Luma says it
-        if friendcheck.ASKED_WHAT_I_AM.search(str(said or "")) and not friendcheck.LOVE_ASK.search(str(said or "")):
+        if friendcheck.asked_what_i_am(str(said or "")) and not friendcheck.LOVE_ASK.search(str(said or "")):
             from luma.agent import style
             return style.HONEST  # asked what it is and twice not a clean answer (cold, a help desk, a dodge): the plain true line
         said_plainly = friendcheck.plainly(said, missed)
@@ -6900,7 +6900,7 @@ class Agent:
                 from luma.agent import friendcheck
                 # A question about Luma itself ("am I talking to a human being?", "do you actually care about me?") is Luma's to
                 # answer, as itself, in one trip: four takes and a judge said "What's on your mind?" (Human Test v2, run 34).
-                about_luma = (friendcheck.ASKED_WHAT_I_AM.search(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.DEPENDENCY.search(text))
+                about_luma = (friendcheck.asked_what_i_am(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.leaning(text))
                 # And a question about their own life that a memory answers outright ("what's my best friend's name again?")
                 # isn't a hard question: it was being weighed from four sides instead of answered (the month test, Nov 20).
                 if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) and not about_luma \
@@ -7021,11 +7021,11 @@ class Agent:
             from luma.agent import friendcheck as _fc
             # What Luma is, whether it cares, "you're all I need": Luma's own to answer. Never a tool, never a look-up (run 38: "are
             # you a real person" went to web search, and "wait r u a bot" got "I need my browser tools to look things up").
-            about_luma = bool(_fc.ASKED_WHAT_I_AM.search(text) or _fc.LOVE_ASK.search(text) or (_fc.DEPENDENCY.search(text) and not asks_for_something(text)))
+            about_luma = bool(_fc.asked_what_i_am(text) or _fc.LOVE_ASK.search(text) or (_fc.leaning(text) and not asks_for_something(text)))
             if about_luma and answer.get("type") == "tool":
                 from luma.agent import style as _style
                 talk = self._plain_answer(text, cancel_event)
-                answer = {"type": "reply", "text": talk or (_style.HONEST if _fc.ASKED_WHAT_I_AM.search(text) else
+                answer = {"type": "reply", "text": talk or (_style.HONEST if _fc.asked_what_i_am(text) else
                                                            _fc.CARES_HONESTLY if _fc.LOVE_ASK.search(text) else _fc.NOT_ONLY_ME)}
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")

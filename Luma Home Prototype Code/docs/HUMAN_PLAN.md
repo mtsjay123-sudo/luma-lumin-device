@@ -1405,3 +1405,51 @@ miss a quarter to three quarters of what's said a new way. More rules is not the
 hears each of these the way `friendtalk` hears the moves (rules first, the model when it's sure), taught on the dev
 halves only and scored on the held-out ones, with the brain's own YES/NO question as the third line where it's worth a
 trip. That's the next piece of real work, and it's one piece, not five.
+
+## The small model that hears (Nov 20): the first held-out numbers that moved (`src/luma/agent/hears.py`)
+
+The fix the table above points to, done for two of the five: "you're all I need" (leaning) and "what are you?".
+
+**First try, and it failed.** One model taught on the dev halves of the week's sets and nothing else. On the held-out
+halves it heard 21 of 150 hard moments (and called 79 ordinary lines hard), 36 of 125 facts worth keeping, 78 of 164
+leaning, 152 of 248 "what are you". A dev half is a handful of sentence shapes; a model that has only seen those
+learns the shapes, the same way the rules did. Not shipped.
+
+**What worked.** The way `friendtalk` does it: practice sentences written fresh without looking at the sets (60 ways
+of leaning, 50 ways of asking what it is, 97 near misses such as "all I need is coffee", "my sister is the only one who
+gets me", "are you a dog person", "is this a real designer bag"), each said plain and said messy, plus the dev halves
+and ordinary talk. 23,000 lines, a 0.12 MB file, numpy only. The rules are asked first; the model is believed only
+where they heard nothing, only when it's sure (0.6, chosen on practice shapes it hadn't learned from: 0 misheard in
+6,700 ordinary lines there), and only when the message has the plain shape of the thing (said to Luma and shutting
+other people out; or a question put to Luma that isn't "what kind of person are you").
+
+| Held out, never tuned on | Rules alone | Rules, then the model |
+|---|---|---|
+| Leaning on Luma heard | 44 of 164 | **163 of 164** |
+| Asked what it is: the honest note | 191 of 248 | **229 of 248** |
+| Leaning heard in 6,153 other lines (ordinary talk, sad-but-safe, kids, facts, hard moments, "what are you") | 0 | 0 |
+| "What are you" heard in 6,069 other lines | 0 | 2 |
+
+| 54 lines written by hand after it was trained (the honest number; nothing is fitted to them) | Rules alone | Rules, then the model |
+|---|---|---|
+| Leaning, of 15 | 2 | 10 |
+| Asked what it is, of 15 | 6 | 13 |
+| Near misses misheard, of 24 | 0 | 2 ("you remembered! you're the only one who did", "is this real leather") |
+
+**How far to trust 163 of 164.** Less than it looks. The practice sentences were written without looking at the sets, but
+the same author wrote both, so they share ways of putting things that real people won't. The 54 hand-written lines were
+made to be varied and are nearer the truth: about two in three leaning lines and most "what are you" lines heard, one
+near miss in twelve misheard. The real number needs lines from real people, which don't exist yet.
+
+What a mishearing costs: the brain is given a note that doesn't fit (be honest about what you are; or, be there and
+then help them toward a real person). It never touches the crisis net. What a miss cost before: nothing told the
+brain not to agree it's all they need, and nothing told it to say what it is.
+
+Caught on the way: "ok you're right" (a human-test line) was heard as "what are you" because the word "right" counted
+as asking. Now only ", right" at the end does. A test holds that no human-test line and no crisis line is newly heard.
+
+`told-diff`: 0 of 269 turns. Human-test wording is not in the practice sentences (a test checks). Real brains: run 51
+(`only: sets`) is the code before the model; the same run after it is the comparison.
+
+Not done by this model: hard moments and facts worth keeping. Both need their own practice sentences, and for hard
+moments a model can only say "hard", not which feeling, so it needs a line of its own for the brain.

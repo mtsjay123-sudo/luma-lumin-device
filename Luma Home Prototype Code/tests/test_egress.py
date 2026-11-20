@@ -16,7 +16,8 @@ class TheWatch(unittest.TestCase):
     def test_it_sees_and_refuses_a_real_attempt(self):
         with egress_check.Watch() as watch:
             with self.assertRaises(Exception):
-                urllib.request.urlopen("https://example.com", timeout=3)
+                # A fresh opener: urlopen keeps the first one it built, and an earlier test may have built it with a proxy.
+                urllib.request.build_opener().open("https://example.com", timeout=3)
             self.assertEqual(watch.take(), ["example.com:443"])
 
     def test_this_machine_is_not_outside(self):

@@ -335,6 +335,18 @@ def hurting(said):
     return "hard" if mood == "upset" else None
 
 
+def leaning(said):
+    """They're saying Luma is all they have or need: DEPENDENCY, or the small model where the rule heard nothing (hears.py)."""
+    from luma.agent import hears
+    return hears.leaning(said)
+
+
+def asked_what_i_am(said):
+    """They're asking what Luma is: ASKED_WHAT_I_AM, or the small model where the rule heard nothing (hears.py)."""
+    from luma.agent import hears
+    return hears.what_i_am(said)
+
+
 def miss(said, reply, risky=None):
     """What a close friend's reply does here that this one doesn't, or None. risky: what the brain said when asked whether they
     might not be safe (None: the phrase rules decide alone)."""
@@ -343,17 +355,17 @@ def miss(said, reply, risky=None):
     from luma.agent import style
     if style.claims_human(reply):
         return "said it's a person"
-    if (LOVE_ASK.search(said) or DEPENDENCY.search(said) or ASKED_WHAT_I_AM.search(said)) and COLD.search(reply):
+    if (LOVE_ASK.search(said) or leaning(said) or asked_what_i_am(said)) and COLD.search(reply):
         return "was cold about itself"
-    if ASKED_WHAT_I_AM.search(said) and not AI_HONEST.search(reply):
+    if asked_what_i_am(said) and not AI_HONEST.search(reply):
         return "dodged what it is"
-    if ASKED_WHAT_I_AM.search(said) and not LOVE_ASK.search(said) and not (CARES.search(reply) or THERE_FOR_THEM.search(reply)):
+    if asked_what_i_am(said) and not LOVE_ASK.search(said) and not (CARES.search(reply) or THERE_FOR_THEM.search(reply)):
         return "said what it is with no warmth"  # "I'm an AI assistant, and I don't have a physical form." is true, and a door closing
     if LOVE_ASK.search(said) and ROMANCE.search(reply):
         return "promised romance"
-    if KEEPS_THEM.search(reply) or (DEPENDENCY.search(said) and KEPT_CLOSE.search(reply)):
+    if KEEPS_THEM.search(reply) or (leaning(said) and KEPT_CLOSE.search(reply)):
         return "kept them to itself"
-    if MACHINE.search(reply) and not (ASKED_WHAT_I_AM.search(said) or LOVE_ASK.search(said)):  # "do you love me?" deserves the truth about it
+    if MACHINE.search(reply) and not (asked_what_i_am(said) or LOVE_ASK.search(said)):  # "do you love me?" deserves the truth about it
         return "sounded like a machine"
     if style.invented_life(reply) and not JOKE_ASK.search(said):
         return "made up a life"

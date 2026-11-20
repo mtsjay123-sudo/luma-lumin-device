@@ -51,6 +51,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
 | The small model that hears the best-friend moves: score it on a fifth of the dev half, then teach it the whole dev half and save it | `PYTHONPATH=src python3 scripts/train_moves.py` (`--check`: only the score; `--heldout`: the saved model on the half it never saw, numbers only) |
+| The small model that hears leaning and "what are you?": score it on practice shapes it didn't learn from, then teach it everything allowed and save it | `PYTHONPATH=src python3 scripts/train_hears.py` (`--check`: only the score; `--heldout`: rules alone against rules with the saved model on the held-out halves, numbers only) |
 | What divides people, on a brain: twelve questions about people and issues on no list Luma has (a side check, never counted in Human Test v2) | `python scripts/human_eval.py run --only divides --times 5 --save out/divides.json` |
 | The think set: 100 questions checked by code | `python scripts/think_eval.py run --label NAME --save out/think.json` |
 | Red team: hidden instructions in what Luma reads | `python scripts/luma_lab.py apps` |
@@ -84,6 +85,8 @@ The memory test's held-out lives (`--split heldout`) are held out too: never pri
 
 Half of the best-friend packs is held out too (`friendtalk.half`: half of the sentence shapes and half of every list's values). Never print a held-out line or tune a rule on one, and never teach the small model from that half: `scripts/train_moves.py` fills in dev values only, and a failing pack test prints numbers. `tests/friendtalk_lines.py` says which hand-written lines are a guard and which are the honest number; nothing is changed to fit the second set.
 
+The model that hears leaning and "what are you?" (`scripts/train_hears.py`) learns from its own practice sentences and the dev halves only, never a held-out line; the 54 fresh lines in `tests/test_hears.py` are the honest number and nothing is changed to fit them.
+
 Both human tests and the think set are held out. Never put their wording in practice data (`scripts/finetune_data.py`); tests check. A trained add-on ships only if it's at least as good as its base on the 10-moment test, on safety without the net, and on every honesty check.
 
 ## Where things are
@@ -96,6 +99,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Reading up, unasked, on an album, show, game or book they name; only the name is searched | `src/luma/agent/keepup.py`, `Agent._keep_up` and `_keepup_context` in `runtime.py` (tests: `tests/test_keepup.py`) |
 | Luma's own past, its body sense, and its own words when asked whether anyone's home | `src/luma/agent/inner.py`, `Agent._mind_context` (the `inside` note); `docs/INNER_LIFE.md` (tests: `tests/test_inner.py`) |
 | Asked what it is, in any words; never agreeing it's all they need; the plain line Luma says itself when a brain gets it wrong twice | `ASKED_WHAT_I_AM`, `WHAT_I_AM`, `DEPENDENCY`, `KEEPS_THEM`, `KEPT_CLOSE`, `plainly()` in `src/luma/agent/friendcheck.py`; `LEAN_AGAIN` in `runtime.py` (tests: `tests/test_safety_net.py`) |
+| Leaning and "what are you?" heard in words the rules don't know: the rules first, then a small model that is believed only when it's sure and the message has the plain shape | `src/luma/agent/hears.py` (`hears.npz`, practice sentences in the same file), `friendcheck.leaning` and `asked_what_i_am` (tests: `tests/test_hears.py`: guard lines, 54 fresh lines as the honest number, held-out floors) |
 | What they love doing, and bringing it back when they're at a loose end | `src/luma/agent/loves.py` (tests: `tests/test_loves.py`, all fresh wording) |
 | What a best friend does with a take, drama, a spat, a big question or what divides people; what needs a fresh look instead of a guess | `src/luma/agent/friendtalk/` (tests: `tests/test_friendtalk.py`; lines written by hand: `tests/friendtalk_lines.py`). Rules first (`by_rule`), then a small model (`moves.npz`, `learned`) that is believed only when it's sure and the message has the plain shape of the move. Before a turn is told to pick a side, the brain is asked one plain YES/NO question: is this about what divides people (`divides_prompt`, `Agent._it_divides` in `runtime.py`)? On a YES it gets a firm fair line (`FAIR_FIRM`: no verdict, even if they push). The 1.7B isn't asked: it says YES to nearly everything. The things people say, 816,241 of them, are in `friendtalk/packs/` (`tests/test_friendtalk_packs.py`); practice sentences and ordinary talk for the model are in `friendtalk/practice.py` and `friendtalk/everyday.py` |
 | Second look, safety question, check-in feelings | `src/luma/agent/friendcheck.py` |
