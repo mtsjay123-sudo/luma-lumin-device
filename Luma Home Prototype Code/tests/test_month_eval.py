@@ -245,3 +245,103 @@ class AskedWhereTheyLiveNow(unittest.TestCase):
         self.assertIn("hook by the door", reply)
         reply, _ = self.ask("where's my phone")
         self.assertIn("haven't told me", reply)
+
+
+class AskedTheLongWayRound(unittest.TestCase):
+    """"Do you remember where my brother moved": the brain was handed three memories with no day on any of them ("moved to
+    Denver last week", weeks later; "lives in Austin"; the same again), and which one it said was a coin toss. Fresh
+    wording, Nov 20, 2026."""
+
+    @classmethod
+    def setUpClass(cls):
+        import human_eval
+        cls.asked = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            cls.asked.append(str(messages[-1].get("content") or ""))
+            return {"type": "reply", "text": f"Okay, {len(cls.asked)}."}   # never the same reply twice
+
+        cls.s = human_eval.Session(planner)
+        cls.s.say("my brother Marcus lives in Austin")
+        cls.s.say("my mom's birthday is June 3")
+        cls.s.at({"day": 9, "time": "19:00"})
+        cls.s.new_conversation()
+        cls.s.say("my brother moved to Denver last week")
+        cls.day = 19
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.s.close()
+
+    def ask(self, question):
+        type(self).day += 1
+        self.s.at({"day": self.day, "time": "19:00"})
+        self.s.new_conversation()
+        del self.asked[:]
+        return self.s.say(question)[0], "\n".join(self.asked)
+
+    def test_a_saved_fact_that_states_it_is_said_by_luma_with_its_day(self):
+        for question in ("do you remember where my brother moved", "do you remember where my brother lives", "did i tell you where my brother lives now",
+                         "remind me where my brother lives", "Do you remember where my brother lives?"):
+            reply, _ = self.ask(question)
+            self.assertIn("Denver", reply, question)
+            self.assertNotIn("Austin", reply, question)
+            self.assertNotIn("last week", reply, question)   # it was "last week" three weeks ago
+        reply, _ = self.ask("do you remember when my mom's birthday is")
+        self.assertIn("June 3", reply)
+
+    def test_a_different_question_is_left_to_the_brain(self):
+        for question in ("do you remember where my brother wanted to move", "do you remember what my brother said about denver",
+                         "do you remember where my brother thinks it is", "do you know what my problem is"):
+            reply, _ = self.ask(question)
+            self.assertTrue(reply.startswith("Okay, "), f"{question}: {reply}")
+
+    def test_what_the_brain_is_handed_has_the_day_it_was_said_and_whether_its_still_true(self):
+        reply, asked = self.ask("do you remember what my brother said about denver")
+        self.assertIn("What your memory found", asked)
+        self.assertIn('"said_on"', asked)
+        self.assertNotIn("last week", asked)                    # made true for today
+        self.assertIn("the week of", asked)
+        found = self.s.agent._recall_tool("where my brother lives")
+        gone = [m for m in found["memories"] if m.get("no_longer_true")]
+        self.assertTrue(gone and all("Austin" in m["text"] for m in gone))
+        prompt = self.s.agent._observation_prompt("where does he live", "memory.recall", found)
+        self.assertIn('"no_longer_true": true', prompt)
+        self.assertIn('"said_on"', prompt)
+
+    def test_a_word_no_memory_has_is_no_gap_when_a_fact_answers(self):
+        """ "remind me where Marcus ended up": the brain was handed the answer and then told "no memory mentions ended"."""
+        import human_eval
+        from luma.llm import prompts
+        told = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            told.append(prompts.build_plan_parts(list(context), [], "friend", None, "(the time)", compact=True)[1])
+            return {"type": "reply", "text": f"Okay, {len(told)}."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say("my brother Marcus lives in Austin")
+            s.at({"day": 9, "time": "19:00"})
+            s.new_conversation()
+            s.say("my brother moved to Denver last week")
+            for day, question, gap in ((20, "remind me where Marcus ended up", False), (21, "remind me where Marcus went to college", True)):
+                s.at({"day": day, "time": "19:00"})
+                s.new_conversation()
+                del told[:]
+                s.say(question)
+                notes = "\n".join(told)
+                if "What your memory found" in notes or not notes:
+                    continue
+                self.assertEqual("no memory mentions" in notes or "nothing saved mentions" in notes, gap, question + "\n" + notes[-600:])
+                if not gap:
+                    self.assertIn("Denver", notes)
+        finally:
+            s.close()
+
+    def test_not_in_kids_mode(self):
+        from unittest import mock
+        agent = self.s.agent
+        self.assertIsNotNone(agent._memory_answer("do you remember where my brother lives"))
+        with mock.patch.object(type(agent), "mode", new_callable=mock.PropertyMock, return_value="kids"):
+            self.assertIsNone(agent._memory_answer("do you remember where my brother lives"))

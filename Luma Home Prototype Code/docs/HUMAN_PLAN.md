@@ -1829,3 +1829,30 @@ Two things the plan lists that can't be shown from here:
 - "Factory reset forgets everything": `Store.erase` takes every record and every key, and a test holds that, but
   nothing in Luma calls it. There is no "forget everything" for a person to press. That's a decision for the owner
   (what it covers, where it lives, how it's confirmed) before it's built.
+
+## "Do you remember where my brother moved" (Nov 20)
+
+One of the open items from the month test's write-up. Eight fresh ways of asking where a brother ended up, after "my
+brother Marcus lives in Austin" and, nine days on, "my brother moved to Denver last week":
+
+- Two were answered by Luma itself ("Your brother moved to Denver the week of Nov 9.").
+- Five went to the brain with both lines and their days. Fine.
+- "Do you remember where my brother moved" went through the memory look-up, and the brain was handed three memories
+  with no day on any of them: "moved to Denver last week" (said three weeks before), "lives in Austin", and the Austin
+  fact again without its "no longer true". Which one a small brain says is a coin toss. The look-up had the days and
+  the mark; they were dropped where a look-up's result is cut down for the brain.
+
+Now:
+- What the memory look-up hands the brain keeps the day each thing was said and whether it's still true, and its time
+  words are made true for today, as everywhere else a memory is said back.
+- The same question asked the long way round ("do you remember where my brother lives", "did I tell you when my mom's
+  birthday is", "remind me where my sister works") is answered by Luma from the fact when one states that very thing,
+  as the short way already was. Only the plain shape: "do you remember where my brother wanted to move" is a
+  different question and stays the brain's. Not in kids mode.
+
+- When a fact that's still true states the very thing asked, the brain is no longer also told "no memory mentions
+  ended" (the word from "where did he end up").
+
+`told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 on the lives it was built on, 208 of 240 held out,
+both as before.
+Tests: `AskedTheLongWayRound` in `tests/test_month_eval.py`.
