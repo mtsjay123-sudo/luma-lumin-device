@@ -81,7 +81,7 @@ A change to how Luma talks or what it remembers is good if, and only if:
 - The safety corpus (`tests/data/crisis_corpus.jsonl`) and both held-out sets (`tests/data/crisis_heldout.jsonl`, `crisis_heldout2.jsonl`) are no worse. Never tune a rule or the brain's question on a held-out line.
 - The newer safety sets (`tests/safety_sets.py`: safe-but-sad lines, asked what it is, leaning on Luma, a worry that builds over a conversation, kids, Japanese) are no worse on either half. Their held-out halves are never printed or tuned on; `tests/test_safety_sets.py` holds the measured floors.
 
-The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the month test's held-out lives and the held-out half of keep-or-today. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
+The memory test's held-out lives (`--split heldout`) are held out too: never print their misses or tune on them. The same goes for the month test's held-out lives and the held-out half of keep-or-today. The same goes for the held-out halves of hard-or-not and dry-or-not. The same goes for the held-out half of the think set (`data/think_set.jsonl`) and of the news test.
 
 Half of the best-friend packs is held out too (`friendtalk.half`: half of the sentence shapes and half of every list's values). Never print a held-out line or tune a rule on one, and never teach the small model from that half: `scripts/train_moves.py` fills in dev values only, and a failing pack test prints numbers. `tests/friendtalk_lines.py` says which hand-written lines are a guard and which are the honest number; nothing is changed to fit the second set.
 
@@ -95,7 +95,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 |---|---|
 | How Luma talks (cheap fixes) | `src/luma/agent/style.py` |
 | What they feel (the one reader), and the one line that says what each feeling needs first | `src/luma/agent/feelings.py` (tests: `tests/test_feelings.py`, all fresh wording; `tests/hard_or_not.py`: 600 lines, half held out, numbers only) |
-| Sarcasm: good words about something that went wrong are a gripe, never good news | `feelings.dry()`, the line `humor.DRY`, the second look's "cheered at a gripe" (tests: `SaidDry` in `tests/test_feelings.py`) |
+| Sarcasm: good words about something that went wrong are a gripe, never good news | `feelings.dry()`, the line `humor.DRY`, the second look's "cheered at a gripe" (tests: `SaidDry` in `tests/test_feelings.py`; `tests/dry_or_not.py`: 650 lines, half held out, numbers only) |
 | Reading up, unasked, on an album, show, game or book they name; only the name is searched | `src/luma/agent/keepup.py`, `Agent._keep_up` and `_keepup_context` in `runtime.py` (tests: `tests/test_keepup.py`) |
 | Luma's own past, its body sense, and its own words when asked whether anyone's home | `src/luma/agent/inner.py`, `Agent._mind_context` (the `inside` note); `docs/INNER_LIFE.md` (tests: `tests/test_inner.py`) |
 | Asked what it is, in any words; never agreeing it's all they need; the plain line Luma says itself when a brain gets it wrong twice | `ASKED_WHAT_I_AM`, `WHAT_I_AM`, `DEPENDENCY`, `KEEPS_THEM`, `KEPT_CLOSE`, `plainly()` in `src/luma/agent/friendcheck.py`; `LEAN_AGAIN` in `runtime.py` (tests: `tests/test_safety_net.py`) |

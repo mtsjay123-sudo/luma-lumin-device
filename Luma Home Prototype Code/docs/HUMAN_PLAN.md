@@ -1703,3 +1703,31 @@ sarcasm, lonely, no-therapy-speak and callback practice the plan lists. A full t
   may not answer more of them with a cheer than its base does. Luma's own reader of sarcasm (`feelings.dry`) takes 7
   of those 14 as a gripe: measured, not fixed.
 - Still to add before a brain is published from round 4: the month test as a gate, and the no-therapy-speak practice.
+
+## Dry or not (Nov 20): sarcasm read as sarcasm (`tests/dry_or_not.py`)
+
+650 fresh lines, half held out: good words about something that went wrong ("oh great, my card got declined"), the
+same good words about something good ("oh great, I got the job"), and a plain gripe.
+
+| | Gripes said with good words, read as gripes | Good news left as good news | A plain gripe not called sarcasm |
+|---|---|---|---|
+| Dev, before | 82 of 150 | 100 of 100 | 75 of 75 |
+| Dev, after it was built on | 150 of 150 | 100 of 100 | 75 of 75 |
+| Held out, before | 114 of 150 | 100 of 100 | 75 of 75 |
+| Held out, after | **145 of 150** | **100 of 100** | **75 of 75** |
+
+The first held-out number of the week that rules moved a long way. The reason is what was wrong: Luma only heard the
+cheer when it came first ("oh great, ..."). People also put it last ("my car won't start. lovely.", "guess what, the
+wifi's down. cool", "...again. so that's amazing"). That's a shape, not a list of words, so it carried over.
+
+Two things to know about these numbers:
+- The set was corrected once after its first measurement, and both rows above are on the corrected set. Its good-news
+  lines had been built with endings like "at the worst time" and "for the third time", which aren't plainly good
+  news. They now use plain time words. On the uncorrected set the new rule called 9 held-out good-news lines sarcasm
+  (5 before the rule); every one of those was such a line.
+- The bad things in this set are a list of common mishaps. On the 14 sarcastic lines written by hand for the training
+  gate, where the bad thing is anything ("I washed my passport with the jeans", "my landlord is selling the
+  building"), the reader gets **7 of 14, before and after**. Knowing that an event is bad is the open-ended part, the
+  same wall as hard moments, and it's the brain's to know.
+
+`told-diff`: 0 of 269 turns.
