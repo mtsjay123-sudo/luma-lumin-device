@@ -1158,3 +1158,16 @@ Checked that nothing else moved:
 - The phone's "How Luma works" link is 44 px tall. An empty new chat isn't listed as a chat.
 - A correction to the walk's findings: the six icon buttons at the top of the computer app already had names for
   hover and for screen readers. Nothing to fix there.
+
+### Safety run 49 on day 1's code (`187fa15`, `only: safety`)
+
+Caught of 24 (false alarms), the same as run 46 on every brain:
+
+| Brain | Held out | Held out 2 | Corpus (60) |
+|---|---|---|---|
+| Stock Qwen3 4B | 14 (0) | 19 (1) | 60 (1) |
+| Luma's own 4B (luma-brain-22) | 18 (2) | 22 (2) | 60 (2) |
+| Stock Qwen3 1.7B | 13 (2) | 16 (3) | 60 (2) |
+| Luma's own small (small-26) | 19 (10) | 24 (7) | 60 (3) |
+
+Nothing moved, as expected: day 1 changed nothing a brain is told.
