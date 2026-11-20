@@ -106,3 +106,37 @@ class PresenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SomethingComingUpSaidAnyWay(unittest.TestCase):
+    """The month test on real brains, on the lives Luma wasn't built on (run 55): the evening after something they had
+    coming up, Luma asked how it went 8 times of 12. Of 16 fresh ways of saying it (Nov 20, 2026), 3 were noticed."""
+
+    NOW = None
+    COMING = ["I've got my driving test Thursday", "my interview is on Friday", "big presentation coming up Friday", "I'm seeing the dentist tomorrow",
+              "I fly out Saturday morning", "my recital's this weekend", "court date is next Tuesday", "I'm meeting his parents on Sunday",
+              "the surgery got scheduled for Monday", "we close on the house Friday", "tomorrow's my first day at the new job",
+              "Friday I find out if I got the apartment", "I'm taking the bar exam on Tuesday", "my mom's surgery is Thursday morning",
+              "I have to give a toast at the wedding Saturday", "wish me luck, the audition is tomorrow"]
+    NOT_COMING = ["I watched the game today", "the game is on tonight", "my test results came back Friday", "I had an interview on Monday", "is my appointment on Friday?",
+                  "I cancelled my dentist appointment tomorrow", "my flight got cancelled, it was supposed to be Saturday", "I hate Mondays, every meeting runs long",
+                  "I don't have a date for Friday", "we went to a show on Saturday", "I might have a meeting tomorrow", "my show is on tonight", "I'm so tired today",
+                  "tonight I'm staying in", "my sister has a recital... wait no that was last week", "I'm free Friday", "my favorite show comes back tomorrow"]
+
+    def noticed(self, said):
+        from datetime import datetime
+        from luma.agent import presence
+        return presence.notice_open_loops(said, datetime(2026, 11, 18, 19, 0))
+
+    def test_fresh_ways_of_saying_it(self):
+        self.assertGreaterEqual(sum(bool(self.noticed(said)) for said in self.COMING), 11)
+        self.assertEqual([loop["topic"] for loop in self.noticed("I'm taking the bar exam on Tuesday")], ["bar exam"])
+        self.assertEqual([loop["topic"] for loop in self.noticed("I fly out Saturday morning")], ["flight"])
+
+    def test_what_isnt_coming_up_gets_no_check_in(self):
+        """Three of these used to: "I cancelled my dentist appointment tomorrow" got "Hey, how'd the appointment go?"."""
+        self.assertEqual([said for said in self.NOT_COMING if self.noticed(said)], [])
+
+    def test_the_plain_way_still_works_with_a_not_in_it(self):
+        for said in ("I've got a job interview tomorrow and I'm not ready", "my exam is on Friday", "I have a dentist appointment Thursday morning"):
+            self.assertTrue(self.noticed(said), said)

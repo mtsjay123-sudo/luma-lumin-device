@@ -1972,14 +1972,22 @@ What the numbers point at, and what was done the same day without reading a held
   to" and "it's official, ..." are read: 12 of 12 both ways. **And the held-out lives moved: without a brain, "update"
   went from 0 of 20 to 20 of 20, and the whole held-out month test from 208 to 228 of 240.** That row had been 0
   all week; no held-out line was read to move it. What real brains do with it is run 56's to say.
-- **Callback 8 of 12, comfort 5 to 7 of 9:** not touched today. The callback misses are an event announced in words
-  the open-loop reader doesn't know; comfort is the brain's, and the training gate for it now exists.
+- **Callback, 8 of 12** (and 32 of 40 without a brain). Sixteen fresh ways of saying something is coming up ("I'm
+  seeing the dentist tomorrow", "tomorrow's my first day at the new job", "wish me luck, the audition is tomorrow"):
+  3 were noticed. The reader wanted "I've got a ..." or "my ..." first, then the event, then the day. Now the event
+  and the day can come in any order, when it's theirs, hasn't happened, isn't a question and nothing says it's off:
+  11 of 16, and none of 17 fresh lines that aren't something coming up. Three of those 17 used to get a check-in
+  from the old reader ("I cancelled my dentist appointment tomorrow" → "Hey, how'd the appointment go?"); they no
+  longer do. **Held out, without a brain: callback 32 → 40 of 40.**
+- **Comfort, 5 to 7 of 9:** the brain's. The training gate for it now exists, and round 4 is running.
 
 | Month test without a brain | Before | After |
 |---|---|---|
 | The lives it was built on | 360 of 360 | 360 of 360 |
-| Held out | 208 of 240 | **228 of 240** (update 20 of 20; callback 32 of 40 and comfort 56 of 60 as before) |
+| Held out | 208 of 240 | **236 of 240** (update 0 → 20 of 20, callback 32 → 40 of 40; comfort 56 of 60 as before) |
 
 `told-diff`: 0 of 269 turns. Memory test unchanged on both halves (held out 159 of 187 facts, 102 of 135 asked in
 other words, 65 of 65 changes; built-on 192 of 192, 130 of 133, 58 of 58).
-Tests: `AskedInAnyWords`, `MovedSaidByName` in `tests/test_month_eval.py`.
+Tests: `AskedInAnyWords`, `MovedSaidByName` in `tests/test_month_eval.py`; `SomethingComingUpSaidAnyWay` in
+`tests/test_presence.py`. Run 56 (real brains, held-out lives) was started on the code before the callback change:
+it measures recall and update; the callback change needs one more run after it.

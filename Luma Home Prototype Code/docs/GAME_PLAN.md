@@ -93,7 +93,8 @@ on day 1 and run alongside everything else:
   on day 28 (50 to 51 on the lives it was built on; a Luma that never met them, 3 to 6 of 27). Recall was the worst
   part: handed the answer, brains said it in 0 to 6 of 12. Luma now says a saved fact itself however the question is
   worded (15 of 16 fresh wordings, from 5), and puts what's been said since about a person first. Without a brain the
-  held-out lives went 208 → 228 of 240, the first time that number moved. Run 56 measures it on real brains.
+  held-out lives went 208 → 236 of 240 (where someone lives now 0 → 20 of 20; asking how it went the evening after
+  32 → 40 of 40), the first time that number moved, with no held-out line read. Run 56 measures it on real brains.
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
   and a power cut mid-write loses nothing that was confirmed (8 kills).
 

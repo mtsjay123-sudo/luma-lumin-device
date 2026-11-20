@@ -157,11 +157,49 @@ def _event_day(when, today):
     return today + timedelta(days=ahead)
 
 
+# The same thing said any other way round: "I'm seeing the dentist tomorrow", "tomorrow's my first day at the new job",
+# "wish me luck, the audition is tomorrow", "I'm taking the bar exam on Tuesday". (Month test, the lives Luma wasn't built
+# on: the evening after, it asked how it went 8 times of 12; of 16 fresh ways of saying it, 3 were noticed.) Only when
+# it's theirs (I, we, my, our, me), it hasn't happened yet, it isn't a question, and nothing says it's off.
+WHEN = (r"tonight|today|tomorrow(?: (?:morning|afternoon|night))?|this (?:morning|afternoon|evening|weekend)|"
+        r"(?:on |next |this )?(?:" + "|".join(WEEKDAYS) + r")(?: (?:morning|afternoon|evening|night))?")
+EVENT_ANYWHERE = re.compile(r"\b(?P<event>(?:bar |driving |road |final |job |court |first |doctor'?s? |dentist |eye |vet )?(?:" + EVENTS + r"|toast|graduation|performance|"
+                            r"competition|tournament|checkup|check-up|orientation|hearing|ceremony|speech))\b", re.I)
+WHEN_ANYWHERE = re.compile(r"\b(?P<when>" + WHEN + r")\b", re.I)
+THEIRS = re.compile(r"\b(?:i|i'm|im|i've|i'll|we|we're|we've|we'll|my|our|me)\b", re.I)
+FLYING = re.compile(r"\b(?:fly(?:ing)? out|flying (?:to|home|back)|fly (?:to|home|back))\b", re.I)
+NOT_COMING = re.compile(r"\?|\b(?:was|were|had|went|did|got back|came back|watched|saw|yesterday|last (?:night|week|month|time)|ago|already|"
+                        r"don'?t|doesn'?t|didn'?t|won'?t|isn'?t|not|no|never|without|cancel\w*|postponed?|called off|reschedul\w*|moved to|pushed|"
+                        r"if|maybe|might|should|would|could|every|always|usually|on tv|is on|are on|results?)\b", re.I)
+
+
+# Said the plain way and still not coming up: a question, something called off, results that came back, a show that's on.
+# ("I cancelled my dentist appointment tomorrow" got "Hey, how'd the appointment go?")
+CALLED_OFF = re.compile(r"\?\s*$|\b(?:cancel\w*|postponed?|called off|reschedul\w*|results?|(?:show|game|match|race|finale|episode)(?:'s| is| are) on|comes? back|came back|on tv|airs?|premieres?)\b", re.I)
+
+
+def _other_ways(text, now):
+    """An event of theirs coming up, said in an order the first pattern doesn't know. One at most."""
+    if len(text) > 160 or not THEIRS.search(text) or NOT_COMING.search(text):
+        return []
+    when = WHEN_ANYWHERE.search(text)
+    event = EVENT_ANYWHERE.search(text)
+    topic = " ".join(event["event"].lower().split()) if event else ("flight" if FLYING.search(text) else None)
+    if not when or not topic:
+        return []
+    day = _event_day(when["when"], now.date())
+    ask_day = day if re.search(r"morning|afternoon", when["when"], re.I) else day + timedelta(days=1)
+    ask_at = now.replace(year=ask_day.year, month=ask_day.month, day=ask_day.day, hour=18, minute=0, second=0, microsecond=0)
+    return [{"topic": topic, "day": day.isoformat(), "ask_at": ask_at.timestamp()}] if ask_at > now else []
+
+
 def notice_open_loops(text, now):
     """Things coming up that a friend would ask about afterwards: (topic, event day, ask at)."""
     if not isinstance(text, str):
         return []
     loops = []
+    if CALLED_OFF.search(text):
+        return []
     for match in OPEN_LOOP.finditer(text):
         event = " ".join(match["event"].lower().split())
         day = _event_day(match["when"], now.date())
@@ -171,7 +209,7 @@ def notice_open_loops(text, now):
         ask_at = now.replace(year=ask_day.year, month=ask_day.month, day=ask_day.day, hour=18, minute=0, second=0, microsecond=0)
         if ask_at > now:
             loops.append({"topic": event, "day": day.isoformat(), "ask_at": ask_at.timestamp()})
-    return loops[:2]
+    return loops[:2] or _other_ways(text, now)
 
 
 CHECK_INS = [
