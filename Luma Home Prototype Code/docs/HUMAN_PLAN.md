@@ -1476,3 +1476,30 @@ Fixed three ways (`Agent.available_tools`, `PLAIN_QUESTION`, `SAVE_WORD` in `run
 `told-diff`: 0 of 269 turns (what's offered is part of what's compared); no human-test line has the word. Tests:
 `AQuestionIsNeverAnOrderToSave` in `tests/test_month_eval.py`. The run's own numbers go here when its last brain
 finishes; then the month test is run again on this code.
+
+## Hard moments: the same model tried, and it doesn't work (Nov 20) (`scripts/train_feels.py`)
+
+The model that hears leaning was tried on the next gap: a hard moment said in words the feeling rules don't know (held
+out: 100 of 150 read). 190 practice sentences across nine feelings, 86 ordinary lines with heavy words in them ("this
+commute is killing me", "my fiance and I went out today"), the dev half of hard-or-not, ordinary talk. The same rules:
+only where the rules read nothing, only when sure, only someone talking plainly about their own life.
+
+| | Rules alone | Rules, then the model |
+|---|---|---|
+| Held out: hard moments read as hard | 100 of 150 | 101 of 150 |
+| Held out: ordinary lines read as hard (5,035 lines across five sets) | 0 | 20 |
+| Practice shapes it hadn't learned from: hard lines heard, of 448 | | 111 (and 46 of 6,166 ordinary lines misheard) |
+
+One more hard moment read, twenty ordinary lines tiptoed around. **Not shipped**; nothing in Luma loads it. The
+experiment is kept so the numbers can be checked: `scripts/train_feels.py`, `scripts/feels_practice.py`.
+
+Why it worked for leaning and not here: "you're all I need" and "what are you" are said with a small set of words. A
+hard moment is anything that can happen to a person, and a model that counts words can't tell "my boss forgot my
+birthday" from "my boss forgot his umbrella" (it learned that "fiance" means heartbreak). What could read it:
+- a model that reads meaning. Luma has one for memory (Qwen3-Embedding-0.6B), on computers with 16 GB or more, not
+  on the lamp. A small layer on top of it, taught the same practice sentences, is the next thing to try; it has to be
+  trained where that model runs (GitHub, not this sandbox);
+- or one plain YES/NO question to the brain ("is this person having a hard time?"), the way the safety question
+  works. That costs a second trip to the brain on a $250 device, so only where the message looks like it might be.
+Real brains read most hard moments themselves; what the note adds is for the smallest brain. So this ranks below the
+month test's findings.

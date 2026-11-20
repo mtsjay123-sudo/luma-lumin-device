@@ -56,7 +56,13 @@ on day 1 and run alongside everything else:
   held-out lines. A model taught on the dev halves alone failed (it learned the shapes, as the rules had); what worked
   was freshly written practice sentences with near misses, rules first, the model only when sure and only on the plain
   shape. On 54 lines written by hand afterwards: leaning 2 → 10 of 15, "what are you" 6 → 13 of 15, 2 of 24 near
-  misses misheard. Hard moments and facts worth keeping are next, the same way.
+  misses misheard.
+- **The same model does not work for hard moments** (tried, measured, not shipped: 100 → 101 of 150 held out, and 20
+  ordinary lines newly read as hard). A hard moment is anything that can happen to a person; counting words can't read
+  it. Next to try: a small layer on the meaning model Luma already uses for memory, or one YES/NO question to the brain.
+- **The month test on real brains found what it couldn't find without one**: "where does my mom live" was answered
+  "Saved. I'll remember that about the house." on every life (the word "where" offered the tool that saves a house
+  note). Fixed: a question is never offered a tool that saves.
 
 ## 1. Where Luma stands (measured)
 
