@@ -53,7 +53,7 @@ def overview(agent):
     total = sum(e.get("s", 0) for e in book.values())
     this_week = sum(d["s"] for d in week)
     last_week = sum((book.get((today - timedelta(days=i)).isoformat()) or {}).get("s", 0) for i in range(7, 14))
-    memories = [m for m in store.all("memory", 5000) if m.get("text") and not m.get("news")]
+    memories = store.kept_counts()[0]  # the facts kept: the same number the memory deck and the storage page show
     files = store.all("file", 500)
     reminders = [t for t in store.all("task", 500) if not t.get("done")]
     pending = [r for r in store.all("action", 100) if r.get("state") == "pending" and r.get("expires", 0) >= now]
@@ -68,7 +68,7 @@ def overview(agent):
                    "today_text": say_time(week[-1]["s"]), "week_text": say_time(this_week), "total_text": say_time(total)},
         "week": week,
         "counts": {"chats": sum(e.get("chats", 0) for e in book.values()), "tasks": sum(e.get("tasks", 0) for e in book.values()),
-                   "memories": len(memories), "files": len(files), "reminders": len(reminders), "helpers": len(agent.helpers.list()),
+                   "memories": memories, "files": len(files), "reminders": len(reminders), "helpers": len(agent.helpers.list()),
                    "waiting": len(pending)},
         "days_together": max(1, int((now - first) // 86400) + 1),
         "now": agent.activity.view(),

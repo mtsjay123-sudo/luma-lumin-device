@@ -1104,3 +1104,57 @@ help the small brains answer the question; they just also tie the answer to her 
 to how Luma is told to talk is followed by an `only: safety` run, and the stock brains' one-line drop since run 27 is
 written down here, not hidden. Not tuned on any held-out line: this was one change of where the question is asked,
 measured once, and taken back.
+
+## Game plan, day 1 (Nov 20): what the memory deck shows, and the apps
+
+The plan is `docs/GAME_PLAN.md`. Day 1 was the app findings and what counts as a memory.
+
+### A passing remark isn't a card
+
+Found in the app walk: "I had such a long day at work" sat at the front of the memory deck on the phone and the
+computer, and the computer said "7 saved" above a deck of 8. Luma keeps two things: **facts** (a name, a birthday,
+where the keys are) and **lines of talk**, kept as they were said so "what did I do last spring" has something to
+answer from. The Memory page already showed only facts; the home decks, the computer's memory list and the Overview's
+count read both. Now every screen reads the facts (`Store.kept`), so the count and the deck agree. The line of talk is
+still kept and still found when they ask; it just isn't a card. No change to what a brain is told.
+
+### Keep or today: 500 lines, half held out (`tests/keep_or_today.py`)
+
+250 things a friend would still know next week ("keep") and 250 that belong to today ("today"), written fresh. Half of
+the sentence shapes and half of every list's values are the dev half; the rest is held out and never printed.
+
+| | Keep: became a card | Today: stayed out of the deck |
+|---|---|---|
+| Dev, before | 64 of 125 | 122 of 125 |
+| Dev, after rules built on it | 125 of 125 | 125 of 125 |
+| Held out, before | 77 of 125 | 125 of 125 |
+| Held out, after | **77 of 125** | **125 of 125** |
+
+What that says, plainly: Luma never turns a passing remark into a card (250 of 250 across both halves after the fix; it
+had been taking "I hate today" as a dislike). But it only makes a card from **62%** of the durable things said in a
+shape it wasn't built on. The rules added from the dev half (where they live and are from, a move that's coming, their
+work, a pet by name, a relative's work or allergy) fixed every dev line and moved the held-out number by nothing:
+shape-by-shape rules don't generalize. The target in the game plan was 95%; it isn't met, and no rule was tuned on a
+held-out line to meet it. The line is still kept and still answers a question; it just has no card. Next: a small
+model that hears "this is worth keeping" (the way `friendtalk` hears the moves), taught on the dev half only.
+
+Checked that nothing else moved:
+- `human_eval.py told-diff`: **0 of 269 turns** of Human Test v2 and the 10-moment test are told anything different.
+- Memory test, dev lives, 1,000 and 10,000 memories, before → after: fact 192/192, reword 130/133, hop 18/18, time
+  39/39, update 58/58, never-told 18/33. The same numbers.
+
+### The apps (walked again in a browser: no errors, nothing off the screen, nothing under the ask bar at a page's end)
+
+- Tasks read "Task · Weekdays at 8 AM" (they said "Goal · Every day at 08:00").
+- Every time on screen is said in Luma's own time zone (`zone` in `/api/today` and the home state), so a task set for
+  8 AM reads 8 AM on a phone that's somewhere else, and a chat's time agrees with the reminder inside it.
+- The computer's Overview is the two of you: days together, the days you talked, what you talked about lately, what
+  Luma knows by heart, what it's keeping an eye on. The stopwatch ("Luma worked for you 2s") and the row of zeros are
+  gone; "things made" and "jobs done" show only when there are some.
+- The side bar is Overview, Memory, Goals, and More (the other seven fold under it and stay open once opened).
+- "Thinking: At home. What you say stays here." where the apps said "Brain: Qwen3 4B".
+- The phone's computer row no longer points at an app that isn't public: "No computer connected. Luma works fine
+  without one."
+- The phone's "How Luma works" link is 44 px tall. An empty new chat isn't listed as a chat.
+- A correction to the walk's findings: the six icon buttons at the top of the computer app already had names for
+  hover and for screen readers. Nothing to fix there.

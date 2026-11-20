@@ -15,6 +15,13 @@ on day 1 and run alongside everything else:
 | The lamp | Parts ship, a case prints, a person builds it | Day 1 (order parts) |
 | People | A therapist's evening, ten homes for two weeks, a loneliness score before and after | Day 3 (ask) |
 
+## Progress
+
+- **Day 1 (Nov 20): done.** The app fixes in section 7, what the memory deck shows, and the keep-or-today test. Measured:
+  no passing remark becomes a card (250 of 250); a durable fact said in a shape Luma wasn't built on becomes a card 62%
+  of the time (77 of 125, held out), against a target of 95%. Not met; the next step is a small model taught on the dev
+  half. Details in `docs/HUMAN_PLAN.md`.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |
@@ -189,7 +196,6 @@ best; the 1.7B and 4B learn from those. Check the big brain's license allows thi
 | The computer row: say how owners get the computer app, or hide it until paired | Phone | Medium |
 | Sidebar: Talk, Today, Memory, Your Luma; the rest under More | Computer | Medium |
 | "Thinking at home" instead of the brain's model name | Both | Low |
-| Labels on the six icon buttons | Computer | Low |
 | Bigger "How Luma works" tap target (≥ 44 px) | Phone | Low |
 | The "How to be with me" view (A1), editable | Both | New |
 

@@ -19,6 +19,8 @@ DATE = r"(?:on\s+)?(?i:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z
 I = re.I
 PEOPLE = (r"(?:girlfriend|boyfriend|gf|bf|wife|husband|partner|fianc[eé]e?|mom|mother|dad|father|sister|brother|son|daughter|kid|baby|best friend|bestie|"
           r"boss|roommate|grandma|grandmother|grandpa|grandfather|aunt|uncle|cousin|niece|nephew|dog|cat|puppy)")
+TOWN = r"[A-Z][\w.'-]*(?:\s+[A-Z][\w.'-]*){0,2}"
+PETS = r"(?:dog|cat|puppy|kitten|parrot|bird|rabbit|bunny|hamster|turtle|fish|horse|lizard|snake|guinea pig|ferret)"
 FACT_PATTERNS = [
     (r"\b(?:my|our)\s+(?:[a-z']+\s+){0,2}(?:birthday|bday|anniversary)\s+is\s+" + DATE, I),
     (r"\b[A-Z][a-z]+(?:'s|’s)\s+(?:birthday|bday)\s+is\s+" + DATE, 0),
@@ -29,6 +31,17 @@ FACT_PATTERNS = [
     (r"\bI(?:'m| am)\s+(?:vegetarian|vegan|pescatarian|gluten[- ]free|lactose intolerant|diabetic|pregnant)\b", I),
     (r"\bI\s+(?:work|go to school)\s+(?:at|for)\s+[A-Z][\w&']*(?:\s+[A-Z][\w&']*){0,4}", 0),
     (r"\bmy\s+favou?rite\s+[a-z ]{2,20}?\s+is\s+[\w' ]{2,40}?(?=$|[.,!;]|\s+(?:and|but|btw|lol)\b)", I),
+    # Where they live and are from, said with a capital ("I live in Austin", never "I live in fear"), and a move that's coming.
+    (r"\bI\s+(?:live|was\s+born)\s+in\s+" + TOWN, 0),
+    (r"\bI(?:'m|’m| am)\s+from\s+" + TOWN, 0),
+    (r"\bI(?:'m|’m| am)\s+moving\s+to\s+" + TOWN + r"(?:\s+in\s+(?i:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-zA-Z]*)?", 0),
+    # Their work, a pet by name, and the same about the people in their life.
+    (r"\bI\s+work\s+as\s+an?\s+[a-z][a-z' -]{2,30}?(?=$|[.,!;]|\s+(?:and|but|so|at|in|for|now|these days)\b)", I),
+    (r"\bI\s+teach\s+(?!(?:my|him|her|them|you|it|myself|people|kids)\b)[A-Za-z][\w' -]{1,40}?(?=$|[.,!;]|\s+(?:and|but|so)\b)", 0),
+    (r"\bI\s+have\s+an?\s+" + PETS + r"\s+(?:named|called)\s+[A-Z][a-z]+\b", 0),
+    (r"\b[Mm]y\s+" + PETS + r"\s+[A-Z][a-z]+\s+is\s+\w+\s+years?\s+old\b", 0),
+    (r"\b[Mm]y\s+" + PEOPLE + r"\s+(?:works\s+(?:as|at|for)\s+(?:an?\s+)?[\w&' -]{2,40}?|is\s+allergic\s+to\s+[a-z]+(?:(?:,\s*|\s+and\s+|\s+or\s+)[a-z]+){0,3})"
+     r"(?=$|[.,!;]|\s+(?:and|but|so)\b)", 0),
 ]
 SKIP_FACTS = re.compile(r"\?|^\s*(?:(?:hey|ok|okay)\s+)?(?:luma[,\s]+)?(?:remember|remind|recall|text|message|tell|let|search|look up|find|what|who|when|where|why|how|can you|could you|would you|please)\b"
                         r"|\b(?:text|message|tell|let)\s+(?:my\s+|our\s+)?\w+\s+(?:that|to|know)\b", re.I)
@@ -51,7 +64,7 @@ LOCATION = [
     re.compile(r"\b(?:my|the|our)\s+(?P<obj>" + OBJECTS + r")(?:\s+(?:is|are)|'s|’s|'re)\s+(?:parked\s+|sitting\s+|at\s+home\s+)?(?P<prep>" + PREP + r")\s+" + PLACE, re.I),
 ]
 LIKES = re.compile(r"\b(?:I(?:'m|’m| am)?|im)\s+(?:really\s+|absolutely\s+|honestly\s+|so\s+)?(?P<how>love|hate|can'?t stand|don'?t eat|do not eat|don'?t drink|don'?t like|afraid of|scared of|allergic to)\s+"
-                   r"(?P<what>(?!you\b|it\b|that\b|this\b|him\b|her\b|them\b|when\b|how\b|myself\b)[a-z][\w' -]{1,40}?)(?=$|[.,!;?]|\s+(?:and|but|so|lol|tho|though)\b)", re.I)
+                   r"(?P<what>(?!you\b|it\b|that\b|this\b|him\b|her\b|them\b|when\b|how\b|myself\b|today\b|tonight\b|right now\b|rn\b)[a-z][\w' -]{1,40}?)(?=$|[.,!;?]|\s+(?:and|but|so|lol|tho|though)\b)", re.I)
 WAKE = re.compile(r"^\W*(?:(?:hey|hi|yo|ok|okay|ayy?)\W+)?(?:luma|luna|lumo|looma|lumen|loomer)\b[\s,.:!-]*", re.I)
 ASIDE = re.compile(r"^\W*(?:by the way|btw|bottom drop|quick drop|quick note|note to self|real quick|fyi|heads up|just so you know)\b[\s,.:!-]*", re.I)
 CLAUSE_BREAK = re.compile(r"(?<=[.!?;])\s+|,?\s+(?=(?:what|how|can you|could you|would you|should i|do you|remind me|please|any ideas|ideas for|help me)\b)", re.I)

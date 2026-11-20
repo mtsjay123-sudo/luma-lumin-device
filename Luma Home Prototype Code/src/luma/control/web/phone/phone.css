@@ -165,6 +165,7 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
 .steps i.done { background: var(--chat); }
 
 .foot { text-align: center; color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
+.foot a { display: inline-block; padding: 12px 6px; min-height: 44px; }
 
 /* dock */
 .dock { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 6; display: flex; gap: 4px; padding: 6px;
@@ -220,7 +221,7 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
    The tour: six scenes the first time the app opens. Each scene has its own light and a small moving picture of
    the thing it teaches. Swipe, tap Next, or use the arrow keys; Escape skips. Reduced motion: still pictures, fades.
    ====================================================================== */
-.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.linkish { background: none; border: 0; padding: 12px 6px; min-height: 44px; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .tour { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--ground); color: var(--ink); overflow: hidden;
   padding: calc(env(safe-area-inset-top) + 18px) 24px calc(env(safe-area-inset-bottom) + 22px); --tc: var(--warm); transition: opacity .55s var(--ease); }
 /* What's marked hidden is hidden, whatever its class says about display (a row is a flex box; it used to show anyway). */

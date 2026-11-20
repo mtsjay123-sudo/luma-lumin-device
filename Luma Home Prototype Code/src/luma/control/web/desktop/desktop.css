@@ -2500,3 +2500,24 @@ body.live-on .chat-view .thread { padding-right: 296px; }  /* the conversation s
 .room-sheet .room-kinds li small { font-size: 13px; }
 .room-sheet .room-kinds .num { font-variant-numeric: tabular-nums; }
 .room-sheet .room-h { margin: 12px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.7; }
+
+/* The side bar's More: the pages a person opens now and then fold away under it. */
+.nav-more svg.i { transition: transform 0.18s ease; transform: rotate(-90deg); }
+.nav-more[aria-expanded="true"] svg.i { transform: none; }
+.nav-more .badge { margin-left: auto; }
+.nav-extra[hidden] { display: none; }
+.nav-extra { margin-top: 0; }
+
+/* Overview, the friend's view: what we talked about, what Luma knows by heart, what it's keeping an eye on. */
+.work-card .work-h { margin-top: 0; }
+.work-card.wide { grid-column: 1 / -1; }
+.work-none { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+.work-row b { flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.work-row .work-say { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.work-row .chip { flex: none; }
+.work-row:first-of-type { border-top: 0; }
+.work-heart > .pill, .work-eye > .pill { margin-top: 12px; }
+.work-stats { grid-template-columns: repeat(auto-fit, minmax(160px, 220px)); }
+
+/* The ask bar floats over the bottom right of every page: each page ends with room for it, so nothing sits under it. */
+body:not([data-view="chat"]) .view.page::after { content: ""; display: block; height: 104px; }

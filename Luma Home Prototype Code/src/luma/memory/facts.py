@@ -43,7 +43,7 @@ REST = [
     ("home", re.compile(r"^(?:just |recently |finally )?moved (?:back )?to (?P<value>.+?)(?:\s+(?:last|this|a few|in)\b.*)?$", re.I)),
     ("work", re.compile(r"^(?:still |now )?works? (?:as|at|for) (?P<value>.+)$", re.I)),
     ("work", re.compile(r"^(?:just |recently )?(?:started|got|took) (?:a |an )?new job (?:at|with|as) (?P<value>.+)$", re.I)),
-    ("pet", re.compile(rf"^has an? (?P<species>{SPECIES}) (?:named|called) (?P<value>{NAME})\b", re.I)),
+    ("pet", re.compile(rf"^ha(?:s|ve) an? (?P<species>{SPECIES}) (?:named|called) (?P<value>{NAME})\b", re.I)),
     ("spouse", re.compile(rf"^(?:is|got) married to (?P<value>{NAME})\b", re.I)),
     ("spouse", re.compile(rf"^married (?P<value>{NAME})\b", re.I)),
     ("into", re.compile(r"^(?:just |recently |really |finally )?got into (?P<value>.+)$", re.I)),

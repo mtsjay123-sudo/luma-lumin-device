@@ -245,21 +245,48 @@
     toast.timer = setTimeout(() => t.classList.remove("show"), 4200);
   }
   const money = (v) => typeof v === "number" ? "$" + v.toLocaleString(undefined, { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) : String(v || "");
-  const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+  // Every time on screen is said in Luma's own time zone (the home's), so "8 AM" means the same on any screen.
+  let lumaZone = null;
+  function setZone(z) {
+    if (!z || z === lumaZone) return;
+    try { new Intl.DateTimeFormat(undefined, { timeZone: z }); lumaZone = z; } catch (_) { /* a zone this browser doesn't know: its own time */ }
+  }
+  const tz = (o) => (lumaZone ? { ...o, timeZone: lumaZone } : o);
+  const clock = { format: (d) => new Intl.DateTimeFormat(undefined, tz({ hour: "numeric", minute: "2-digit" })).format(d) };
+  const dayKey = (d) => new Intl.DateTimeFormat("en-CA", tz({ year: "numeric", month: "2-digit", day: "2-digit" })).format(d);
+  const hourNow = () => Number(new Intl.DateTimeFormat("en-GB", tz({ hour: "2-digit", hourCycle: "h23" })).format(new Date()));
+  // "Weekdays at 8 AM": a schedule the way it was said, never "Every day" for a task that skips the weekend.
+  const DAY_NAMES = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+  function sayAt(at) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(at || "");
+    if (!m) return at || "";
+    const h = Number(m[1]), ap = h < 12 ? "AM" : "PM";
+    return `${h % 12 || 12}${m[2] === "00" ? "" : ":" + m[2]} ${ap}`;
+  }
+  function whenItRuns(h) {
+    const days = (h.params && Array.isArray(h.params.days) ? h.params.days : []).slice().sort();
+    let every = EVERY[h.every] || "";
+    if (h.kind === "task" || days.length) {
+      const key = days.join("");
+      every = !days.length || key === "0123456" ? "Every day" : key === "01234" ? "Weekdays" : key === "56" ? "Weekends"
+        : days.map((d) => DAY_NAMES[d]).filter(Boolean).join(", ");
+    }
+    return every + (h.at ? " at " + sayAt(h.at) : "");
+  }
   function ago(seconds) {
     if (!seconds) return "";
     const d = Date.now() / 1000 - seconds;
     if (d < 60) return "now";
     if (d < 3600) return Math.round(d / 60) + "m ago";
     if (d < 86400) return Math.round(d / 3600) + "h ago";
-    return new Date(seconds * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return new Date(seconds * 1000).toLocaleDateString(undefined, tz({ month: "short", day: "numeric" }));
   }
   function until(seconds) {
     const d = seconds - Date.now() / 1000;
     if (d <= 60) return "any moment";
     if (d < 3600) return "in " + Math.round(d / 60) + " min";
     if (d < 86400) return "at " + clock.format(new Date(seconds * 1000));
-    return new Date(seconds * 1000).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+    return new Date(seconds * 1000).toLocaleDateString(undefined, tz({ weekday: "short", hour: "numeric", minute: "2-digit" }));
   }
   function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }
   const safeUrl = (u) => /^https?:\/\//i.test(String(u || "")) ? u : null;
@@ -403,9 +430,10 @@
     price_watch: { icon: "tag", k: "deal", label: "Price watch" }, inbox_digest: { icon: "mail", k: "inbox", label: "Inbox check" },
     feed_digest: { icon: "insta", k: "feed", label: "Feed catch-up" }, agenda: { icon: "calendar", k: "today", label: "Morning agenda" },
     goal: { icon: "goals", k: "update", label: "Goal" }, ideas: { icon: "ideas", k: "idea", label: "Ideas" },
+    task: { icon: "calendar", k: "today", label: "Task" },
   };
   const EVERY = { every_30m: "Every 30 minutes", hourly: "Every hour", every_6h: "Every 6 hours", daily: "Every day", weekly: "Every week" };
-  const TITLES = { work: "Luma at work", browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Identity", library: "Library", projects: "Projects", apps: "Connectors", rules: "Rules", settings: "Settings" };
+  const TITLES = { work: "You and Luma", browser: "Browser", news: "News", feed: "Feed", ideas: "Ideas", goals: "Goals", identity: "Memory", library: "Library", projects: "Projects", apps: "Connectors", rules: "Rules", settings: "Settings" };
 
   // ------------------------------------------------------------ mascot ---
   let moodTimer = null;
@@ -661,14 +689,13 @@
   const gb = (n) => (n >= 10 ? `${Math.round(n)} GB` : n >= 1 ? `${n.toFixed(1)} GB` : n * 1024 >= 1 ? `${Math.round(n * 1024)} MB` : "under 1 MB");
   function dayTime(ts) {
     if (!ts) return "";
-    const d = new Date(ts * 1000), now = new Date(), y = new Date(now);
-    y.setDate(now.getDate() - 1);
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    if (d.toDateString() === y.toDateString()) return "Yesterday";
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    const d = new Date(ts * 1000), now = new Date();
+    if (dayKey(d) === dayKey(now)) return clock.format(d);
+    if (dayKey(d) === dayKey(new Date(now.getTime() - 864e5))) return "Yesterday";
+    return d.toLocaleDateString([], tz({ month: "short", day: "numeric" }));
   }
   function greeting() {
-    const hour = new Date().getHours();
+    const hour = hourNow();
     const name = (state.home?.profile?.name || homeDay.data?.name || "").trim().split(/\s+/)[0];
     const part = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
     return name ? `${part}, ${name}.` : `${part}.`;
@@ -690,7 +717,7 @@
   async function refreshToday() {
     if (homeDay.loading) return;
     homeDay.loading = true;
-    try { homeDay.data = await api("/api/today"); homeDay.at = Date.now(); }
+    try { homeDay.data = await api("/api/today"); homeDay.at = Date.now(); setZone(homeDay.data.zone); }
     catch (_) { return; } // Luma isn't answering: the panels keep what they last showed
     finally { homeDay.loading = false; }
     renderPanels();
@@ -1590,7 +1617,7 @@
     const head = el("div", "card-head");
     const meta = HELPER[h.kind] || HELPER.goal;
     const t = el("div");
-    t.append(el("div", "t", h.title), el("div", "s", `${meta.label} · ${EVERY[h.every] || ""}${h.at ? " at " + h.at : ""}`));
+    t.append(el("div", "t", h.title), el("div", "s", `${meta.label} · ${whenItRuns(h)}`));
     head.append(chip(meta.k, meta.icon, "chip-ic"), t, el("span", "spacer"), btn("See Goals", "pill soft small", () => go("goals")));
     c.append(head);
     return c;
@@ -1933,6 +1960,7 @@
   function go(view) {
     state.view = view;
     document.body.dataset.view = view;
+    if (EXTRA_VIEWS.has(view) && navExtra.hidden) setMore(true);
     if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "chat" ? location.pathname : "#" + view);
     for (const b of document.querySelectorAll(".nav-item")) b.classList.toggle("active", b.dataset.view === view && (view !== "chat" || state.thread === "main"));
     for (const b of document.querySelectorAll(".thread-item")) b.classList.toggle("active", view === "chat" && b.dataset.id === state.thread);
@@ -1958,9 +1986,24 @@
     clearTimeout(view._enterTimer);
     view._enterTimer = setTimeout(() => view.classList.remove("entering"), 1200);
   }
-  for (const b of document.querySelectorAll(".nav-item")) b.addEventListener("click", () => {
+  for (const b of document.querySelectorAll(".nav-item[data-view]")) b.addEventListener("click", () => {
     go(b.dataset.view);
   });
+  // The side bar keeps to what a person opens every day; the rest folds under More, and stays open once they open it.
+  const navMore = $("nav-more"), navExtra = $("nav-extra");
+  const EXTRA_VIEWS = new Set([...navExtra.querySelectorAll("[data-view]")].map((b) => b.dataset.view));
+  function paintMoreDot() {
+    $("more-dot").hidden = !navExtra.hidden || $("feed-badge").hidden;
+    $("more-dot").textContent = $("feed-badge").textContent;
+  }
+  function setMore(open, keep) {
+    navExtra.hidden = !open;
+    navMore.setAttribute("aria-expanded", String(open));
+    if (keep) { try { localStorage.setItem("luma-nav-more", open ? "1" : "0"); } catch (_) { /* private window */ } }
+    paintMoreDot();
+  }
+  navMore.addEventListener("click", () => setMore(navExtra.hidden, true));
+  { let open = false; try { open = localStorage.getItem("luma-nav-more") === "1"; } catch (_) { /* private window */ } setMore(open); }
   $("open-settings").addEventListener("click", () => go("settings"));
   $("top-apps").addEventListener("click", () => go("apps"));
   $("top-rules").addEventListener("click", () => go("rules"));
@@ -2148,6 +2191,7 @@
     const unread = (h.cards || []).filter((c) => !c.read).length;
     $("feed-badge").hidden = !unread;
     $("feed-badge").textContent = unread;
+    paintMoreDot();
     const active = (h.helpers || []).filter((g) => g.enabled).length;
     $("goals-badge").hidden = !active;
     $("goals-badge").textContent = active;
@@ -2388,7 +2432,7 @@
       const top = el("div", "top");
       const t = el("div");
       t.style.flex = "1"; t.style.minWidth = "0";
-      t.append(el("div", "t", g.title), el("div", "s", `${meta.label} · ${EVERY[g.every] || ""}${g.at ? " at " + g.at : ""}`));
+      t.append(el("div", "t", g.title), el("div", "s", `${meta.label} · ${whenItRuns(g)}`));
       const sw = el("button", "switch");
       sw.setAttribute("role", "switch");
       sw.setAttribute("aria-checked", String(Boolean(g.enabled)));
@@ -4253,20 +4297,22 @@
   // --------------------------------------------------------- at work ---
   // The Overview: how long Luma has worked for you (measured, not guessed), what it did,
   // what it's doing now, and a full rundown of what it can do, each one a tap away.
+  // What Luma can do, the way a friend would put it: being there first, the errands after.
   const CAPS = [
-    ["🧠", "Remembers everything", "Where your keys are, birthdays, what you hate on pizza.", "I left my keys on the counter", "identity"],
-    ["🛒", "Runs errands online", "Compares every store and finds the real cheapest price.", "find the cheapest AirPods Pro 2", null],
-    ["✨", "Makes things", "Pitch decks, documents, small apps and podcasts.", "make me a pitch deck about my bakery", null],
-    ["🏷️", "Watches prices", "Tells you the moment something drops.", "tell me when the PS5 drops below 400", null],
-    ["💬", "Texts & emails, with your OK", "Writes it in your voice; nothing sends without your yes.", "text mom I'm running late", null],
-    ["🗓️", "Plans your week", "Your events, to-dos and a nudge at the right time.", "plan my week", null],
-    ["🔎", "Researches anything", "Reads the top sources and gives you the short version.", "research the best running shoes for flat feet", null],
-    ["📸", "Sees your photos", "Show it a picture and ask anything about it.", null, "photo"],
     ["🎙️", "Talks out loud", "A real conversation, hands free.", null, "talk"],
+    ["🧠", "Remembers what matters", "Your people, birthdays, where your keys are, what you can't stand.", "my sister's birthday is June 3", "identity"],
+    ["⏰", "Keeps the little things", "Alarms, reminders, lists, and tasks on a schedule.", "remind me to call Mom every Sunday at 6", null],
+    ["🗓️", "Plans your week", "Your events, to-dos and a nudge at the right time.", "plan my week", null],
     ["📰", "Keeps you posted", "The news that matters to you, readable right here.", null, "news"],
-    ["🖐️", "Learns a task once", "Show it once in the browser; it can do it again.", null, "browser"],
-    ["🍿", "Works while you watch", "Put on a show; Luma keeps working beside it.", null, "watch"],
+    ["💬", "Texts & emails, with your OK", "Writes it in your voice; nothing sends without your yes.", "text mom I'm running late", null],
+    ["📸", "Sees your photos", "Show it a picture and ask anything about it.", null, "photo"],
+    ["🔎", "Researches anything", "Reads the top sources and gives you the short version.", "research the best running shoes for flat feet", null],
+    ["✨", "Makes things", "Pitch decks, documents, small apps and podcasts.", "make me a pitch deck about my bakery", null],
+    ["🛒", "Runs errands online", "Compares every store and finds the real cheapest price.", "find the cheapest AirPods Pro 2", null],
+    ["🏷️", "Watches prices", "Tells you the moment something drops.", "tell me when the PS5 drops below 400", null],
     ["🎯", "Keeps standing goals", "Checks your inbox for bills every morning, and more.", null, "goals"],
+    ["🍿", "Works while you watch", "Put on a show; Luma keeps working beside it.", null, "watch"],
+    ["🖐️", "Learns a task once", "Show it once in the browser; it can do it again.", null, "browser"],
     ["🛡️", "Follows your rules", "You decide what it does alone and what waits for you.", null, "rules"],
   ];
   function tryCap(say, where) {
@@ -4276,38 +4322,42 @@
     if (where === "watch") { openWatch(); return; }
     go(where);
   }
+  // The Overview is the two of you, the way a friend would look back: how long you've known each other, what you've
+  // talked about, what Luma knows by heart, and what it's keeping an eye on. No stopwatch, and no row of zeros.
   async function renderWork() {
     const box = $("work");
-    if (!box.childElementCount) box.append(el("div", "work-loading", "Adding it up…"));
+    if (!box.childElementCount) box.append(el("div", "work-loading", "One second…"));
     let d;
     try { d = await api("/api/insights"); } catch (e) { box.replaceChildren(el("div", "work-loading", e.message)); return; }
+    if (!homeDay.data || Date.now() - homeDay.at > 15000) await refreshToday();
     if (state.view !== "work") return;
+    const day = homeDay.data && !homeDay.data.kids ? homeDay.data : null;
+    const c = d.counts;
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const grid = el("div", "work-grid");
-    // How long Luma worked: this week, with a bar for each day.
+    // The two of you.
     const hero = el("section", "work-card work-hero");
     const head = el("div", "work-hero-head");
     const big = el("div", "work-big");
-    const fresh = d.worked.total < 1;
-    big.append(el("small", null, fresh ? "Luma at work" : "Luma worked for you this week"), el("b", null, fresh ? "Just getting started" : d.worked.week_text));
-    if (fresh) { big.classList.add("fresh"); big.append(el("p", null, "Ask for anything and the clock starts. Every reply and every job Luma runs adds up here.")); }
-    const delta = d.worked.week - d.worked.last_week;
-    const trend = el("span", "work-trend" + (delta >= 0 ? " up" : " down"),
-      d.worked.last_week ? `${delta >= 0 ? "▲" : "▼"} ${Math.abs(Math.round((delta / Math.max(1, d.worked.last_week)) * 100))}% vs last week` : "Your first week together");
-    head.append(big, trend);
+    const fresh = !c.chats;
+    big.append(el("small", null, "You and Luma"), el("b", null, fresh ? "Just getting started" : plural(d.days_together, "day together", "days together")));
+    if (fresh) { big.classList.add("fresh"); big.append(el("p", null, "Say hi, or tell me about your day. What we talk about shows up here.")); }
+    const talked = d.week.filter((w) => w.chats).length;
+    head.append(big, el("span", "work-trend up", talked ? `We talked on ${talked} of the last 7 days` : "Your first week together"));
     const bars = el("div", "work-bars");
-    const most = Math.max(60, ...d.week.map((w) => w.s));
+    const most = Math.max(4, ...d.week.map((w) => w.chats));
     for (const w of d.week) {
       const col = el("button", "work-bar" + (w.label === "Today" ? " today" : ""));
       col.type = "button";
-      col.title = `${w.label}: ${sayTime(w.s)} of work · ${w.chats} chat${w.chats === 1 ? "" : "s"} · ${w.tasks} job${w.tasks === 1 ? "" : "s"}`;
+      col.title = `${w.label}: ${w.chats ? plural(w.chats, "exchange", "exchanges") : "a quiet day"}`;
       const fill = el("span", "fill");
-      fill.style.height = Math.max(4, Math.round((w.s / most) * 100)) + "%";
-      col.append(el("span", "val", w.s ? sayTime(w.s) : ""), fill, el("small", null, w.label));
+      fill.style.height = Math.max(4, Math.round((w.chats / most) * 100)) + "%";
+      col.append(el("span", "val", w.chats ? String(w.chats) : ""), fill, el("small", null, w.label));
       col.addEventListener("click", () => toast(col.title));
       bars.append(col);
     }
     const foot = el("div", "work-hero-foot");
-    foot.append(el("span", null, `Today ${d.worked.today_text}`), el("span", null, `All time ${d.worked.total_text}`), el("span", null, `${d.days_together} day${d.days_together === 1 ? "" : "s"} together`));
+    foot.append(el("span", null, plural(c.chats, "exchange so far", "exchanges so far")), el("span", null, plural(c.memories, "thing I know by heart", "things I know by heart")));
     hero.append(head, bars, foot);
     // Right now.
     const now = el("section", "work-card work-now");
@@ -4315,24 +4365,62 @@
     const running = a && ["running", "paused", "stopping"].includes(a.state);
     now.append(el("small", "work-k", "Right now"));
     const status = el("div", "work-status" + (running ? " live" : ""));
-    status.append(el("i"), el("b", null, running ? a.title : "Ready when you are"));
-    now.append(status, el("p", null, running ? (a.steps?.slice(-1)[0]?.text || "Working on it") : "Ask for anything, or pick something below and I'll get going."));
-    const brainLine = state.home?.brain?.thinking_with || "";
-    if (brainLine) now.append(el("div", "work-brain", "Brain: " + brainLine));
+    status.append(el("i"), el("b", null, running ? a.title : "Here with you"));
+    now.append(status, el("p", null, running ? (a.steps?.slice(-1)[0]?.text || "Working on it") : "Talk to me about anything, or pick something below."));
+    if (state.home?.brain?.thinking_with) now.append(el("div", "work-brain", "Thinking at home. What you say stays here."));
     const nowActs = el("div", "actions");
-    nowActs.append(running ? btn("Watch it work", "pill primary small", () => go("browser"), "eye") : btn("Start a chat", "pill primary small", () => go("chat"), "chat"));
-    nowActs.append(btn("Talk", "pill soft small", () => startConversation({ greet: true }), "wave"));
+    nowActs.append(btn("Talk", "pill primary small", () => startConversation({ greet: true }), "wave"));
+    nowActs.append(running ? btn("Watch it work", "pill soft small", () => go("browser"), "eye") : btn("Write instead", "pill soft small", () => go("chat"), "chat"));
     now.append(nowActs);
-    // The numbers, each one a door.
-    const stats = el("section", "work-stats");
-    const stat = (n, label, emoji, go2, tip) => { const b = btn("", "work-stat", go2); b.title = tip; b.append(el("span", "e", emoji), el("b", null, String(n)), el("small", null, label)); stats.append(b); };
-    const c = d.counts;
-    stat(c.chats, "Conversations", "💬", () => go("chat"), "Open your chat");
-    stat(c.tasks, "Jobs done", "⚡", () => go("browser"), "Jobs Luma ran in its browser");
-    stat(c.memories, "Memories", "🧠", () => go("identity"), "Everything Luma remembers about you");
-    stat(c.files, "Things made", "📁", () => go("library"), "Decks, docs and apps Luma made");
-    stat(c.reminders, "Reminders", "⏰", () => { go("chat"); setPanel(true); }, "Your reminders, in the side panel");
-    stat(c.waiting, "Waiting on you", "✋", () => { go("chat"); setPanel(true); }, "Things that need your OK");
+    grid.append(hero, now);
+    // Lately: what we talked about.
+    const lately = el("section", "work-card work-lately");
+    lately.append(el("h3", "work-h", "Lately"));
+    const chats = (day?.chats || []).filter((x) => x.messages || x.last).slice(0, 4);
+    if (!chats.length) lately.append(el("p", "work-none", "Nothing yet. Whatever we talk about lands here, newest first."));
+    for (const x of chats) {
+      const row = btn("", "work-row", async () => { state.thread = x.id; await loadThread(x.id); go("chat"); });
+      row.append(el("b", null, x.title || "Chat"), el("span", "work-say", x.last ? (x.last.role === "you" ? "You: " : "") + x.last.text : ""), el("span", "muted", dayTime(x.updated)));
+      lately.append(row);
+    }
+    // By heart: the newest things Luma keeps.
+    const heart = el("section", "work-card work-heart");
+    heart.append(el("h3", "work-h", "What I know by heart"));
+    const mems = (day?.memory?.recent || []).slice(0, 4);
+    if (!mems.length) heart.append(el("p", "work-none", "Tell me a birthday, or where you left your keys, and I'll keep it."));
+    for (const m of mems) {
+      const row = btn("", "work-row", () => go("identity"));
+      row.append(el("span", "chip", m.kind || "Notes"), el("span", "work-say", m.text));
+      heart.append(row);
+    }
+    if (c.memories > mems.length) heart.append(btn(`All ${c.memories}`, "pill quiet small", () => go("identity"), "right"));
+    grid.append(lately, heart);
+    // Keeping an eye on: tasks, standing goals and reminders.
+    const eye = el("section", "work-card work-eye");
+    eye.append(el("h3", "work-h", "I'm keeping an eye on"));
+    const jobs = (state.home?.helpers || []).filter((h) => h.enabled).slice(0, 4);
+    const due = (state.home?.today?.tasks || []).slice(0, 3);
+    for (const h of jobs) {
+      const row = btn("", "work-row", () => go("goals"));
+      row.append(el("b", null, h.title), el("span", "muted", whenItRuns(h)));
+      eye.append(row);
+    }
+    for (const t of due) {
+      const row = btn("", "work-row", () => { go("chat"); setPanel(true); });
+      row.append(el("b", null, t.title), el("span", "muted", t.when || "Reminder"));
+      eye.append(row);
+    }
+    if (!jobs.length && !due.length) eye.append(el("p", "work-none", "Nothing on my list. Say “remind me to call Mom every Sunday at 6” and it lands here."));
+    if (c.waiting) eye.append(btn(plural(c.waiting, "thing is waiting for your OK", "things are waiting for your OK"), "pill primary small", () => { go("chat"); setPanel(true); }, "hand"));
+    eye.classList.add("wide");
+    grid.append(eye);
+    // What Luma has made and done, only when there is something.
+    const made = [[c.files, "Things made", "📁", () => go("library"), "Decks, docs and apps Luma made"], [c.tasks, "Jobs done", "⚡", () => go("browser"), "Jobs Luma ran in its browser"]].filter(([n]) => n);
+    if (made.length) {
+      const stats = el("section", "work-stats");
+      for (const [n, label, emoji, go2, tip] of made) { const b = btn("", "work-stat", go2); b.title = tip; b.append(el("span", "e", emoji), el("b", null, String(n)), el("small", null, label)); stats.append(b); }
+      grid.append(stats);
+    }
     // What Luma can do.
     const caps = el("section", "work-caps");
     caps.append(el("h3", "work-h", "What I can do"));
@@ -4348,7 +4436,7 @@
       capGrid.append(card);
     }
     caps.append(capGrid);
-    grid.append(hero, now, stats, caps);
+    grid.append(caps);
     if (d.recent?.length) {
       const rec = el("section", "work-card work-recent");
       rec.append(el("h3", "work-h", "Recently finished"));
@@ -4362,13 +4450,6 @@
     }
     box.replaceChildren(grid);
   }
-  function sayTime(s) {
-    s = Math.round(s || 0);
-    if (s < 60) return s + "s";
-    const m = Math.floor(s / 60);
-    return m < 60 ? m + "m" : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
-  }
-
   // -------------------------------------------------------------- sheet ---
   // Storage, like the storage page on a phone: how full, what's using the room, the biggest things, what could go, and
   // the database's own check. It's all on this device; nothing goes unless you choose it.
@@ -4542,6 +4623,7 @@
       const h = await api("/api/home");
       const before = JSON.stringify([state.home?.cards?.length, state.home?.helpers, state.home?.ideas, state.home?.connections, state.home?.rules, state.home?.approvals?.length]);
       state.home = h;
+      setZone(h.zone);
       if (h.status) state.status = h.status;
       state.activity = h.activity;
       // After they subscribe to Plus, Luma asks once, on a plain screen, before anything leaves the home. Never in kids mode.

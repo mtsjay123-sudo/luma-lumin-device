@@ -28,16 +28,19 @@
         <button class="nav-item" id="open-search" title="Search (⌘K)" data-icon="search">Search<kbd>⌘K</kbd></button>
       </nav>
       <nav class="nav" id="nav-main">
-        <button class="nav-item" data-view="work" data-icon="spark" title="Luma at work: what it's done for you and what it can do">Overview</button>
-        <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
-        <button class="nav-item" data-view="news" data-icon="news">News</button>
-        <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
-        <button class="nav-item" data-view="goals" data-icon="goals">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
-        <button class="nav-item" data-view="identity" data-icon="spark">Identity</button>
-        <button class="nav-item" data-view="projects" data-icon="projects" title="Big asks, planned and built by Luma's specialists, checked and packaged">Projects<span class="badge soft" id="projects-badge" hidden></span></button>
-        <button class="nav-item" data-view="library" data-icon="library">Library</button>
-        <button class="nav-item" data-view="browser" data-icon="globe">Browser</button>
-        <button class="nav-item" data-view="apps" data-icon="apps">Connectors</button>
+        <button class="nav-item" data-view="work" data-icon="spark" title="You and Luma: what you've talked about, what it knows by heart, what it's keeping an eye on">Overview</button>
+        <button class="nav-item" data-view="identity" data-icon="people" title="Everything Luma remembers about you, and who it is with you">Memory</button>
+        <button class="nav-item" data-view="goals" data-icon="goals" title="Tasks and standing jobs Luma runs for you">Goals<span class="badge soft" id="goals-badge" hidden></span></button>
+        <button class="nav-item nav-more" id="nav-more" type="button" data-icon="down" aria-expanded="false" aria-controls="nav-extra">More<span class="badge" id="more-dot" hidden></span></button>
+        <div class="nav nav-extra" id="nav-extra" hidden>
+          <button class="nav-item" data-view="feed" data-icon="feed">Feed<span class="badge" id="feed-badge" hidden></span></button>
+          <button class="nav-item" data-view="news" data-icon="news">News</button>
+          <button class="nav-item" data-view="ideas" data-icon="ideas">Ideas</button>
+          <button class="nav-item" data-view="projects" data-icon="projects" title="Big asks, planned and built by Luma's specialists, checked and packaged">Projects<span class="badge soft" id="projects-badge" hidden></span></button>
+          <button class="nav-item" data-view="library" data-icon="library">Library</button>
+          <button class="nav-item" data-view="browser" data-icon="globe">Browser</button>
+          <button class="nav-item" data-view="apps" data-icon="apps">Connectors</button>
+        </div>
       </nav>
       <div class="side-label">Chats</div>
       <div class="threads" id="threads"></div>
@@ -107,7 +110,7 @@
             <ul class="hp-legend" id="hp-legend"></ul>
             <div class="hp-rows">
               <button type="button" class="hp-row toggle" id="hp-mic" role="switch" aria-checked="false"><span><b>Listening for “Hey Luma”</b><small id="hp-mic-sub">Checking…</small></span><i class="hp-switch"></i></button>
-              <button type="button" class="hp-row" id="hp-brain-row" title="Luma's brain"><span><b>Brain</b><small id="hp-brain">…</small></span></button>
+              <button type="button" class="hp-row" id="hp-brain-row" title="Where Luma is thinking"><span><b>Thinking</b><small id="hp-brain">…</small></span></button>
               <button type="button" class="hp-row" id="hp-link-row" title="Luma Link: your Luma device and this computer"><span><b>Luma device</b><small id="hp-link">…</small></span></button>
             </div>
             <button type="button" class="pill soft small hp-room" id="hp-room">Make room</button>
@@ -173,7 +176,7 @@
       </section>
 
       <section class="view page work-view" id="view-work" hidden>
-        <p class="lede">Everything I've done for you, how long I've worked, and everything I can do. Tap anything to try it.</p>
+        <p class="lede">You and me: what we've talked about, what I know by heart, and what I'm keeping an eye on for you.</p>
         <div id="work"></div>
       </section>
 

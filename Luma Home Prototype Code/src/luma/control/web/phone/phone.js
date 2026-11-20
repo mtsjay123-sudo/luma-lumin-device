@@ -21,14 +21,21 @@
     clearTimeout(toast.t);
     toast.t = setTimeout(() => t.classList.remove("show"), 2600);
   }
+  // Every time is said in Luma's own time zone (the home's), so a reminder "at 8 AM" and the chat around it agree.
+  let lumaZone = null;
+  function setZone(z) {
+    if (!z || z === lumaZone) return;
+    try { new Intl.DateTimeFormat(undefined, { timeZone: z }); lumaZone = z; } catch (_) { /* unknown here: the phone's own time */ }
+  }
+  const tz = (o) => (lumaZone ? { ...o, timeZone: lumaZone } : o);
+  const dayKey = (d) => new Intl.DateTimeFormat("en-CA", tz({ year: "numeric", month: "2-digit", day: "2-digit" })).format(d);
+  const hourNow = () => Number(new Intl.DateTimeFormat("en-GB", tz({ hour: "2-digit", hourCycle: "h23" })).format(new Date()));
   function when(ts) {
     if (!ts) return "";
     const d = new Date(ts * 1000), now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    const y = new Date(now); y.setDate(now.getDate() - 1);
-    if (sameDay) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    if (d.toDateString() === y.toDateString()) return "Yesterday";
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    if (dayKey(d) === dayKey(now)) return d.toLocaleTimeString([], tz({ hour: "numeric", minute: "2-digit" }));
+    if (dayKey(d) === dayKey(new Date(now.getTime() - 864e5))) return "Yesterday";
+    return d.toLocaleDateString([], tz({ month: "short", day: "numeric" }));
   }
 
   // LED dot numbers, like the device's own display: a 5x7 grid per digit, lit dots and faint ones.
@@ -66,7 +73,7 @@
     return mb >= 1 ? `${Math.round(mb)} MB` : "under 1 MB";
   }
   function greet(name) {
-    const h = new Date().getHours();
+    const h = hourNow();
     const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
     return name ? `${part}, ${name}.` : `${part}.`;
   }
@@ -91,7 +98,8 @@
     else { body.classList.add("quiet"); label.textContent = "Mic off"; }
   }
 
-  function renderChats(chats) {
+  function renderChats(all) {
+    const chats = all.filter((c) => c.messages || c.last); // an empty new chat isn't a chat yet
     const list = $("chain-list");
     list.replaceChildren();
     const todays = chats.filter((c) => c.today);
@@ -236,7 +244,7 @@
     const at = /^\d/.test(t) ? `at ${t}` : t === "Yesterday" ? "yesterday" : `on ${t}`;
     const did = last ? ` Last: ${DID[last.kind] || "used it"}${last.what ? ` (${last.what})` : ""} ${at}${last.ok === false ? ", but it didn't work" : ""}.` : "";
     $("computer").textContent = pc.here ? `${pc.name || "Your computer"} is connected. Luma can use it for you, only in the folders and apps you allowed there.${did}`
-      : pc.paired ? `${pc.name || "Your computer"} is paired but asleep or away.${did}` : "Not connected. Pair your computer in Luma Desktop and Luma can use it for you.";
+      : pc.paired ? `${pc.name || "Your computer"} is paired but asleep or away.${did}` : "No computer connected. Luma works fine without one.";
   }
 
   function renderProjects(projects) {
@@ -257,6 +265,7 @@
   async function refresh() {
     try {
       today = await api("/api/today");
+      setZone(today.zone);
       if (today.kids) { $("hello").textContent = greet(""); $("sub").textContent = "Kids mode is on."; return; }
       $("hello").textContent = greet(today.name);
       const todays = today.chats.filter((c) => c.today).length;
@@ -512,7 +521,7 @@
       art: () => { const a = el("div", "t-chat"); a.append(el("p", "me", "what's on today?"), el("p", "lu", "Dentist at 3, then dinner with Sam at 7."), el("p", "me", "remind me at 2:30")); return a; } },
     { color: "var(--mem)", title: "I remember <em>what matters.</em>", say: "Swipe through what I know about you. Tap a card to fix it or forget it. It's all yours.",
       art: () => { const a = el("div", "t-deck"); const c1 = el("div", "c c1"); c1.append(el("span", null, "🎂"), el("b", null, "Your mom's birthday is June 3")); a.append(el("div", "c c3"), el("div", "c c2"), c1); return a; } },
-    { color: "var(--warm)", title: "Your Luma, <em>at a glance.</em>", say: "See how much room is left, turn the mic off from anywhere, and see which brain I'm thinking with.",
+    { color: "var(--warm)", title: "Your Luma, <em>at a glance.</em>", say: "See how much room is left, turn the mic off from anywhere, and see where I'm thinking.",
       art: () => { const a = el("div", "t-device"); const mic = el("div", "t-mic"); mic.append(el("i"), el("span", null, "Microphone")); a.append(dots("20"), el("div", "unit", "GB left"), mic); return a; } },
     { color: "var(--violet)", title: "I ask <em>before I act.</em>", say: "When something would send, buy or change things on your computer, I show you first and wait for your OK.",
       art: () => { const a = el("div", "t-approve"); const b = el("div", "b"); b.append(el("span", "no", "Not now"), el("span", "ok", "Send it")); a.append(el("p", "k", "Waiting for your OK"), el("p", "q", "Text Mom?"), el("p", "m", "“Happy birthday! Lunch on Sunday?”"), b, el("div", "done", "Sent ✓")); return a; } },

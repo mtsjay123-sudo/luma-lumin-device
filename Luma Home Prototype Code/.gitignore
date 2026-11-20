@@ -7,3 +7,4 @@ models/
 data/test_audio/
 .local-state/
 .pytest_cache/
+out/

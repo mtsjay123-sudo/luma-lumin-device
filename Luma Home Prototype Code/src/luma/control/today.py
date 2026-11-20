@@ -97,7 +97,9 @@ def kind_of(text):
 def memory(agent, deck=24):
     quota = agent.memory_quota()
     recent = []
-    for m in agent.store.all("memory", deck):
+    # The facts Luma keeps. What they said in passing ("I had such a long day") stays in the day's chat: it's kept for
+    # "what did I do last spring", and it isn't a card in the deck.
+    for m in agent.store.kept(deck):
         text = " ".join(str(m.get("text", "")).split())
         if text:
             recent.append({"id": m.get("id"), "text": text[:280], "kind": kind_of(text), "when": m.get("created") or m.get("at") or m.get("saved")})
@@ -112,6 +114,9 @@ def device(agent):
     try:
         state = brain.status()
         thinking, plus = state.get("thinking_with"), state.get("plus") or {}
+        # Where Luma is thinking, in plain words: at home, or with a cloud brain they turned on. Never a model's name.
+        if thinking:
+            thinking = "At home. What you say stays here." if thinking == (state.get("local") or {}).get("name") else "With " + thinking
     except Exception:
         thinking, plus = None, {}
     # Luma Plus's Super Intelligence, for someone who has it: whether it's on, and how much of the month is left.
@@ -179,7 +184,10 @@ def payload(agent):
     if agent.mode == "kids":
         return {"kids": True, "name": "", "chats": [], "memory": None, "device": None, "projects": [], "approvals": 0}
     waiting = sum(1 for r in agent.store.all("action", 40) if r.get("state") == "pending")
-    return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "chats": chats(agent), "memory": memory(agent),
+    # "zone" is the home's own time zone: every time the apps show is said in it, so a task set for 8 AM reads 8 AM
+    # on a phone that's somewhere else.
+    return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "zone": getattr(agent.zone, "key", None),
+            "chats": chats(agent), "memory": memory(agent),
             "device": device(agent), "projects": projects(agent), "approvals": waiting, "account": account(agent)}
 
 
@@ -198,7 +206,7 @@ def compact(agent):
     device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"),
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
-    return {"name": full["name"], "now": full["now"], "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
+    return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
             "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account")}
 
 

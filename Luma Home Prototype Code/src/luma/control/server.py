@@ -232,6 +232,7 @@ def home_payload(agent, owner=True):
     helpers = agent.helpers.list()
     return {
         'today': agent.today(),
+        'zone': getattr(agent.zone, 'key', None),
         'cards': agent.feed.list(40),
         'approvals': approvals,
         'helpers': helpers,
@@ -279,7 +280,7 @@ def _natural_voice(agent):
 def _glance(agent):
     """What floats around the home canvas: the latest things Luma remembered and made."""
     memories = [{'id': m['id'], 'text': m['text'][:160], 'created': m.get('created'), 'source': m.get('source')}
-                for m in agent.store.all('memory', 40) if m.get('text') and not m.get('news')][:8]
+                for m in agent.store.kept(40) if m.get('text') and not m.get('news')][:8]
     files = agent.store.all('file', 200)
     return {'memories': memories, 'files': {'count': len(files), 'docs': sum(1 for f in files if f.get('kind') in {'docx', 'pdf', 'deck', 'pptx'}),
                                             'recent': [{'id': f['id'], 'title': f.get('title') or f.get('name'), 'kind': f.get('kind')} for f in files[:4]]}}
@@ -572,7 +573,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                 adult = agent.mode!='kids'
                 actions = [{k:v for k,v in r.items() if k!='approval_hash'} for r in agent.store.all('action',30)] if adult else []
                 about_data = (agent.store.setting('about') or {}) if adult and not companion else {}
-                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.all('memory',300) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'app':f.get('app'),'seconds':f.get('seconds'),'script':f.get('script'),'created':f.get('created')} for f in agent.store.all('file',40)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
+                return self.send({'viewer':'phone' if companion else 'owner', 'status':agent.status(), 'household':{'timers':agent.household.timers(mode=agent.mode),'records':agent.household.records(mode=agent.mode),'recipes':agent.household.recipes(mode=agent.mode),'briefing':agent.household.briefing(mode=agent.mode)}, 'workflows':agent.workflows.list() if adult else [], 'local_grocery_lists':agent.store.all('grocery_list',20) if adult else [], 'memories':agent.store.kept(300) if adult else [], 'contacts':agent.contacts.list() if adult else [], 'message_drafts':agent.store.all('phone_draft',20) if adult else [], 'sms_receipts':agent.store.all('sms_receipt',30) if adult else [], 'grocery_receipts':agent.store.all('grocery_receipt',15) if adult else [], 'tasks':agent._run('tasks.list',{})['tasks'], 'routines':[r for r in agent.store.all('routine') if r.get('mode','friend')==agent.mode], 'actions':actions, 'events':list(ctx.events)[-20:] if adult else [], 'booking_services':agent.bookings.services() if adult else [], 'files':[{'id':f['id'],'name':f['name'],'url':'/files/'+f['id'],'kind':f.get('kind'),'title':f.get('title'),'slides':f.get('slides'),'theme':f.get('theme'),'outline':f.get('outline'),'app':f.get('app'),'seconds':f.get('seconds'),'script':f.get('script'),'created':f.get('created')} for f in agent.store.all('file',40)] if adult else [], 'phone':{'origin':ctx.phone_origin, 'addresses':lan_addresses() if not companion and not ctx.phone_origin else [], 'devices':ctx.pairing.list_devices() if not companion and adult else []}, 'phone_app':ctx.phone_app.status() if adult and not companion else None, 'about':about_data})
             return self.send({'error':'Not found'},404)
 
         def link_get(self, path):
