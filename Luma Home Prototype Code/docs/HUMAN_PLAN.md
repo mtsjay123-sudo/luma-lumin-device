@@ -2172,5 +2172,5 @@ before), with the rules and again with the model. Tests: `SaidAsHowTheyAre` and 
 Also seen and not fixed: "today wrecked me. my manager tore my report apart in front of everyone" isn't read as a
 hard moment at all, so no line about how to be with them is given on it.
 
-Full suite on this code: 1,738 passed and the 14 known failures (one more failed mid-edit on the shortening bug
-above and passes now; the files touched since were run again).
+Full suite with the small model in (`4218691`): 1,757 passed, 14 failed (the 14 known ones: 12 that are the
+environment and the two Japanese-voice tests).
