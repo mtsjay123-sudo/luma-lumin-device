@@ -3,6 +3,8 @@
 Written Nov 14, 2026, from what's measured (`docs/HUMAN_PLAN.md`, run 42 and safety run 43) and what's built. Nothing
 here is claimed as done until a test or a real person says so.
 
+The full plan from Nov 20 (Nuance Labs, the moat, voice, the app walk, the order of work) is in `docs/GAME_PLAN.md`.
+
 ## Tonight: trying it at home
 
 1. Open https://lumin-holdings-site.vercel.app/dev, type the developer password, pick your Mac. Open the app; the first

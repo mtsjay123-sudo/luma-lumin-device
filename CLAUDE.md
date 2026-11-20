@@ -114,6 +114,7 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Who pays, what a lamp costs, what a seat earns | `docs/BUSINESS_MODEL.md` (tests redo its sums: `tests/test_business_model.py`). Every number says if it's known, ours or an assumption. No ads, no data, nothing earned from minutes |
 | Plan and progress | `docs/HUMAN_PLAN.md` |
 | What to try at home, and what comes next, in order | `docs/NEXT_LEVEL.md` |
+| The game plan: where Luma stands, Nuance Labs and our moat, voice, the personality that learns you, the app walk's findings, the order to do it in | `docs/GAME_PLAN.md` |
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |
 | Super Intelligence: the master prompt and the scoreboard | `docs/SUPER_INTELLIGENCE_PROMPT.md`, `docs/SUPER_INTELLIGENCE.md` |
