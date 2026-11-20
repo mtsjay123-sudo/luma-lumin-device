@@ -86,6 +86,11 @@ on day 1 and run alongside everything else:
   as facts; it now makes no card from anything heavy, or while the last few turns were heavy.
 - **Asked the long way round** ("do you remember where my brother moved"), the brain was handed memories with no day
   on them. Fixed: each carries its day and whether it's still true, and Luma answers the plain ones itself.
+- **The moat, measured where it's honest (run 55): on lives Luma wasn't built on, real brains score 26 to 32 of 51**
+  on day 28 (50 to 51 on the lives it was built on; a Luma that never met them, 3 to 6 of 27). Recall was the worst
+  part: handed the answer, brains said it in 0 to 6 of 12. Luma now says a saved fact itself however the question is
+  worded (15 of 16 fresh wordings, from 5), and puts what's been said since about a person first. Without a brain the
+  held-out lives went 208 → 228 of 240, the first time that number moved. Run 56 measures it on real brains.
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
   and a power cut mid-write loses nothing that was confirmed (8 kills).
 

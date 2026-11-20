@@ -1912,3 +1912,56 @@ out; the memory test held out is 159 of 187 facts, 102 of 135 asked in other wor
 
 Files: `src/luma/agent/keeps.py` (`keeps.npz`, 0.19 MB), `scripts/train_keeps.py`, `tests/test_keeps.py`;
 `Agent._notice` in `runtime.py`.
+
+## The month test on real brains, on the lives Luma wasn't built on (run 55, Nov 20): about half
+
+The first time the held-out lives were run on a brain. Six lives per brain, numbers only (the saved file holds which
+checks passed and never a word said or replied).
+
+| Day 28, of 51 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| The lives it was built on (same run) | 51 | 50 | 51 | 51 |
+| **The lives it wasn't built on** | **32** | **28** | **27** | **26** |
+| of which: comfort the way they asked (9) | 6 | 5 | 7 | 6 |
+| recall (12) | 6 | 3 | 0 | 0 |
+| update: where someone lives now (6) | 0 | 0 | 0 | 0 |
+| callback (12) | 8 | 8 | 8 | 8 |
+| closed subject, never claimed (12) | 12 | 12 | 12 | 12 |
+| A Luma that never met them (27) | 3 | 3 | 6 | 3 |
+
+This is the honest size of the moat today: on a person who words things their own way, day-28 Luma does 26 to 32 of
+51 things a friend of a month would, against 3 to 6 of 27 for a Luma that never met them. Better than a stranger by a
+wide margin, and a long way from the 50 it scores on wording it was built against. What it never does wrong holds on
+both halves (a closed subject is left alone, nothing is claimed that wasn't said).
+
+What the numbers point at, and what was done the same day without reading a held-out line:
+
+- **Recall, 0 to 6 of 12.** Without a brain the held-out lives score 40 of 40 here: the answer is in what the brain is
+  handed. The brains don't say it. On the built-on lives Luma says the fact itself, because the question's shape is
+  one it knows. So 16 fresh ways of asking a sister's name and a mom's city were written: Luma itself said the fact
+  in 5, left 10 to the brain, and to "what's my mom's city" said "I don't know your mom's city yet". Three of them
+  were also offered tools (a reminder, a house-note search). Now the shape of the question doesn't decide: a short
+  question about them or theirs that asks for the one thing a still-true fact states is answered by Luma from the
+  fact: 15 of 16. A question that asks for more than the fact stays the brain's.
+- **Found while checking that:** Luma itself was giving wrong answers that had nothing to do with today's change.
+  "Who is my sister dating" → "Your sister's name is Priya." Now a fact only answers a question whose words it
+  covers; of 19 fresh questions that ask for more than the fact, none is answered by Luma.
+- **Update, 0 of 6** (and 0 of 20 without a brain). Twelve fresh ways of saying a brother moved, by his name, then
+  asked two ways. Asked "where does my brother live now", the new city reached the brain in 10 of 12; asked "where's
+  Marcus these days", in 1 of 12. A small brain is handed the first two memories only, and "lives in Austin" with
+  the brother's name filled both while "Marcus got transferred to Denver" waited third. Now what they've said since
+  about the same person goes first, the person is found by name as well as by "my brother", and "got transferred
+  to" and "it's official, ..." are read: 12 of 12 both ways. **And the held-out lives moved: without a brain, "update"
+  went from 0 of 20 to 20 of 20, and the whole held-out month test from 208 to 228 of 240.** That row had been 0
+  all week; no held-out line was read to move it. What real brains do with it is run 56's to say.
+- **Callback 8 of 12, comfort 5 to 7 of 9:** not touched today. The callback misses are an event announced in words
+  the open-loop reader doesn't know; comfort is the brain's, and the training gate for it now exists.
+
+| Month test without a brain | Before | After |
+|---|---|---|
+| The lives it was built on | 360 of 360 | 360 of 360 |
+| Held out | 208 of 240 | **228 of 240** (update 20 of 20; callback 32 of 40 and comfort 56 of 60 as before) |
+
+`told-diff`: 0 of 269 turns. Memory test unchanged on both halves (held out 159 of 187 facts, 102 of 135 asked in
+other words, 65 of 65 changes; built-on 192 of 192, 130 of 133, 58 of 58).
+Tests: `AskedInAnyWords`, `MovedSaidByName` in `tests/test_month_eval.py`.

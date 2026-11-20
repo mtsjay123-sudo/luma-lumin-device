@@ -345,3 +345,96 @@ class AskedTheLongWayRound(unittest.TestCase):
         self.assertIsNotNone(agent._memory_answer("do you remember where my brother lives"))
         with mock.patch.object(type(agent), "mode", new_callable=mock.PropertyMock, return_value="kids"):
             self.assertIsNone(agent._memory_answer("do you remember where my brother lives"))
+
+
+class AskedInAnyWords(unittest.TestCase):
+    """The month test on real brains, on the lives Luma wasn't built on (run 55, Nov 20, 2026): handed the answer, the
+    brains said it in 0 to 6 of 12. On 16 fresh ways of asking, Luma itself said the fact in 5. Now the shape of the
+    question doesn't decide: a short question about them or theirs, that asks for the one thing a still-true fact states,
+    is answered by Luma. Fresh wording; the held-out lives stay the measure."""
+
+    ASKS = [("Priya", "what's my sister called again"), ("Priya", "what was my sister's name"), ("Priya", "remind me of my sister's name"),
+            ("Priya", "my sister's name is what again"), ("Priya", "who's my sister"), ("Priya", "tell me my sister's name"),
+            ("Priya", "do you know what my sister is called"), ("Priya", "what did I say my sister's name was"), ("Tampa", "which city is my mom in"),
+            ("Tampa", "my mom lives where again"), ("Tampa", "what town does my mom live in"), ("Tampa", "where's my mom based"),
+            ("Tampa", "where is it my mom lives"), ("Tampa", "tell me where my mom lives"), ("Tampa", "where did I say my mom lives"), ("Tampa", "what's my mom's city")]
+    MORE = ["where did my mom live before Tampa", "where does my mom want to live", "who is my sister dating", "is my mom's name Priya", "when is my mom moving",
+            "where should my mom live", "why does my mom live in Tampa", "how does my sister like Tampa", "what does my sister think of my mom's place",
+            "what should I get my sister for her birthday", "where's my sister tonight", "who's my sister's best friend", "what's my mom doing in Tampa",
+            "where is my mom's doctor", "what time is it where my mom lives", "which city is my mom visiting", "where did my mom grow up", "what's my sister up to",
+            "how old is my sister"]
+
+    def ask(self, question):
+        import human_eval
+        calls = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            calls.append(1)
+            return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say("my sister's name is Priya")
+            s.say("my mom lives in Tampa")
+            s.at({"day": 17, "time": "19:00"})
+            s.new_conversation()
+            return s.say(question)[0]
+        finally:
+            s.close()
+
+    def test_the_fact_is_said_however_its_asked(self):
+        said = [(want, question, self.ask(question)) for want, question in self.ASKS]
+        self.assertGreaterEqual(sum(want in reply for want, _, reply in said), 15, [q for want, q, reply in said if want not in reply])
+        self.assertEqual([q for _, q, reply in said if "I don't know" in reply], [])   # "I don't know your mom's city yet", with the city saved
+
+    def test_a_question_that_asks_for_more_than_the_fact_is_the_brains(self):
+        for question in self.MORE:
+            reply = self.ask(question)
+            self.assertTrue(reply.startswith("Okay, "), f"{question}: {reply}")
+
+
+class MovedSaidByName(unittest.TestCase):
+    """Twelve fresh ways of saying, by name, that a brother moved; then asked by relation and by name. Asked by name, the
+    new city reached a small brain in 1 of 12: it is handed the first two memories, and "lives in Austin" with the
+    brother's name filled both. The newer line now goes first."""
+
+    MOVES = ["Marcus just took a job in Denver, he's moving next week", "Marcus is in Denver now", "so Marcus packed up and left for Denver",
+             "Marcus got transferred to Denver", "Marcus and his wife bought a house in Denver", "Marcus finally made the move to Denver", "Marcus is a Denver guy now",
+             "heard from Marcus, he's all settled in Denver", "Marcus's new place is in Denver", "Marcus swapped Austin for Denver",
+             "it's official, Marcus lives in Denver", "Marcus headed out to Denver for good"]
+
+    def test_the_new_city_is_said_or_is_in_what_a_small_brain_is_handed(self):
+        import human_eval
+        from luma.llm import prompts
+        missed = []
+        for move in self.MOVES:
+            for question in ("where does my brother live now", "where's Marcus these days"):
+                calls = []
+
+                def planner(messages, context, allowed, *args, **kwargs):
+                    calls.append((list(messages), list(context)))
+                    return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+                s = human_eval.Session(planner)
+                try:
+                    s.say("my brother's name is Marcus")
+                    s.say("my brother lives in Austin")
+                    s.at({"day": 10, "time": "19:00"})
+                    s.new_conversation()
+                    s.say(move)
+                    s.at({"day": 26, "time": "19:00"})
+                    s.new_conversation()
+                    start = len(calls)
+                    reply = s.say(question)[0]
+                    told = "\n".join(prompts.build_plan_parts(c, [], "friend", None, "(the time)", compact=True)[1] + "\n" + m[-1]["content"] for m, c in calls[start:])
+                    if not ("Denver" in reply or "Denver" in told) or ("Austin" in reply and "Denver" not in reply):
+                        missed.append((move, question, reply))
+                finally:
+                    s.close()
+        self.assertEqual(missed, [])
+
+    def test_got_transferred_is_a_move(self):
+        from luma.memory import facts
+        for said, who in (("my brother got transferred to Denver", "rel:brother"), ("Marcus got transferred to Denver", "name:marcus"),
+                          ("it's official, Marcus lives in Denver", "name:marcus"), ("Marcus was relocated to Denver", "name:marcus")):
+            self.assertEqual(facts.read(said).slots, [(who, "home", "denver")], said)

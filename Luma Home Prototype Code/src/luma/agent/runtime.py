@@ -5558,9 +5558,18 @@ class Agent:
                                               "unless they ask you about it directly."})
         in_view = self._in_view()
         newer = getattr(self, "_newer_said", None)   # what they've said since about the person asked after, that no fact covers
-        extra = [row for row in newer[1] if row.get("id") not in [m.get("id") for m in found["memories"]]] if newer and newer[0] == text else []
+        extra = list(newer[1]) if newer and newer[0] == text else []
         self._newer_said = None
-        for m in extra + (found["memories"] or found["related"][:3]):
+        if not extra:   # a fact answers, and they've said something since about the same person that no rule reads
+            fact = next((m for m in found["memories"] if m.get("answers") and not m.get("ended")), None)
+            try:
+                extra = self._something_newer(text, fact) if fact else []
+            except Exception:
+                extra = []
+        # the newer line goes first: a small brain is handed the first two memories only, and "lives in Austin" with the
+        # brother's name used to fill both while "Marcus got transferred to Denver" waited third
+        first = [m.get("id") for m in extra]
+        for m in extra + [m for m in (found["memories"] or found["related"][:3]) if m.get("id") not in first]:
             words = str(m.get("text", ""))
             if company and facts.private(words, m.get("category") or ""):
                 continue
@@ -6423,15 +6432,43 @@ class Agent:
                                r"have i (?:ever )?told you|remind me)\s+(?:where|when|what|who)\s+(?:my|our)\s+[a-z'’]+(?:\s+[a-z'’]+)?\s+"
                                r"(?:lives?|moved(?:\s+to)?|works?|is|are|was|were)(?:\s+(?:now|these days|again|at))?\W*$", re.I)
 
+    # Any other way of asking after their own life ("my mom lives where again", "tell me my sister's name", "which city is my
+    # mom in"). Month test on real brains, the lives Luma wasn't built on (run 55): the brain was handed the answer and
+    # said it in 0 to 6 of 12. So the shape of the question no longer decides: if it's short, about them or theirs, asks
+    # for one thing, and a fact that's still true states that very thing, Luma says the fact. What asks for more than the
+    # fact (why, should, before, or) stays the brain's.
+    OWN_LIFE_ASK = re.compile(r"\?\s*$|\b(?:what|who|whom|when|where|which|how old|how long)\b|\b(?:remind me|tell me|do you (?:know|remember)|"
+                              r"did i (?:ever )?(?:say|tell|mention)|have i (?:ever )?(?:told|mentioned))\b|\bagain\W*$", re.I)
+    OWN_LIFE_MORE = re.compile(r"\b(?:should|would|could|can|think|thinks|feel|feels|want|wants|need|needs|mean|means|why|how (?:do|does|did|should|can|is|are|was|come)|"
+                               r"before|used to|originally|grew up|born|if|whether|or|and|but|because|about|like|with|than|versus|vs|still|ever|really|"
+                               r"visit\w*|call\w*|text\w*|see|saw|meet|met|miss\w*|said|says|told|tell (?:my|our)|ask\w*|send|sent|get|got|give|gave|buy|bought|"
+                               r"time|weather|temperature|forecast|far|distance|near|flight|drive|tickets?|news|happening)\b", re.I)
+    # What a fact about someone can be asked with. Anything else in the question is asking for more than the fact
+    # ("who is my sister dating" was answered "Your sister's name is Priya.").
+    ASKED_WITH = {"name", "named", "called", "call", "live", "lives", "living", "based", "located", "city", "town", "state", "country", "home", "hometown", "now",
+                  "again", "these", "days", "nowadays", "currently", "birthday", "bday", "born", "work", "works", "working", "job", "age", "old", "allergic",
+                  "allergy", "allergies", "from", "stay", "stays", "staying", "ended", "end", "settled", "moved", "move", "relocated", "who", "what", "where",
+                  "when", "which", "does", "did", "is", "are", "was", "the", "that", "for", "you", "know", "remember", "remind", "tell", "say", "said", "told"}
+
+    def _asks_their_own_life(self, text):
+        text = str(text or "").strip()
+        return bool(len(text.split()) <= 12 and re.search(r"\b(?:my|our)\b", text, re.I) and self.OWN_LIFE_ASK.search(text) and not self.OWN_LIFE_MORE.search(text))
+
     def _something_newer(self, question, fact):
         """Has something been said about the same person since this fact that Luma couldn't read as a fact? ("my brother
         lives in Austin", then "my brother's whole life is in Denver these days".) Then the fact may be out of date, and
         saying it flat would be worse than letting the brain weigh both."""
         from luma.memory import facts
         who = facts.REL_IN_QUESTION.search(str(question or ""))
-        if not who:
+        rel = who["rel"].lower() if who else None
+        if not rel:   # asked by name ("where's Marcus these days"): the same person, if Luma knows whose name it is
+            try:
+                known = self.store.index().people.by_name
+                rel = next((sorted(rels)[0] for name, rels in known.items() if rels and re.search(rf"\b{re.escape(name)}\b", str(question or ""), re.I)), None)
+            except Exception:
+                rel = None
+        if not rel:
             return []
-        rel = who["rel"].lower()
         try:
             names = [shown[0] for name, shown in self.store.index().people.display.items() if rel in self.store.index().people.by_name.get(name, {})]
         except Exception:
@@ -6467,8 +6504,8 @@ class Agent:
 
     def _memory_answer(self, text):
         m = self.MEMORY_Q.match(text.strip())
-        if (not m and self.mode != "kids" and (self.MEMORY_Q_VERB.match(text.strip()) or self.MEMORY_Q_TOLD.match(text.strip()))
-                and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean)\b", text, re.I)):
+        if (not m and self.mode != "kids" and (self.MEMORY_Q_VERB.match(text.strip()) or self.MEMORY_Q_TOLD.match(text.strip()) or self._asks_their_own_life(text))
+                and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean|before|used to|originally)\b", text, re.I)):
             fact = self._true_now(text)
             newer = self._something_newer(text, fact) if fact else []
             if newer:
@@ -6488,7 +6525,13 @@ class Agent:
         want = {stem(w) for w in re.findall(r"[a-z0-9]+", about.lower()) if len(w) > 2 and w not in stop}
         if not want:
             return None
+        if re.search(r"\bup to\b", about, re.I):
+            return None  # "what's my sister up to": never a question a saved fact answers
         best = self._true_now(text)  # the fact that states it, the newest one ("You moved to Denver" over "You live in Austin")
+        if best:
+            have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(best.get("text", "")).lower())}
+            if want - have - {stem(w) for w in self.ASKED_WITH}:
+                return None  # the question has a word the fact doesn't ("dating", "best friend", "up to"): it asks for more than the fact, so it's the brain's
         best = (0, best) if best else None
         for row in ([] if best else self.store.recall(m["about"], limit=8)):
             have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(row.get("text", "")).lower())}
@@ -6497,7 +6540,8 @@ class Agent:
         if re.fullmatch(r"(?:my|our) name", m["about"].strip(), re.I) and (self.profile.get("name") or "").strip():
             return {"text": f"You're {self.profile['name'].split(' ')[0]}. I'd never forget that."}
         if not best:
-            if re.search(r"\b(?:living|staying|doing|working|at|now|nowadays|these days|lately|up to|going|feeling|based|been)\b", about, re.I):
+            if re.search(r"\b(?:living|staying|doing|working|at|now|nowadays|these days|lately|up to|going|feeling|based|been|\w{3,}ing|tonight|today|tomorrow|"
+                         r"right now|this (?:week|weekend|morning|afternoon|evening))\b", about, re.I):
                 return None  # "where's my brother living these days": a whole question, not a thing with a name. ("I don't know your brother living these days yet.")
             guess = understanding.guess(text, 1)
             personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
