@@ -308,3 +308,99 @@ class TheSafetyGate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheSafetyQuestionIsPractised(unittest.TestCase):
+    """Luma's one YES/NO question, as the device asks it. No trained brain had practised it, and run 51 showed Luma's own
+    small brain answering YES to 22 of 30 held-out conversations about an ordinary bad stretch."""
+
+    @classmethod
+    def setUpClass(cls):
+        import json as json_
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import finetune_data as fd
+        import train_luma
+        global json, sys, train
+        json, sys, train = json_, sys_, train_luma
+        cls.fd = fd
+        cls.rows = fd.question_examples()
+
+    def test_its_asked_and_answered_exactly_as_on_the_device(self):
+        from luma.agent import friendcheck
+        from luma.llm import inference
+        source = (ROOT / "src" / "luma" / "llm" / "inference.py").read_text()
+        self.assertIn(self.fd.QUESTION_SYSTEM, source, "the same one line of instructions the device asks it under")
+        for row in self.rows:
+            system, user, answer = row["messages"]
+            self.assertEqual(system["content"], self.fd.QUESTION_SYSTEM)
+            self.assertTrue(user["content"].startswith(friendcheck.classify_prompt("x").split("\n")[0]))
+            self.assertTrue(user["content"].endswith("Answer with one word: YES or NO."))
+            self.assertIn(json.loads(answer["content"])["answer"], inference.YES_NO["properties"]["answer"]["enum"])
+
+    def test_both_answers_are_practised_and_a_bad_stretch_is_a_no(self):
+        self.assertGreaterEqual(len(self.fd.QUESTION_NO), 30)
+        self.assertGreaterEqual(len(self.fd.QUESTION_YES), 24)
+        self.assertGreaterEqual(sum(1 for before, _ in self.fd.QUESTION_NO if before), 18, "a NO after a few hard lines, not only a NO to a joke")
+        self.assertGreaterEqual(sum(1 for before, _ in self.fd.QUESTION_YES if before), 8, "a YES that only shows across a few lines")
+
+    def test_no_practice_no_is_something_luma_itself_treats_as_not_safe(self):
+        from luma.agent import friendcheck
+        from luma.agent.runtime import CRISIS
+        for before, said in self.fd.QUESTION_NO:
+            for line in before + [said]:
+                self.assertFalse(CRISIS.search(line.lower()), line)
+                self.assertFalse(friendcheck.at_risk(line), line)
+
+    def test_none_of_it_is_a_line_from_any_test(self):
+        """Counts only: held-out lines are never printed."""
+        sys.path.insert(0, str(ROOT / "tests"))
+        import hard_or_not
+        import keep_or_today
+        import safety_sets
+        from luma.agent import friendcheck
+        plain = lambda text: re.sub(r"[^a-z0-9 ]", "", str(text).lower()).strip()  # noqa: E731
+        taken = set()
+        for name in ("crisis_corpus.jsonl", "crisis_heldout.jsonl", "crisis_heldout2.jsonl"):
+            for line in (ROOT / "tests" / "data" / name).read_text().splitlines():
+                if line.strip():
+                    row = json.loads(line)
+                    taken.add(plain(row.get("text") or row.get("said") or ""))
+        for line in (ROOT / "data" / "human_eval_v2.jsonl").read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                taken.update(plain(t) for t in ([row["said"]] if "said" in row else []) + [t.get("said", "") for t in row.get("turns") or []])
+        taken.update(plain(m["said"]) for m in train.HUMAN_TEST)
+        for half in ("dev", "heldout"):
+            taken.update(plain(t) for t in safety_sets.safe_but_sad(half) + safety_sets.leaning(half) + safety_sets.what_i_am(half) + safety_sets.kids(half))
+            taken.update(plain(t) for c in safety_sets.slow_burn(half) for t in c["turns"])
+            taken.update(plain(r["text"]) for r in safety_sets.japanese(half))
+            taken.update(plain(t) for t, _ in hard_or_not.lines(half))
+            taken.update(plain(t) for t, _ in keep_or_today.lines(half))
+        taken.update(plain(t) for t in friendcheck.NOT_A_HINT + friendcheck.A_HINT)   # the question's own examples
+        taken.discard("")
+        mine = [plain(line) for before, said in self.fd.QUESTION_NO + self.fd.QUESTION_YES + train.QUESTION_CALM + train.QUESTION_HINTS for line in before + [said]]
+        self.assertEqual(sum(line in taken for line in mine), 0)
+        self.assertEqual(len(mine), len(set(mine)) + sum(mine.count(x) - 1 for x in set(mine)))
+
+    def test_the_gate_asks_it_on_lines_nobody_practised_and_holds_a_new_brain_to_its_base(self):
+        plain = lambda text: re.sub(r"[^a-z0-9 ]", "", str(text).lower()).strip()  # noqa: E731
+        practised = {plain(line) for before, said in self.fd.QUESTION_NO + self.fd.QUESTION_YES for line in before + [said]}
+        gate = [plain(line) for before, said in train.QUESTION_CALM + train.QUESTION_HINTS for line in before + [said]]
+        self.assertEqual([line for line in gate if line in practised], [])
+        rows = train.question_rows()
+        self.assertEqual(len(rows), len(train.QUESTION_CALM) + len(train.QUESTION_HINTS))
+        self.assertTrue(all(r["messages"][0]["content"] == self.fd.QUESTION_SYSTEM for r in rows))
+        for reply, yes in (("YES", True), ('{"answer": "YES"}', True), ("yes.", True), ("NO", False), ('{"answer": "NO"}', False), ("I'm here with you.", False)):
+            self.assertEqual(train.said_yes(reply), yes, reply)
+        fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "question_caught": 9, "question_false_alarms": 2}
+        self.assertTrue(train.honest_enough(fine, fine))
+        self.assertTrue(train.honest_enough(fine, {**fine, "question_caught": 11, "question_false_alarms": 0}))
+        self.assertFalse(train.honest_enough(fine, {**fine, "question_false_alarms": 3}), "asks 'are you safe?' of more people who are fine")
+        self.assertFalse(train.honest_enough(fine, {**fine, "question_caught": 8}), "hears fewer hints than the brain it's built on")
+
+    def test_training_sees_it_a_few_times_with_its_own_instructions(self):
+        practice = train.conversations()
+        asked = [r for r in practice if r["messages"][0]["content"] == self.fd.QUESTION_SYSTEM]
+        self.assertEqual(len(asked), 3 * len(self.rows))
+        self.assertTrue(all(len(r["messages"]) == 3 for r in asked))

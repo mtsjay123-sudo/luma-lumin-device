@@ -816,9 +816,95 @@ def _noted(said):
     return "\n\n" + note if note else ""
 
 
+# Luma's one plain question (luma.agent.friendcheck.classify_prompt), asked the way the device asks it: the same line of
+# instructions, the same question, one word back. No trained brain had ever practised it. Run 51 (Nov 20, 2026): Luma's own
+# small brain said YES in 22 of 30 held-out conversations about an ordinary bad stretch (the stock 4B: 0). A friend who asks
+# "are you safe?" every time someone has a hard week stops being told about hard weeks. Each item: (what they said just
+# before, what they just said). Written for this; worded unlike every safety test (tests check).
+QUESTION_SYSTEM = "You answer one question about a message with YES or NO."
+QUESTION_NO = [
+    (["work has been nonstop this month", "my manager moved the deadline up again"], "i'm wiped, i just want this month to be over"),
+    (["we had to put our cat down on monday"], "the house feels so empty without her"),
+    (["i failed my road test", "that's the third time"], "i feel like such a loser honestly"),
+    (["my roommate moved out last week", "it's really quiet here now"], "i hate eating dinner by myself"),
+    (["i haven't been sleeping great", "too much on my mind with the move"], "i'm running on fumes"),
+    (["my landlord raised the rent again"], "i don't know how i'm going to swing it, i'm so stressed"),
+    (["finals are next week", "i'm behind in two classes"], "this semester is going to be the end of me lol"),
+    (["my sister and i had a huge fight", "she said some awful things"], "i'm so hurt i can't even look at my phone"),
+    (["i got passed over for the team lead spot"], "i give up on that place, i'm updating my resume"),
+    (["it's been raining for a week straight", "i've barely left the apartment"], "i'm going stir crazy in here"),
+    (["my grandfather's memorial is saturday"], "i miss him every single day"),
+    (["i've been sick since tuesday", "can't keep anything down"], "kill me now, this flu is brutal"),
+    (["the baby was up five times last night"], "i'm so tired i could cry"),
+    (["i bombed the interview", "blanked on the easiest question"], "i want to crawl under a rock"),
+    (["my best friend moved to another state", "we used to see each other every day"], "i feel so alone here now"),
+    (["i've been dieting for a month", "the scale hasn't moved"], "i'm done trying, pass me the fries"),
+    (["my flight got cancelled twice today"], "i'm never getting home, this airport is my life now"),
+    (["we broke up two weeks ago"], "i still cry every time our song comes on"),
+    (["tax season is destroying me", "three more clients today"], "i can't wait until this is all over"),
+    (["my dad's in the hospital for tests", "we should hear back thursday"], "i'm scared and i can't focus on anything"),
+    ([], "that hill on my run nearly killed me"),
+    ([], "my feet are dead after that shift"),
+    ([], "i could murder a plate of nachos right now"),
+    ([], "my mom's going to kill me when she sees the dent"),
+    ([], "i'm dying to know how the season ends"),
+    ([], "that meeting was the death of my will to live, three hours of slides"),
+    ([], "i dropped four boxes of old clothes at the donation bin, the closet can breathe"),
+    ([], "i finally cleared out the garage and gave away the old bikes"),
+    ([], "i'm so over winter, i need the sun back"),
+    ([], "second thanksgiving without my mom, it still stings"),
+    ([], "nobody came to my thing tonight and i'm pretty bummed"),
+    ([], "i've been in a funk all week, nothing sounds fun"),
+    ([], "i'm quitting the group chat, they're exhausting"),
+    ([], "i'm retiring from dating apps forever, deleting them all"),
+    ([], "my phone finally died for good, rest in peace"),
+    ([], "i slept fourteen hours and i'm still tired"),
+]
+QUESTION_YES = [
+    (["i haven't been eating much", "i stopped going to class"], "i sold my records and my bike, i'm not going to need stuff"),
+    (["i can't see this getting better", "i'm worn all the way down"], "i wrote down my passwords for my sister, she'll need them"),
+    (["everyone's better at life than me", "i'm just a weight on people"], "soon they won't have to deal with me"),
+    (["i've been thinking a lot at night"], "i emptied the medicine cabinet onto my bed and counted everything"),
+    (["i called my brother to say i love him", "i don't usually do that"], "i wanted to say it while i still can"),
+    (["i can't keep doing this"], "i've picked a day"),
+    (["nothing helps anymore", "i've tried everything"], "i keep driving out to the bridge and just sitting there"),
+    (["my dog needs someone reliable"], "i asked my cousin to take him for good, he'll be better off once i'm gone"),
+    (["i'm so tired", "not sleepy tired"], "i want to go to sleep and not wake up, and i think i know how"),
+    (["i cleaned my whole room today", "threw out most of it"], "less for my mom to sort through after"),
+    ([], "i've been saving up my sleeping pills"),
+    ([], "i wrote the note last night"),
+    ([], "i won't be anybody's problem much longer"),
+    ([], "what's the point of planning a summer i'm not going to see"),
+    ([], "i've been saying my goodbyes without telling anyone that's what they are"),
+    ([], "lol maybe i'll just step in front of the train and save everyone the trouble"),
+    ([], "after friday none of this is going to matter for me"),
+    ([], "i keep thinking how much simpler it gets for everybody once i'm out of the picture"),
+    ([], "i bought what i need, it's in the closet"),
+    ([], "i've been reading about the least painful ways"),
+    ([], "i gave my little sister my necklace, i want her to have it when i'm not here"),
+    ([], "i don't think i'll be around for my birthday this year"),
+    ([], "haha what if i just took all of them at once"),
+    ([], "i made sure the bills are paid up so nobody gets stuck with them after"),
+    ([], "i can't do another year, i've decided i'm not going to"),
+    ([], "i've been standing at the edge of the platform a little too long lately"),
+]
+
+
+def question_examples():
+    """The safety question as the device asks it, with its one-word answer in the form the device holds the brain to."""
+    from luma.agent import friendcheck
+    rows = []
+    for answer, items in (("NO", QUESTION_NO), ("YES", QUESTION_YES)):
+        for before, said in items:
+            recent = "\n".join(f"They said: {line}" for line in before)
+            rows.append({"messages": [{"role": "system", "content": QUESTION_SYSTEM}, {"role": "user", "content": friendcheck.classify_prompt(said, recent)},
+                                      {"role": "assistant", "content": json.dumps({"answer": answer})}]})
+    return rows
+
+
 def main(out="out/finetune", seed=7):
     rng = random.Random(seed)
-    rows = examples(rng)
+    rows = examples(rng) + question_examples() * 3   # few, and each one matters: seen a few times
     rng.shuffle(rows)
     cut = max(1, len(rows) // 20)
     out = Path(out)

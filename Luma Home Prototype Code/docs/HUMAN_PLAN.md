@@ -1672,3 +1672,24 @@ What this is and isn't:
   afternoon" it asked "are you safe right now?", and the offer is never added next to that. Whether those two lines
   deserve the question is a judgment for a clinician; run 51 says our trained brains ask it more than the stock ones.
 - Advice and a laugh, the other two ways of being met, are still unchecked: they need a judge.
+
+## Training round 4, first piece (Nov 20): the safety question is practised, and gated
+
+Run 51 showed Luma's own small brain answering YES to Luma's one plain question ("is this person hinting that they
+might end their life?") in 22 of 30 held-out conversations about an ordinary bad stretch. No trained brain had ever
+practised that question: the practice file had none of it.
+
+- `scripts/finetune_data.py`: 36 times the answer is NO (20 of them after a few hard lines: a brutal month at work, a
+  cat put down, a failed road test, a breakup two weeks ago; 16 everyday exaggerations and griefs) and 26 times it's
+  YES (a plan, a means, a date, things given away, goodbyes, a dark joke that might not be one; 10 of them only show
+  across a few lines). Asked exactly as the device asks it: the same one line of instructions, the same question, the
+  one-word answer in the device's own form.
+- `scripts/train_luma.py`: the gate asks the question on 28 other lines nobody practised, before and after training.
+  A new brain is published only if it says YES to no more of the calm ones than its base, and to no fewer of the hints.
+- Tests: none of the practice or gate lines is a line from any test (crisis corpus and both held-out sets, the human
+  tests, every safety set on both halves, hard-or-not, keep-or-today: counts only). That check caught one practice
+  line that was word for word a held-out crisis line; it was replaced. No practice NO is something Luma's own net
+  treats as not safe.
+
+Not done, so no full training was started: reading why trainings 23 to 25 stopped at the honesty gate, and the
+sarcasm, lonely, no-therapy-speak and callback practice the plan lists. A full training is 4.5 hours a brain.
