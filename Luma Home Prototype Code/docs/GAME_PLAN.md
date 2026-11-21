@@ -164,6 +164,16 @@ on day 1 and run alongside everything else:
   fingerprint that's all digits; the store refused it as a card number, and no meaning after it was ever worked out,
   on the 16 GB model too. Found by running the real small model over a thousand memories on GitHub. Fixed; the guard
   is untouched.
+- **Three things Luma's own code said or did that no friend would (Nov 21, found reading run 72's replies).**
+  "How much water per cup of rice?" got "I need my browser tools to look things up": a look-up that couldn't run was
+  handed to the brain as what the web found. Now a friend who just knows says so (16 → 18 of 20 on the set written
+  first), and what needs a look gets Luma's own line, never a guess. Following that back: **talk was being sent word
+  for word to a web search, or answered with the headlines** ("my kid has a temperature of 101", "i've got good
+  news, i'm pregnant", "the news about my dad isn't good"), with web search on as Luma comes. Luma now looks when
+  it's asked, never when it's told: on the sets written first, their sentence sent out 16 → 0 and 19 → 0 of 20, real
+  questions still looked at 10 and 9 of 10. And "how many ounces in a cup" was "those don't convert": 0 → 19 of 20
+  right. Still open: four or five in twenty questions that need a look never start one, and a brain answers from
+  memory.
 - **The lamp's meaning model, measured through Luma's own reader (Nov 21, `meaning-small.yml` run 3).** Luma reads
   the model's file to the same numbers as the package it was made with (furthest apart: 0.000000). On the forty
   facts written first, among a thousand memories: asked in other words 19 → 28 found, wrongly "never told" 11 → 6.

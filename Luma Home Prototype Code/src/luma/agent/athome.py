@@ -198,7 +198,8 @@ UNITS = {  # to a base: meters, grams, milliliters
 _UNIT = "|".join(f"(?:{p})" for _, (_, _, p) in UNITS.items())
 AMOUNT = r"(?P<n>-?\d+(?:\.\d+)?|-?\d+/\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|half an?|a half|a quarter)"
 CONVERT = re.compile(LEAD + r"(?:convert |what(?:'s| is| are) |how (?:much|many|long|far|heavy|big) (?:is|are) )?" + AMOUNT + r" ?(?P<from>" + _UNIT + r")(?: (?:in|to|into|as|is how many|in how many|=)) (?P<to>" + _UNIT + r")" + END, re.I)
-CONVERT2 = re.compile(LEAD + r"how many (?P<to>" + _UNIT + r") (?:are |is )?(?:there )?in " + AMOUNT + r"? ?(?P<from>" + _UNIT + r")" + END, re.I)
+# "how many ounces in a cup", and the same asked the other way round: "how many cups is 8 ounces", "how many cups make a gallon"
+CONVERT2 = re.compile(LEAD + r"how many (?P<to>" + _UNIT + r") (?:(?:are |is )?(?:there )?in|is|are|makes?|equals?) " + AMOUNT + r"? ?(?P<from>" + _UNIT + r")" + END, re.I)
 
 
 def _unit(word):
@@ -238,15 +239,22 @@ def convert(text):
     a, b = _unit(m["from"]), _unit(m["to"])
     if not a or not b or a == b: return None
     ka, kb = UNITS[a][0], UNITS[b][0]
+    # "ounces" beside a cup, a pint or a tablespoon are fluid ounces: nobody asking "how many ounces in a cup" means weight
+    if a == "ounce" and kb == "vol": a, ka = "fluid ounce", "vol"
+    if b == "ounce" and ka == "vol": b, kb = "fluid ounce", "vol"
     if ka != kb:
-        return {"text": f"Those don't convert: {a}s measure something different from {b}s."} if {ka, kb} <= {"len", "mass", "vol"} else None
+        if {ka, kb} == {"mass", "vol"}:
+            vol, mass = (a, b) if ka == "vol" else (b, a)
+            return {"text": f"That depends on what it is: {_plural(vol, 2)} measure volume and {_plural(mass, 2)} measure weight. What are you measuring?"}
+        return {"text": f"Those don't convert: {_plural(a, 2)} measure something different from {_plural(b, 2)}."} if {ka, kb} <= {"len", "mass", "vol"} else None
     try: n = _amount(m["n"])
     except (ValueError, ZeroDivisionError): return None
     if ka == "temp":
         out = n * 9 / 5 + 32 if a == "celsius" else (n - 32) * 5 / 9
         return {"text": f"{_nice(n)} degrees {a.capitalize()} is about {_nice(out)} degrees {b.capitalize()}."}
     out = n * UNITS[a][1] / UNITS[b][1]
-    return {"text": f"{_nice(n)} {_plural(a, n)} is about {_nice(out)} {_plural(b, out)}."}
+    exact = abs(out - round(out)) < 1e-6 * max(1.0, abs(out))   # 16 ounces in a pound, 8 fluid ounces in a cup: not "about"
+    return {"text": f"{_nice(n)} {_plural(a, n)} is {'' if exact else 'about '}{_nice(out)} {_plural(b, out)}."}
 
 
 # -- days until -----------------------------------------------------------------------------------------------------

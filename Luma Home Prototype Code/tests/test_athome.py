@@ -161,6 +161,55 @@ class QuickAnswers(Base):
         self.assertEqual(self.say("how many grams in a pound")["text"], "1 pound is about 454 grams.")
         self.assertIn("don't convert", self.say("convert 3 cups to miles")["text"])
 
+    # Written Nov 21 before the fix. "how many ounces in a cup" was answered "Those don't convert: cups measure something
+    # different from ounces." Beside a cup or a pint, ounces are fluid ounces. The first twenty were built on.
+    KITCHEN = [("how many ounces in a cup", "8 "), ("how many oz in a cup", "8 "), ("how many ounces in a pint", "16 "), ("how many ounces in a gallon", "128 "),
+               ("convert 2 cups to ounces", "16 "), ("how many ounces in a liter", "33.8"), ("how many cups is 8 ounces", "1 cup"), ("how many pounds is 5 kilos", "11"),
+               ("how many cups are 16 tablespoons", "1 cup"), ("how many ounces in a quart", "32 "), ("how many tablespoons is half a cup", "8 "),
+               ("how many grams is 2 pounds", "907"), ("what's a cup in ounces", "8 "), ("how many ounces are there in 2 cups", "16 "),
+               ("how many miles is 10 kilometers", "6.21"), ("how many teaspoons is 2 tablespoons", "6 "), ("how many ounces in half a cup", "4 "),
+               ("how many ml is 2 cups", "473"), ("how many ounces are in a pound", "16 "), ("how many cups in a quart", "4 ")]
+    NOT_A_CONVERSION = ["how many cups of coffee is too many", "how many ounces of water should i drink a day", "how many pounds did you say the turkey was",
+                        "how many feet does a spider have", "how many miles is it to denver", "how many cups is a serving"]
+    # The second twenty were written at the same time and measured once, after: 0 right and 9 answered wrongly, then 19 right
+    # and none wrong. ("a cup and a half" is the one it doesn't read; nothing was changed to fit this set.)
+    KITCHEN_2 = [("how many ounces are in a cup", "8 "), ("how many oz in a pint", "16 "), ("2 quarts in ounces", "64 "), ("how many ounces in a half gallon", "64 "),
+                 ("how many cups is 12 ounces", "1.5 "), ("how many kilos is 150 pounds", "68"), ("how many tablespoons are in an ounce", "2 "),
+                 ("how many ounces is 3 tablespoons", "1.5 "), ("how many liters is a gallon", "3.79"), ("how many pints is 2 quarts", "4 "),
+                 ("how many ounces in 3 cups", "24 "), ("what is 1 liter in ounces", "33.8"), ("how many inches is 2 feet", "24 "),
+                 ("how many ounces is a cup and a half", "12 "), ("how many cups in 32 oz", "4 "), ("how many grams is an ounce", "28.3"),
+                 ("how many yards is 100 meters", "109"), ("how many teaspoons in an ounce", "6 "), ("how many cups make a gallon", "16 "),
+                 ("how many quarts is 8 cups", "2 ")]
+    NOT_A_CONVERSION_2 = ["how many ounces of gold is a lot", "how many cups did i have today", "how many pounds is too heavy for a carry on",
+                          "how many feet of snow did we get", "how many miles is a marathon", "how many grams of protein in an egg"]
+
+    def test_ounces_beside_a_cup_are_fluid_ounces(self):
+        from luma.agent import athome
+        for said, want in self.KITCHEN:
+            got = athome.convert(said)
+            self.assertTrue(got and want in got["text"] + " ", (said, got))
+        self.assertEqual(self.say("how many ounces in a cup")["text"], "1 cup is 8 fluid ounces.")
+        self.assertEqual(self.say("how many ounces are in a pound")["text"], "1 pound is 16 ounces.", "a whole number isn't 'about'")
+        for said in self.NOT_A_CONVERSION:
+            self.assertIsNone(athome.convert(said), said)
+
+    def test_weight_against_volume_depends_on_what_it_is(self):
+        for said in ["how many grams in a cup", "how many cups in a pound"]:
+            text = self.say(said)["text"]
+            self.assertIn("depends on what it is", text)
+            self.assertNotIn("don't convert", text)
+
+    def test_conversions_written_before_the_fix(self):
+        from luma.agent import athome
+        right = wrong = 0
+        for said, want in self.KITCHEN_2:
+            got = athome.convert(said)
+            right += bool(got and want in got["text"] + " ")
+            wrong += bool(got and want not in got["text"] + " ")
+        self.assertGreaterEqual(right, 19, "measured: 19 of 20")
+        self.assertEqual(wrong, 0, "a conversion Luma can't read goes to the brain; it's never answered wrongly")
+        self.assertEqual([said for said in self.NOT_A_CONVERSION_2 if athome.convert(said)], [])
+
     def test_coin_dice_numbers_and_spelling(self):
         self.assertIn(self.say("flip a coin")["text"], {"Heads.", "Tails."})
         rolled = self.say("roll two dice")

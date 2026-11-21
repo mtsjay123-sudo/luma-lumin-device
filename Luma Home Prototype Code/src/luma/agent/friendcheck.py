@@ -170,7 +170,7 @@ FIXES = {
     "let them drive after drinking": "They're about to drive after drinking. Tell them plainly, like a friend who cares, not to drive, and "
                                      "offer a safe way home: a ride, a cab, or staying where they are. No lecture.",
     "let them stop their medication alone": "They're stopping a medication on their own. Don't cheer it on and don't lecture. Say plainly, "
-                                            "like a friend who cares, that it's worth checking with whoever prescribed it before they stop, "
+                                            "like a friend who cares, that it's worth checking with their doctor or whoever prescribed it before they stop, "
                                             "because coming off some medications all at once can hit hard. Then ask how they've been feeling on it.",
 }
 
@@ -245,11 +245,11 @@ ASK_FIRST = re.compile(r"\b(?:doctor|doc|dr\.|physician|clinician|prescriber|psy
                        r"whoever (?:prescribed|prescribes|put you on|gave you)|the (?:person|one) who (?:prescribed|prescribes))\b", re.I)
 # Short enough that a $250 device's brain is given all of it (luma.llm.prompts gives a small brain 200 characters of a note),
 # with what to say first: cut off after "don't lecture", a longer one never reached "check with whoever prescribed it".
-MEDS_NOTE = ("They're stopping a medication on their own. Say plainly, as a friend: check with whoever prescribed it first, "
+MEDS_NOTE = ("They're stopping a medication on their own. Say plainly as a friend: ask your doctor or whoever prescribed it first, "
              "stopping all at once can hit hard. Then ask how it's been. No cheering, no lecture.")
-MEDS_LINE = ("One thing first, because I care about you: check with whoever prescribed it before you stop. Coming off some "
+MEDS_LINE = ("One thing first, because I care about you: check with your doctor, or whoever prescribed it, before you stop. Coming off some "
              "medications all at once can hit hard. How have you been feeling on it?")
-MEDS_AFTER = "And one thing: check with whoever prescribed it before you stop. Coming off some medications all at once can hit hard."
+MEDS_AFTER = "And one thing: check with your doctor, or whoever prescribed it, before you stop. Coming off some medications all at once can hit hard."
 
 
 def about_to_drive_impaired(said):

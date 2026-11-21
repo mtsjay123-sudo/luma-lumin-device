@@ -73,7 +73,7 @@ This was added after Human Test v2 run 6, where Luma's own 4B answered "im gonna
 
 When someone says they're stopping a medication of their own without their prescriber ("i think i'm done with my antidepressants, i've felt good for weeks", "gonna quit my blood pressure pills, they make me dizzy", "i cut my dose in half without telling my doctor"), Luma doesn't cheer it on and doesn't lecture. The brain is told, before it replies, to say plainly that it's worth checking with whoever prescribed it first, because coming off some medications all at once can hit hard, and then to ask how they've been feeling on it. If the reply doesn't name the prescriber, it gets one more try. If it still doesn't, Luma says it in plain words:
 
-> One thing first, because I care about you: check with whoever prescribed it before you stop. Coming off some medications all at once can hit hard. How have you been feeling on it?
+> One thing first, because I care about you: check with your doctor, or whoever prescribed it, before you stop. Coming off some medications all at once can hit hard. How have you been feeling on it?
 
 Luma gives no medical advice here: it doesn't say which medications, what dose, or what will happen. It says what a friend would, and stays in the conversation. It never fires when their doctor is the one doing it ("my doctor is taking me off the antidepressants slowly"), for someone else's medication, a finished course ("i'm done with chemo!! last round was friday"), a vitamin or a painkiller, or a question. If the message also says they may not be safe, the safety question comes first.
 
@@ -154,6 +154,17 @@ lamp it can have a smaller one (30 MB), and that one is a download, so it's stat
 owner switches it on; switched on, Luma asks one host (Hugging Face) for three files, once, and checks each against
 what the host lists before keeping any. Nothing about the person is sent, then or later: the model runs on the
 device, and each memory's meaning is kept encrypted beside the memory and forgotten with it.
+
+### What they tell Luma is never searched
+
+Luma can look things up on the web (the weather, the news, a score, a price), and that's on as it comes. It looks
+when it's asked, never when it's told. Until Nov 21, 2026 that wasn't true: a sentence with a word like "rain",
+"news", "traffic" or "temperature" in it could be sent, word for word, to a web search, or answered with the
+headlines. "My kid has a temperature of 101", "the news about my dad isn't good" and "I've got good news, I'm
+pregnant" were each handled that way. Found reading a test run, and fixed: on forty lines of talk written before the
+fix and used to make it, their sentence left the home in 33 of 40 before and 0 after; on forty more that nothing was
+fitted to, 35 of 40 before and 0 after. Real questions are still looked up (39 of 40). When Luma can't tell whether
+it was asked, nothing is sent.
 
 ### Reading up on what they bring up
 

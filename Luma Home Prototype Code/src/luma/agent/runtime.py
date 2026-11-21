@@ -130,6 +130,89 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
 from luma.agent import friendtalk  # noqa: E402  (what a best friend does, and what needs a fresh look)
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|(?<!credit )(?<!fico )(?<!test )(?<!sat )(?<!act )(?<!vantage)(?<!high )scores?(?! (?:higher|up|better|range))|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
+# A weather word alone is talk: "do you like rain?", "my kid has a temperature of 101", "she left me standing in the rain" and
+# "rain always reminds me of my grandmother" were each sent, word for word, to a web search nobody asked for (18 of 20 fresh
+# lines with web search on; Human Test v2's "do you like rain?" was one). It's live only when the weather out there is asked.
+WEATHER_WORD = re.compile(r"(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature)", re.I)
+WEATHER_OUT_THERE = re.compile(
+    r"\b(?:is|was|will|did|does|has|isn'?t|wasn'?t|won'?t) it (?:\w+ ){0,3}(?:rain|snow)|\bhow (?:much|many inches of) (?:rain|snow)\b|\bchance of (?:rain|snow)\b|"
+    r"\bwhen (?:is|will|does|did) (?:the |it )?(?:rain|snow)|"
+    r"\b(?:rain|snow)(?:ing)? (?:today|tonight|tomorrow|this (?:week|weekend|morning|afternoon|evening)|right now|outside|expected|coming)\b|"
+    r"\btemperature (?:outside|out there|today|tonight|tomorrow|right now|in [a-z])", re.I)
+
+
+# The news, a score, the traffic, a price: Luma looks when it's asked, never when it's told. "i've got good news, i'm pregnant"
+# was answered with the headlines; "i got some bad news today", "the news about my dad isn't good" and "sat in traffic for two
+# hours thinking about her" each went, word for word, to a web search (17 of 20 fresh lines; 20 of 20 on a second set).
+# Asked: a question mark, a clause that opens the way a question or a request does, or a few bare words ("lakers score").
+_LEAD_IN = r"(?:(?:hey|hi|yo|ok(?:ay)?|so|luma|um+|uh+|please|pls|and|but|also|oh|wait|btw|by the way|quick question|random question|real quick)\W+)*"
+# a clause that opens like a question or a request, wherever it is in the message ("i missed the game, who won")
+_ASK_START = (r"(?:what|whats|what's|who|whos|who's|when|where|which|how|hows|how's|is|are|was|were|did|does|do|will|would|can|could|should|"
+              r"anything|got any|tell me|give me|gimme|show me|read me|get me|catch me up|fill me in|update me|look up|pull up|bring up|"
+              r"let me (?:know|hear|see|get)|let'?s hear|hit me with|run me through|i (?:want|need|wanna|wonder|was wondering|am wondering)|"
+              r"i'?d (?:like|love)|i would (?:like|love)|i'?m (?:wondering|curious)|wondering|curious|do you know|you (?:got|have|know|hear|see)|any idea)")
+ASKED = re.compile(r"(?:^|[,.;:!?]\s*)\W*" + _LEAD_IN + _ASK_START + r"\b", re.I)
+# a bare verb is a request only when the message opens with it ("check the score"); "ugh, need a break from the news" isn't one
+ASKED_FIRST = re.compile(r"^\W*" + _LEAD_IN + r"(?:check|find|search|google|read|play|put on|need|want)\b", re.I)
+# a few words that name what's wanted, with nobody and nothing happening in them: "lakers score", "latest on the wildfire"
+NAMED_FIRST = re.compile(r"^\W*" + _LEAD_IN + r"(?:any|latest|newest|current|today'?s|tonight'?s|the latest|more|top|local)\b", re.I)
+# ... or that open with the thing itself: "news from the last hour" (a test that was already here caught this one)
+LIVE_FIRST = re.compile(r"^\W*" + _LEAD_IN + r"(?:the |some |more )?(?:news|headlines?|scores?|traffic|bitcoin|stocks?)\b", re.I)
+ANSWERED_THEMSELVES = re.compile(r"\?\s*(?:no|nope|nah|yes|yep|yeah|barely|kinda|sort of|obviously|of course|not really)\b", re.I)
+_FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|ive|i'd|i'll|we|we're|we've|my|our|me|us|myself)\b", re.I)
+_JUDGED = re.compile(r"\b(?:good|great|bad|sad|awful|terrible|old|no|same|ugh|hate|love|tired|sick|again|always|never)\b", re.I)
+_STATES = re.compile(r"\b(?:is|are|was|were|isn'?t|aren'?t|wasn'?t|weren'?t|makes?|made|keeps?|kept|has|had|have|gets?|got|feels?|felt|seems?|looks?|sounds?|"
+                     r"comes?|came|goes|went|travels?|hits?|sucks|stinks|kills|killed|means?|meant)\b", re.I)
+
+
+def told_not_asked(text):
+    """They're telling Luma something, not asking for anything to be looked at."""
+    said = " ".join(str(text or "").split())
+    if not said:
+        return False
+    if ANSWERED_THEMSELVES.search(said):
+        return True   # "did i win her back? no. did i try? yes"
+    if "?" in said or ASKED.search(said) or ASKED_FIRST.search(said):
+        return False
+    bare = not (_FIRST_PERSON.search(said) or _JUDGED.search(said) or _STATES.search(said))
+    if bare and (NAMED_FIRST.search(said) or LIVE_FIRST.search(said) or len(said.split()) <= 4):
+        return False  # "any news about the election", "news from the last hour", "lakers score", "the headlines", "news please"
+    return True
+
+
+def asks_news(text):
+    """They want the headlines (luma.skills.news.asks), and they asked: "the headlines make me anxious" is talk."""
+    return _news_asks(text) and not told_not_asked(text)
+
+
+def asks_live(text):
+    """LIVE_INFO, read with care: the news, a score, a price, what's open, the weather out there. Asked, never told; and a
+    weather word by itself doesn't count."""
+    low = str(text or "").lower()
+    found = [m.group(0) for m in LIVE_INFO.finditer(low)]
+    if not found:
+        return False
+    if all(WEATHER_WORD.fullmatch(word) for word in found):
+        from luma.skills import weather
+        return bool(weather.wants(text) or WEATHER_OUT_THERE.search(low))
+    return not told_not_asked(text)
+
+
+# Nobody knows this without looking: what's happening now, what something costs, what's open, who won, or they asked for a
+# search. When a look-up can't run (no browser tools, offline), a question with none of this in it is one a friend just
+# knows ("how much water per cup of rice"), so the brain answers it; a question with it gets "I couldn't look", never a guess.
+ONLY_BY_LOOKING = re.compile(
+    r"\b(?:today|tonight|tomorrow|yesterday|last night|this (?:week|weekend|month|year|morning|afternoon|evening|season|summer|winter|fall|spring)|"
+    r"next (?:week|weekend|month|year|season)|right now|currently|at the moment|these days|lately|recently|latest|newest|upcoming|so far|just (?:came|dropped|"
+    r"released|announced)|(?:come|comes|coming|came) out|release date|out (?:now|yet)|now\s*[?.!]*$|"
+    r"traffic|backed up|news|headlines|trending|score|scores|standings|who won|who(?:'s| is) winning|"
+    r"did (?:the |they |he |she |we )?[\w' ]{0,30}\b(?:win|lose|pass|vote)|stocks?|share price|prices?|cost|costs|cheapest|on sale|deals?|how much (?:is|are) (?:a|an|the)|"
+    r"exchange rate|open|closed?|closes|closing|hours|near me|nearby|nearest|closest|wait time|menu|reviews?|rated|ratings?|showtimes?|playing (?:at|tonight|now)|"
+    r"tickets?|flights?|delays?|delayed|on time|recalls?|elections?|mayor|governor|president|senate|congress|strike|"
+    r"look (?:it|that|this|them|him|her) up|look up|looking up|search(?:es|ing)?|google|googling|online|on the (?:web|internet)|website|web ?page|link|url|"
+    r"check (?:if|whether|on|for|the)|pull up|find (?:me |us )?(?:a|an|the|some))(?!\w)", re.I)
+COULDNT_LOOK_NOTE = (" [You tried to look this up and couldn't. If it's something that doesn't change, answer from what you know. If it could have "
+                     "changed, or you're not sure, say you couldn't check just now. Never say you looked it up.]")
 # A reply that says it looked something up when it didn't use a tool.
 # Luma knows songs, shows and movies from what's written about them (lyrics, verses, plots), so it can talk about them like a friend.
 # What it can't do is live a life with a body: "I was listening to it while making coffee", "tried it at the spot downtown", "been to Tokyo".
@@ -251,7 +334,7 @@ def _quotes_not_theirs(reply, said):
 
 CLAIMED_LOOKUP = re.compile(r"\b(?:just checked|i (?:just )?checked|i looked (?:it |that )?up|i (?:just )?searched|i found (?:online|on the web)|according to (?:the )?(?:latest|current|recent|today'?s))\b", re.I)
 RETRY = re.compile(r"^(?:ok(?:ay)?[,! ]+|now[,! ]+|please[,! ]+)*(?:try (?:it |that )?(?:now|again)|again|retry|redo(?: it| that)?|do it(?: now)?|go(?: ahead)?|now|one more time|(?:it'?s|its|the browser is|browser is) on(?: now)?|i turned it on|done|keep going|carry on|continue|(?:i )?connected(?: it)?|(?:it'?s|its) connected|all set)(?: please)?[.!? ]*$", re.I)
-from luma.skills.news import asks as asks_news  # noqa: E402
+from luma.skills.news import asks as _news_asks  # noqa: E402
 # "latest on my order", "any news from Jake": about their own life, not the headlines. ("Tell me the news" still is.)
 PERSONAL_NEWS = re.compile(r"\b(?:my|our|about (?:my|our))\b|\bfrom (?!the\b|today\b|this\b|last\b|yesterday\b|tonight\b|overnight\b|around\b|across\b|all\b)\w", re.I)
 _HELLO = r"(?:yo+|ayo+|aye+|hey+|hi+|hello+|sup|wass?up|wsp|wsg|what'?s up|whats good|what'?s good|what'?s poppin|good (?:morning|afternoon|evening)|gm|howdy|hiya)"
@@ -784,6 +867,12 @@ class Agent:
         ]
         for pattern, names in groups:
             if re.search(pattern, lowered): relevant.update(names)
+        if not agent_mode:
+            from luma.skills.weather import TASTE
+            if told_not_asked(text) or TASTE.search(text):
+                # told, not asked ("i got some bad news today"), or asked what Luma likes ("what's your favorite kind of weather"):
+                # a brain is never offered the web for their sentence
+                relevant.discard("web.search")
         if wants_message(text): relevant.add("messages.prepare")
         # Conversational requests to 'talk to me' aren't preference changes.
         if not re.search(r"\b(?:more|less|style|tone|shorter|longer|slang|brief|detailed|playful|direct|classic|modern)\b",lowered): relevant.discard("personality.set_style")
@@ -2062,10 +2151,25 @@ class Agent:
     def look_it_up(self, question, cancel_event=None):
         """Answer from the live web instead of guessing."""
         result = self.propose("web.search", {"query": question})
+        if result.get("state") == "failed":
+            # The look-up couldn't run. What went wrong is never handed to the brain as "what the web found" (run 72: "how much
+            # water per cup of rice?" got "I need my browser tools to look things up. Reinstall Luma's tools from Settings.").
+            return {**result, "text": self._couldnt_look(question, result, cancel_event)}
         spoken = self._answer_from(question, "web.search", result, cancel_event) if self.use_model and cancel_event is not None else None
         top = result.get("results") or []
         fallback = (result["summary"] + " " + " · ".join(r["title"] for r in top[:3])).strip()
         return {**result, "text": spoken or fallback}
+
+    def _couldnt_look(self, question, result, cancel_event=None):
+        """What Luma says when a web look-up couldn't run. Something a friend just knows: the brain's own answer. Something nobody
+        knows without looking (ONLY_BY_LOOKING), or no brain to ask: what went wrong, in Luma's own words, never a guess."""
+        wrong = str(result.get("summary") or result.get("text") or "I couldn't look that up just now.")
+        if not self.use_model or cancel_event is None or cancel_event.is_set() or ONLY_BY_LOOKING.search(question) or asks_live(question):
+            return wrong
+        talk = self._plain_answer(question + COULDNT_LOOK_NOTE, cancel_event)
+        if not talk or talk.lstrip().startswith("{") or CLAIMED_LOOKUP.search(talk):
+            return wrong
+        return self._friend_style(question, talk)
 
     # -- shopping: the cheapest real price, with the owner watching -------------
     def shop(self, query, max_price=None, background=False, cancel_event=None):
@@ -3755,7 +3859,8 @@ class Agent:
                 self.activity.step("Checking it against the web")
                 try:
                     looked = self.look_it_up(text, cancel_event)
-                    if isinstance(looked, dict) and looked.get("text"):
+                    # a check that couldn't run changes nothing: the answer that was weighed stands, and it already says what it isn't sure of
+                    if isinstance(looked, dict) and looked.get("text") and looked.get("state") != "failed":
                         looked["thinking"] = [lbl for lbl, _ in explored] + ["checked the web"]
                         return looked
                 except (ValueError, ProviderError):
@@ -3952,7 +4057,7 @@ class Agent:
 
     def use_markets(self, lowered):
         from luma.skills import markets
-        return markets.wants(lowered) and not just_talking(lowered) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
+        return markets.wants(lowered) and not just_talking(lowered) and not told_not_asked(lowered) and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"
 
     market_fetch = None  # tests hand in their own quotes
     weather_fetch = None  # and their own forecasts
@@ -6079,8 +6184,14 @@ class Agent:
             return None  # "turn that frown upside down lol" was read as "forget that"; "forget it, it's not important" with nothing just told is "never mind"
         if intent == "search" and re.match(r"\W*search me\b", lowered):
             return None  # "search me, I have no idea why she left": it went looking
-        if intent == "weather" and not re.search(r"\b(?:weather|forecast|rain\w*|snow\w*|storm\w*|temperature|degrees|hot|cold|warm|sunny|cloudy|humid|windy|umbrella|jacket|coat|outside)\b", lowered):
-            return None  # "how loud is it set" was read as the weather: "Which city?"
+        if intent == "weather":
+            from luma.skills import weather
+            out_there = re.search(r"\b(?:storm\w*|degrees|hot|cold|warm|sunny|cloudy|humid|windy|umbrella|jacket|coat|outside)\b", lowered)
+            word = re.search(r"\b(?:weather|forecast|rain\w*|snow\w*|temperature)\b", lowered)
+            if not (out_there or word):
+                return None  # "how loud is it set" was read as the weather: "Which city?"
+            if not out_there and not (weather.wants(text) or WEATHER_OUT_THERE.search(lowered)):
+                return None  # so was "what temperature should chicken be cooked to": a weather word alone isn't the weather
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
             return None  # "what should we do on saturday?", "got any ideas?" are talk: the brain answers; a page opens when they ask for one
         from luma.agent.scenarios import INTENTS
@@ -6266,6 +6377,8 @@ class Agent:
             return None  # they turned deep thinking off for speed: just answer
         if kind == "news" and (PERSONAL_NEWS.search(lowered) or not self.integration_on("web_search") or self.rules.for_tool("web.search")[1] == "block"):
             return None
+        if kind == "news" and told_not_asked(text):
+            return None  # "the headlines make me anxious so i stopped reading" got "Want the quick headlines, or the full rundown?"
         asked = {"text": text, "kind": kind, "at": self.clock()}
         pick = depth.said(getattr(self, "_said_raw", "") or text) or depth.said(text) or depth.remembered(self.store.setting("depth_prefs"), kind)
         if pick:
@@ -7653,7 +7766,7 @@ class Agent:
             # A question with a checkable answer (one record or product, a price, lyrics, the news) goes to where it's checked, never to deep
             # thought: thinking harder about something you haven't read only makes the guess sound surer.
             priced = any(p.fullmatch(text.strip()) for p in self.SHOP_PATTERNS)  # "how much is a PS5 right now": a store check, never a remembered price
-            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or LIVE_INFO.search(lowered) or friendtalk.fresh(text) or self.use_markets(text) or priced)
+            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or asks_live(text) or friendtalk.fresh(text) or self.use_markets(text) or priced)
             looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text) or self.use_weather(text) or priced)  # the news still gets "quick or deep?"
             checked = None if looked_up else self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
@@ -7705,7 +7818,7 @@ class Agent:
             grounded = self._look_first(text, lowered, cancel_event)  # one specific thing it may not know: the web first, never a guess
             if grounded is not None: return grounded
             # What came out, what's coming, who won, what's trending: no brain knows that from memory (luma.agent.friendtalk.fresh)
-            if (self.mode != "kids" and (LIVE_INFO.search(lowered) or friendtalk.fresh(text)) and not wants_message(text)
+            if (self.mode != "kids" and (asks_live(text) or friendtalk.fresh(text)) and not wants_message(text)
                     and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
                 try:
@@ -7819,6 +7932,10 @@ class Agent:
                         # The words are the point: show the draft, and how to send it once they're saved.
                         return {"text": f"Here's one for {who}:\n\n{body}\n\nWant me to text it? Add {who}'s number under People, then say \"text it to {who}\".", "section": "people"}
                     return {"text": str(error) + " Tell me their name and number, or add them under People.", "section": "people"}
+                if result.get("state") == "failed" and name == "web.search" and asks_for_something(text) and not cancel_event.is_set():
+                    # They asked something and the brain wanted the web for it, and the web isn't there: a friend who just knows says
+                    # so; what nobody knows without looking is "I couldn't look", in Luma's words, never read out by a brain.
+                    return {**result, "text": self._couldnt_look(text, result, cancel_event)}
                 if result.get("state") == "failed" and self._reads(name, arguments) and not asks_for_something(text) and not cancel_event.is_set():
                     # Nobody asked to look anything up, and the look-up didn't work (no browser tools here): talk, never read an
                     # error out. (Human Test v2: a DMV vent got "I need my browser tools to look things up.")

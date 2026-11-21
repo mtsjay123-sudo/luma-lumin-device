@@ -236,12 +236,18 @@ EASY = re.compile(r"^\s*(?:hi|hey|yo|sup|thanks?|thank you|ok(?:ay)?|cool|nice|l
                   r"what'?s up|how are you|good (?:morning|night))\b", re.I)
 
 
+# Asked what Luma likes, it's small talk, not a decision: "Random question, but do you like rain?" was weighed from four
+# sides and judged (five trips through the brain) once it stopped being sent to a web search.
+ABOUT_YOU = re.compile(r"\b(?:do|did|would|have|are|were) (?:you|u)(?: ever| really| even| actually)? (?:like|love|prefer|enjoy|hate|have a (?:favou?rite|fave)|"
+                       r"seen|heard|tried|been to|wish|dream|miss)\b|\b(?:what(?:'s| is|s)|who(?:'s| is|s)|which is) (?:your|ur) (?:least )?(?:favou?rite|fave)\b", re.I)
+
+
 def is_hard(text):
     """Worth deliberating over? Short talk and greetings aren't; real questions and decisions are."""
     t = (text or "").strip()
     if len(t) < 12 or EASY.match(t):
         return False
-    return bool(HARD.search(t) or t.endswith("?") and len(t.split()) >= 6)
+    return bool(HARD.search(t) or t.endswith("?") and len(t.split()) >= 6 and not ABOUT_YOU.search(t))
 
 
 def candidate_prompt(scenario_instruction, text, about_line, recent=""):

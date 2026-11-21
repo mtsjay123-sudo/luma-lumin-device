@@ -377,7 +377,9 @@ class InLuma(unittest.TestCase):
         self.assertIn("988", out)
         self.assertIn("Can you tell me where you are right now?", out)
         self.store.set_setting("friend_style", False)
-        self.brain("Rainy days are the best. Let me know if you need anything else.")
+        # "rainy days" used to send this to a web search (one trip to the brain); it's talk now, and "what do you think" is
+        # weighed from a few sides, so the stand-in brain says the same thing on every trip
+        self.brain(*["Rainy days are the best. Let me know if you need anything else."] * 8)
         self.assertIn("Let me know if you need anything else", self.agent.chat("honestly what do you think about rainy days")["text"])
 
 

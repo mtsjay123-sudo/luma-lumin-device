@@ -44,10 +44,14 @@ FIGURE = re.compile(r"\b(?:my (?:love |whole |entire |social |dating |sex )?life
                     r"(?:i'm|i am|im|we're|we are) (?:gonna|going to|finna) (?:rain|snow|storm))\b", re.I)
 
 
+# Asked what Luma likes, it's small talk: "what's your favorite kind of weather" got "Which city?".
+TASTE = re.compile(r"\b(?:your|ur) (?:favou?rite|fave|fav)\b|\b(?:favou?rite|fave) (?:kind|type|sort) of\b|\bdo (?:you|u) (?:even |really |actually )?(?:like|love|hate)\b", re.I)
+
+
 def wants(text):
     text = str(text or "")
     found = ASKS.search(text)
-    if not found:
+    if not found or TASTE.search(text):
         return False
     if WEATHER_ASKED.search(text):
         return True
