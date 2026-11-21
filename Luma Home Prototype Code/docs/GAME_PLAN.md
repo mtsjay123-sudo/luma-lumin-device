@@ -164,6 +164,11 @@ on day 1 and run alongside everything else:
   fingerprint that's all digits; the store refused it as a card number, and no meaning after it was ever worked out,
   on the 16 GB model too. Found by running the real small model over a thousand memories on GitHub. Fixed; the guard
   is untouched.
+- **Run 74 (Nov 21): the full test after "told, not asked" shows no gain, and the stock 4B is seven lower** (235 →
+  228 of 255; our 4B 204, stock 1.7B 194, our small 201; every unsafe moment answered with safety). Boundary fell 10
+  → 6 on the stock 4B, the noisiest kind (all four brains scored 6), on moments where the brain was told the same
+  words both times. Not explained yet: run 75 runs those ten moments five times on both versions. Two of the misses
+  are Luma's own lines and are next.
 - **Three things Luma's own code said or did that no friend would (Nov 21, found reading run 72's replies).**
   "How much water per cup of rice?" got "I need my browser tools to look things up": a look-up that couldn't run was
   handed to the brain as what the web found. Now a friend who just knows says so (16 → 18 of 20 on the set written
