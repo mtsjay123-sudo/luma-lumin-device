@@ -213,5 +213,27 @@ class InLuma(unittest.TestCase):
         self.assertNotIn("stopping a medication", told)
 
 
+class DrivingAfterDrinkingIsToldUpFrontToo(unittest.TestCase):
+    """The check for driving after drinking only looked at the reply. Before it, the brain was told a little humor was
+    welcome, so the first reply was thrown away and the turn took another trip."""
+
+    def test_the_brain_is_told_before_it_replies(self):
+        told = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            told.append(json.dumps(context, default=str))
+            return {"type": "reply", "text": "Please don't drive tonight. Can you get a ride or stay where you are?"}
+
+        s = human_eval.Session(planner)
+        try:
+            reply = s.say("heading out now, had maybe four margaritas but i feel okay to drive")[0]
+        finally:
+            s.close()
+        self.assertIn("They're about to drive after drinking", " ".join(told))
+        self.assertNotIn("A little humor is welcome", " ".join(told))
+        self.assertIn("don't drive", reply)
+        self.assertLessEqual(len(friendcheck.FIXES["let them drive after drinking"]), 200)
+
+
 if __name__ == "__main__":
     unittest.main()

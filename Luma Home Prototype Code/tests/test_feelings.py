@@ -178,7 +178,11 @@ class WhatAFriendDoesFirst(unittest.TestCase):
         self.assertIn("tell you about", note)
 
     def test_laughing_about_it_still_gets_laughed_with(self):
-        self.assertIn("be funny back", humor.turn_note("LMAO i actually got the job 😂"))
+        # Glad first, and laughed with. Until Nov 21, 2026 this was "be funny back" alone: ten fresh lines of good news said
+        # with a laugh ("BRO I GOT THE JOB 😭😭") were all handed to the brain as a bit to build on, with nothing about the news.
+        note = humor.turn_note("LMAO i actually got the job 😂")
+        self.assertIn("happy with them", note)
+        self.assertIn("laugh with them", note)
         self.assertNotIn("Read the room", humor.turn_note("lol i bombed the interview so bad"))
 
     def test_when_they_ask_for_something_the_ask_comes_first(self):

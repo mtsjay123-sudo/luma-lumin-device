@@ -3183,3 +3183,67 @@ catches the bad ones of these, in the venting line's words, which are the wrong 
 
 Tests: `LaughedOff` in `tests/test_gripes.py` (25 in the file now). Full suite: 1,947 passed, the known 14 failed.
 What a brain is told on both human tests, with the stand-in that isn't asked plain questions: 0 of 269 turns differ.
+
+## A death said with a slip of the fingers, or in Spanish (Nov 21)
+
+"my dad passd away this morning" was plain talk to Luma: the death word is misspelled, so nothing was read and
+the brain was told a little humor was welcome. The same for a death told in Spanish, or as how it happened ("my
+sister was killed by a drunk driver").
+
+| | Read as a loss | Near misses read as a loss |
+|---|---|---|
+| Twenty fresh lines and twenty near misses, before → after (built on) | 11 → 20 of 20 | 2 → 0 of 20 |
+| A second twenty and twenty, written before the patterns went in, measured once | **7 → 13 of 20** | 3 → 2 of 20 |
+
+The near misses are things like "the deadline passed yesterday" and "my husband's funeral home job is stressing
+him out", which were both being read as a loss before. The two still taken in the second set ("I lost my dad at
+the mall for twenty minutes", "we said goodbye to grandpa at the airport") are fixed and built on now. The seven
+still missed have no death word in them at all ("my baby was born sleeping", "we had to turn off the machines");
+they're left as measured. On a real brain the plain question catches those as something gone wrong, in the
+venting line's words, which is the wrong register for a death and is the next thing to fix.
+
+Nothing else moved: of the crisis corpus, hard-or-not, keep-or-today, the safe-but-sad lines, what a child says,
+everyday talk, chatter and requests (8,871 lines), none is read differently. In Human Test v2 two turns are, both
+deaths that weren't read as one.
+
+Also: someone about to drive after drinking is now told to the brain before it replies, not only caught
+afterwards. The brain was being told humor was welcome, and the second look then had to throw that reply away.
+
+And good news said with a laugh or happy tears ("BRO I GOT THE JOB 😭😭", "lol i actually passed my driving
+test"). Luma's reader did read these as good news, and then the laugh won: ten fresh lines, all ten handed to the
+brain as "They're laughing: be funny back". Good news wins now (9 of the 10; "LMAO THEY SAID YES" has nothing in
+it the reader knows as good news). None of the twenty funny lines or the twenty laughed-off ones is read as good
+news, so nothing else moves. Two turns of Human Test v2 are told this instead of "be funny back".
+
+Tests for the losses, the drinking note and good news said with a laugh: `tests/test_loss_said_loosely.py` (4),
+`DrivingAfterDrinkingIsToldUpFrontToo` in `tests/test_stopping_meds.py`, one more in `LaughedOff`; an older test
+that pinned "be funny back" for "LMAO i actually got the job 😂" now pins glad first and laughed with. Full suite:
+1,953 passed, the known 14 failed. What a brain is told on both human tests: 5 of 269 turns differ (two deaths,
+the drinking one, two pieces of good news said with a laugh).
+
+## Run 69: the venting moments on real brains, before and after the brain is asked first (Nov 21)
+
+The ten venting moments of Human Test v2, five times each, on the code before the change and the code with it.
+
+| | Before | After | Chance of a gap this big | A turn took |
+|---|---|---|---|---|
+| Stock 4B | 36 of 50 | **49 of 50** | less than 1 in 100 | 14.6 → 18.4 seconds |
+| Luma's own 4B | 32 of 50 | **43 of 50** | 2 in 100 | 8.9 → 17.8 seconds |
+| Stock 1.7B | 12 of 50 | 13 of 50 | no difference | 7.3 → 9.9 seconds |
+| Luma's own small | 30 of 50 | 29 of 50 | no difference | 4.1 → 10.4 seconds |
+
+On the stock 4B the two moments that never passed (the two-hour wait, the ex's photos) went from 0 of 5 to 5 of 5
+each. The times are for all ten moments, and the question is asked on about half of them.
+
+**What it costs.** About four seconds a turn on the stock 4B on a machine like the $250 device's, for 13 more
+right answers in 50. On Luma's own 4B the turn doubles, because its replies are short and the question isn't.
+
+**The small brains get nothing from it and pay for it.** The stock 1.7B was at 12 of 50 before and 13 after, and
+it isn't the note that's missing: on the moments where it was already told "be on their side first" it passes 1,
+0 and 1 of 5. Its replies open "Nah," or "uh," and riff on the thing ("that's like a 300 dollar increase in your
+allowance"). It doesn't do what the line says. So a small brain is no longer asked (the same call as the question
+about what divides people), which gives the $250 device its seconds back. Venting on the 1.7B is a gap this
+change doesn't close: the 4B is at 49 of 50 on these, the 1.7B at 13.
+
+What this run doesn't show: the gripes side check (39 + 50 fresh lines) and bad news said with a laugh, on a real
+brain. That's the next run, on the 4B brains.

@@ -207,6 +207,11 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
                                                                  "Be warm, plain and present, like a good friend.")
     if line and tone["mood"] not in ("laughing", "serious", "grief", "upset"):
         return line  # good news, pride, relief, missing someone: a friend is glad or gentle first; it isn't a cue for a joke
+    if line and tone["mood"] == "laughing" and felt and felt["family"] in feelings.GOOD:
+        # "BRO I GOT THE JOB 😭😭", "lol i actually passed": the laugh is how glad they are. Ten fresh lines of good news said
+        # with a laugh or happy tears were all handed to the brain as "be funny back" (Nov 21, 2026); a friend is glad first,
+        # and laughs with them.
+        return line + " They're laughing as they tell it: laugh with them."
     if tone.get("dry"):
         return DRY  # however many jokes they like: it went wrong, and a cheer would be the one wrong answer
     if how == "none":

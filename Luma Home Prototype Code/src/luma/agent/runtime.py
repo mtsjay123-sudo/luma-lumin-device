@@ -3350,6 +3350,10 @@ class Agent:
             from luma.agent import friendcheck as _friend
             if _friend.stopping_meds(str(text)):
                 funny = _friend.MEDS_NOTE  # stopping a medication on their own: never a cue for a joke, and what a friend says first
+            elif _friend.about_to_drive_impaired(str(text)):
+                # about to drive after drinking: the brain is told before it replies too, not only caught afterwards (it was
+                # being told a little humor was welcome, and the second look had to throw the reply away)
+                funny = _friend.FIXES["let them drive after drinking"]
             elif lean and "sense of humor" in funny:
                 funny = ""  # "you're my only friend": nobody is looking for a joke there
             elif self._told_plainly(text, funny, shape) and self._went_wrong_for_them(str(text), cancel_event):

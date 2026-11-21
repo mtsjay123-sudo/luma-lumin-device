@@ -160,6 +160,12 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 69 (Nov 21): asking the brain first works on the 4B and not on the 1.7B.** Venting, 50 takes: stock 4B
+  36 → 49, Luma's own 4B 32 → 43; stock 1.7B 12 → 13, Luma's own small 30 → 29. It costs the stock 4B about four
+  seconds a turn. A small brain isn't asked any more. The 1.7B doesn't follow "be on their side first" even when
+  it's told: that gap is open.
+- **A death said with a typo or in Spanish (Nov 21).** "my dad passd away this morning" was plain talk and got the
+  humor note. Read as a loss now: 11 → 20 of 20 built on, 7 → 13 of 20 on a second set measured once.
 - **Bad news said with a laugh (Nov 21).** "lol my dog has cancer apparently" was handed to the brain as "be funny
   back": 18 of 20 fresh lines. A sentence said with a laugh now gets the same question to the brain first; on a
   YES it's told not to joke back. Not measured on a real brain yet.

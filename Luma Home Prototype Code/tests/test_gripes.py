@@ -192,6 +192,22 @@ class LaughedOff(unittest.TestCase):
         finally:
             s.close()
 
+    def test_good_news_said_with_a_laugh_is_good_news_first(self):
+        """The laugh is how glad they are. Ten fresh lines were all handed to the brain as "be funny back"; the one still
+        missed has no good-news words Luma's reader knows."""
+        glad = ["BRO I GOT THE JOB 😭😭", "lol i actually passed my driving test", "haha we won the championship!!", "LMAO THEY SAID YES",
+                "😭😭 i got into nursing school", "omg i'm crying we closed on the house 😭", "lol guess who just got promoted",
+                "haha i finally paid off my car", "i passed the bar exam i'm screaming 😭", "lmao i got the scholarship, full ride"]
+        first = lambda line: humor.turn_note(line)  # noqa: E731
+        told = [line for line in glad if first(line).startswith(("They have good news", "They did something hard"))]
+        self.assertGreaterEqual(len(told), 9, [line for line in glad if line not in told])
+        for line in told:
+            self.assertNotIn("be funny back", first(line), line)
+        items = human_eval.load(human_eval.GRIPES)
+        for item in items:
+            if item["category"] in ("gripes_funny", "gripes_laughed_off"):   # a funny thing is still a laugh; bad news is never good news
+                self.assertFalse(first(item["said"]).startswith(("They have good news", "They did something hard")), item["said"])
+
     def test_telling_with_a_laugh_is_only_for_this(self):
         self.assertFalse(rapport.telling("lol i totaled my car on the way home"))            # the offer after a reply is as it was
         self.assertTrue(rapport.telling("lol i totaled my car on the way home", laughing=True))

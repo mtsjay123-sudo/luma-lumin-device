@@ -53,6 +53,14 @@ NOT_A_DEATH = re.compile(
     r"\bdying\s+(?:to|for (?:a|some|an))\b|\bdead\s+(?:tired|serious|wrong|right|last|ass|end|line|weight|center|set|on|even)\b|"
     r"\b(?:i'?d|i would|would|could|to)\s+die\s+for\b|\bdied down\b|\bkill(?:ed|ing|s)?\s+(?:it|me|the vibe|time|off)\b|"
     r"\b(?:character|villain|protagonist|narrator|spoilers?|plot twist|boss fight)\b|"
+    # a deadline passes and nobody has died; a job at a funeral home is a job
+    r"\b(?:deadline|due date|date|time|moment|storm|bill|law|window|chance|opportunity|exam|test|inspection|motion|vote|budget|kidney stone|"
+    r"hour|day|week|month|year)s?\s+(?:has\s+|have\s+|had\s+|just\s+|already\s+)*passed\b|"
+    r"\bfuneral (?:home|director|parlor|parlour|business|industry)\b(?=[^.!?]*\b(?:job|work|works|working|shift|boss|hired|interview|career)\b)|"
+    # lost in a shop for twenty minutes, and a goodbye at the airport (two of twenty fresh near misses were read as a loss)
+    r"\blost\s+(?:my|our)\s+\w+(?:\s+\w+)?\s+(?:at|in|on|inside|outside)\s+the\s+(?!spring|summer|fall|winter|autumn|accident|fire|war|crash|hospital|night|"
+    r"morning|pandemic|flood|storm|earthquake)\w+|\blost\s+(?:my|our)\s+\w+(?:\s+\w+)?\s+for\s+(?:a|an|\d+|\w+)\s+(?:seconds?|minutes?|hours?)\b|"
+    r"\bgoodbyes?\s+to\b[^.!?]{0,30}\b(?:at the (?:airport|station|door|gate|bus stop|terminal|dock|curb)|before (?:he|she|they|i|we) (?:left|flew|drove|moved|went|boarded))\b|"
     r"\b(?:sick|scared|bored|worried|tickled|frozen|starved|worked|done|loved?|love (?:you|him|her|it|them)|beat(?:en)?|talked) to death\b|\bdeath (?:stare|glare|grip|march|trap|metal)\b|"
     rf"\b(?:\d+\s*%|{THINGS})[^.!?]{{0,40}}\blife support\b|\blife support\b[^.!?]{{0,40}}\b(?:\d+\s*%|{THINGS})\b|"
     r"\b(?:in|on|of|from)\s+(?:the|this|that|my|a|an|last night'?s)\s+(?:\w+\s+){0,2}(?:episode|season|movie|film|show|book|novel|series|finale|chapter|game|level|anime|play)\b|"
@@ -77,6 +85,16 @@ GRIEF = [re.compile(p, re.I) for p in (
     rf"\b(?:he|she|they|[a-z]+)\s+(?:just\s+)?passed\s+(?:peacefully|in (?:his|her|their) sleep|last (?:night|week|month|year)|this (?:morning|afternoon|week)|"
     rf"yesterday|today|on (?:mon|tues|wednes|thurs|fri|satur|sun)day|(?:\w+\s+){{1,2}}ago|in (?:january|february|march|april|may|june|july|august|september|"
     rf"october|november|december))\b",
+    # said with a slip of the fingers, said as how it happened, or said in Spanish. "my dad passd away an hour ago" was plain
+    # talk to Luma, and the brain was told a little humor was welcome (found Nov 21, 2026; of twenty fresh lines 11 were read)
+    r"\bpas{1,3}e?d\s+aw[ay]{2,3}\b|\bpast\s+away\b",
+    rf"\b(?:{ONE}|he|she)\s+(?:just\s+)?(?:dide|deid|diead|diedd|dieed)\b",
+    rf"\b{ONE}\s+(?:was|got)\s+(?:killed|murdered|shot and killed|hit and killed)\b",
+    r"\b(?:mom|mum|mama|dad|papa|grandma|grandpa|granny|gramps|nana|nan)(?:'s|’s| is)\s+gone\b"
+    r"(?!\s+(?:to\b|for (?:the|a|an|\w+ (?:days?|weeks?|hours?))|out|home|back|on\b|off|by\b|until|till|shopping|fishing|crazy|mad|viral|wrong|too far|quiet|"
+    r"missing|all (?:day|week)|a lot))",
+    r"\b(?:falleci[óo]|se muri[óo]|muri[óo]|ha muerto|est[áa] muert[oa]|descanse en paz|en paz descanse|q\.?e\.?p\.?d\.?)(?!\w)|"
+    r"\bperd[íi] a mi\b|\bse nos fue (?:mi|nuestro|nuestra|el|la)\s+(?!luz\b|internet\b|agua\b|se[ñn]al\b|tiempo\b|hora\b|tarde\b|noche\b)\w+",
     # said softly
     rf"{NOT_ME}\b(?:didn'?t|did not|isn'?t going to|won'?t|not going to|might not|may not|couldn'?t)\s+make it\b"
     rf"(?!\s+(?:to\b|on time|in time|home|back|there|out of|into|onto|past|for\b|work|class|today|tonight|this (?:week|time|year)|big|far|easy|work\b))",
