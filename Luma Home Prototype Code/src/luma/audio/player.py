@@ -127,6 +127,12 @@ class Player:
     def chime(self):
         self._run(iter([chime()]))
 
+    def play_samples(self, sounds, gap=0.0):
+        """A few short sounds, one after another (Luma's own: luma.audio.chirps)."""
+        quiet = np.zeros(int(gap * RATE), dtype=np.float32)
+        blocks = [block for s in sounds for block in (np.asarray(s, dtype=np.float32), quiet)]
+        self._run(iter(blocks))
+
     def sound(self, kind, seconds):
         noise(kind, 0.05)   # unknown kinds fail here, before anything starts
 

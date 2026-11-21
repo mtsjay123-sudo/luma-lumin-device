@@ -2325,3 +2325,12 @@ Tests: `ABirthdayAJobAnAllergy` in `tests/test_said_another_way.py`.
 
 Checks on `a69bf13` (the yes/no question in, the "if" line out, the three more facts): `told-diff` 0 of 269 turns;
 month test without a brain 360 of 360 and 236 of 240; full suite 1,775 passed, 14 failed (the 14 known ones).
+
+## A voice of its own (Nov 21) (`src/luma/audio/chirps.py`)
+
+The owner asked what the dream model looks like if the dream is R2-D2. The answer is in `docs/DREAM.md`: R2 isn't a
+person and never pretends to be (rule 1), it's loyal and remembers (run 57), it does things, and it has a voice of
+its own that isn't words. Luma had none of the last. Now it has six short sounds made in code, played just before
+the words: done, good news, say that again, a rough day, hello, goodnight. Never on a safety reply, never with
+someone hurting, off until the owner has heard them and says "use your sounds". Not measured: whether they sound
+right. The owner has the recording.

@@ -26,6 +26,31 @@ def capture_blocked(agent):
     return agent.muted or not agent.device.capture_allowed()
 
 
+def _own_sound_first(text, agent, should_stop, play=None):
+    """One of Luma's own sounds before the words, when the owner has turned them on and this reply gets one
+    (luma.audio.chirps). Returns what's left to say: the same text, or the same phrases with the first one put back."""
+    try:
+        if not agent.store.setting("own_sounds", False):
+            return text   # off until the owner has heard them and said "use your sounds"
+        import itertools
+        from luma.audio import chirps, feel
+        first = text
+        if not isinstance(text, str):
+            text = iter(text)
+            first = next(text, None)
+            if first is None:
+                return iter(())
+            text = itertools.chain([first], text)
+        name = chirps.for_reply(first if isinstance(first, str) else "", feel.mood())
+        if name and not should_stop():
+            if play is None:
+                from luma.audio.player import _speaker as play
+            play(iter([chirps.sound(name)]), should_stop)
+    except Exception:
+        pass  # a reply is never lost over a sound
+    return text
+
+
 def speak(text, agent, cancel_event=None, allow_muted=False):
     """Speak a whole reply, or an iterable of phrases as they arrive."""
     from luma.audio import tts, vad
@@ -39,6 +64,7 @@ def speak(text, agent, cancel_event=None, allow_muted=False):
         agent.speaking_since = time.monotonic()  # when Luma started talking: talking over it this early means it jumped in too soon
         vad.set_speaking(True)
         preferences = agent.voice_preferences
+        text = _own_sound_first(text, agent, should_stop)
         if isinstance(text, str):
             return tts.speak(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])
         return tts.speak_stream(text, should_stop=should_stop, voice=preferences["voice"], speed=preferences["speed"])

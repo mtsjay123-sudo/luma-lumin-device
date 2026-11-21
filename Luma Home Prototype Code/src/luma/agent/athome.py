@@ -116,6 +116,12 @@ DATE_ASK = re.compile(LEAD + r"(?:what(?:'s| is) (?:the date|today'?s date|the d
                       r"|what (?:date|day of the week) is (?:it|today))" + END, re.I)
 UNTIL = re.compile(LEAD + r"how (?:many|much) (?P<unit>days|sleeps|weeks|time)(?: are there| is (?:it|there)| do (?:i|we) have| left)? (?:left )?(?:until|till|til|'til|before|to) (?P<what>.+?)" + END, re.I)
 COIN = re.compile(LEAD + r"(?:flip|toss) (?:a |the )?coin|heads or tails" + END, re.I)
+# Luma's own sounds (luma.audio.chirps): hear them, turn them on, turn them off.
+HEAR_SOUNDS = re.compile(LEAD + r"(?:(?:let me|let's) hear|play(?: me)?|show me|do|make) (?:all (?:of )?)?(?:your|ur) (?:own )?(?:sounds?|chirps?|noises|beeps)"
+                         r"|what do (?:you|u) sound like|what sounds (?:do|can) you make" + END, re.I)
+USE_SOUNDS = re.compile(LEAD + r"(?:use|turn on|start using|keep) (?:your|ur) (?:own )?(?:sounds?|chirps?|beeps)(?: on)?|(?:you can )?(?:chirp|beep) (?:away|at me)" + END, re.I)
+NO_SOUNDS = re.compile(LEAD + r"(?:stop (?:using |making |with )?|turn off |no more |lose |drop )(?:(?:your|ur|those) (?:own )?(?:sounds?|noises|chirps?|beeps?)|"
+                       r"(?:the )?(?:chirps?|chirping|beeps?|beeping))(?: off)?|(?:stop|quit) (?:chirping|beeping)" + END, re.I)
 DICE = re.compile(LEAD + r"roll (?:(?P<n>a|an|one|two|three|four|five|six|\d) )?(?:(?:six[- ]sided |\d+[- ]sided )?(?:dice|die)|d(?P<sides>\d{1,3})|(?P<n2>\d)d(?P<sides2>\d{1,3}))" + END, re.I)
 PICK = re.compile(LEAD + r"(?:pick|give me|choose|say) (?:me )?a (?:random )?number (?:between|from) (?P<lo>-?\d{1,9}) (?:and|to) (?P<hi>-?\d{1,9})" + END, re.I)
 SPELL = re.compile(LEAD + r"(?:how (?:do|would) (?:you|i|we) spell|how(?:'s| is) .{0,3}spelled|spell(?: out)?(?: the word)?|what(?:'s| is) the spelling of) [\"']?(?P<word>[a-z][a-z'-]{1,30})[\"']?(?: spelled)?" + END, re.I)
@@ -745,6 +751,21 @@ class AtHome:
         if out: return {**out, "section": "convert"}
         if COIN.match(low):
             return {"text": "Heads." if self.rng.random() < 0.5 else "Tails.", "section": "games"}
+        if HEAR_SOUNDS.match(low):
+            from luma.audio import chirps
+            if self.player:
+                try: self.player.play_samples([chirps.sound(name) for name in chirps.SOUNDS], gap=0.45)
+                except Exception: pass
+            on = bool(self.store.setting("own_sounds", False))
+            return {"text": "Those are mine: done, good news, say that again, a rough day, hello and goodnight. "
+                            + ("I use them now and then, before I talk." if on else "Say \"use your sounds\" and I'll use them now and then, before I talk."),
+                    "section": "sounds"}
+        if USE_SOUNDS.match(low):
+            self.store.set_setting("own_sounds", True)
+            return {"text": "Okay. You'll hear me now and then, just before I talk. Say \"stop using your sounds\" any time.", "section": "sounds"}
+        if NO_SOUNDS.match(low):
+            self.store.set_setting("own_sounds", False)
+            return {"text": "Okay, just words from now on.", "section": "sounds"}
         m = DICE.match(low)
         if m:
             n = m["n2"] or m["n"] or "1"
