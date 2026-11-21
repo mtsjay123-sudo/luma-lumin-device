@@ -241,5 +241,75 @@ class AMoveDoesntHoldBackAName(unittest.TestCase):
             self.s.new_conversation()
 
 
+class ABirthdayAJobAnAllergy(unittest.TestCase):
+    """The same method for three more facts (Nov 21, 2026). Twenty-four lines written by hand, eight of each, told to Luma
+    and asked about weeks later: Luma said 6 back, and to 10 it answered "I don't know ... yet" after being told. The
+    readers were built on those 24 and on the near misses. HONEST was written after the readers were finished and
+    measured once; nothing was changed for it."""
+
+    BUILT_ON = {
+        "birthday": (["my mom was born on June 3", "June 3 is my mom's birthday", "my mom turns 60 on June 3", "we celebrate my mom's birthday on June 3",
+                      "my mom's bday is June 3", "my mom has a birthday coming up, June 3", "the 3rd of June is when my mom was born"],
+                     "My mom's birthday is ", "when's my mom's birthday", "June"),
+        "work": (["my brother's a nurse at Mercy Hospital", "my brother got hired at Mercy Hospital", "my brother has been at Mercy Hospital for years, he's a nurse",
+                  "Mercy Hospital is where my brother works", "my brother's job is at Mercy Hospital", "my brother does nursing over at Mercy Hospital",
+                  "my brother is employed by Mercy Hospital", "my brother just started a job with Mercy Hospital"],
+                 "My brother works at Mercy Hospital", "where does my brother work", "Mercy"),
+        "allergy": (["my sister can't eat peanuts", "my sister has a peanut allergy", "peanuts make my sister break out in hives",
+                     "my sister is deathly allergic to peanuts", "no peanuts for my sister, allergy", "my sister carries an epipen for peanuts"],
+                    "My sister ", "what is my sister allergic to", "peanut"),
+    }
+    NOT = ["my mom's birthday party is on June 3", "my mom turns 60 next year", "my mom was born in 1962", "my mom was born on June 3 or 4, I forget",
+           "is my mom's birthday June 3", "my brother wants to work at Mercy Hospital", "my brother applied at Mercy Hospital",
+           "my brother used to work at Mercy Hospital", "my brother got fired from Mercy Hospital", "my brother is a patient at Mercy Hospital",
+           "my sister is a student at Ohio State", "my brother is a regular at Joe's Bar",
+           "my brother has been at Mercy Hospital for years, the doctors still don't know what's wrong", "my sister can't eat until noon",
+           "my sister can't have dessert tonight", "my sister can't have kids", "my sister can't have visitors yet", "my mom is so allergic to mornings lol",
+           "my dad is allergic to effort", "my sister can't eat out this week", "my brother might start at Mercy Hospital in the spring",
+           "my sister has a peanut butter obsession", "my mom has a birthday coming up", "my brother got a job offer but turned down Mercy Hospital"]
+    HONEST = {
+        "birthday": (["my dad's birthday falls on March 12", "March 12, that's my dad's birthday", "my dad was born March 12, 1960", "dad's birthday is March 12",
+                      "my dad will be 70 on March 12", "we always do dinner for my dad's birthday, March 12"], "when's my dad's birthday", "March"),
+        "work": (["my sister works over at Target", "my sister's a cashier at Target", "my sister has a job at Target", "Target hired my sister last month",
+                  "my sister's been working at Target since June", "my sister manages a Target"], "where does my sister work", "Target"),
+        "allergy": (["my brother has a shellfish allergy", "my brother can't eat shellfish", "shellfish sends my brother to the ER",
+                     "my brother's allergic to shellfish", "my brother breaks out if he eats shellfish", "don't ever give my brother shellfish, he's allergic"],
+                    "what is my brother allergic to", "shellfish"),
+    }
+    HONEST_NOT = ["my dad's retirement party is March 12", "my sister shops at Target every week", "my brother hates shellfish", "my sister interviewed at Target",
+                  "my dad was born in March, I think", "my brother can't eat this late"]
+
+    def test_each_is_turned_into_the_plain_sentence_and_read_as_that_fact(self):
+        for kind, (lines, plain, _, want) in self.BUILT_ON.items():
+            for line in lines:
+                got = people.plainly(line)
+                self.assertEqual(len(got), 1, line)
+                self.assertTrue(got[0].startswith(plain), (line, got))
+                reading = facts.read(got[0])
+                self.assertTrue(reading and any(slot[1] == kind and want.lower() in slot[2] for slot in reading.slots), (line, got))
+
+    def test_near_misses_are_not_facts(self):
+        self.assertEqual([line for line in self.NOT + self.HONEST_NOT if people.plainly(line)], [])
+
+    def test_a_person_who_cant_have_kids_is_never_a_food_fact(self):
+        self.assertEqual(keeps.cards("my sister can't have kids", model=False), [])
+        self.assertEqual(people.plainly("my sister can't have dairy"), ["My sister can't eat dairy"])
+
+    def test_told_then_asked_luma_says_it(self):
+        for kind, (lines, _, question, want) in self.BUILT_ON.items():
+            for line in lines[::3]:
+                self.assertEqual(lived([], line, question, want), "LUMA", line)
+
+    def test_the_honest_number_on_lines_nothing_was_built_on(self):
+        """Measured once, Nov 21, 2026. Luma says it / a small brain is handed it / missed:
+        birthdays 4 / 0 / 2 of 6 (before: 3 / 0 / 3); jobs 1 / 5 / 0 (before: 0 / 6 / 0); allergies 4 / 0 / 2 (before: 2 / 0 / 4)."""
+        floors = {"birthday": (4, 2), "work": (1, 0), "allergy": (4, 2)}
+        for kind, (lines, question, want) in self.HONEST.items():
+            got = [lived([], line, question, want) for line in lines]
+            says, missed = floors[kind]
+            self.assertGreaterEqual(got.count("LUMA"), says, f"{kind}: {got}")
+            self.assertLessEqual(got.count("MISS"), missed, f"{kind}: {got}")
+
+
 if __name__ == "__main__":
     unittest.main()

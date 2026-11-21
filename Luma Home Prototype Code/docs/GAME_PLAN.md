@@ -102,6 +102,10 @@ on day 1 and run alongside everything else:
   name itself (10 of 10, from 0). On a third set written afterwards and never tuned on: names 1 → 5 of 10 said by
   Luma (9 → 3 answered "I don't know yet"), homes 1 → 4 of 10. Held-out cards 96 → 102 of 125, passing remarks 0.
   Also fixed on the way: "remind me what my sister's called" opened the task list.
+- **Run 57 (real brains, held-out lives, with that in): 48 / 44 / 49 / 43 of 51** (stock 4B, our 4B, stock 1.7B, our
+  small; two runs earlier: 32 / 28 / 27 / 26). Recall 12 of 12 and callback 12 of 12 on every brain; where someone
+  lives now 6 of 6 on both stock brains. The stock brains with Luma's layer now beat Luma's own older add-ons by 4
+  to 6 points, so stock is the brain to ship until a trained one beats 48 and 49. Comfort (6–7 of 9) is what's left.
 - **A trained brain can be tested beside the others before it's published** (`candidate_small`, `candidate_4b` on
   `human-eval.yml`).
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),

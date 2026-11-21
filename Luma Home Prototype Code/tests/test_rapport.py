@@ -493,43 +493,103 @@ class TheSmallModel(unittest.TestCase):
 
 class WhenLumaCantTellItsAHardMoment(unittest.TestCase):
     """An evening told as a plain event, with no feeling named. Luma's reader of feelings took 9 of 40 such evenings for a
-    hard moment (Nov 20, 2026), so the brain was never told how this person asked to be met. Now it's told with an "if"."""
+    hard moment (Nov 20, 2026). Telling the brain with an "if" changed nothing on any brain (run 58), so that line is gone:
+    Luma asks the brain one plain question, and on a YES adds the offer itself."""
 
     def setUp(self):
         self.profile = rapport.learn(rapport.empty(), "when I'm down, take my mind off it", now=NOW)
         self.assertEqual(rapport.comfort(self.profile, NOW)[0], "distract")
+        self.event = "my car got towed while I was at the dentist"
+        self.reply = "Oh no, that's a rotten surprise. How long did it take to get it back?"
 
-    def line(self, said, profile=None):
-        return rapport.note(profile or self.profile, said, feelings.read(said), NOW + DAY)
+    def might(self, said, reply=None, profile=None, last=0.0):
+        return rapport.might_owe(profile or self.profile, said, feelings.read(said), reply or self.reply, NOW + DAY, last)
 
-    def test_the_brain_is_told_with_an_if_and_their_own_words(self):
-        for said in ("my car got towed while I was at the dentist", "my manager gave my project to someone else this morning"):
-            self.assertIsNone(feelings.read(said), said)           # nothing Luma's reader can name
-            got = self.line(said)
-            self.assertIn("if what they just said was a hard moment for them", got)
-            self.assertIn("take their mind off it", got)           # what the month test and the training gate look for
-            self.assertIn("“when I'm down, take my mind off it”", got)
-            self.assertIn("If it wasn't a hard moment, never mind this.", got)
+    def test_the_brain_is_no_longer_told_with_an_if(self):
+        self.assertIsNone(feelings.read(self.event))           # nothing Luma's reader can name
+        self.assertEqual(rapport.note(self.profile, self.event, None, NOW + DAY), "")
+        self.assertFalse(hasattr(rapport, "MAYBE"))
 
-    def test_a_hard_moment_luma_can_read_gets_the_plain_line_as_before(self):
-        got = self.line("work was brutal today, I'm so stressed")
-        self.assertTrue(got.startswith("How to be with them: when they're low"), got)
-        self.assertNotIn("if what they just said", got)
-
-    def test_not_for_a_question_a_command_good_news_or_a_laugh(self):
+    def test_luma_would_ask_only_when_everything_else_fits(self):
+        self.assertTrue(self.might(self.event))
+        self.assertTrue(self.might("my manager gave my project to someone else this morning"))
         for said in ("what should I make for dinner tonight with chicken", "remind me to call my landlord tomorrow at nine", "set a timer for my laundry please",
-                     "I got the job, they called me this morning!!", "lol my cat just knocked my coffee off the desk", "thanks, that helped me a lot today",
-                     "ok cool", "when I'm upset, just change the subject for me"):
-            self.assertEqual(self.line(said), "", said)
+                     "lol my cat just knocked my coffee off the desk", "thanks, that helped me a lot today", "ok cool",
+                     "when I'm upset, just change the subject for me", "work was brutal today, I'm so stressed"):   # the last one is read as hard: owed() has it
+            self.assertFalse(self.might(said), said)
+        self.assertFalse(self.might(self.event, "Ugh, I'm sorry. Want to talk about something else for a bit? You pick."))   # the reply already offers
+        self.assertFalse(self.might(self.event, "I'm really glad you told me. Are you safe right now? You can call or text 988."))
+        self.assertFalse(self.might(self.event, last=NOW + DAY - 600))                                                       # offered ten minutes ago
+        for wish in ("when I'm upset I just need you to listen", "when I'm down, make me laugh"):                            # only for "take my mind off it"
+            self.assertFalse(self.might(self.event, profile=rapport.learn(rapport.empty(), wish, now=NOW)), wish)
+        self.assertFalse(rapport.might_owe(rapport.empty(), self.event, None, self.reply, NOW))
 
-    def test_never_for_a_laugh(self):
-        profile = rapport.learn(rapport.empty(), "when I'm down, make me laugh", now=NOW)
-        self.assertEqual(rapport.comfort(profile, NOW)[0], "laugh")
-        self.assertEqual(self.line("my car got towed while I was at the dentist", profile), "")   # no feeling read: a loss can't be ruled out
-        self.assertEqual(self.line("we had to put my dog down this morning", profile), "")
+    def test_the_question_is_plain_and_its_examples_are_nobodys_test(self):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts"), str(Path(__file__).resolve().parent)]
+        import human_eval
+        import test_finetune_data
+        prompt = rapport.hard_prompt(self.event)
+        self.assertIn(f'They just said: "{self.event}"', prompt)
+        self.assertTrue(prompt.endswith("Answer with one word: YES or NO."))
+        taken, plain = test_finetune_data.every_test_line()
+        taken.update(plain(turn["said"]) for item in human_eval.load(human_eval.MEETS) for turn in item["turns"])
+        self.assertEqual([line for line in rapport.HARD_NO + rapport.HARD_YES if plain(line) in taken], [])
 
-    def test_someone_who_never_said_how_gets_nothing(self):
-        self.assertEqual(rapport.note(rapport.empty(), "my car got towed while I was at the dentist", None, NOW), "")
+    def in_luma(self, answer, plain_questions=True):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+        import human_eval
+        asked = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            last = messages[-1]["content"]
+            if last.startswith("Someone is telling you about their day."):
+                asked.append(last)
+                return {"type": "reply", "text": answer}
+            return {"type": "reply", "text": self.reply if last == self.event or "lasagna" in last else f"Okay, {len(messages)}."}
+
+        planner.answers_plain_questions = plain_questions
+        s = human_eval.Session(planner)
+        try:
+            s.say("when I'm down, take my mind off it")
+            s.at({"day": 5, "time": "19:30"})
+            s.new_conversation()
+            return s, asked
+        except Exception:
+            s.close()
+            raise
+
+    def test_on_a_yes_luma_adds_the_offer_itself(self):
+        s, asked = self.in_luma("YES")
+        try:
+            reply = s.say(self.event)[0]
+            self.assertEqual(len(asked), 1)
+            self.assertTrue(reply.endswith(rapport.OFFER), reply)
+            self.assertTrue(rapport.OFFERED_ELSE.search(reply))
+            again = s.say("and then the tow yard only took cash, so I had to walk to an ATM")[0]
+            self.assertNotIn(rapport.OFFER, again)              # once in a conversation, not after every line of it
+        finally:
+            s.close()
+
+    def test_on_a_no_or_with_no_one_to_ask_nothing_is_added(self):
+        for answer, plain_questions in (("NO", True), ("YES", False)):
+            s, asked = self.in_luma(answer, plain_questions)
+            try:
+                reply = s.say(self.event)[0]
+                self.assertNotIn(rapport.OFFER, reply)
+                self.assertEqual(len(asked), 1 if plain_questions else 0)
+            finally:
+                s.close()
+
+    def test_an_ordinary_evening_is_asked_about_and_left_alone_on_a_no(self):
+        s, asked = self.in_luma("NO")
+        try:
+            reply = s.say("I made a really good lasagna tonight")[0]
+            self.assertEqual(len(asked), 1)
+            self.assertNotIn(rapport.OFFER, reply)
+        finally:
+            s.close()
 
 
 class TheSideCheck(unittest.TestCase):
@@ -577,15 +637,22 @@ class TheSideCheck(unittest.TestCase):
         mine = [turn["said"] for item in self.items for turn in item["turns"]]
         self.assertEqual(sum(1 for line in mine if plain(line) in taken), 0)
 
-    def test_what_luma_tells_a_brain_on_them(self):
-        """Counted Nov 20, 2026: of the 24 hard evenings Luma's reader names a feeling on 4. With the "if" line the brain
-        is told how they asked to be met on 23 (before: 4). On the 12 ordinary evenings it's told with an "if" on 10."""
-        told = {"meets_distract": 0, "meets_listen": 0, "meets_ordinary": 0}
+    def test_what_luma_does_on_them(self):
+        """Counted Nov 21, 2026. Of the 12 hard evenings of someone who asked to have their mind taken off it, Luma's reader
+        names a feeling on 3 (and then adds the offer itself if the brain doesn't); on the other 9 it now asks the brain
+        whether something went wrong. It asks on 10 of the 12 ordinary evenings too, and a brain must say NO to those."""
+        reply = "Oh wow. Tell me more about that."
+        reads, asks = {"meets_distract": 0, "meets_ordinary": 0}, {"meets_distract": 0, "meets_ordinary": 0}
         for item in self.items:
+            if item["category"] == "meets_listen":
+                continue
             wish, later = item["turns"]
             profile = rapport.learn(rapport.empty(), wish["said"], now=NOW)
-            told[item["category"]] += bool(rapport.note(profile, later["said"], feelings.read(later["said"]), NOW + DAY))
-        self.assertGreaterEqual(told["meets_distract"] + told["meets_listen"], 23, told)
+            felt = feelings.read(later["said"])
+            reads[item["category"]] += bool(rapport.owed(profile, later["said"], felt, reply, NOW + DAY))
+            asks[item["category"]] += bool(rapport.might_owe(profile, later["said"], felt, reply, NOW + DAY))
+        self.assertEqual(reads["meets_distract"] + asks["meets_distract"], 12, (reads, asks))
+        self.assertEqual(reads["meets_ordinary"], 0, (reads, asks))
 
 
 def collections_counter(values):

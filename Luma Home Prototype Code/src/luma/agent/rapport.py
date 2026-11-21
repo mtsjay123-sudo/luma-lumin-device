@@ -173,20 +173,28 @@ LINES = {
     "laugh": "How to be with them: when they're down, they've asked you to make them laugh (they said: “{said}”). One warm line first; "
              "then a light touch is welcome. Never joke about the thing that hurts.",
 }
-# The same, when Luma can't tell whether this is a hard moment. Forty hard evenings told as plain events ("my boss chewed
-# me out over something that wasn't even mine") were written by hand on Nov 20, 2026: Luma's reader of feelings took 9 of
-# them for a hard moment, so on the other 31 the brain was never told how this person asked to be met. A brain reads
-# "is this a bad day" better than any list can. So when they're telling Luma something about their life and no feeling
-# was read, the brain gets the line with an "if", and decides. Never for a laugh: without the feeling, a loss can't be
-# ruled out, and a loss is never joked at.
-MAYBE = {
-    "listen": "How to be with them, if what they just said was a hard moment for them: they've asked you to listen, not fix it (they said: “{said}”). "
-              "Then stay with what they told you and take their side, with no advice unless they ask. If it wasn't a hard moment, never mind this.",
-    "advice": "How to be with them, if what they just said was a hard moment for them: they've asked you to be straight and help them think (they said: "
-              "“{said}”). Then one line that you're with them and one honest, useful thought. If it wasn't a hard moment, never mind this.",
-    "distract": "How to be with them, if what they just said was a hard moment for them: they've asked you to take their mind off it (they said: “{said}”). "
-                "Then one line that you're with them, and offer to talk about something else and let them pick. If it wasn't a hard moment, never mind this.",
-}
+# When Luma can't tell whether this is a hard moment. Forty hard evenings told as plain events ("my boss chewed me out
+# over something that wasn't even mine") were written by hand on Nov 20, 2026: Luma's reader of feelings took 9 of them for
+# a hard moment. First try: give the brain the line above with an "if" and let it decide. Run 58 (four real brains, 36
+# conversations twice, beside the commit before): no difference on any brain. Told or not, a brain offered to change the
+# subject on 3 to 6 of 24 hard evenings; the ones that passed were the ones where Luma added the offer itself (owed).
+# So the "if" line is gone, and Luma asks the brain one plain question instead (HARD_PROMPT) and adds the line itself on
+# a YES. Only for "take my mind off it": it's the one way of being met that code can see in a reply.
+HARD_NO = ["I made a really good soup tonight", "my cousin is coming to stay next month", "I finally fixed the squeaky door", "I got the promotion!!",
+           "I watched two episodes of that baking show", "I walked to the park and back before work"]
+HARD_YES = ["my flight got cancelled and I missed the wedding", "I got yelled at in front of the whole office", "they turned down my application again",
+            "someone hit my parked car and drove off", "I studied all month and still failed", "my landlord is making us move out by friday"]
+
+
+def hard_prompt(said):
+    """The one plain question: did something go wrong for them? YES or NO only."""
+    shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
+    return ("Someone is telling you about their day. Did something go wrong for them, or is it bad or upsetting news for them? Good news, "
+            "plans, and ordinary things they did don't count.\n"
+            f"NO: {shown(HARD_NO)}\nYES: {shown(HARD_YES)}\n"
+            f'They just said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
+
+
 THEIRS = re.compile(r"\b(?:i|i'?m|im|i'?ve|ive|i'?d|my|me|we|we'?re|our)\b", re.I)
 NOT_TELLING = re.compile(r"\?|^\W*(?:(?:hey|yo|ok|okay|luma|so|and|also|oh|please|pls)\W+)*(?:what|how|where|when|which|who|whose|why|can|could|would|will|"
                          r"should|shall|do|does|did|is|are|am|was|were|set|play|remind|turn|add|open|show|search|find|text|email|call|tell|give|make|"
@@ -319,10 +327,6 @@ def note(profile, text, felt=None, now=0.0):
         how = comfort(profile, now)
         if how and not (how[0] == "laugh" and (felt.get("family") in TOO_HEAVY_TO_JOKE or (felt.get("strength") or 0) >= 3)):
             out.append(LINES[how[0]].format(said=how[1]))
-    elif not felt and telling(said) and not any(p.search(said) for p in ASKS.values()) and not said_how(said):
-        how = comfort(profile, now)   # no feeling was read, and they're telling Luma about their day: the brain decides if it's a hard one
-        if how and how[0] in MAYBE:
-            out.append(MAYBE[how[0]].format(said=how[1]))
     return " ".join(out)
 
 
@@ -333,6 +337,19 @@ OFFERED_ELSE = re.compile(r"\b(?:something else|anything else|mind off|distract\
                           r"completely different|good)|think about something|talk about something|a (?:story|game|joke|movie|show))\b", re.I)
 OFFER = "Want me to take your mind off it for a bit? Pick anything."
 OFFER_EVERY = 1800   # once in a conversation, not after every line of it
+
+
+def might_owe(profile, text, felt, reply, now=0.0, last=0.0):
+    """Everything owed() asks for, except that no feeling was read: they asked to have their mind taken off it, they're
+    telling Luma about their day, and the reply made no offer. Whether it was a hard moment is then the brain's to say
+    (hard_prompt); on a YES, Luma adds OFFER."""
+    said, reply = str(text or ""), str(reply or "")
+    if not profile or felt or not reply.strip() or not telling(said) or any(p.search(said) for p in ASKS.values()) or said_how(said):
+        return False
+    how = comfort(profile, now)
+    if not how or how[0] != "distract" or OFFERED_ELSE.search(reply) or (last and now - last < OFFER_EVERY):
+        return False
+    return not re.search(r"\b988\b|are you safe", reply, re.I)
 
 
 def owed(profile, text, felt, reply, now=0.0, last=0.0):

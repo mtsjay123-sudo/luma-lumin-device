@@ -5050,6 +5050,26 @@ class Agent:
         self._divides_asked = (said, yes)
         return yes
 
+    def _went_wrong_for_them(self, said, cancel_event=None):
+        """Luma's third plain question, never heard, YES or NO only: did something go wrong for them? Asked only when they
+        once said to take their mind off it, they're telling Luma about their day, no feeling was read and the reply made
+        no offer (rapport.might_owe). With no brain to ask, or no answer, nothing is added."""
+        from luma.agent import friendcheck, rapport
+        question, yes = rapport.hard_prompt(said), False
+        try:
+            with self._silent():
+                if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                    if getattr(self.planner, "answers_plain_questions", False):
+                        out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+                elif self.use_model:
+                    from luma.llm import brain
+                    yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+        except Exception:
+            yes = False
+        self._hard_asked = (said, yes)   # for the tests and the human test's own count
+        return yes
+
     def _as_they_asked(self, said, reply):
         """They said how they want to be met when they're hurting, the brain was told, and the reply didn't do it: Luma adds the
         one line itself. Only for "take my mind off it" (luma.agent.rapport.owed says why only that)."""
@@ -5059,7 +5079,10 @@ class Agent:
         known = self.store.setting(rapport.KEY)
         if not known:
             return reply
-        line = rapport.owed(known, said, feelings.read(said), reply, self.clock(), float(self.store.setting("rapport_offered_at", 0) or 0))
+        felt, last = feelings.read(said), float(self.store.setting("rapport_offered_at", 0) or 0)
+        line = rapport.owed(known, said, felt, reply, self.clock(), last)
+        if not line and rapport.might_owe(known, said, felt, reply, self.clock(), last) and self._went_wrong_for_them(said):
+            line = rapport.OFFER   # told as a plain event, no feeling named: the brain said it was a hard one
         if not line:
             return reply
         self.store.set_setting("rapport_offered_at", self.clock())

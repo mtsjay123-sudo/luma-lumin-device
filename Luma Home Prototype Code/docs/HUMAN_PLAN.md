@@ -2231,3 +2231,94 @@ never while they're hurting (with someone in grief a friend pauses; there's no "
 the same way, and the words themselves never change. Tests: `AStumbleNowAndThen` in `tests/test_feel.py`.
 
 Not measured: whether it sounds right. That needs ears, on the Mac with the real voice.
+
+## Run 57 (Nov 20): on lives Luma wasn't built on, real brains go from 26–35 to 43–49 of 51
+
+The month test's held-out lives on four real brains, on the code with the same fact read any other way round and
+the callback fix (`48a4a88`). Six lives per brain, numbers only.
+
+| Day 28, of 51 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| The lives it was built on (same run) | 51 | 50 | 51 | 51 |
+| **The lives it wasn't built on: run 55 → 56 → 57** | 32 → 35 → **48** | 28 → 33 → **44** | 27 → 28 → **49** | 26 → 26 → **43** |
+| of which: comfort the way they asked (9) | 6 | 6 | 7 | 6 |
+| recall (12) | **12** | **12** | **12** | **12** |
+| update: where someone lives now (6) | **6** | 2 | **6** | 1 |
+| callback (12) | **12** | **12** | **12** | **12** |
+| closed subject, never claimed (12) | 12 | 12 | 12 | 12 |
+| A Luma that never met them (27) | 3 | 3 | 4 | 3 |
+
+What moved, and why:
+
+- **Recall, 0–6 → 12 of 12 on every brain.** The small brains had said a sister's name or a mom's city 0 times of
+  12, twice. Now the line that tells Luma is a fact, and Luma says it itself. No brain is needed for it.
+- **Callback, 8 → 12 of 12 on every brain.** Something coming up is noticed whichever way round it's said.
+- **Update, 0–3 → 6 of 6 on both stock brains.**
+
+What didn't, and what it says:
+
+- **Luma's own trained brains are now the worse choice.** On update they get 1 and 2 of 6 where the stock brains get
+  6 of 6, and it costs them 4 to 6 points overall. These are the older add-ons (`luma-brain-22`, `small-26`), trained
+  before any of this. With Luma's layer doing the remembering, the stock brain is the better brain today: that is
+  the owner's point, measured. A trained add-on has to beat 48 and 49 to be worth shipping.
+- **Comfort, 6–7 of 9, hasn't moved on any brain in three runs.** It's the one row that is the brain's alone. The
+  round 5 practice and the "if" line are both aimed at it; neither is in this run.
+
+The gap between the two halves was 16 to 25 points two runs ago. It's now 2 to 8.
+
+## Run 58 (Nov 21): the "if" line did nothing, so it's gone; Luma asks one plain question instead
+
+The side check on four real brains, 36 conversations twice, this code beside the commit before it.
+
+| Of 24 | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Hard evening, asked to have their mind taken off it: the reply offers something else (before → with the "if" line) | 4 → 4 | 4 → 3 | 3 → 6 | 4 → 4 |
+| Hard evening, asked to be listened to: no advice | 21 → 23 | 23 → 24 | 23 → 23 | 22 → 20 |
+| Ordinary evening: left alone | 23 → 22 | 24 → 24 | 21 → 24 | 24 → 23 |
+
+No difference on any brain, in either direction (the run's own check: gaps this size turn up 37 to 100 times in 100
+between two runs of the same code). Two things it does say:
+
+- **Told or not, a brain almost never offers to change the subject: 3 to 6 of 24.** The two conversations that pass
+  on every brain are the ones where Luma's own reader named the feeling, and Luma added the offer itself. The brains
+  aren't doing it; Luma is.
+- Ordinary evenings were left alone with the "if" line (22 to 24 of 24), so it did no harm. It also did no good, and
+  it cost a small lamp sixty words on every such turn. It's removed.
+
+**What replaces it** (`rapport.might_owe`, `rapport.hard_prompt`, `Agent._went_wrong_for_them`): when they once asked
+to have their mind taken off it, they're telling Luma about their day, no feeling was read and the reply made no
+offer, Luma asks the brain one plain question, YES or NO only: did something go wrong for them? On a YES Luma adds
+the one line itself ("Want me to take your mind off it for a bit? Pick anything."), once in a conversation. It's the
+same shape as the safety question and "is this about what divides people": a brain that won't act on a note will
+still answer a plain question. Only for "take my mind off it", the one way of being met that code can see in a reply.
+
+The risk is the same as before and so is the test: a brain that says YES to "I made a really good lasagna tonight".
+The next run of the side check says whether the 12 ordinary evenings are still left alone, brain by brain. A brain
+that says YES to those isn't asked.
+
+## A birthday, a job, an allergy, said any other way round (Nov 21)
+
+Asked for by the owner: memory, better again. The same method as names and homes, for three more facts.
+
+Twenty-four lines written by hand (eight of each), told to Luma and asked about weeks later. **Before: Luma said 6
+back. To 10 it answered "I don't know your mom's birthday yet. Tell me and I'll remember it", after being told.** The
+other 8 (all the jobs) were only in a line of talk handed to the brain.
+
+Now "my mom turns 60 on June 3", "Mercy Hospital is where my brother works" and "my sister carries an epipen for
+peanuts" are each turned into the plain sentence the rest of Luma reads ("My mom's birthday is June 3", "My brother
+works at Mercy Hospital", "My sister is allergic to peanuts"), so each is a fact, a card, and something Luma says
+itself. "My sister can't eat peanuts" is kept as that, never upgraded to an allergy nobody mentioned.
+
+| Luma says it itself / a small brain is handed it / missed | Before | After |
+|---|---|---|
+| The 24 it was built on | 6 / 8 / 10 | 23 / 0 / 1 |
+| **A second set of 18, written after and measured once** | **5 / 6 / 7** | **9 / 5 / 4** |
+| 24 near misses written with the readers, and 6 with the second set: read as a fact | | 0 of 30 |
+
+The near misses are where the care went: "my brother is a patient at Mercy Hospital" is not a job, "my sister can't
+have kids" is not a food, "my mom is so allergic to mornings lol" is a joke, "my brother used to work at Mercy" and
+"applied at Mercy" are not where he works, "my mom's birthday party is on June 3" is a party.
+
+`told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 and 236 of 240. Memory test unchanged on both
+halves (held out: 159 of 187, 102 of 135, 65 of 65). Held-out cards 102 of 125, passing remarks 0.
+Tests: `ABirthdayAJobAnAllergy` in `tests/test_said_another_way.py`.

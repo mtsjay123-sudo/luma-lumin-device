@@ -294,6 +294,70 @@ def _named_by_links(text):
     return None
 
 
+# A birthday, where someone works, what someone can't eat: the same three facts, said any other way round. Twenty-four
+# lines written by hand on Nov 21, 2026 (eight of each), told to Luma and asked about weeks later: Luma said 6 of them
+# back, and to 10 it answered "I don't know your mom's birthday yet" after being told.
+_MONTH = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+_DATE = rf"(?P<date>{_MONTH}\.? \d{{1,2}}(?:st|nd|rd|th)?|(?:the )?\d{{1,2}}(?:st|nd|rd|th)? of {_MONTH})"
+_REL = rf"(?:my|our) (?P<rel>{RELATIONS})"
+BORN_PLAINLY = [re.compile(p, re.I) for p in (
+    rf"\b{_REL} (?:was|is) born (?:on )?{_DATE}\b",
+    rf"\b{_DATE} is (?:when )?{_REL}(?:'s (?:birthday|bday|b-day)| was born)\b",
+    rf"\b{_REL} turns \d{{1,3}} (?:on )?{_DATE}\b",
+    rf"\b{_REL}'s (?:bday|b-day|birth date|date of birth) is (?:on )?{_DATE}\b",
+    rf"\b{_REL}'s birthday(?: is)?(?: coming up)?,? (?:on |this |it's )?{_DATE}\b",
+    rf"\b{_REL} has a birthday(?: coming up)?,? (?:on )?{_DATE}\b",
+)]
+_ORG = r"(?P<org>[A-Z][\w&'.-]*(?: (?:[A-Z][\w&'.-]*|of|the|and|&)){0,4})"
+WORKS_PLAINLY = [re.compile(p) for p in (
+    rf"\b[Mm]y (?P<rel>{RELATIONS})(?:'s| is) an? (?!(?:patient|student|customer|member|fan|regular|guest|visitor|client|inmate|freshman|sophomore|junior|senior)\b)[a-z]+(?: (?!(?:patient|student|customer|member|fan|regular|guest|visitor|client)\b)[a-z]+){{0,2}} (?:at|for|with) {_ORG}",
+    rf"\b[Mm]y (?P<rel>{RELATIONS}) (?:just |recently |finally )?(?:got hired|got a job|got taken on|started(?: a(?: new)? job| working| work)?|is employed|is working|has been working|has worked) (?:at|by|with|for) {_ORG}",
+    rf"\b{_ORG} is where my (?P<rel>{RELATIONS}) works\b",
+    rf"\b[Mm]y (?P<rel>{RELATIONS})'s job is (?:at|with) {_ORG}",
+    rf"\b[Mm]y (?P<rel>{RELATIONS}) does [a-z]+(?: [a-z]+)? (?:over )?at {_ORG}",
+    rf"\b[Mm]y (?P<rel>{RELATIONS}) has been (?:at|with) {_ORG} for (?:years|ages|a (?:long )?while|\d+ years|decades)\b(?=.*\b(?:nurse|teacher|works?|job|engineer|manager|doctor|driver|clerk|chef|cook|lawyer|accountant|mechanic)\b)",
+)]
+NOT_WORKING_THERE = re.compile(r"\b(?:used to|no longer|not anymore|any ?more|quit|got fired|was fired|laid off|let go|left|retired|applied|applying|interview\w*|"
+                               r"might|maybe|wants? to|hoping|hopes? to|thinking (?:of|about)|if|whether|turned down|didn'?t get|volunteer\w*|shops?|goes to)\b", re.I)
+_FOOD = r"(?P<food>[a-z][a-z]+(?: [a-z]+){0,2}?)"
+CANT_EAT_PLAINLY = [(re.compile(p, re.I), how) for p, how in (
+    (rf"\b{_REL} (?:can'?t|cannot|can not) eat {_FOOD}(?=\s*(?:[,.;!]|$| at all| because| or ))", "can't eat"),
+    (rf"\b{_REL} (?:can'?t|cannot|can not) have (?P<food>dairy|gluten|sugar|caffeine|alcohol|nuts|peanuts|tree nuts|shellfish|eggs|soy|wheat|lactose|milk|seafood|pork|red meat|spicy food)\b", "can't eat"),
+    (rf"\b{_REL} has an? {_FOOD} allergy\b", "allergic"),
+    (rf"\b{_REL}(?: is|'s) (?:deathly |severely |very |really |super |highly |so )+allergic to {_FOOD}(?=\s*(?:[,.;!]|$| and | so ))", "allergic"),
+    (rf"\b{_FOOD} makes? {_REL} (?:break out|swell up|sick|ill|throw up)\b", "can't eat"),
+    (rf"\bno {_FOOD} for {_REL}\b(?=.*\ballerg)", "allergic"),
+    (rf"\b{_REL} carries an epi-?pen for {_FOOD}\b", "allergic"),
+)]
+NOT_A_FOOD = re.compile(r"^(?:a|an|the|any|anything|much|more|it|that|this|them|there|here|out|dinner|lunch|breakfast|with|at|in|on|to|right|yet|now|today|tonight)\b", re.I)
+
+
+def _more_plainly(text):
+    """["My mom's birthday is June 3"], ["My brother works at Mercy Hospital"], ["My sister can't eat peanuts"]: one fact, or []."""
+    unsure = re.search(r"\b(?:might|maybe|i think|not sure|if|whether|should|could|would|or)\b", text, re.I)
+    for pattern in BORN_PLAINLY:
+        m = pattern.search(text)
+        if m and not unsure:
+            date = m["date"]
+            date = date[:1].upper() + date[1:] if not date.lower().startswith("the ") else date
+            return [f"My {m['rel'].lower()}'s birthday is {date}"]
+    if NOT_SURE_OF_IT.search(text):
+        return []
+    if not NOT_WORKING_THERE.search(text):
+        for pattern in WORKS_PLAINLY:
+            m = pattern.search(text)
+            if m and not NOT_A_NAME.search(m["org"].split()[0]):
+                return [f"My {m['rel'].lower()} works at {m['org'].rstrip('.,')}"]
+    if re.search(r"\b(?:lol|lmao|haha+|jk|kidding)\b|\ballergic to (?:mornings?|mondays?|work|fun|exercise|chores|cleaning|commitment|drama|responsibility|effort)\b", text, re.I):
+        return []   # said for a laugh: "my mom is so allergic to mornings"
+    for pattern, how in CANT_EAT_PLAINLY:
+        m = pattern.search(text)
+        if m and not NOT_A_FOOD.search(m["food"]) and not re.search(r"\b(?:tonight|today|right now|this week|until|for now|before (?:the|her|his)|after (?:the|her|his))\b", text, re.I):
+            food = m["food"].strip()
+            return [f"My {m['rel'].lower()} is allergic to {food}" if how == "allergic" else f"My {m['rel'].lower()} can't eat {food}"]
+    return []
+
+
 def plainly(text, names=()):
     """["My sister's name is Priya", "My mom lives in Tampa"]: the same facts, read from a sentence turned any other way.
     Only from a statement, never a question; a name has to be said like a name and a place like a place. names: the
@@ -322,4 +386,4 @@ def plainly(text, names=()):
             found = _named_by_links(text)
             if found:
                 out.append(f"My {found[0]}'s name is {found[1]}")
-    return out
+    return out or _more_plainly(text)

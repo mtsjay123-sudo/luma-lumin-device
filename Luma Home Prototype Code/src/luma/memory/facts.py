@@ -25,7 +25,7 @@ PEOPLE_FACT = re.compile(rf"^(?P<name>{NAME}) \((?:their|your|my) (?P<rel>{RELAT
 REL_NAME = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} name is (?P<name>{NAME})\b", re.I)
 PET_NAME = re.compile(rf"^(?:my|your) (?P<species>{SPECIES}){POSS} name is (?P<name>{NAME})\b", re.I)
 REL_REST = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} (?P<rest>birthday is .+)$", re.I)
-REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|isn't|has|just|got|moved|started|"
+REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|isn't|has|just|got|moved|started|can't|cannot|can not|"
                     rf"relocated|transferred|left|ended|settled|landed|wound|took|accepted|packed|bought|found|rented|went|no longer|now|recently|finally|currently|still) .+)$", re.I)
 # "my brother's in Denver now", "my sister's back in Ohio": the 's is "is" here, not "my brother's birthday"
 REL_S_IN = re.compile(rf"^((?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?:{RELATIONS}))'s (?=(?:back |now |still |living |currently )*in\b)", re.I)
@@ -77,6 +77,7 @@ REST = [
     ("into", re.compile(r"^is (?:really |so |super |totally )?(?:into|obsessed with) (?P<value>.+?)(?:\s+(?:now|lately|these days|right now))?$", re.I)),
     ("birthday", re.compile(r"^birthday is (?:on )?(?P<value>.+)$", re.I)),
     ("allergy", re.compile(r"^(?:is |are |am )?allergic to (?P<value>.+)$", re.I)),
+    ("allergy", re.compile(r"^can(?:'t|not| not) (?:eat|have) (?P<value>[a-z][a-z ]{2,30})$", re.I)),   # "my sister can't eat peanuts": what to keep off the table
     ("diet", re.compile(r"^(?:is |are |am )?(?:a |an )?(?P<value>vegetarian|vegan|pescatarian|gluten[- ]free|lactose intolerant|diabetic)\b", re.I)),
     ("likes", re.compile(r"^(?:really |still )?(?:love|loves|like|likes|hate|hates) (?P<value>.+)$", re.I)),
     ("is", re.compile(r"^is an? (?P<value>[a-z][a-z -]{2,40})$", re.I)),
