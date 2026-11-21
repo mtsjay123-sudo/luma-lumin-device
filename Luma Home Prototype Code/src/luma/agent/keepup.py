@@ -87,6 +87,27 @@ CLAIMS = re.compile(r"\b(?:yes|yeah|yep|yup),? i(?:'ve| have| did)\b|\bi(?:'ve| 
                     r"\bwhen i (?:heard|listened|watched|saw|played|read)\b|\bi(?:'ve| have) been (?:listening|watching|playing|reading)\b", re.I)
 
 
+# "have you heard the way he talks to me", "you ever seen a grown man cry", "did you see the look on her face", "have you
+# read the room": what follows "have you seen" isn't always a show. Each of those was searched (10 of 20 fresh lines). A
+# phrase is taken for a title when it says what kind of thing it is ("the show severance", "season 2 of the bear", "the
+# new zelda"), or when it's a few words with nobody in them and nothing everyday at the front. Unsure, Luma just talks.
+KIND_IN = re.compile(rf"\b(?:{WORK}|{PART}|part)s?\b|\b(?:{NEW})\b", re.I)
+PEOPLE_IN = re.compile(r"\b(?:he|she|they|him|her|his|hers|their|theirs|them|someone|somebody|anyone|anybody|everyone|everybody|nobody|people|"
+                       r"man|woman|guy|girl|person)\b", re.I)
+NOT_THE_START = re.compile(r"^(?:a|an|some|any|such|so|too|more|enough|of|from|at|in|on|to|lately|recently|today|before|around|better days)\b", re.I)
+EVERYDAY = re.compile(r"^(?:the )?(?:time|room|door|lights?|mess|point|truth|end|world|sky|moon|stars|sun|look|way|size|state|thing|noise|sound|view|"
+                      r"signs?|line|list|mail|email|text|message|photos?|pictures?|video|bill|price|fool|worst|best|rest|difference|problem|damage|"
+                      r"results?|kitchen|bathroom|yard|street|traffic)\b", re.I)
+
+
+def like_a_title(phrase):
+    """Does what follows "have you seen" read as the name of a show, a record, a game or a book?"""
+    phrase = _clean(phrase)
+    if KIND_IN.search(phrase):
+        return True
+    return not (len(phrase.split()) > 4 or NOT_THE_START.match(phrase) or PEOPLE_IN.search(phrase) or EVERYDAY.match(phrase))
+
+
 def private(phrase):
     """Is there anything of theirs in this phrase? Then it isn't a title, and it's never sent anywhere."""
     phrase = str(phrase or "").strip()
@@ -126,7 +147,7 @@ def asked(text):
     unnamed = UNNAMED.match(what)
     if unnamed and unnamed["what"].lower() not in ("game", "episode", "part"):
         return {"unnamed": unnamed["what"].lower(), "verb": verb}
-    if NOT_A_THING.match(what) or unnamed:
+    if NOT_A_THING.match(what) or unnamed or not like_a_title(what):
         return None
     thing = _thing(what)
     if not thing or len(thing["what"]) < 3:

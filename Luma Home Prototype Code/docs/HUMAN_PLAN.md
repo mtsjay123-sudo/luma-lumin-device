@@ -3849,3 +3849,25 @@ What a brain is told on both human tests: 2 of 269 turns differ, the two above (
 talk in one trip; the medication note names a doctor). Full suite: 2,021 passed, the known 14 failed. Eight of those
 fourteen are the web tests that need a browser this machine doesn't have, and they're the ones nearest this change;
 every line said in them was read with the new reader and none that asks for something live is taken as told.
+
+## "Have you seen …" isn't always a show (Nov 21) (`like_a_title` in `agent/keepup.py`, `tests/test_keepup.py`)
+
+One more of the same kind, found with one more set of fresh lines. Luma reads up on a show, a record or a book they
+name ("have you seen severance"), and sends only its name to a web search. But what follows "have you seen" or "have
+you heard" isn't always a name: "have you heard the way he talks to me", "you ever seen a grown man cry", "did you
+see the look on her face" and "have you read the room" were each taken for one and looked up.
+
+A phrase is taken for a title now when it says what kind of thing it is ("the show severance", "season 2 of the
+bear", "the new zelda"), or when it's a few words with nobody in them and nothing everyday at the front. Unsure,
+Luma just talks, and the brain may well know the thing anyway.
+
+| What follows "have you seen / heard / read", of 20 lines of talk | Built on, before → after | Written first, before → after |
+|---|---|---|
+| Taken for a show and looked up (keep-up's own reader) | 10 → 0 | 9 → **1** |
+| Their words sent to a search, through all of Luma | 6 → 0 | 9 → **2** |
+| Answered by something other than a friend | 10 → 0 | 10 → **3** |
+
+The cost, on titles I tried: 12 of 16 are still read up on; "everything everywhere all at once" (five words), "a
+quiet place", "her" and "the room" aren't, and get plain talk. Keep-up's 18 tests from before pass untouched.
+
+Full suite: 2,026 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.

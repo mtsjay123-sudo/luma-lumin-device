@@ -44,6 +44,37 @@ class TheyAskedAboutIt(unittest.TestCase):
     def test_nothing_of_theirs_is_ever_a_thing_to_look_up(self):
         self.assertEqual([(said, keepup.asked(said)) for said in self.NOT_ASKED if keepup.asked(said)], [])
 
+    # Written Nov 21 before the fix: what follows "have you seen / heard" isn't always a show. Ten of the first twenty were
+    # taken for one and looked up ("the way he talks to me", "a grown man cry", "the look on her face", "the room"). The
+    # first twenty were built on (10 taken, then 0); the second twenty measured once, afterwards: 9 taken before, 1 after.
+    NOT_A_SHOW = ["have you heard the way he talks to me", "did you see that coming", "have you ever heard something so stupid", "you ever seen a grown man cry",
+                  "have you heard from her", "did you hear that noise", "have you seen the state of my kitchen", "ever heard of minding your own business lol",
+                  "did you catch what i said earlier", "have you read the room", "have you seen the time", "did you hear me come in last night",
+                  "have you ever played the fool for someone", "have you seen better days", "did you see the look on her face",
+                  "ever watched someone you love forget your name", "have you heard the one about the priest and the rabbi",
+                  "did you watch the kids grow up that fast", "have you checked out lately lol", "did you read my mind"]
+    NOT_A_SHOW_2 = ["have you seen my glasses anywhere", "did you hear the door just now", "have you ever seen someone give up on themselves",
+                    "you ever heard silence that loud", "did you see how she looked at me", "have you heard anything from the hospital",
+                    "ever seen a sunset so good you got sad", "did you catch that, i'm not repeating it", "have you read between the lines with him",
+                    "have you seen the size of this bill", "did you hear what the doctor said to my mom", "have you ever played second fiddle your whole life",
+                    "have you watched someone leave and not turn around", "did you see that one coming, because i didn't",
+                    "ever heard your own voice on a recording and hated it", "have you seen the mess he left", "did you listen to a word i said",
+                    "have you heard the news about my promotion", "have you ever read a text so many times it stopped making sense",
+                    "did you watch me fall apart or what"]
+    STILL_A_SHOW = ["have you seen severance", "did you watch the bear", "have you played baldur's gate 3", "have you heard the new beyonce album",
+                    "did you read fourth wing", "have you heard of the marias", "did you see oppenheimer", "have you listened to brat",
+                    "have you read the midnight library", "have you played stardew valley", "did you catch the white lotus finale"]
+
+    def test_what_follows_have_you_seen_isnt_always_a_show(self):
+        self.assertEqual([said for said in self.NOT_A_SHOW if (keepup.asked(said) or {}).get("query")], [])
+        self.assertEqual([said for said in self.STILL_A_SHOW if not (keepup.asked(said) or {}).get("query")], [])
+        # unsure, Luma talks: a title of five words, or one that starts like everyday talk, isn't looked up (the brain may know it)
+        for said in ["have you seen everything everywhere all at once", "have you seen a quiet place", "have you seen the room"]:
+            self.assertIsNone(keepup.asked(said), said)
+
+    def test_the_second_twenty_written_before_the_fix(self):
+        self.assertLessEqual(sum(bool((keepup.asked(said) or {}).get("query")) for said in self.NOT_A_SHOW_2), 1, "measured: 9 before, 1 after")
+
     def test_with_nothing_named_luma_can_ask_which(self):
         for said, kind in (("have you heard this album", "album"), ("have you seen that movie", "movie"), ("did you read the book", "book")):
             self.assertEqual(keepup.asked(said), {"unnamed": kind, "verb": keepup.asked(said)["verb"]}, said)
