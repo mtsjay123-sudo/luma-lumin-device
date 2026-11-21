@@ -301,8 +301,10 @@ class ToldNotAsked(AWeatherWordAloneIsTalk):
             self.assertTrue(runtime.told_not_asked(said), said)
 
     def test_the_second_thirty_written_before_the_fix(self):
-        """Measured once. Told, of 20: their sentence sent out 19 before, 0 after; answered by something other than a friend 20
-        before, 0 after. Asked, of 10: looked at 10 before, 9 after. The one is the cost: a real request left to the brain."""
+        """Told, of 20: their sentence sent out 19 before, 0 after; answered by something other than a friend 20 before, 0
+        after. Asked, of 10: looked at 10 before, 9 after. The one is the cost: a real request left to the brain.
+        (The ten asked aren't untouched any more: the count fell to 8 when "about them" was added, and a rule seen in
+        probes of my own, "… i should know about", brought it back to 9. The twenty told were measured once.)"""
         told = [self.turn(said) for said in TOLD_2]
         self.assertEqual(sum(self.out_there(sent) for sent, _ in told), 0)
         self.assertEqual(sum(bool(sent) or answered for sent, answered in told), 0)
@@ -312,6 +314,55 @@ class ToldNotAsked(AWeatherWordAloneIsTalk):
     # the weather's own tests are the class above; inherited here they'd only run twice
     test_talk_with_a_weather_word_is_never_sent_to_a_search = test_the_weather_out_there_is_still_looked_at = None
     test_the_second_sets_written_before_the_fix = test_asked_what_luma_likes_is_small_talk_not_a_decision = None
+
+
+# Written Nov 21 before the fix. A question about their own life, or about Luma, shaped like something Luma looks up. "what's
+# happening to me, i can't stop crying" got the news; "who won, me or my anxiety lol" went to a web search; "how much is my
+# time even worth" got a price check. The first twenty were built on (9 handled wrongly, then 0); the second twenty measured
+# once, afterwards (4, then 2).
+ABOUT_THEM = ["is it true that i'm too old to start over", "is it true my ex is seeing someone new", "did you hear what my sister said to me",
+              "what's the latest with you", "how much is too much to drink in a week", "who won, me or my anxiety lol",
+              "what happened to me last year still hurts", "is it normal to still miss him after two years", "what's new with my favorite person",
+              "how much do you think my mom worries about me", "do you think the new guy at work likes me",
+              "what's the score between me and my brother, he's ahead", "is my marriage over", "what are the odds she takes me back",
+              "have you seen how tired i look lately", "what's happening to me, i can't stop crying", "is apple a good name for a baby",
+              "should i sell my dad's old tesla", "what's the price i pay for being nice to everyone", "how much is my time even worth"]
+ABOUT_THEM_2 = ["is it true that people can tell when you're lonely", "is it true my dad never wanted kids, that's what my aunt said",
+                "what's the latest thing you learned about me", "how much longer am i supposed to wait for him", "who won the breakup, honestly",
+                "what happened between me and my best friend, i still don't get it", "is it weird that i talk to you more than my friends",
+                "what's new? nothing here, same four walls", "how much of this is my fault", "do you think my new boss hates me",
+                "what's the score, am i a bad mom", "is my dog mad at me for leaving", "what are the chances i ever feel normal again",
+                "have you heard me laugh lately? me neither", "what's going on with me today, i'm so off", "is amazon a weird place to meet someone",
+                "should i give my brother's old ford to my nephew", "what's the cost of staying quiet all these years",
+                "how much is enough, i keep working and it's never enough", "did i win at life or just get lucky"]
+
+
+class AboutThemNotTheWorld(ToldNotAsked):
+    def test_a_question_about_their_own_life_gets_a_friend(self):
+        for said in ABOUT_THEM:
+            sent, answered = self.turn(said)
+            self.assertFalse(sent, (said, sent))
+            self.assertFalse(answered, said)
+
+    def test_asking_luma_for_it_isnt_being_the_subject_of_it(self):
+        for said in ["tell me the news", "i missed the game last night, who won", "check the traffic for me", "what time does my pharmacy close",
+                     "can i get the headlines", "give me the score of the lakers game", "catch me up on the news", "i want the headlines",
+                     "what's the news for me today", "any news i should know about", "what happened in the world while i was asleep"]:
+            self.assertFalse(runtime.about_them(said), said)
+            self.assertTrue(runtime.asks_news(said) or runtime.asks_live(said), said)
+        for said in ["what happened to me last year still hurts", "who won, me or my anxiety lol", "what's the latest with you",
+                     "what's the score between me and my brother, he's ahead"]:
+            self.assertTrue(runtime.about_them(said), said)
+            self.assertFalse(runtime.asks_news(said) or runtime.asks_live(said), said)
+
+    def test_the_second_twenty_written_before_the_fix(self):
+        """Measured once: sent out 4 before, 2 after; answered by something other than a friend 4 before, 2 after."""
+        turns = [self.turn(said) for said in ABOUT_THEM_2]
+        self.assertLessEqual(sum(self.out_there(sent) for sent, _ in turns), 2)
+        self.assertLessEqual(sum(bool(sent) or answered for sent, answered in turns), 2)
+
+    test_told_something_luma_never_looks = test_asked_it_still_looks = test_a_request_said_as_a_sentence_is_still_a_request = None
+    test_the_second_thirty_written_before_the_fix = test_a_brain_isnt_offered_the_web_for_what_its_told = None
 
 
 LOOKED_2 = 10  # measured: 10 of 10 before and after

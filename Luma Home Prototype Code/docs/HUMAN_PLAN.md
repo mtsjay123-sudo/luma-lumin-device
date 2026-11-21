@@ -3802,6 +3802,29 @@ What changed (`told_not_asked`, `asks_live`, `asks_news`, `WEATHER_OUT_THERE` in
   weighed from four sides and judged, five trips through the brain; asked what Luma likes is small talk, one trip
   (`ABOUT_YOU` in `mind.py`). A decision is still weighed.
 
+**2b. A question about their own life was taken for a question about the world** (found the same way, after the
+commit above). "what's happening to me, i can't stop crying" got the news. "who won, me or my anxiety lol" and
+"what's the score between me and my brother" went to a web search. "what's the latest with you" got the headlines.
+"how much is too much to drink in a week" and "how much is my time even worth" got a price check. "have you seen how
+tired i look lately" got "Ooh I haven't caught up on that one yet."
+
+A question about them, or about Luma, isn't about the world (`about_them` in `runtime.py`); asking Luma *for*
+something isn't being the subject of it ("tell me the news", "any news i should know about", "check the traffic for
+me"), and a place of theirs is still out in the world ("what time does my pharmacy close").
+
+| With web search on, as Luma comes | Built on, before → after | Written first, before → after |
+|---|---|---|
+| A question about their own life or about Luma, of 20: their sentence sent out | 6 → 0 | 4 → **2** |
+| ... answered by something other than a friend | 9 → 0 | 4 → **2** |
+| Asked for the news, a score, the traffic, a price, of 10: still looked at | 10 → 10 | 9 → 9 |
+
+Two of the second twenty still go out. And the second ten "asked" aren't untouched any more: the count fell to 8
+when "about them" was added, and a rule I could see from probes of my own ("… i should know about") brought it back
+to 9.
+
+Full suite after this second fix: 2,024 passed, the known 14 failed. What a brain is told on both human tests: the
+same 2 of 269 turns as above, nothing more.
+
 **3. "How many ounces in a cup" got "Those don't convert: cups measure something different from ounces."** Luma's
 calculator knew ounces as weight only. Beside a cup, a pint, a quart or a tablespoon, ounces are fluid ounces, and
 it says so: "1 cup is 8 fluid ounces." It also reads the question the other way round ("how many cups is 8 ounces",

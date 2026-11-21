@@ -174,15 +174,44 @@ def told_not_asked(text):
         return True   # "did i win her back? no. did i try? yes"
     if "?" in said or ASKED.search(said) or ASKED_FIRST.search(said):
         return False
-    bare = not (_FIRST_PERSON.search(said) or _JUDGED.search(said) or _STATES.search(said))
+    # nobody and nothing happening in it, once "… i should know about" and "… for me" are set aside: those ask
+    bare = not (_FIRST_PERSON.search(_ASKING_FOR_IT.sub(" ", said)) or _JUDGED.search(said) or _STATES.search(said))
     if bare and (NAMED_FIRST.search(said) or LIVE_FIRST.search(said) or len(said.split()) <= 4):
         return False  # "any news about the election", "news from the last hour", "lakers score", "the headlines", "news please"
     return True
 
 
+# A question about their own life, or about Luma, isn't a question about the world. "what's happening to me, i can't stop
+# crying" got the news; "who won, me or my anxiety lol" and "what's the score between me and my brother" went to a web
+# search; "what's the latest with you" got the headlines; "how much is my time even worth" got a price check (9 of 20 fresh
+# lines). Asking Luma for something isn't being the subject of it: "tell me the news", "check the traffic for me".
+_ASKING_FOR_IT = re.compile(r"\b(?:tell|give|show|get|read|catch|fill|update|let|hit|run|send|find|bring|grab)(?: me| us)\b|\bfor (?:me|us)\b(?=(?: (?:today|tonight|now|please))?\W*$)|"
+                            r"\b(?:i|we)(?:'d| would)? (?:want|need|wanna|like|love|wonder|missed|miss)\b|\b(?:i'?m|i am|i was) (?:wondering|curious)\b|"
+                            r"\bdid (?:i|we) miss\b|\b(?:can|could|may) (?:i|we) (?:get|have|hear|see)\b|\bdo (?:i|we) need\b|"
+                            r"\b(?:i|we) (?:should|need to|ought to|might want to) (?:know|hear|see)\b|"
+                            r"\bwhile (?:i|we) (?:was|were) (?:asleep|sleeping|away|out|gone|at work|offline|busy)\b", re.I)
+_ABOUT_YOU_TOO = re.compile(r"\b(?:with|about|between) (?:you|u)\b", re.I)
+# ... unless it's a place of theirs in the world: "what time does my pharmacy close" is still looked up
+_HOURS = re.compile(r"\bwhat time (?:does|do)\b|\bopening hours\b|\bopen (?:now|today|tonight)\b|\bflight status\b", re.I)
+
+
+def about_them(text):
+    """It's about their own life, or about Luma: nothing out in the world to look at."""
+    said = " ".join(str(text or "").split())
+    if _HOURS.search(said):
+        return False
+    return bool(_FIRST_PERSON.search(_ASKING_FOR_IT.sub(" ", said)) or _ABOUT_YOU_TOO.search(said))
+
+
 def asks_news(text):
-    """They want the headlines (luma.skills.news.asks), and they asked: "the headlines make me anxious" is talk."""
-    return _news_asks(text) and not told_not_asked(text)
+    """They want the headlines (luma.skills.news.asks), they asked, and it's about the world: "the headlines make me anxious"
+    is talk, and so is "what happened to me last year still hurts". An outlet named by them is still theirs to hear from."""
+    if not _news_asks(text) or told_not_asked(text):
+        return False
+    if about_them(text):
+        from luma.skills.news import named_source
+        return bool(named_source(str(text or "").lower()))
+    return True
 
 
 def asks_live(text):
@@ -195,7 +224,7 @@ def asks_live(text):
     if all(WEATHER_WORD.fullmatch(word) for word in found):
         from luma.skills import weather
         return bool(weather.wants(text) or WEATHER_OUT_THERE.search(low))
-    return not told_not_asked(text)
+    return not told_not_asked(text) and not about_them(text)
 
 
 # Nobody knows this without looking: what's happening now, what something costs, what's open, who won, or they asked for a
@@ -3056,6 +3085,7 @@ class Agent:
         # "how much is a Nintendo Switch 2 right now" (not "how much is 20% of 80" or "how much is the tip")
         re.compile(r"(?:(?:hey|ok|okay)[,\s]+)?(?:luma[,\s]+)?how much (?:is|are) (?:an? |the |some )?(?P<q>(?![\d$])(?![^?]*(?:percent|%|\btip\b|\btax\b|\brent\b|\bthat\b|\bit\b|\bgas\b))[^?]+?)(?: (?:these days|right now|now|today|online|anywhere|at the moment))*\s*[?.!]*", re.I),
     ]
+    NOT_FOR_SALE = re.compile(r"(?:too (?:much|many|little|few)|enough|my|your|our|his|her|their|me|you|us)\b", re.I)
     CART_REQUEST = re.compile(
         r"(?:(?:yes|yeah|yep|ok|okay|sure)[,!.\s]+)?(?:please\s+)?(?:add|put|throw)\s+(?P<which>it|that|that one|this one|the cheapest(?: one)?|the first(?: one)?|the second(?: one)?|the third(?: one)?|"
         r"number (?P<n>\d+)|#(?P<n2>\d+)|the (?P<store>[a-z][\w .&'-]+?) one)\s+(?:in|into|to)\s+(?:my\s+|the\s+)?(?:cart|bag|basket)(?: please)?\s*[.!]*", re.I)
@@ -3117,6 +3147,8 @@ class Agent:
             return None  # groceries go through the grocery list and a store's own cart
         for pattern in self.SHOP_PATTERNS:
             m = pattern.fullmatch(text.strip())
+            if m and self.NOT_FOR_SALE.match(m["q"].strip(" ,")):
+                return None  # "how much is too much to drink in a week", "how much is my time even worth": nothing to price
             if m:
                 query = re.sub(r"^(?:a|an|the|some|me)\s+", "", m["q"].strip(" ,"), flags=re.I)
                 limit = int(m.group("max").replace(",", "")) if m.groupdict().get("max") else None
@@ -6184,6 +6216,8 @@ class Agent:
             return None  # "turn that frown upside down lol" was read as "forget that"; "forget it, it's not important" with nothing just told is "never mind"
         if intent == "search" and re.match(r"\W*search me\b", lowered):
             return None  # "search me, I have no idea why she left": it went looking
+        if intent in ("news", "news_topic") and (told_not_asked(text) or about_them(text)):
+            return None  # "what's happening to me, i can't stop crying" was read as asking for the news
         if intent == "weather":
             from luma.skills import weather
             out_there = re.search(r"\b(?:storm\w*|degrees|hot|cold|warm|sunny|cloudy|humid|windy|umbrella|jacket|coat|outside)\b", lowered)
@@ -6763,8 +6797,9 @@ class Agent:
         small brain making it up. A popular song or show it can talk about from what it knows (the brain takes those when it's on).
         It can't taste or go anywhere, and says so like a friend would."""
         m = self.HAVE_YOU.match(lowered.strip())
-        if not m or self.mode == "kids" or re.match(r"(?:my|our|me|him|her|them|it|that|this|what i)\b", m["what"]):
-            return None  # "you seen my keys?" is a where-is question, "you heard me?" is just talk
+        if not m or self.mode == "kids" or re.match(r"(?:my|our|me|him|her|them|it|that|this|what i|how|why|what|when|where|who|if|whether)\b", m["what"]) \
+                or _FIRST_PERSON.search(m["what"]):
+            return None  # "you seen my keys?" is a where-is question, "you heard me?" is just talk, "have you seen how tired i look lately" is about them
         import random
         verb = m["verb"].lower()
         if verb in {"tried", "tasted"}:
@@ -7765,8 +7800,9 @@ class Agent:
             if project is not None: return project
             # A question with a checkable answer (one record or product, a price, lyrics, the news) goes to where it's checked, never to deep
             # thought: thinking harder about something you haven't read only makes the guess sound surer.
-            priced = any(p.fullmatch(text.strip()) for p in self.SHOP_PATTERNS)  # "how much is a PS5 right now": a store check, never a remembered price
-            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or asks_live(text) or friendtalk.fresh(text) or self.use_markets(text) or priced)
+            # "how much is a PS5 right now": a store check, never a remembered price
+            priced = any(m and not self.NOT_FOR_SALE.match(m["q"].strip(" ,")) for m in (p.fullmatch(text.strip()) for p in self.SHOP_PATTERNS))
+            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or asks_live(text) or (friendtalk.fresh(text) and not about_them(text)) or self.use_markets(text) or priced)
             looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text) or self.use_weather(text) or priced)  # the news still gets "quick or deep?"
             checked = None if looked_up else self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
@@ -7818,7 +7854,7 @@ class Agent:
             grounded = self._look_first(text, lowered, cancel_event)  # one specific thing it may not know: the web first, never a guess
             if grounded is not None: return grounded
             # What came out, what's coming, who won, what's trending: no brain knows that from memory (luma.agent.friendtalk.fresh)
-            if (self.mode != "kids" and (asks_live(text) or friendtalk.fresh(text)) and not wants_message(text)
+            if (self.mode != "kids" and (asks_live(text) or (friendtalk.fresh(text) and not about_them(text))) and not wants_message(text)
                     and not re.match(r"(?:please\s+)?(?:remind|set|add|text|e-?mail|tell)\b", lowered)
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block"):
                 try:

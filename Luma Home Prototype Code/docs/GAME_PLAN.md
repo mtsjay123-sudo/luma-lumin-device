@@ -171,7 +171,9 @@ on day 1 and run alongside everything else:
   for word to a web search, or answered with the headlines** ("my kid has a temperature of 101", "i've got good
   news, i'm pregnant", "the news about my dad isn't good"), with web search on as Luma comes. Luma now looks when
   it's asked, never when it's told: on the sets written first, their sentence sent out 16 → 0 and 19 → 0 of 20, real
-  questions still looked at 10 and 9 of 10. And "how many ounces in a cup" was "those don't convert": 0 → 19 of 20
+  questions still looked at 10 and 9 of 10. The same for a question about their own life ("what's happening to me,
+  i can't stop crying" got the news; "who won, me or my anxiety lol" was searched): handled wrongly 9 → 0 of 20
+  built on, 4 → 2 on the set written first. And "how many ounces in a cup" was "those don't convert": 0 → 19 of 20
   right. Still open: four or five in twenty questions that need a look never start one, and a brain answers from
   memory.
 - **The lamp's meaning model, measured through Luma's own reader (Nov 21, `meaning-small.yml` run 3).** Luma reads

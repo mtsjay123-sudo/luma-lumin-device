@@ -166,6 +166,11 @@ fix and used to make it, their sentence left the home in 33 of 40 before and 0 a
 fitted to, 35 of 40 before and 0 after. Real questions are still looked up (39 of 40). When Luma can't tell whether
 it was asked, nothing is sent.
 
+The same goes for a question about their own life. "What's happening to me, I can't stop crying" was being answered
+with the news, and "who won, me or my anxiety" sent to a search. A question about them, or about Luma, isn't a
+question about the world: on twenty such questions used to make the fix, 9 were handled wrongly before and 0 after;
+on twenty more that nothing was fitted to, 4 before and 2 after. Those two are still open.
+
 ### Reading up on what they bring up
 
 When someone names a new album, show, game or book ("have you heard the new Kendrick album"), Luma looks it up so it can
