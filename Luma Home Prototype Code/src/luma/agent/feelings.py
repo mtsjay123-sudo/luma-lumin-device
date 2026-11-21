@@ -423,7 +423,9 @@ RELIEVED = re.compile(
     r"\b(?:surgery|operation|procedure|transplant)\s+(?:went\s+(?:really |so |very )?(?:well|great|perfectly|smoothly|fine)|was a success)\b", re.I)
 PROUD = re.compile(
     r"\bi finally\s+(?:ran|did|finished|quit|told|asked|went|got through|made it through|paid off|cleaned|passed|called|started|learned|beat|said)\b|"
+    r"\bi\s+(?:quit|stopped|gave up)\s+(?:smoking|drinking|vaping|gambling)\b(?=[^.!?]*\b(?:ago|today|now)\b)|"
     r"\b(?:\w+\s+)?(?:days?|weeks?|months?|years?)\s+(?:sober|clean|smoke[- ]free|without (?:a drink|smoking|drinking))\b|"
+    r"\bi\s+got\s+(?:sober|clean)\b|"
     r"\b(?:i'?ve|i have|i'?m|we'?ve|he'?s|she'?s)\s+(?:been\s+|stayed\s+)?(?:sober|clean|smoke[- ]free|drug[- ]free)\s+(?:for|since)\b|"
     r"\bfor the first time in\s+(?:years|months|weeks|forever|a long time|my life|ages)\b|\bproud of myself\b|\bi (?:did it|actually did it|pulled it off)\b|"
     r"\bfinished my (?:degree|thesis|book|first|marathon|training|dissertation|apprenticeship)\b|\bpersonal (?:best|record)\b|\bpaid off (?:my|the|our)\b|\bi stood up (?:to|for)\b|"
@@ -442,7 +444,11 @@ JOY = re.compile(
     rf"\b{_WHO}\s+{_NOW}got\s+(?:in\b(?=\s*[!.,]|\s*$|\s+to\s)|into\s+(?:college|school|uni|university|grad school|med school|law school|nursing school|the (?:program|academy|union|"
     rf"league|band|show|company)|(?:my|his|her|their|our)\s+(?:dream|first[- ]choice|top|number one)\s+\w+|(?:a|the|my|his|her|their)\s+(?:\w+\s+)?(?:college|school|university|"
     rf"program|residency|conservatory|cohort|fellowship)))|"
-    r"\b(?:got|was|were|been|is|are)\s+(?:accepted|approved|promoted|hired|chosen|selected|published|nominated|cleared)\b|\bgetting\s+(?:published|promoted|married)\b|"
+    r"\b(?:got|was|were|been|is|are)\s+(?:accepted|approved|promoted|hired|chosen|selected|published|nominated|cleared)\b"
+    r"(?!\s+as\s+(?:the|a|an)\s+(?:venue|site|location|host|theme|date|place)\b)|\bgetting\s+(?:published|promoted|married)\b|"   # "the festival was selected as the venue"
+    r"\bgot picked up by\s+(?:a|an|the|my)\s+(?:\w+\s+)?(?:publisher|label|agent|agency|network|studio|gallery|press)\b|"
+    r"(?<!\bno )\bme aceptaron\b|\bme dieron\s+(?:el|la)\s+(?:trabajo|beca|puesto|visa)\b|\bnos\s+(?:casamos|comprometimos)\b|\bestoy embarazada\b|"
+    r"\bvamos a tener un beb[eé]\b|\b(?:pasé|aprobé)\s+(?:el|mi)\s+examen\b|"
     r"\b(?:they|he|she)\s+accepted\s+(?:my|our)\s+offer\b|\b(?:they|he|she|[a-z]+)\s+offered me\s+(?:the|a|an)\s+(?:job|position|role|spot|place|promotion|contract|scholarship|"
     r"internship|part)\b|\b(?:adoption|sale|loan|deal|offer|paperwork|transfer|application|visa|mortgage|closing|settlement)\s+(?:finally\s+|just\s+)?went through\b|"
     r"\b(?:i'?m|i am|we'?re|we are)\s+(?:officially\s+|finally\s+|now\s+|going to be\s+|gonna be\s+|about to be\s+)(?:an?\s+)?(?:homeowners?|dad|mom|father|mother|grandma|grandpa|"
@@ -450,13 +456,18 @@ JOY = re.compile(
     r"\b(?:i'?m|i am)\s+(?:an?\s+)(?:dad|mom|father|mother|grandma|grandpa|aunt|uncle|homeowner)\s*!|"
     r"\b(?:my|our)\s+(?:\w+\s+)?(?:son|daughter|sister|brother|best friend|mom|dad|kid|grandson|granddaughter|niece|nephew)\s+(?:is|'s)\s+(?:getting married|engaged|pregnant|"
     r"having a baby|expecting|graduating|cancer[- ]free|in remission)\b|\bi'?m\s+(?:finally\s+)?graduating\b|"
+    r"\b(?:my|our)\s+(?:\w+\s+)?(?:son|daughter|sister|brother|best friend|mom|dad|kid|grandson|granddaughter|niece|nephew|hijo|hija)\s+(?:graduates|se gradúa)\b|"
+    r"\b(?:me gradúo|me gradué)\b|\b(?:they|he|she)\s+(?:picked|chose|went with)\s+(?:my|our)\s+(?:design|idea|pitch|proposal|photo|song|story|essay|painting|logo|entry|name|"
+    r"recipe|poem|film|script)\b|\b(?:we|i)\s+(?:just\s+)?brought home\s+(?:a|an|our|two|three|another)\s+(?:\w+\s+)?(?:puppy|puppies|kitten|kittens|dog|dogs|cat|cats|"
+    r"rabbit|rabbits|bunny|bunnies|hamster|rescue)\b|"
     r"\bmoving into\s+(?:our|my)\s+(?:new|first|own)\s+(?:house|home|place|apartment|condo)\b|\basked me to marry\s+(?:him|her|them)\b|"
     r"\bguess who(?:'s|\s+is)?\s+(?:just\s+)?(?:got|a|an|officially|finally|going)\b(?!\s+(?:at|on|in)\b)|\b(?:can'?t stop smiling|happy tears|dream come true|on top of the world)\b|"
     r"\b(?:i'?m|we'?re)\s+(?:so|really|super)\s+proud of\s+(?:my|him|her|them|our)\b|^\W*it'?s official\b|"
     r"\b(?:promotion|raise|offer|transfer|adoption|visa|loan|approval|scholarship|acceptance)\s+(?:came through|is official|got approved|was approved)\b|"
     r"\b(?:we'?re|i'?m|we are|i am)\s+(?:finally\s+|officially\s+|actually\s+)?(?:having a baby|pregnant|engaged|expecting\b(?! (?:a|an|the|to|it|him|her|them|some|you))|getting married|cancer[- ]free|in remission|"
-    r"debt[- ]free|moving in together|adopting)\b|\bgot\s+(?:engaged|married)\b|\b(?:he|she|they)\s+proposed\b|"
-    r"^\W*(?:omg[,! ]*|guess what[,! ]*)?(?:she|he|they) said yes\b|\basked\s+(?:her|him|them)\s+(?:out|to (?:marry me|prom|the dance))\s+and\s+(?:she|he|they)\s+said yes\b|"
+    r"debt[- ]free|moving in together|adopting)\b|\bgot\s+(?:engaged|married)\b|"
+    r"\b(?:he|she|they)\s+proposed\b(?!\s+(?:we|that|a|an|the|some|splitting|to\s+(?!me\b))\b)|"   # "he proposed we split the bill" is a suggestion
+    r"^\W*(?:omg[,! ]*|guess what[,! ]*)?(?:she|he|they) said yes\b(?!\s+to\s+(?:the|a|another)\s+(?:dress|\w+\s+show)\b)|\basked\s+(?:her|him|them)\s+(?:out|to (?:marry me|prom|the dance))\s+and\s+(?:she|he|they)\s+said yes\b|"
     rf"\bi\s+{_NOW}graduated\b|\b(?:closed on|bought|signed the lease (?:on|for)|moved into)\s+(?:the|our|my|a)\s+(?:first\s+|new\s+|own\s+)?(?:house|home|apartment|place|condo)\b|"
     r"\b(?:was|were)\s+born\s+(?:this|today|yesterday|last night|on|at)\b|\bhad\s+(?:her|the|their|our|a healthy)\s+(?:baby|twins|son|daughter|little (?:boy|girl))\b(?!\s+shower)|"
     r"\bit'?s a (?:boy|girl)(?=\s*[!.]*\s*$|\s*!)|\b(?:took|taking)\s+(?:his|her|their)\s+first steps\b|\bsaid\s+(?:his|her|their)\s+first word\b|"
@@ -506,9 +517,21 @@ ORDER = [("heartbreak", HEARTBREAK), ("fear", FEAR), ("shame", SHAME), ("hurt", 
          ("disappointed", DISAPPOINTED), ("fed up", FED_UP), ("relieved", RELIEVED), ("proud", PROUD), ("joy", JOY), ("missing", MISSING)]
 
 
+# "we got married ten years ago today", "one year ago today i got sober": a day worth marking. "N years ago today" by itself is
+# read as the anniversary of a loss; it isn't one when the sentence says what happened and nothing in it says a loss.
+MILESTONE = re.compile(r"\b(?:married|wedding|sober|clean|quit|stopped (?:smoking|drinking|vaping)|started|opened|moved|met|graduated|adopted|born|bought|"
+                       r"launched|joined|enlisted|became|proposed|engaged|first (?:date|kiss|day)|hired|came (?:out|home)|arrived|got (?:my|the|our|here)|"
+                       r"ran (?:my|a|the)|finished|completed|won|walked out|anniversary|celebrat\w+)\b", re.I)
+LOSS_WORD = re.compile(r"\b(?:died|dead|death|passed|lost|lose|funeral|buried|killed|gone|miscarr\w+|stillb\w+|goodbye|grave|ashes|accident|crash|"
+                       r"overdos\w+|suicide)\b", re.I)
+
+
 def not_a_loss(text):
-    """A death word that isn't about a death: a phone that died, "I'm dead" at a joke, a character in a show, a what-if."""
+    """A death word that isn't about a death: a phone that died, "I'm dead" at a joke, a character in a show, a what-if.
+    And a day worth marking said as "... ago today"."""
     said = str(text or "")
+    if re.search(r"\bago today\b", said, re.I) and MILESTONE.search(said) and not LOSS_WORD.search(said):
+        return True
     return bool(NOT_A_DEATH.search(said) or NOT_REAL.search(said))
 
 

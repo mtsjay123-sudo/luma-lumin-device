@@ -160,6 +160,13 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **The lamp can have meaning search (Nov 21, an experiment run on GitHub).** A 30 MB MIT-licensed static model,
+  standing in for the 16 GB one: questions asked in other words found 19 → 27 of 40 on the set written first, wrong
+  "never told" 11 → 6. Not built into Luma yet; it's the next memory work, behind a switch that's off until the owner
+  says yes (it's a download).
+- **"We got married ten years ago today" was read as a loss (Nov 21).** Any "... ago today" was. Fixed: 0 → 5 of 8
+  unseen good days no longer read as one, all 14 losses said the same way still are. Good news said plainly: half
+  is read by the rules on a set written last (10 of 20), and fixes for one set don't carry to the next.
 - **A fact in a crowd (Nov 21).** Forty things people tell a friend, hidden among a thousand memories. "what are my
   mom's favorite flowers" was handed five other facts about mom; "what do i do on saturday mornings" was "nothing
   saved from then"; "my mother" wasn't "my mom". Fixed. On a second forty written first: asked plainly 33 → 38 found,

@@ -3529,3 +3529,59 @@ model for the lamp (experiment)"): a static meaning model of a few megabytes, st
 length of a run, on the two sets of forty and the memory test's two halves. Nothing in Luma loads it yet.
 
 Tests: `tests/test_a_fact_in_a_crowd.py` (6). Full suite: 1,983 passed, the known 14 failed.
+
+## The lamp's meaning experiment, run (Nov 21) (`scripts/meaning_small_eval.py`, `meaning-small.yml` run 1)
+
+A static meaning model (potion-base-8M: its card says MIT; 30 MB; a sentence is 256 numbers; no network to run),
+standing in for the 16 GB one, on a thousand memories:
+
+| | Words alone | Small model, a memory counts at 0.35 | at 0.45 | at 0.55 | at 0.65 |
+|---|---|---|---|---|---|
+| The second forty, asked in other words: found | 19 of 40 | **27** | 23 | 23 | 20 |
+| The second forty: wrongly "never told" | 11 | **6** | 9 | 9 | 11 |
+| The second forty, asked plainly | 38 | 38 | 38 | 38 | 38 |
+| The built-on forty, asked in other words | 27 | 29 | 30 | 27 | 27 |
+| Memory test, never told: Luma says so itself (built on / held out, of 33 each) | 18 / 18 | 15 / 15 | 15 / 18 | 18 / 18 | 18 / 18 |
+| Memory test, held out: plain, other words, two-step | 159, 102, 0 | the same | the same | the same | the same |
+| Memory test, told but said "never told" (held out, of 444) | 3 | 3 | 3 | 3 | 3 |
+
+- **It finds what words can't**: eight more of forty questions asked in other words, and "never told" said wrongly
+  about half as often. That's on the set written before any of this.
+- **The price**: when something really was never told, Luma says so by itself a little less often (15 of 33, from
+  18), because some memory is always a bit close. In those cases the brain is handed what was found and told which
+  word no memory has, as it already is for the other fifteen.
+- **The memory test's held-out lives don't move at all.** Their misses aren't this kind.
+- So it's worth building into the lamp: the same place the 16 GB model plugs in, behind the same switch, with
+  0.35 to 0.45 as how close counts. Not built yet; it adds a download (a new outbound call, off until the owner
+  says yes) and one small package to read the model's words. That's the next piece of memory work.
+
+## Good news said plainly, and a day worth marking (Nov 21) (`tests/test_good_news_plainly.py`)
+
+Five of the ten big-news moments of Human Test v2 go to the brain as "a little humor is welcome" or "be funny back".
+Three sets of twenty pieces of good news in my own words, each with twenty near misses, each written before the fixes
+for the one before it:
+
+| Read as good news, of 20 | Before | After the fixes for the set before | After its own fixes |
+|---|---|---|---|
+| A (built on) | 18 (2 near misses taken) | | 20 (0 taken) |
+| B | 15 (1 taken) | 15 | 19 (0 taken) |
+| C (the honest number) | 10 (1 taken) | **10** | not built on |
+
+Half of plainly said good news is read by the rules ("my biopsy was benign", "we're having twins" and "they renewed
+my contract for two more years" aren't), and fixing one set doesn't move the next: the third time today this has
+shown (gripes, hard moments said sideways, now this). What a brain does with unread good news is in the real-brain
+runs: a brain cheers at most good news by itself, which is why this ranks below the gripes, where it didn't.
+
+**A real bug found on the way.** Any "... ago today" was read as a loss. "we got married ten years ago today" and
+"one year ago today i got sober" told the brain "they're talking about a loss. No jokes, no teasing". A day worth
+marking isn't a loss when the sentence says what happened and nothing in it says a loss:
+
+| "... ago today" | Before | After |
+|---|---|---|
+| Five good or ordinary days, seen while fixing: not read as a loss | 0 of 5 | 5 of 5 |
+| Eight more, written before the fix and measured once | 0 of 8 | 5 of 8 (then built on: 8) |
+| Fourteen losses said the same way ("a year ago today she took her last breath"): still a loss | 14 of 14 | 14 of 14 |
+
+What a brain is told on both human tests: 0 of 269 turns differ. Hard-or-not, held out: unchanged (108 of 150, 0 of 150).
+
+Tests: `tests/test_good_news_plainly.py` (5). Full suite: 1,988 passed, the known 14 failed.
