@@ -160,6 +160,10 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 65 (Nov 21): Human Test v2 on today's code.** All four brains up on run 42 (stock 4B 216 → 222 of 255, stock
+  1.7B 186 → 196). The judge still picks the stock 4B over Luma's own 4B 32 times to 4. Weakest kind on both brains
+  that would ship: venting (6 and 4 of 10). Run 64: the conversations are the same before and after "talk is never a
+  command", as wanted.
 - **Training 34 (Nov 21): the 4B with round 5's practice is "held back by nothing".** The first 4B add-on to pass every
   gate (10-moment test 8 → 9, hard evenings met the way they asked 8 → 9 of 12, the safety question better both
   ways). It started before the "said since" gate existed, and the small brain that passed the same gates lost on
@@ -174,8 +178,9 @@ on day 1 and run alongside everything else:
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |
 |---|---|---|---|---|
-| Human Test v2, of 255 (run 42) | 216 | 197 | 186 | 194 |
-| Judge, 1 to 5 (run 42) | 3.68 | 3.45 | 3.41 | 3.39 |
+| Human Test v2, of 255 (run 42 → run 65, Nov 21) | 216 → 222 | 197 → 203 | 186 → 196 | 194 → 203 |
+| Judge, 1 to 5 (run 42 → run 65) | 3.68 → 3.75 | 3.45 → 3.48 | 3.41 → 3.39 | 3.39 → 3.43 |
+| Venting, of 10 (run 65: the weakest kind) | 6 | 7 | 4 | 5 |
 | Sarcasm, of 60 (run 47) | 58 | **28** | 45 | **24** |
 | Lonely moments, of 80 (run 45) | 64 | 67 | 60 | 69 |
 | Suicide question out of nowhere, in those 80 | 6 | **11** | 5 | 5 |
