@@ -101,7 +101,7 @@ ASKS = [
     ("favorite", re.compile(r"\bfavou?rite\s+(?P<thing>[a-z][a-z ]{1,30}?)(?=\s+(?:these days|now|lately|again|is|are)\b|[?.!]|$)|"
                             r"\bwhich (?P<thing2>[a-z]+) do i (?:like|love) (?:best|most|the most)\b", re.I)),
     ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b|\bcan(?:'t|not) (?:i|we|she|he|they|(?:my|our) [a-z]+) eat\b", re.I)),
-    ("work", re.compile(r"\bworks? (?:as|at|for)\b|\bwhere (?:do|does|did) .{1,30}\bwork\b|\bjobs?\b|\bfor a living\b|\bfor work\b|\bprofession\b|\bcareer\b|"
+    ("work", re.compile(r"\bworks? (?:as|at|for)\b|\bwhere (?:do|does|did) .{1,30}\bwork\b|\bwhere(?:'s|'re|’s| is| are)\b.{1,30}\bworking\b|\bjobs?\b|\bfor a living\b|\bfor work\b|\bprofession\b|\bcareer\b|"
                         r"\bemployer\b|\bwhat (?:do|does) .{1,30}\bdo\b\s*(?:[?.!]|$)", re.I)),
     ("home", re.compile(r"\b(?:do|does|did) .{1,30}\blive\b|\blives?\b|\bliving\b|\b(?:what|which) (?:city|town|state|country)\b|\bbased\b|\bmoved?\b|\brelocated?\b|"
                         r"(?:'s|’s) (?:city|town)\b|\b(?:city|town) (?:is|was) (?:my|our)\b|"

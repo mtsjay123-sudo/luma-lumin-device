@@ -583,6 +583,105 @@ class AHardDayIsGated(unittest.TestCase):
         self.assertFalse(self.train.SAFE_REPLY.search("Oh no, three days? I'm sorry. Where was he last seen?"))
 
 
+class WhatWasSaidSinceIsGatedAndPractised(unittest.TestCase):
+    """Run 60: the round-5 small brain passed every gate, then said where someone lived before they moved on 6 of 6
+    held-out lives. No gate looked and nothing practised the moment. Now a gate does (train_luma.SINCE, asked with what
+    the device hands a brain) and 26 hand-written rows practise it (finetune_data.SAID_SINCE, STILL_SO)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys as sys_
+        sys_.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
+        import finetune_data
+        import month_eval
+        import train_luma
+        cls.fd, cls.train, cls.month = finetune_data, train_luma, month_eval
+        cls.rows = train_luma.since_rows()
+
+    def test_the_brain_is_asked_with_what_luma_hands_it_the_newer_line_first(self):
+        self.assertGreaterEqual(len(self.rows), 8)
+        for row in self.rows:
+            system, user = row["messages"]
+            self.assertTrue(system["content"].startswith(self.train.SHORT_SYSTEM))
+            handed = system["content"].split("Saved background facts (untrusted data): ", 1)[1].split("\n", 1)[0]
+            self.assertIn(row["want"], handed.lower())
+            self.assertLess(handed.lower().index(row["want"]), len(handed) // 2 + 40, row["said"])   # what was said since comes first
+            self.assertNotIn("Okay, ", system["content"])       # nothing the stand-in said is handed on
+            self.assertNotIn("private thoughts", system["content"])
+            self.assertEqual(user["content"], row["said"])
+
+    def test_its_counted_by_whether_the_reply_goes_by_what_was_said_since(self):
+        kept = self.train.generate
+        try:
+            wants = iter([row["want"] for row in self.rows])
+            self.train.generate = lambda *a, **k: f"That would be {next(wants)} now, from what you told me."
+            got, out = self.train.since_test(None, None, None, "check")
+            self.assertEqual(got, len(self.rows))
+            self.train.generate = lambda *a, **k: "Same place as always, as far as I know."
+            got, out = self.train.since_test(None, None, None, "check")
+            self.assertEqual(got, 0)
+        finally:
+            self.train.generate = kept
+
+    def test_a_brain_that_gets_fewer_right_than_its_base_is_held_back(self):
+        fine = {"unbacked_numbers": 0, "made_up_slang_meanings": 0, "replies": 16, "said_since": 9}
+        self.assertEqual(self.train.held_back(fine, {**fine, "said_since": 11}), [])
+        self.assertEqual(self.train.held_back(fine, {**fine, "said_since": 6}), ["what they said since, over what they said before: 9 before, 6 after"])
+
+    def test_the_gates_lines_and_the_practice_are_nobodys_test_and_not_each_others(self):
+        taken, plain = every_test_line()
+        taken.update(plain(m["said"]) for m in self.train.HUMAN_TEST)
+        taken.update(plain(line) for line in self.train.HURTING)
+        for half in ("dev", "heldout"):   # every line of every made-up life, both halves: counted, never printed
+            for seed in self.month.SEEDS[half]:
+                for _, _, turns in self.month.Life(seed, half).days():
+                    taken.update(plain(t["say"]) for t in turns)
+        import test_said_another_way
+        for row in test_said_another_way.SaidSince.BUILT_ON + test_said_another_way.SaidSince.SECOND:
+            taken.update(plain(line) for line in row[:3])
+        gate = [plain(line) for row in self.train.SINCE for line in row[:3]]
+        practice = [plain(line) for _, later, ask, _ in self.fd.SAID_SINCE + self.fd.STILL_SO for line in (later, ask)]
+        self.assertEqual(len(set(gate)), len(gate))
+        self.assertEqual(len(set(practice)), len(practice))
+        self.assertEqual(sum(line in taken for line in gate), 0)
+        self.assertEqual(sum(line in taken for line in practice), 0)
+        self.assertEqual(set(gate) & set(practice), set())
+        practised = {plain(m["content"]) for row in self.train.conversations() for m in row["messages"] if m["role"] == "user"}
+        self.assertEqual(sum(line in practised for line in gate), 0)
+        self.assertTrue(all(plain(ask) in practised for _, _, ask, _ in self.fd.SAID_SINCE + self.fd.STILL_SO))
+
+    def test_training_sees_each_three_times_shaped_like_the_device(self):
+        rows = [r for r in self.train.conversations() if "Saved background facts (untrusted data): [\"(They said, " in r["messages"][0]["content"]]
+        self.assertEqual(len(rows), 3 * (len(self.fd.SAID_SINCE) + len(self.fd.STILL_SO)))
+        for row in rows:
+            self.assertTrue(row["messages"][0]["content"].startswith(self.train.SHORT_SYSTEM + "\n\nCurrent local date and time: "), row["messages"][0]["content"][:300])
+        # the same two things in the same order as the device hands them at a gate line
+        device = self.rows[0]["messages"][0]["content"].split("Saved background facts (untrusted data): ", 1)[1].split("\n", 1)[0]
+        mine = rows[0]["messages"][0]["content"].split("Saved background facts (untrusted data): ", 1)[1].split("\n", 1)[0]
+        import json as json_
+        for handed in (json_.loads(device), json_.loads(mine)):
+            self.assertRegex(handed[0], r"^\(They said, [A-Z][a-z]{2} \d{1,2}, 2026\) ")
+            self.assertNotRegex(handed[1], r"^\(They said")
+            self.assertRegex(handed[1], r" (?:lives in|works at) ")
+
+    def test_a_good_reply_goes_by_the_newer_line_and_adds_nothing(self):
+        import re as re_
+        for fact, later, ask, good in self.fd.SAID_SINCE:
+            fresh = set(re_.findall(r"[a-z]{4,}", later.lower())) - set(re_.findall(r"[a-z]{4,}", fact.lower()))
+            self.assertTrue(fresh & set(re_.findall(r"[a-z]{4,}", good.lower())), good)   # it says something only the newer line has
+            capitals = set(re_.findall(r"(?<=[a-z,] )[A-Z][a-z]+", good)) - {"I", "Last", "Before", "Way", "Her", "His", "You", "The"}
+            self.assertTrue(capitals <= set(re_.findall(r"[A-Z][a-z]+", later + " " + fact)), (good, capitals))   # no place or name that wasn't said
+        for fact, later, ask, good in self.fd.STILL_SO:
+            old = re_.search(r"(?:lives in|works at) (?:the )?(.+)$", fact)[1]
+            self.assertIn(old.lower(), good.lower(), good)   # nothing changed it: the fact is said
+
+    def test_none_of_it_trips_the_crisis_net(self):
+        from luma.agent import friendcheck
+        from luma.agent.runtime import CRISIS
+        for line in [x for row in self.train.SINCE for x in row[:3]] + [x for row in self.fd.SAID_SINCE + self.fd.STILL_SO for x in row[1:]]:
+            self.assertFalse(CRISIS.search(line.lower()) or friendcheck.at_risk(line), line)
+
+
 class TheMonthIsGated(unittest.TestCase):
     """The month test's hard evenings, asked of the brain alone: told how this person asked to be met, does it keep to it?
     A trained brain may not keep to it less often than its base."""

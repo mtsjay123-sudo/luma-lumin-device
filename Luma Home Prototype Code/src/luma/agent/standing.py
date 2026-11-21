@@ -76,6 +76,8 @@ def parse(low):
         hour, minute, sure = clock_of(clock)
         if not sure and when in {"evening", "night"} and hour < 12: hour += 12
         if not sure and when == "afternoon" and hour < 12: hour += 12
+        if not sure and 1 <= hour <= 6 and when != "morning" and not re.search(r"\bwake\b|\bget me up\b|\bmorning\b|\bsunrise\b", ask):
+            hour += 12   # "remind me to call Mom every Sunday at 6" was set for 6 in the morning. Nobody means that unless it's to wake them.
         at = f"{hour:02d}:{minute:02d}"
     else:
         at = TIMES.get(when, "09:00")

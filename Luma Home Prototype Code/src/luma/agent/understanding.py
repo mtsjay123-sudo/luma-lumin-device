@@ -383,7 +383,7 @@ def walk_topic(text):
         return None
     text = str(text)[how.start():]  # "you have that in your memory, how can I connect?" is about connecting
     lowered = normalize(text)
-    for key, words in [("chrome", r"chrome|extension"), ("device", r"device|hardware|luma box|pair"), ("brain", r"brain|api key|claude|smarter|model"),
+    for key, words in [("chrome", r"chrome|extension"), ("device", r"device|hardware|luma box|pair"), ("brain", r"(?<!my )(?<!my own )brain|api key|claude|smarter|model"),   # "how do I turn my brain off at night" is theirs, not a setting
                        ("plus", r"plus|upgrade|premium|subscri|pricing"), ("teach", r"teach"), ("goals", r"goal|routine|every (?:day|morning)"),
                        ("voice", r"talk|voice|mic|speak"), ("memory", r"memor|remember|forget"), ("photo", r"photo|picture|image|screenshot"),
                        ("rules", r"rules?|approv|permission|allow"), ("deck", r"deck|slides|presentation|powerpoint|keynote")]:

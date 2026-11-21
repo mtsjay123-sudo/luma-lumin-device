@@ -524,7 +524,42 @@ class SaidSince(unittest.TestCase):
         finally:
             s.close()
 
+    def test_a_two_letter_name_is_still_their_person(self):
+        """"Jo's been in Nashville since the spring" wasn't kept at all (a name had to have three letters), so "where does
+        Jo live?" handed the brain Austin and nothing else."""
+        self.assertEqual(self.asked("my friend Jo lives in Austin", "Jo's been in Nashville since the spring, she plays out twice a week", "where does Jo live?",
+                                    "Nashville", "Austin"), "NEW")
+        self.assertEqual(self.asked("my coworker Al works at the front desk", "Al got moved over to shipping, he hates it", "where does Al work now?",
+                                    "shipping", "front desk"), "NEW")
+        from luma.agent.runtime import Agent
+        self.assertIn("so", Agent.NOT_A_SHORT_NAME)
+
+    def test_wheres_someone_working_is_a_question_about_their_job(self):
+        from luma.memory import facts
+        for said in ("where's my son working now?", "where is my sister working these days", "where's Kofi working?"):
+            self.assertEqual(facts.asked(said)["what"], "work", said)
+        self.assertEqual(self.asked("my son works at the garage", "my son got hired at the Toyota plant, second shift", "where's my son working now?",
+                                    "Toyota", "garage"), "NEW")
+
+    def test_a_job_changes_in_words_with_no_place_in_them(self):
+        """Found building the training gate: "my uncle took the early retirement and he's driving a school bus" has no "in",
+        "at" or "to" in it, so it didn't count as something newer and Luma said "Your uncle works at the refinery." """
+        self.assertEqual(self.asked("my neighbor Hal works at the bakery", "Hal is doing night security for the mall, the pay is better", "where does Hal work now?",
+                                    "security", "bakery"), "NEW")
+        self.assertEqual(self.asked("my aunt works at the pharmacy", "my aunt took a buyout and she's selling real estate", "where does my aunt work now?",
+                                    "real estate", "pharmacy"), "NEW")
+        self.assertEqual(self.asked("my stepdad works at the quarry", "my stepdad retired last spring, he mostly fishes", "where does my stepdad work?",
+                                    "retired", "quarry"), "NEW")
+        self.assertEqual(self.asked("my niece works at the bookstore", "my niece made the dean's list again", "where does my niece work?", "bookstore", None), "FACT")
+
     def test_mom_and_dad_said_without_my_are_still_their_people(self):
+        from luma.agent.runtime import Agent
+        for line in ("mom can't wait to show me the condo", "dad won't shut up about Phoenix", "grandma and I went to the lake", "dad still talks about the old house"):
+            self.assertTrue(Agent.BARE_KIN.search(line), line)
+        for line in ("dad bod summer", "mom canteen duty is the worst", "being a dad is hard", "dad-joke of the day"):
+            self.assertIsNone(Agent.BARE_KIN.search(line), line)
+
+    def test_mom_and_dad_at_the_start_of_a_sentence(self):
         from luma.agent.runtime import Agent
         for line in ("dad's place in Sarasota finally closed", "mom's coming over Sunday", "dad called about the truck", "and then grandma fell again"):
             self.assertTrue(Agent.BARE_KIN.search(line), line)

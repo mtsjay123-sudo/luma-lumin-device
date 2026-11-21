@@ -306,5 +306,181 @@ class Privacy(Home):
         self.assertTrue(store.all("memory", 50))
 
 
+class SpeakerCommands(Home):
+    """Read Nov 21, 2026, with a stand-in brain: things anyone says to a speaker that went to the brain (which can only say
+    it did them) or got a line from somewhere else. "wake me up in 20 minutes", "do not disturb until 8", "turn it all
+    the way up", "what's my volume" and "snooze" with nothing ringing went to the brain; "what's on my list" answered
+    "Your my list is empty."; "how do I turn you off" answered "Sure, let's do it step by step. Open my browser."; "what
+    did I spend this month" answered "Show me. Tap the picture button next to where you type and pick a photo.\" Also "cancel
+    the meds reminder", which went to the brain."""
+
+    BRAIN = "Okay."   # what the stand-in brain says: seeing it means the line was left to the brain
+
+    def test_wake_me_up_in_a_while_sets_an_alarm(self):
+        self.assertRegex(self.say("wake me up in 20 minutes"), r"^Alarm set for \d{1,2}:\d{2} [AP]M, 20 minutes from now\.$")
+        self.assertRegex(self.say("what alarms do I have"), r"^One alarm: ")
+        self.assertRegex(self.say("set an alarm for an hour from now"), r"^Alarm set for .*, (?:an|1) hour from now\.$")
+        self.assertRegex(self.say("wake me in an hour and a half"), r"^Alarm set for .*from now\.$")
+        rows = [r for r in self.s.agent.athome._rows("alarm") if r.get("on")]
+        self.assertEqual(len(rows), 3)
+        now = self.s.clock["t"]
+        self.assertTrue(all(now < r["next"] < now + 2 * 3600 for r in rows))
+
+    def test_an_alarm_in_a_while_never_rings_early(self):
+        before = self.s.clock["t"]
+        self.say("wake me up in 5 minutes")
+        row = [r for r in self.s.agent.athome._rows("alarm") if r.get("on")][0]
+        self.assertGreaterEqual(row["next"], before + 5 * 60)
+        self.assertLess(row["next"], before + 6 * 60 + 1)
+
+    def test_do_not_disturb_until_a_time(self):
+        self.s.at({"day": 3, "time": "22:15"})
+        self.assertEqual(self.say("do not disturb until 8"), "Do not disturb until 8 AM. Alarms and timers still go off.")
+        self.assertEqual(self.say("do not disturb off"), "Do not disturb is off. I'm around.")
+        self.assertEqual(self.say("do not disturb until morning"), "Do not disturb until 7 AM. Alarms and timers still go off.")
+        self.assertEqual(self.say("do not disturb until 6:30 am"), "Do not disturb until 6:30 AM. Alarms and timers still go off.")
+        self.assertRegex(self.say("do not disturb for 2 hours"), r"^Do not disturb until 12:\d\d AM\.")
+
+    def test_volume_all_the_way_and_asked_any_way(self):
+        self.assertEqual(self.say("turn it all the way up"), "Louder: 10.")
+        self.assertEqual(self.say("what's my volume"), "Volume's at 10.")
+        self.assertEqual(self.say("how loud are you"), "Volume's at 10.")
+        self.assertEqual(self.say("max volume"), "That's as loud as I go.")
+        self.assertEqual(self.say("turn it all the way down"), "Quieter: 1.")
+        self.assertEqual(self.say("what volume are you on"), "Volume's at 1.")
+
+    def test_snooze_with_nothing_ringing(self):
+        self.assertEqual(self.say("snooze"), "Nothing's ringing.")
+        self.assertEqual(self.say("five more minutes"), self.BRAIN)   # that one's talk unless something just rang
+
+    def test_whats_on_my_list_is_the_list_they_used_last(self):
+        self.assertEqual(self.say("what's on my list"), "Your shopping list is empty.")
+        self.say("add batteries to my packing list")
+        self.assertEqual(self.say("what's on my list"), "One thing on your packing list: batteries.")
+        self.assertEqual(self.say("read me the list"), "One thing on your packing list: batteries.")
+        for said in ("what's on my list", "what's on the list", "show me my list", "read our list"):
+            self.assertNotRegex(self.say(said), r"\b(?:my|the|our) list\b", said)
+
+    def test_add_something_just_after_using_a_list_goes_on_it(self):
+        self.assertEqual(self.say("add milk"), self.BRAIN)   # with no list in use, it's talk
+        self.say("add eggs to the shopping list")
+        self.assertEqual(self.say("add milk"), "Added milk to your shopping list.")
+        self.assertEqual(self.say("add oat milk and bananas too"), "Added oat milk and bananas to your shopping list.")
+        for said in ("add it up for me", "add me to the group chat", "add that to what I said before", "add more detail", "add insult to injury",
+                     "add fuel to the fire"):
+            self.assertNotIn("to your shopping list", self.say(said), said)
+        self.s.clock["t"] += 3600
+        self.assertEqual(self.say("add salt"), self.BRAIN)   # an hour later it's talk again
+
+    def test_asked_how_to_turn_it_off_it_says_how(self):
+        self.s.agent.set_muted(False)
+        for said in ("how do I turn you off", "how do I shut you down?", "can I turn you off", "do you have an off switch", "how can I switch you off at night"):
+            reply = self.say(said)
+            self.assertIn("unplug me", reply, said)
+            self.assertNotIn("browser", reply, said)
+        self.assertFalse(self.s.agent.muted)   # asking how isn't asking for it: "can I turn you off" used to turn the mic off
+        for said in ("how do I turn off the lights", "how do I turn this feeling off", "can I turn the tv off", "how do I turn my brain off at night"):
+            reply = self.say(said)
+            self.assertNotIn("unplug me", reply, said)
+            self.assertNotIn("step by step", reply, said)   # "my brain" isn't Luma's: it got the walk-through for Luma's brain setting
+        self.assertFalse(self.s.agent.muted)
+
+    def test_a_question_about_money_is_never_a_photo(self):
+        for said in ("what did I spend this month", "what did I spend on food this month", "how much have I spent this week"):
+            self.assertNotIn("picture button", self.say(said), said)
+        self.assertIn("picture button", self.say("look at this photo"))
+        self.assertIn("picture button", self.say("read this receipt"))
+
+    def test_no_line_of_the_human_tests_or_the_crisis_corpus_is_taken_for_one(self):
+        import json
+
+        import human_eval
+        from luma.agent import athome
+        from luma.agent.runtime import Agent
+        lines = [turn["said"] for item in human_eval.everything(None) for turn in item.get("turns", [item]) if turn.get("said")]
+        corpus = Path(__file__).resolve().parent / "data" / "crisis_corpus.jsonl"
+        lines += [str(json.loads(row).get("text") or "") for row in corpus.read_text().splitlines() if row.strip()]
+        self.assertGreater(len(lines), 1000)
+        taken = [line for line in lines if athome.ALARM_IN.match(line.lower()) or Agent.TURN_OFF.match(line.lower())
+                 or (athome.VOLUME.match(line.lower()) and (athome.VOLUME.match(line.lower())["max"] or athome.VOLUME.match(line.lower())["min"]))
+                 or (athome.DND.match(line.lower()) and athome.DND.match(line.lower())["clock"])]
+        self.assertEqual(len(taken), 0)      # a count: the lines themselves are never printed
+
+
+class CancellingAReminder(Home):
+    """"cancel the meds reminder" went to the brain, which has no way to do it and says it did. Read by code now: the one
+    that matches is cancelled and named, more than one is asked about, and all of them at once is asked about first."""
+
+    def setUp(self):
+        super().setUp()
+        for said in ("remind me to take my meds at 9pm", "remind me to call the vet tomorrow at 10", "remind me about the dentist on friday at 3",
+                     "remind me to take the trash out tomorrow at 7pm"):
+            self.say(said)
+
+    def left(self):
+        return sorted(r["title"].lower() for r in self.s.agent.store.all("task") if not r["done"])
+
+    def test_the_one_they_name_is_cancelled_and_said_back_as_theirs(self):
+        self.assertEqual(self.say("cancel the trash reminder"), "Done. I won't remind you to take the trash out.")
+        self.assertEqual(self.say("delete my reminder to call the vet"), "Done. I won't remind you to call the vet.")
+        self.assertEqual(self.say("get rid of the dentist reminder"), "Done. I won't remind you about the dentist.")
+        self.assertEqual(self.left(), ["take my meds"])
+        self.assertEqual(self.say("cancel the reminder"), "Done. I won't remind you to take your meds.")
+        self.assertEqual(self.say("what are my reminders"), "You don't have any reminders right now.")
+
+    def test_one_that_isnt_there_and_one_that_could_be_two(self):
+        self.assertEqual(self.say("cancel the haircut reminder"), "I don't see a reminder about haircut.")
+        self.assertRegex(self.say("cancel the take reminder"), r"^Which one\? You have: take your meds at 9:00 PM; take the trash out tomorrow at 7:00 PM\.$")
+        self.assertRegex(self.say("cancel the reminder"), r"^Which one\? You have: ")
+        self.assertEqual(len(self.left()), 4)
+
+    def test_all_of_them_is_asked_about_first(self):
+        self.assertRegex(self.say("cancel all my reminders"), r"^That's all 4: .* Say “yes, cancel them” and they're gone\.$")
+        self.assertEqual(len(self.left()), 4)
+        self.assertEqual(self.say("yes, cancel them"), "Done. All 4 are cancelled.")
+        self.assertEqual(self.left(), [])
+        self.assertEqual(self.say("delete all my reminders"), "You don't have any reminders.")
+
+    def test_anything_but_a_yes_lets_it_drop(self):
+        self.say("cancel all my reminders")
+        self.say("actually what's the weather in Boston")
+        self.say("yes")
+        self.assertEqual(len(self.left()), 4)
+
+    def test_one_that_comes_round_every_week(self):
+        self.assertEqual(self.say("remind me to call Mom every Sunday at 6"), "Done. On Sundays at 6 PM, I'll remind you to call Mom.")
+        self.assertEqual(self.say("cancel the call mom reminder"), "Stopped. I won't remind you to call Mom anymore.")
+        self.assertEqual(len(self.left()), 4)   # "call the vet" shares a word and was cancelled in its place, before this was fixed
+
+    def test_only_some_of_the_words_is_never_enough_to_cancel(self):
+        self.assertEqual(self.say("cancel the call grandma reminder"), "I don't see one about call grandma. You have: call the vet tomorrow at 10:00 AM.")
+        self.assertEqual(len(self.left()), 4)
+
+    def test_an_hour_said_bare_is_the_one_people_mean(self):
+        from luma.agent import standing
+        for said, at in (("remind me to call mom every sunday at 6", "18:00"), ("every friday at 5 remind me to submit my timesheet", "17:00"),
+                         ("every sunday at 6:30 remind me to call dad", "18:30"), ("wake me up every day at 6", "06:00"), ("every morning at 6 tell me the news", "06:00"),
+                         ("every weekday at 8, tell me the weather", "08:00"), ("every day at 3am remind me to check the oven", "03:00"),
+                         ("every night at 9 remind me to take my meds", "21:00"), ("every day at 12 remind me to eat", "12:00")):
+            self.assertEqual(standing.parse(said)["at"], at, said)
+
+    def test_what_isnt_cancelling_a_reminder_is_left_alone(self):
+        for said in ("that was a good reminder", "thanks for the reminder", "I need a reminder of why I even try", "cancel my appointment", "stop reminding me of him",
+                     "delete that", "remove the reminder app from my phone"):
+            self.assertNotRegex(self.say(said), r"^(?:Done\.|Which one|I don't see a reminder|You don't have any reminders|That's all)", said)
+        self.assertEqual(len(self.left()), 4)
+
+    def test_no_line_of_the_human_tests_or_the_crisis_corpus_is_taken_for_one(self):
+        import json
+
+        import human_eval
+        from luma.agent.runtime import Agent
+        lines = [turn["said"] for item in human_eval.everything(None) for turn in item.get("turns", [item]) if turn.get("said")]
+        corpus = Path(__file__).resolve().parent / "data" / "crisis_corpus.jsonl"
+        lines += [str(json.loads(row).get("text") or "") for row in corpus.read_text().splitlines() if row.strip()]
+        self.assertGreater(len(lines), 1000)
+        self.assertEqual(sum(1 for line in lines if Agent.REMINDER_OFF.match(line.lower())), 0)      # a count: never printed
+
+
 if __name__ == "__main__":
     unittest.main()

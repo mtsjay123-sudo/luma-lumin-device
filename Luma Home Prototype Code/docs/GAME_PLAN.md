@@ -143,6 +143,13 @@ on day 1 and run alongside everything else:
   the house and is out in Reno, and asked "where's my uncle living these days?", Luma itself said Boise. And "where
   does Kofi work now?" got the list of what Luma can do. Both fixed. Built-on 8: all right. A second 8 written
   afterwards: the old one said flat 2 → 1.
+- **Speaker commands, read line by line (Nov 21):** "wake me up in 20 minutes", "do not disturb until 8", "turn it all
+  the way up", "snooze" and "cancel the meds reminder" went to a brain that can only say it did them; "what's on my
+  list" answered "Your my list is empty."; "how do I turn you off" got the walk-through for the browser. All done by
+  code now. A second set of 24 written afterwards: answered by Luma and right 0 → 18, answered and wrong 6 → 0.
+- **Round 6 for training (Nov 21):** a gate for "what was said since" (twelve lines, asked with what the device hands a
+  brain) and 26 practice moments. Writing the gate found four more places where Luma itself said the old thing or
+  didn't keep the new one; fixed in the device. Not trained yet.
 
 ## 1. Where Luma stands (measured)
 

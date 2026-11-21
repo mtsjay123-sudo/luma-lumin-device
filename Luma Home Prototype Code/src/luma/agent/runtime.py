@@ -1459,7 +1459,7 @@ class Agent:
         if name == "tasks.list":
             tasks = [r for r in self.store.all("task") if not r["done"] and r.get("mode", "friend") == self.mode]
             tasks.sort(key=lambda r: r["due"])
-            if not tasks: return {"tasks": [], "summary": "Nothing on your list right now."}
+            if not tasks: return {"tasks": [], "summary": "You don't have any reminders right now."}   # it said "Nothing on your list": lists are something else
             # "Take my meds" is theirs to say; said back it's "take your meds"
             mine = lambda title: re.sub(r"\bmy\b", "your", re.sub(r"\bi\b", "you", title[:1].lower() + title[1:] if not re.match(r"[A-Z]{2}|I\b", title) else title))  # noqa: E731
             spoken = "; ".join(f"{mine(r['title'])} {self._when(r['due'])}" for r in tasks[:5])
@@ -5416,7 +5416,10 @@ class Agent:
     # Mom, Dad, Grandma said like a name, doing or having something. Never "dad jokes", "mom jeans" or "a soccer mom".
     BARE_KIN = re.compile(r"(?:^|[.!,;]\s+|\b(?:and|but|so|then|because|when)\s+)(?:mom|mum|mama|dad|papa|grandma|grandpa|nana|granny|gran)"
                           r"(?:(?:'s|’s)\s+(?!jokes?\b|jeans\b|bod\b)|\s+(?:is|was|has|had|got|just|finally|called|said|says|moved|went|wants|needs|"
-                          r"keeps|loves|hates|thinks|told|came|left|sold|bought|started|quit|retired|fell|broke)\b)", re.I)
+                          r"keeps|loves|hates|thinks|told|came|left|sold|bought|started|quit|retired|fell|broke|can(?:'t|not)?|could(?:n't)?|will|won't|would(?:n't)?|"
+                          r"does(?:n't)?|did(?:n't)?|isn't|wasn't|hasn't|should|might|still|never|always|and (?:i|me))(?![\w']))", re.I)
+
+    NOT_A_SHORT_NAME = frozenset("so no oh ok it he we my me is in on at to do go up us as be by if of or an am hi ha ma pa ah um uh".split())
 
     def _about_their_people(self, line):
         """Something said about someone in their life ("my brother", or a name Luma already knows as one of theirs), and not
@@ -5432,7 +5435,10 @@ class Agent:
             known = self.store.index().people.display
         except Exception:
             return False
-        return any(len(name) > 2 and re.search(rf"\b{re.escape(shown[0])}\b", line) for name, shown in known.items())
+        # "Jo's been in Nashville since the spring" wasn't kept at all: a name had to have three letters. Two are enough when
+        # it's a name they gave Luma and not a word everyone starts a sentence with.
+        return any((len(name) > 2 or (len(name) == 2 and name.lower() not in self.NOT_A_SHORT_NAME)) and re.search(rf"\b{re.escape(shown[0])}\b", line)
+                   for name, shown in known.items())
 
     def _keep_line(self, text):
         """What they told Luma about their life, kept as they said it: the ground truth the facts are read from, and what
@@ -5951,6 +5957,8 @@ class Agent:
         intent, p = top[0]
         if intent == "mute" and self.NOT_LUMAS_MIC.search(lowered):
             return None  # "mute the tv" was read as "mute" and turned Luma's own mic off
+        if intent == "photo" and not re.search(r"\b(?:photos?|pictures?|pics?|images?|screenshots?|camera|look|see|scan|show|read|receipt|describe|analy[sz]e|say)\b", lowered):
+            return None  # "what did I spend this month" was read as "look at a photo": "Show me. Tap the picture button…"
         if intent == "abilities" and not re.search(r"\b(?:you|u|ya|your|ur|yourself|luma|help|features|capabilities|abilities)\b", lowered):
             return None  # "where does Kofi work now?" was read as "what can you do?" and got the list of what Luma can do
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
@@ -6666,7 +6674,11 @@ class Agent:
                 continue
             reading = facts.read(words)
             accounted = bool(reading) and any(who == "rel:" + rel or who[5:] in [n.lower() for n in names] for who, _, _ in reading.slots)   # read as a fact about that person
-            if not accounted and re.search(r"\b(?:in|to|from|at|moved?|moving|lives?|living|place|apartment|house|city|town|now|anymore|any more)\b|(?<=[a-z,] )[A-Z][a-z]{2,}", words):
+            # a job changes in words with no "in" or "at" in them: "Andre is doing IT for the school district", "my uncle took the
+            # early retirement and he's driving a school bus" (Luma said "Your uncle works at the refinery.")
+            if not accounted and re.search(r"\b(?:in|to|from|at|moved?|moving|lives?|living|place|apartment|house|city|town|now|anymore|any more|"
+                                           r"quit|retir\w+|hired|fired|laid off|promoted|transferred|switched|left|started|new job|works?|working|job|"
+                                           r"(?:is|are|'s|'re|been) (?:now |still )?\w{2,}ing)\b|(?<=[a-z,] )[A-Z][a-z]{2,}", words):
                 if row.get("id") not in [r.get("id") for r in newer]:
                     newer.append(row)
         return newer[:3]
@@ -7114,6 +7126,70 @@ class Agent:
                          r"go deaf|close your ears|cover your ears)(?: (?:please|now|for now|for a (?:bit|while|minute|sec|second)|right now))?\W*$", re.I)
     NOT_LUMAS_MIC = re.compile(r"\b(?:tv|television|music|radio|speakers?|phone|laptop|computer|call|zoom|meeting|notifications?|group ?chat|chat|him|her|them|"
                                r"video|tab|podcast|song|alarm|game|stream|youtube|spotify|ex|boss|brother|sister|mom|dad|news)\b", re.I)
+    REMINDER_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please|can you|could you|will you)\W+)*(?:cancel|delete|remove|clear|drop|scrap|get rid of|turn off|stop) "
+                              r"(?:(?P<all>all (?:of )?(?:my |the |those )?reminders|(?:my|the|those) reminders|every reminder|every one of my reminders)|"
+                              r"(?:the |my |that |this )?(?:(?P<what>[\w' -]{2,60}?) reminder|reminder (?:to |about |for |that i (?:need|have) to )(?P<what2>[\w' -]{2,60}?)|(?P<one>reminder)))"
+                              r"(?: (?:please|thanks|thank you|for me))?\W*$", re.I)
+    REMINDERS_YES = re.compile(r"^\W*(?:yes|yeah|yep|yup|do it|go ahead|please do|cancel them|all of them)\b", re.I)
+
+    def _reminder_off(self, lowered):
+        """"cancel the meds reminder", "delete my reminder to call the vet", "cancel all my reminders": done by code. One that
+        matches is cancelled and named; more than one is asked about; all of them at once is asked about first."""
+        asked, self._reminders_off_asked = getattr(self, "_reminders_off_asked", 0), 0
+        open_ = sorted([r for r in self.store.all("task") if not r["done"] and r.get("mode", "friend") == self.mode], key=lambda r: r["due"])
+        mine = lambda title: re.sub(r"\bmy\b", "your", re.sub(r"\bi\b", "you", title[:1].lower() + title[1:] if not re.match(r"[A-Z]{2}|I\b", title) else title))  # noqa: E731
+        named = lambda r: f"{mine(r['title'])} {self._when(r['due'])}"  # noqa: E731
+        about = lambda r: ("to " if self._to_do(r["title"]) else "about ") + mine(r["title"])  # noqa: E731   "to take your meds", "about the dentist"
+
+        def done(rows):
+            for row in rows:
+                row["done"] = True
+                self.store.put("task", row, row["id"])
+
+        if asked and self.clock() - asked < 120 and self.REMINDERS_YES.match(lowered) and open_:
+            done(open_)
+            return {"text": f"Done. All {len(open_)} are cancelled.", "handy": True}
+        m = self.REMINDER_OFF.match(lowered)
+        if not m:
+            return None
+        if m["all"] or (m["one"] and len(open_) != 1):
+            if not open_:
+                return {"text": "You don't have any reminders.", "handy": True}
+            if len(open_) == 1 and m["all"]:
+                done(open_)
+                return {"text": f"Done. I won't remind you {about(open_[0])}.", "handy": True}
+            if m["one"]:
+                return {"text": "Which one? You have: " + "; ".join(named(r) for r in open_[:5]) + ".", "handy": True}
+            self._reminders_off_asked = self.clock()
+            more = f", plus {len(open_) - 5} more" if len(open_) > 5 else ""
+            return {"text": f"That's all {len(open_)}: " + "; ".join(named(r) for r in open_[:5]) + more + ". Say “yes, cancel them” and they're gone.", "handy": True}
+        what = (m["what"] or m["what2"] or "").strip()
+        words = {w[:5] for w in re.findall(r"[a-z']{3,}", re.sub(r"\b(?:the|my|that|this|your|for|about|and|one)\b", " ", what))}
+        stems = lambda r: {w[:5] for w in re.findall(r"[a-z']{3,}", r["title"].lower())}  # noqa: E731
+        hits = open_ if m["one"] else [r for r in open_ if words and words <= stems(r)]
+        if len(hits) == 1:
+            done(hits)
+            return {"text": f"Done. I won't remind you {about(hits[0])}.", "handy": True}
+        if len(hits) > 1:
+            return {"text": "Which one? You have: " + "; ".join(named(r) for r in hits[:5]) + ".", "handy": True}
+        weekly = [r for r in self.standing.rows() if words and words <= {w[:5] for w in re.findall(r"[a-z']{3,}", r["params"]["ask"].lower())}]
+        if weekly:
+            return {**self.standing.drop(what), "handy": True}   # one they set to come round every week
+        near = [r for r in open_ if words & stems(r)]   # only some of the words fit: never cancelled on a guess
+        if near:
+            return {"text": f"I don't see one about {what}. You have: " + "; ".join(named(r) for r in near[:5]) + ".", "handy": True}
+        return {"text": f"I don't see a reminder about {what}." if what else "You don't have any reminders.", "handy": True}
+
+    @staticmethod
+    def _to_do(title):
+        """Is a reminder's title something to do ("Take my meds"), so "I won't remind you to take your meds" reads right?"""
+        first = (title.split() or [""])[0].lower()
+        return bool(first) and first not in {"the", "a", "an", "my", "our", "that", "this", "his", "her", "their"} and not first.endswith(("ing", "'s")) and not first[:1].isdigit()
+
+    TURN_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|so|and|wait)\W+)*(?:how (?:do|can|would|could|should) (?:i|we|you|one) (?:turn|switch|shut|power) (?:you|u|luma|this(?: thing)?|the lamp|it) "
+                          r"(?:off|down)|how (?:do|can|would|could) (?:i|we) (?:turn|switch|shut|power) (?:off|down) (?:you|luma|this(?: thing)?|the lamp)|"
+                          r"(?:can|could|may) (?:i|we) (?:turn|switch|shut|power) (?:you|u|luma) (?:off|down)|(?:do|have) you (?:have |got )?an? off (?:switch|button)|"
+                          r"(?:is there|where(?:'s| is)) (?:an?|the|your) off (?:switch|button))(?: (?:completely|all the way|for good|for the night|at night|when i leave))?\W*$", re.I)
     LISTENING_Q = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|wait)\W+)*(?:(?:are|r) (?:you|u) (?:still |always |even )?listening(?: to (?:me|us|everything|the room))?|"
                              r"is (?:your|the) (?:mic|microphone) (?:on|off|muted)|are (?:you|u) (?:muted|on mute))"
                              r"(?: (?:right now|rn|now|all the time|at the moment))?\W*$", re.I)
@@ -7198,6 +7274,9 @@ class Agent:
             if lowered in {"mute", "privacy on"} or self.MIC_OFF.match(lowered):
                 # "stop listening" and "turn off your microphone" are obeyed by code, at once. (Only the word "mute" was; the rest went to the brain.)
                 self.set_muted(True); return {"text": "Mic's off. You can still type to me.", "mic_off": True}
+            if self.TURN_OFF.match(lowered):   # it got "Sure, let's do it step by step. Open my browser."
+                return {"text": "Say “stop listening” and my mic goes off. To switch me off altogether, unplug me, or quit Luma on your computer. "
+                                "Nothing you've told me is lost."}
             if self.LISTENING_Q.match(lowered):   # asked whether it's listening, the answer is the mic's real state, never a brain's guess
                 if self.muted: return {"text": "No. My mic is off, so I only get what you type."}
                 return {"text": "Yes. My mic is on, so I can hear you. Say “stop listening” and it's off."}
@@ -7239,6 +7318,8 @@ class Agent:
             running_a_task = getattr(self, "_turn_channel", None) == "task"   # a task running never makes another task
             standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"
             if standing is not None: return {**standing, "handy": True}
+            off = None if running_a_task else self._reminder_off(lowered)   # "cancel the meds reminder" went to the brain, which can only say it did
+            if off is not None: return off
             followup = self._contact_followup(text)
             if followup is not None: return followup
             carried = self._follow_through(text, lowered, cancel_event)  # a pick from "did you mean", the next step, the rest of a cut-off sentence

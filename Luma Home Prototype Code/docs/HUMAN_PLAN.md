@@ -2704,3 +2704,73 @@ instead of being said. Nothing was changed to fit that set.
 
 Checks: `SaidSince` in `tests/test_said_another_way.py`; the month test without a brain 360 of 360 and 236 of 240
 (unchanged); what a brain is told on both human tests: 0 of 269 turns differ.
+
+## Things anyone says to a speaker, read line by line (Nov 21)
+
+Thirty-two everyday lines, with a stand-in brain, reading what Luma says. Nine were wrong or went to a brain that can
+only say it did the thing:
+
+| They say | Luma said | Now |
+|---|---|---|
+| "wake me up in 20 minutes" | (the brain) | "Alarm set for 7:26 PM, 20 minutes from now." It never rings early. |
+| "do not disturb until 8" | (the brain) | "Do not disturb until 8 AM. Alarms and timers still go off." Also "until morning". |
+| "turn it all the way up", "what's my volume" | (the brain) | "Louder: 10.", "Volume's at 10." |
+| "snooze", with nothing ringing | (the brain) | "Nothing's ringing." |
+| "what's on my list" | "Your my list is empty." | The list they used last: "One thing on your packing list: batteries." |
+| "add milk", just after adding to a list | (the brain) | "Added milk to your shopping list." Only within ten minutes of using a list, and never a saying. |
+| "how do I turn you off" | "Sure, let's do it step by step. Open my browser. I'll take you there." | It says how: "stop listening" for the mic, unplug or quit to switch off, and that nothing is lost. |
+| "how do I turn my brain off at night" | "Sure, let's do it step by step. Open Settings and find “Luma's brain”." | The brain's: "my brain" is theirs, not a setting. |
+| "what did I spend this month" | "Show me. Tap the picture button next to where you type and pick a photo." | The brain's. |
+| "cancel the meds reminder" | (the brain) | "Done. I won't remind you to take your meds." |
+| "remind me to call Mom every Sunday at 6" | "On Sundays at 6 AM…" | 6 PM. A bare 1 to 6 is the afternoon unless it's to wake them or they said morning. |
+
+Cancelling a reminder (`Agent._reminder_off`): the one that matches every word they said is cancelled and named back
+as theirs; a match on only some of the words is never enough ("cancel the call mom reminder" would have cancelled
+"call the vet"); more than one is asked about; "cancel all my reminders" lists them and waits for "yes, cancel
+them", and anything else lets it drop. One that comes round every week is stopped the same way.
+
+A second set written after the fixes and measured once (24 things said to a speaker, 16 near misses that are talk):
+
+| | Before | After |
+|---|---|---|
+| Answered by Luma itself, and right | 0 | **18** |
+| Answered by Luma itself, and wrong | 6 | **0** |
+| Left to the brain | 18 | 6 (two belong there; four are misses) |
+| Near misses taken for a command, of 16 | 0 | **1** |
+
+The four misses, left as they are: "alarm in 10 minutes", "don't disturb me until 9", "volume all the way down",
+"never mind the trash reminder". The near miss was "add insult to injury", which went on the packing list. That one
+is a fault this change made, so it's fixed (an item is a thing, never a phrase with "to", "on", "in", "for" or
+"with" in it): 0 of 16 after. The numbers above are the ones measured before that fix.
+
+Checks: `SpeakerCommands` and `CancellingAReminder` in `tests/test_what_luma_says.py` (no line of the human tests or
+the crisis corpus is taken for any of these); what a brain is told on both human tests: 0 of 269 turns differ; the
+month test without a brain 360 of 360 and 236 of 240.
+
+## Round 6: a gate for what was said since, and what building it found (Nov 21)
+
+The round-5 small brain passed every gate and then scored 42 of 51 on lives nobody built on (the stock 1.7B: 48),
+with "where does my sister live now?" answered with the old city 6 times of 6. No gate looked at that moment and no
+row practised it. Both exist now:
+
+- **The gate** (`SINCE`, `since_rows`, `since_test` in `scripts/train_luma.py`): twelve hand-written lines. Someone
+  says where a person lives or works, days later says something that changes it in words no rule reads as a fact,
+  and later still asks. A stand-in lives those days; the brain is asked with exactly what Luma hands it. A trained
+  brain may not get fewer right than its base. The lines are nobody's practice and nobody's test.
+- **The practice** (`SAID_SINCE`, `STILL_SO`, `said_since_examples` in `scripts/finetune_data.py`): twenty moments
+  where what was said since changes the answer and six where it doesn't, each with a reply that goes by the newer
+  line and adds no place or name that wasn't said. Seen three times, shaped like what the device hands over (the
+  newer line first with its day, then the fact).
+
+Writing the twelve gate lines found four more places where Luma itself, not the brain, got it wrong. All fixed in
+the device, so every brain gets them:
+
+| They said | What went wrong |
+|---|---|
+| "Jo's been in Nashville since the spring" | Not kept at all: a name had to have three letters. |
+| "where's my son working now?" | Not read as a question about his job, so the old job was handed first. |
+| "my uncle took the early retirement and he's driving a school bus" | No "in", "at" or "to" in it, so it didn't count as newer. Luma said "Your uncle works at the refinery." |
+| "dad can't stop talking about Scottsdale, he says he should've left Buffalo years ago" | Not kept as being about their dad. Luma said "Your dad lives in Buffalo." |
+
+After those, all twelve gate lines reach a brain with the newer line first. Tests:
+`WhatWasSaidSinceIsGatedAndPractised` in `tests/test_finetune_data.py`, and three more in `SaidSince`.

@@ -38,6 +38,7 @@ def conversations(seed=7):
     import finetune_data
     rows = finetune_data.examples(random.Random(seed)) + finetune_data.second_try_examples() * 3  # "say it again, like a friend", as the device asks
     rows += finetune_data.as_they_asked_examples() * 3  # a hard evening met the way they once asked, with the line the device gives
+    rows += finetune_data.said_since_examples() * 3  # where someone lives or works now: what they said since, over the older fact
     seen = set()
     for row in rows:  # the short system line: the same instructions, a fraction of the tokens to train through, plus the dictionary note
         if id(row) in seen:
@@ -540,6 +541,81 @@ def month_test(model, tokenizer, torch, label):
     return kept, out
 
 
+# What was said since, over what was said before. Run 60: the round-5 small brain passed every gate here and then said
+# the old city for "where does my sister live now?" on 6 of 6 held-out lives (it had moved her in its practice to nowhere:
+# nothing practised the moment, and no gate looked). Each line: what they said first, what they said days later in words
+# no rule of Luma's reads as a fact, what they ask later still, and a word a right answer has. A stand-in lives those
+# days; what Luma hands the brain at the question is kept, and the brain is asked with exactly that. Lines Luma answers
+# itself (it read the newer thing as a fact) aren't a brain's to get wrong and aren't counted. Nobody's practice and
+# nobody's test (tests check). A new brain may not get fewer right than its base.
+SINCE = [
+    ("my best friend Marisol lives in El Paso", "Marisol's all unpacked in Denver, she sent me a picture of the mountains", "where's Marisol living now?", "denver"),
+    ("my brother works at the post office", "my brother left the post office, he's driving for FedEx now", "where does my brother work these days?", "fedex"),
+    ("my sister lives in Omaha", "my sister is loving Charlotte, the new job suits her", "where does my sister live?", "charlotte"),
+    ("my cousin Andre works at the airport", "Andre is doing IT for the school district, he likes the hours", "where does Andre work now?", "school district"),
+    ("my mom lives in Fresno", "my mom gave up the apartment, she's with my sister in Sacramento", "where does my mom live now?", "sacramento"),
+    ("my grandpa lives in Toledo", "my grandpa's in the veterans home in Lexington now, he likes the food", "where's my grandpa living these days?", "lexington"),
+    ("my son works at the garage", "my son got hired at the Toyota plant, second shift", "where does my son work?", "toyota"),
+    ("my roommate works at Target", "my roommate quit Target, she's at the animal shelter full time", "where's my roommate working these days?", "shelter"),
+    ("my friend Joanna lives in Austin", "Joanna's been in Nashville since the spring, she plays out twice a week", "where does Joanna live?", "nashville"),
+    ("my uncle works at the refinery", "my uncle took the early retirement and he's driving a school bus", "where does my uncle work now?", "bus"),
+    ("my daughter lives in Madison", "my daughter's whole life is in Portland these days, she bikes everywhere", "where does my daughter live now?", "portland"),
+    ("my dad lives in Buffalo", "dad can't stop talking about Scottsdale, he says he should've left Buffalo years ago", "where's my dad living?", "scottsdale"),
+]
+_since = None
+
+
+def since_rows():
+    """[{"said", "want", "messages"}]: the question, with what a Luma that heard both things tells its brain."""
+    global _since
+    if _since is not None:
+        return _since
+    import human_eval
+    from luma.llm import prompts
+    rows = []
+    for first, later, ask, want in SINCE:
+        calls = []
+
+        def stand_in(messages, context, allowed, *args, **kwargs):
+            calls.append((list(messages), list(context)))
+            return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+        s = human_eval.Session(stand_in)
+        try:
+            s.say(first)
+            s.at({"day": 9, "time": "19:00"})
+            s.new_conversation()
+            s.say(later)
+            s.at({"day": 20, "time": "19:00"})
+            s.new_conversation()
+            start = len(calls)
+            s.say(ask)
+            asked = [context for messages, context in calls[start:] if messages and messages[-1].get("content") == ask]
+        finally:
+            s.close()
+        if not asked:
+            continue   # Luma said it itself
+        notes = THOUGHTS.sub("", prompts.build_plan_parts(asked[0], [], "friend", None, "(the time)", compact=True)[1]).strip()
+        if want not in notes.lower():
+            raise SystemExit(f"Luma didn't hand the brain what was said since: {ask!r}")
+        rows.append({"said": ask, "want": want, "messages": [{"role": "system", "content": SHORT_SYSTEM + "\n\n" + notes}, {"role": "user", "content": ask}]})
+    if len(rows) < 8:
+        raise SystemExit(f"only {len(rows)} of the said-since lines reach a brain: the gate needs at least 8")
+    _since = rows
+    return rows
+
+
+def since_test(model, tokenizer, torch, label):
+    """How many of those the brain, on its own, answers with what was said since."""
+    out = []
+    for row in since_rows():
+        reply = generate(model, tokenizer, row["messages"], torch, max_new_tokens=60)
+        out.append({"said": row["said"], "reply": reply[:300], "right": row["want"] in reply.lower()})
+    right = sum(o["right"] for o in out)
+    print(json.dumps({"label": label, "said_since": right, "of": len(out)}), flush=True)
+    return right, out
+
+
 def out_of_nowhere(moments):
     """Asked about suicide where nothing they said hinted at it: luma-brain-19 and small-20 (78 safety practice rows) asked "are
     you safe right now? ... 988" when someone's dad had died and when they were lonely. Both passed every other check."""
@@ -563,6 +639,7 @@ CHECKS = [  # (what it's called in the report, the key, "more" when a higher num
     ("sounding like a pamphlet on a hard day", "sounded_like_a_pamphlet", "fewer"),
     ("asking if they're safe on an ordinary hard day", "asked_safe_on_a_bad_day", "fewer"),
     ("the month test's hard evenings met the way they asked", "met_as_they_asked", "more"),
+    ("what they said since, over what they said before", "said_since", "more"),
 ]
 
 
@@ -630,6 +707,7 @@ def main(argv=None):
         report["before"]["cheered_at_gripes"], report["before_sarcasm"] = sarcasm_test(model, tokenizer, torch, "stock brain")
         report["before"]["sounded_like_a_pamphlet"], report["before"]["asked_safe_on_a_bad_day"], report["before_hurting"] = hurting_test(model, tokenizer, torch, "stock brain")
         report["before"]["met_as_they_asked"], report["before_month"] = month_test(model, tokenizer, torch, "stock brain")
+        report["before"]["said_since"], report["before_since"] = since_test(model, tokenizer, torch, "stock brain")
 
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
@@ -701,6 +779,7 @@ def main(argv=None):
         report["after"]["cheered_at_gripes"], report["after_sarcasm"] = sarcasm_test(model, tokenizer, torch, "Luma brain")
         report["after"]["sounded_like_a_pamphlet"], report["after"]["asked_safe_on_a_bad_day"], report["after_hurting"] = hurting_test(model, tokenizer, torch, "Luma brain")
         report["after"]["met_as_they_asked"], report["after_month"] = month_test(model, tokenizer, torch, "Luma brain")
+        report["after"]["said_since"], report["after_since"] = since_test(model, tokenizer, torch, "Luma brain")
         before, after = report["before"], report["after"]
         report["held_back"] = held_back(before, after)
         report["as_honest"] = not report["held_back"]

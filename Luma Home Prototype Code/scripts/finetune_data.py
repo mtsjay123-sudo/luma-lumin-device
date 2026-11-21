@@ -1084,10 +1084,64 @@ def as_they_asked_examples():
     return rows
 
 
+# What was said since comes before what was said before. Run 60 (Nov 21, 2026): Luma's own small brain from round 5 passed
+# every gate, then on lives nobody built on it said where someone lived BEFORE they moved, 6 times of 6. No gate looked and
+# no row practised it. At that moment the device hands a brain two things (Agent._remembered): what they said since, first,
+# with the day it was said, and then the fact Luma has. A reply goes by the newer one and never adds what wasn't said.
+# Each item: (the fact Luma has, what they said since, what they ask, a good reply). Written for this, worded unlike every
+# test and every made-up life (tests check), and asked in other words than the gate's (train_luma.SINCE).
+SAID_SINCE = [
+    ("My sister lives in Tacoma", "my sister's lease in Tacoma ran out so she's up in Anchorage with her boyfriend", "so where's my sister living at this point?", "Anchorage now, with her boyfriend. Her lease in Tacoma ran out, you said."),
+    ("Rosa (their friend) lives in Miami", "Rosa is all settled in Santa Fe, she says the light there is unreal", "remind me where Rosa's living?", "Santa Fe. Last you told me she was all settled in and loving the light there."),
+    ("My brother works at the hardware store", "my brother's on the road crew for the county, way better pay", "what's my brother doing for work at the moment?", "He's on the county road crew now. Way better pay than the hardware store, you said."),
+    ("My mom lives in Cleveland", "we got my mom moved into the condo in Tucson, my back is wrecked", "which city is my mom in, again?", "Tucson now. You moved her into the condo there, and your back paid for it."),
+    ("Kenji (their coworker) works at the front desk", "Kenji got bumped up to the events team, he's thrilled", "what does Kenji do at work lately?", "He's on the events team now. He got bumped up from the front desk, and you said he's thrilled."),
+    ("My daughter lives in Phoenix", "my daughter's dorm at Oregon State is tiny but she loves it", "where's my daughter staying right now?", "In her dorm at Oregon State. Tiny, but she loves it."),
+    ("My grandma lives in Savannah", "grandma's with us for good, the stairs at her place got to be too much", "where is my grandma living, do you know?", "With you, for good. The stairs at her place got to be too much, you told me."),
+    ("My dad works at the steel mill", "my dad retired from the mill, he's doing handyman jobs around town", "is my dad still working, and where?", "He retired from the mill. He's doing handyman jobs around town now."),
+    ("Imani (their friend) lives in Detroit", "Imani's place in Oakland has a lemon tree, I'm so jealous", "what city is Imani in?", "Oakland, going by what you told me about her place with the lemon tree. Before that I had Detroit."),
+    ("My nephew works at the pizza place", "my nephew is lifeguarding at the rec center instead of slinging pizza", "where's my nephew got a job?", "He's lifeguarding at the rec center now, instead of the pizza place."),
+    ("My wife works at the bank", "my wife gave notice at the bank and she's opening her own bakery", "what's my wife's work situation?", "She gave notice at the bank. She's opening her own bakery."),
+    ("My husband works at the warehouse", "my husband got the dispatcher job at the fire station", "where's my husband working?", "At the fire station. He got the dispatcher job."),
+    ("My cousin lives in Albuquerque", "my cousin is stationed in Okinawa for the next two years", "whereabouts is my cousin?", "Okinawa, stationed there for the next two years."),
+    ("My aunt lives in Richmond", "my aunt finally made it out to Maui, she's renting a little place by the water", "where has my aunt ended up?", "Maui. She's renting a little place by the water."),
+    ("Devon (their roommate) works at the gym", "Devon's doing deliveries for the florist, the gym cut his hours", "what's Devon doing for money?", "Deliveries for the florist. The gym cut his hours, you said."),
+    ("My son lives in Houston", "my son's been out in Bozeman since graduation, he says he's never leaving", "where's my son based?", "Bozeman, since graduation. He says he's never leaving."),
+    ("My sister works at the daycare", "my sister's teaching second grade at Lincoln Elementary", "where does my sister teach or whatever she does?", "She's teaching second grade at Lincoln Elementary."),
+    ("My boyfriend lives in Brooklyn", "my boyfriend's new apartment in Jersey City is twice the size", "where's my boyfriend's place?", "Jersey City. The new apartment's twice the size, you said."),
+    ("My grandpa lives in Duluth", "my grandpa is at my uncle's in Tampa for the winter", "where is my grandpa right now?", "At your uncle's in Tampa, for the winter. Duluth is still home, as far as I know."),
+    ("Lucia (their friend) works at the museum", "Lucia took the job at the aquarium, she's so happy to be out of the museum", "where's Lucia working?", "At the aquarium. You said she's happy to be out of the museum."),
+]
+# The same two things, where what they said since doesn't change the fact: the fact still stands, and it's said plainly.
+STILL_SO = [
+    ("Tomasz (their coworker) lives in Reno", "Tomasz brought in pierogi for the whole office", "what town does Tomasz live in?", "Reno, last you told me."),
+    ("My brother lives in Flagstaff", "my brother is coming to visit in March, I can't wait", "which city is my brother in?", "Flagstaff. And he's coming to visit you in March."),
+    ("My mom lives in Erie", "my mom went to the doctor about her knee", "where's my mom's home?", "Erie, as far as I know."),
+    ("My sister lives in Louisville", "my sister was in town visiting, we got brunch at that place she likes", "where is it my sister lives?", "Louisville. She was just in town visiting you, though."),
+    ("My dad works at the paper mill", "my dad got an award at work for thirty years", "where's my dad's job?", "At the paper mill. Thirty years, with an award to show for it."),
+    ("Nadia (their friend) lives in Baltimore", "Nadia's been to Lisbon twice, she keeps saying I should come", "where's Nadia's home base?", "Baltimore. She's been to Lisbon twice, but that reads like travel to me."),
+]
+SINCE_DAYS = ("Feb 21, 2026", "Jan 4, 2026", "Apr 28, 2026", "Aug 2, 2026", "Sep 17, 2026", "Nov 22, 2026", "Jun 9, 2026")   # each before its evening
+
+
+def said_since_examples():
+    """Asked where someone lives or works now, with what the device hands its brain at that moment (the newer line first,
+    with its day, then the fact; in this turn's notes as prompts.build_plan_parts writes them), and a reply that goes by
+    what was said since."""
+    from luma.llm import prompts
+    rows = []
+    for i, (fact, later, ask, good) in enumerate(SAID_SINCE + STILL_SO):
+        handed = [{"text": f"(They said, {SINCE_DAYS[i % len(SINCE_DAYS)]}) {later}"}, {"text": fact}]
+        notes = prompts.build_plan_parts(handed, [], "friend", None, EVENINGS[i % len(EVENINGS)], compact=True)[1].strip()
+        rows.append({"messages": [{"role": "system", "content": SYSTEM + "\n\n" + notes}, {"role": "user", "content": ask},
+                                  {"role": "assistant", "content": good}]})
+    return rows
+
+
 def main(out="out/finetune", seed=7):
     rng = random.Random(seed)
     # few, and each one matters: seen a few times
-    rows = examples(rng) + question_examples() * 3 + second_try_examples() * 3 + as_they_asked_examples() * 3
+    rows = examples(rng) + question_examples() * 3 + second_try_examples() * 3 + as_they_asked_examples() * 3 + said_since_examples() * 3
     rng.shuffle(rows)
     cut = max(1, len(rows) // 20)
     out = Path(out)

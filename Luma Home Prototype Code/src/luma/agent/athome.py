@@ -91,6 +91,9 @@ ALARM_SET = re.compile(LEAD + r"(?:set|make|create|add|put|get) (?:me )?(?:an? |
 ALARM_SET2 = re.compile(LEAD + r"(?:wake me(?: up)?|get me up) (?:at |by |around )?" + CLOCK + r"(?:,? " + DAYS + r")?" + END, re.I)
 ALARM_SET3 = re.compile(LEAD + r"(?:set |make )?(?:an? |my )?" + CLOCK + r" alarm(?:,? " + DAYS + r")?" + END, re.I)
 ALARM_SET4 = re.compile(LEAD + r"(?:set|make|add) (?:an? |my )?(?:new )?alarm (?:for |on )?" + DAYS + r" (?:at |for )?" + CLOCK + END, re.I)
+ALARM_IN = re.compile(LEAD + r"(?:(?:wake me(?: up)?|get me up)|(?:set|make|add) (?:me )?(?:an? |my |the |another )?(?:new )?alarm(?: for)?) (?:in |for )?"
+                      r"(?P<n>\d{1,3}|an?|one|two|three|four|five|six|seven|eight|nine|ten|half an|a couple of) (?P<unit>min(?:ute)?s?|hours?|hrs?)"
+                      r"(?: and (?P<n2>\d{1,2}|a half|thirty|fifteen|forty[- ]five)(?: min(?:ute)?s?)?)?(?: from now)?" + END, re.I)
 ALARM_LIST = re.compile(LEAD + r"(?:what(?:'s| is| are)? (?:my |the )?alarms?(?: set(?: for)?| for)?(?: tomorrow)?|what alarms? (?:do i have|have i (?:got|set)|are (?:set|on))(?: set| on)?(?: for tomorrow| tomorrow)?|(?:show|list|read|tell) (?:me )?(?:all )?(?:my |the )?alarms?"
                         r"|(?:my |the )?alarms|do i have (?:an? |any )?alarms?(?: set)?(?: for tomorrow| tomorrow)?|when(?:'s| is) my (?:next )?alarm"
                         r"|what time(?: is| did i set) my alarm(?: for| set for)?|is my alarm (?:on|set))" + END, re.I)
@@ -129,9 +132,14 @@ SPELL = re.compile(LEAD + r"(?:how (?:do|would) (?:you|i|we) spell|how(?:'s| is)
 VOLUME = re.compile(LEAD + r"(?:(?P<up>volume up|turn (?:it|the volume|yourself|you) up|louder|speak up|be louder|get louder|a (?:little|bit) louder|up the volume|raise the volume)"
                     r"|(?P<down>volume down|turn (?:it|the volume|yourself|you) down|quieter|softer|be quieter|a (?:little|bit) quieter|lower the volume|lower your voice)"
                     r"|(?:set |change |put )?(?:the |your )?volume (?:to |at )?(?:level )?(?P<to>\d{1,2}|ten|max(?:imum)?|min(?:imum)?|half)(?: percent)?"
-                    r"|(?P<ask>what(?:'s| is) (?:the |your )?volume(?: at)?))(?: a (?:little|bit))?" + END, re.I)
+                    r"|(?P<max>(?:turn|crank|put) (?:it|the volume|yourself|you) (?:all the way |way |right )up(?: to (?:the )?max)?|(?:turn|crank) (?:it|the volume) (?:up )?to (?:the )?max|(?:full|max(?:imum)?|top) volume"
+                    r"|as loud as (?:you can(?: go)?|you go|it goes|possible)|all the way up)"
+                    r"|(?P<min>(?:turn|put) (?:it|the volume|yourself|you) (?:all the way |way |right )down|as quiet as (?:you can(?: go)?|you go|it goes|possible)|all the way down)"
+                    r"|(?P<ask>what(?:'s| is) (?:the |your |my )?volume(?: at| set (?:to|at)| level)?|what volume (?:are you|is it|am i)(?: on| at| set (?:to|at))?|how loud (?:are you|is it)(?: set)?"
+                    r"|what(?:'s| is) (?:the |your )?volume level))(?: a (?:little|bit))?(?: right now| now)?" + END, re.I)
 DND = re.compile(LEAD + r"(?:(?P<off>turn off|stop|end|disable|cancel) do not disturb|do not disturb off|(?:turn on |start |enable |go into |put on )?do not disturb(?: mode)?(?: on)?"
-                 r"(?: for (?P<n>\d{1,3}|an?|one|two|three) (?P<unit>minutes?|hours?))?|(?:turn on |start )?(?:quiet|silent) mode)" + END, re.I)
+                 r"(?: for (?P<n>\d{1,3}|an?|one|two|three) (?P<unit>minutes?|hours?)| (?:until|till|til|'til) (?:(?P<morning>(?:the |tomorrow )?morning|i (?:wake|get) up|tomorrow)|" + CLOCK + r"))?"
+                 r"|(?:turn on |start )?(?:quiet|silent) mode)" + END, re.I)
 
 SOUNDS = {
     "rain": r"rain(?:fall|storm| storm)?|rainy|thunder(?:storm)?|storm",
@@ -482,10 +490,27 @@ class AtHome:
             days = days_of(m["days"]) if "days" in m.groupdict() else []
             label = (m["label"] if "label" in m.groupdict() else None) or ""
             return self.set_alarm(hour, minute, days, label, meridiem)
+        m = ALARM_IN.match(low)
+        if m:   # "wake me up in 20 minutes" went to the brain, which can only say it will
+            n = m["n"].lower()
+            amount = float(n) if n.isdigit() else float(_NUM.get(n, 1))
+            minutes = amount * (60 if m["unit"].lower().startswith("h") else 1)
+            more = (m["n2"] or "").lower()
+            if more:
+                minutes += {"a half": 30, "thirty": 30, "fifteen": 15, "forty five": 45, "forty-five": 45}.get(more, int(more) if more.isdigit() else 0)
+            if not 1 <= minutes <= 23 * 60:
+                return {"text": "I can set that for anything from a minute to 23 hours from now.", "section": "alarms"}
+            ring = datetime.fromtimestamp(self.clock() + minutes * 60 + 59, self.zone)   # the next whole minute: never early
+            out = self.set_alarm(ring.hour, ring.minute, [], "", True)
+            if out.get("alarm") and out["text"].startswith("Alarm set"):
+                out["text"] = f"Alarm set for {say_clock(ring)}, {_span(minutes * 60)} from now."
+            return out
         if ALARM_LIST.match(low): return self.list_alarms()
         m = ALARM_OFF.match(low)
         if m: return self.cancel_alarms(m)
         if SNOOZE.match(low) and self._last_rang_recently(): return self.snooze()
+        if re.match(LEAD + r"snooze(?: it| that| the alarm| my alarm)?" + END, low, re.I):
+            return {"text": "Nothing's ringing.", "section": "alarms"}   # the word alone is never talk; it went to the brain
         return None
 
     def set_alarm(self, hour, minute, days, label="", meridiem=True):
@@ -665,7 +690,16 @@ class AtHome:
         if m and not re.fullmatch(r"(?:me|you|us|him|her|them|someone|somebody|my name|your name)", m["items"].strip()):
             return self.add_items(self._the_list(m["list"]), self.items_in(_keep_case(text, m.start("items"), m.end("items"))))
         m = LIST_READ.match(low)
-        if m and (m["list"] or "").lower() not in {"what", "this", "that", "a", "the"}: return self.read_list(self.list_name(m["list"]))
+        if m and (m["list"] or "").lower() in {"my", "our", "the"} and re.search(r"\b(?:what|read|show|tell|check|open|give)\b", low):
+            return self.read_list(self._the_list(m["list"]))   # "what's on my list" read a list called "my": "Your my list is empty."
+        if m and (m["list"] or "").lower() not in {"what", "this", "that", "a", "the", "my", "our"}: return self.read_list(self.list_name(m["list"]))
+        m = re.match(LEAD + r"add (?P<items>(?!(?:me|you|us|him|her|them|it|that|this|to|up|on|in|more|some more|another|a|an|the)\b)[a-z][a-z' -]{1,40}?)(?: too| as well| also)?" + END, low, re.I)
+        if m:   # "add eggs", just after using a list: it's for that list. Any other time it's talk, and the brain's.
+            rows = [r for r in self._rows("list_item") if not r.get("done")]
+            last = max(rows, key=lambda r: r["at"]) if rows else None
+            if last and self.clock() - last["at"] < 600 and len(m["items"].split()) <= 4 and not re.search(r"\b(?:to|on|in|into|for|with|up|of)\b", m["items"]):
+                # a thing, never a saying: "add insult to injury" went on the packing list (the second set, Nov 21)
+                return self.add_items(last["list"], self.items_in(_keep_case(text, m.start("items"), m.end("items"))))
         return None
 
     def add_items(self, name, items):
@@ -829,7 +863,9 @@ class AtHome:
         if not m: return None
         now = self.volume()
         if m["ask"]: return {"text": f"Volume's at {now}.", "section": "volume", "volume": now}
-        if m["up"]: level = min(10, now + 2)
+        if m["max"]: level = 10
+        elif m["min"]: level = 1
+        elif m["up"]: level = min(10, now + 2)
         elif m["down"]: level = max(1, now - 2)
         else:
             to = m["to"].lower()
@@ -856,14 +892,21 @@ class AtHome:
             self.store.set_setting("hush_until", 0)
             return {"text": "Do not disturb is off. I'm around.", "section": "quiet"}
         n = m["n"]
-        minutes = 60
-        if n:
+        minutes, ring = 60, None
+        if m["morning"] or m["clock"]:   # "do not disturb until 8": the next time the clock says that ("until morning" is 7 AM)
+            try:
+                hour, minute, meridiem = (7, 0, True) if m["morning"] else clock_of(m)
+            except ValueError as error:
+                return {"text": str(error), "section": "quiet"}
+            ring = self._next_ring(hour, minute, [], self.clock(), False, meridiem)
+            minutes = math.ceil((ring.timestamp() - self.clock()) / 60)
+        elif n:
             amount = int(n) if n.isdigit() else int(_NUM.get(n, 1))
             minutes = amount * (60 if m["unit"].lower().startswith("hour") else 1)
-        minutes = max(1, min(1440, minutes))
+        minutes = max(1, min(1440, int(round(minutes))))
         if self.hush: self.hush(minutes)
         else: self.store.set_setting("hush_until", self.clock() + minutes * 60)
-        until = datetime.fromtimestamp(self.clock() + minutes * 60, self.zone)
+        until = ring or datetime.fromtimestamp(self.clock() + minutes * 60, self.zone)
         return {"text": f"Do not disturb until {say_clock(until)}. Alarms and timers still go off.", "section": "quiet"}
 
     # -- sleep sounds ---------------------------------------------------------------------------------------------
