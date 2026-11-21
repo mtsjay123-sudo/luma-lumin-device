@@ -959,6 +959,73 @@ def summary(results, pairs=()):
     return "\n".join(lines)
 
 
+def wishes(label="Luma", planner=None, progress=print):
+    """How they want to be met, said as how they are in words Luma's rules don't know: what a brain adds when it's asked
+    (rapport.wish_prompt, Agent._how_they_asked). The lines are the hand-written sets in tests/test_rapport.py: the forty
+    it was built on, the second set, the third (the honest number) and every near miss. Numbers only, never a line."""
+    sys.path[:0] = [str(ROOT / "tests")]
+    import test_rapport
+    from luma.agent import rapport
+    sets = test_rapport.SaidAsHowTheyAre
+    built = {}
+    try:
+        import finetune_data
+        for style, rows in finetune_data.AS_THEY_ASKED.items():
+            built[style] = [asked for asked, _, _ in rows]
+    except Exception:
+        built = {}
+    wanted = {"built_on": built, "second": sets.HONEST, "third": sets.THIRD}
+    near = {"near_misses": sets.NOT, "second_near_misses": sets.HONEST_NOT, "third_near_misses": sets.THIRD_NOT}
+    session = Session(planner)
+    out = {"kind": "wishes", "label": label, "asked": 0}
+    try:
+        def ask(line):
+            if not rapport.might_be_a_wish(line):
+                return None
+            out["asked"] += 1
+            return session.agent._how_they_asked(line)
+        for name, by_style in wanted.items():
+            row = {"of": 0, "by_luma": 0, "asked": 0, "right": 0, "wrong": 0}
+            for style, lines in by_style.items():
+                for line in lines:
+                    row["of"] += 1
+                    alone = rapport.learn(rapport.empty(), line, now=1.0)
+                    if alone and (rapport.comfort(alone, 1.0) or [None])[0] == style:   # counts already, with no brain asked
+                        row["by_luma"] += 1
+                        continue
+                    row["asked"] += bool(rapport.might_be_a_wish(line))
+                    heard = ask(line)
+                    row["right"] += heard == style
+                    row["wrong"] += bool(heard) and heard != style
+            out[name] = row
+            progress(f"{name}: of {row['of']}, Luma alone {row['by_luma']}, the brain asked on {row['asked']}: right {row['right']}, wrong {row['wrong']}")
+        for name, lines in near.items():
+            row = {"of": len(lines), "by_luma": sum(1 for line in lines if rapport.said_how(line)), "asked": 0, "taken": 0}
+            for line in lines:
+                row["asked"] += bool(rapport.might_be_a_wish(line))
+                row["taken"] += bool(ask(line))
+            out[name] = row
+            progress(f"{name}: of {row['of']}, taken for a wish by Luma alone {row['by_luma']}, the brain asked on {row['asked']}: taken {row['taken']}")
+    finally:
+        session.close()
+    return out
+
+
+def wishes_summary(rows):
+    """One table for every brain: wishes heard by Luma alone and with the brain asked, and near misses taken for one."""
+    out = ["", "### How they want to be met, said in words Luma's rules don't know", "",
+           "| Brain | Built on: heard, of 40 | Second set, of 24 | Third set (the honest number), of 24 | Heard the wrong way | Near misses taken for a wish, of 55 |",
+           "|---|---|---|---|---|---|"]
+    for r in rows:
+        heard = lambda name: f"{r[name]['by_luma']} → {r[name]['by_luma'] + r[name]['right']}"  # noqa: E731
+        wrong = sum(r[name]["wrong"] for name in ("built_on", "second", "third"))
+        near = [r[name] for name in ("near_misses", "second_near_misses", "third_near_misses")]
+        out.append(f"| {r['label']} | {heard('built_on')} | {heard('second')} | **{heard('third')}** | {wrong} | "
+                   f"{sum(n['by_luma'] for n in near)} → {sum(n['by_luma'] + n['taken'] for n in near)} |")
+    out += ["", "Luma alone → with the brain asked. A small brain isn't asked, so its row doesn't move.", ""]
+    return "\n".join(out)
+
+
 def everything(only=None):
     """Human Test v2, and with it the side check on what divides people when that's asked for by name."""
     return load() + (load(DIVIDES) if "divides" in str(only or "") else []) + (load(MEETS) if "meets" in str(only or "") else [])
@@ -972,7 +1039,7 @@ def chosen(items, only):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab"])
+    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab", "wishes"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
@@ -1018,6 +1085,8 @@ def main():
         result = judge_run(json.loads(Path(args.files[0]).read_text()), Judge(args.judge), args.sample)
         args.save = args.save or args.files[0]
         print(json.dumps(result["judge"], indent=1))
+    elif args.what == "wishes":
+        result = wishes(label=args.label)
     elif args.what == "safety":
         result = safety_net(label=args.label, extra=60 if args.sets else 0, replies=30 if args.sets else 0)
         print(json.dumps({k: v for k, v in result.items() if k != "label" and not k.endswith("_heldout")}, indent=1)[:3000])
@@ -1026,11 +1095,11 @@ def main():
         result = pairwise(a, b, Judge(args.judge), args.sample)
         print(json.dumps(result, indent=1))
     else:
-        results, pairs, nets = [], [], []
+        results, pairs, nets, wished = [], [], [], []
         for f in args.files:
             data = json.loads(Path(f).read_text())
-            (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else results).append(data)
-        print((summary(results, pairs) if results or pairs else "") + (safety_summary(nets) if nets else ""))
+            (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else wished if data.get("kind") == "wishes" else results).append(data)
+        print((summary(results, pairs) if results or pairs else "") + (safety_summary(nets) if nets else "") + (wishes_summary(wished) if wished else ""))
         return
     if args.save:
         Path(args.save).parent.mkdir(parents=True, exist_ok=True)

@@ -2,6 +2,7 @@
 
 All fresh wording: nothing here is from a human test, the think set or a held-out safety line."""
 import tempfile
+import json
 import unittest
 from pathlib import Path
 
@@ -592,6 +593,237 @@ class WhenLumaCantTellItsAHardMoment(unittest.TestCase):
             s.close()
 
 
+class AStandingWishThatNamesABadDay(unittest.TestCase):
+    """Run 59 (Nov 21, 2026): three of the side check's twelve hard evenings failed on every brain, before and after. Their
+    wish was "when I've had a bad day, talk about something else". Luma's reader of feelings takes "a bad day" for a hard
+    moment, so the wish was kept as something asked once in one, which needs a second time before it counts. Said as how
+    they are, it's a standing wish, and counts the first time. The lines here are fresh."""
+
+    def learned(self, wish):
+        hurting = bool(rapport.hard(feelings.read(wish)))
+        profile = rapport.learn(rapport.empty(), wish, hurting=hurting, now=NOW)
+        return hurting, (rapport.comfort(profile, NOW + 5 * DAY) if profile else None)
+
+    def test_said_as_how_they_are_it_counts_the_first_time(self):
+        read_as_hard = 0
+        for wish in ("whenever it's been a long day, get my mind off it", "when I've had a rough week, talk to me about anything else",
+                     "if I've had an awful day, just change the subject"):
+            hurting, how = self.learned(wish)
+            read_as_hard += hurting
+            self.assertEqual((how or [None])[0], "distract", wish)
+        self.assertGreaterEqual(read_as_hard, 1)       # at least one of them is the case that used to be lost
+
+    def test_asked_once_on_a_bad_day_is_still_not_a_habit(self):
+        for wish in ("ugh, bad day. distract me", "I had a bad day, talk about something else", "rough one today, tell me a joke"):
+            self.assertIsNone(self.learned(wish)[1], wish)
+
+
+class ASmallBrainIsAskedBothWays(unittest.TestCase):
+    """Run 59: asked whether something went wrong, the 1.7B said YES on 11 of 24 ordinary evenings and Luma's own small
+    brain on 17 (the 4B brains: 1 and 0). A small brain is asked the other way round too, and believed only when it says
+    YES to "did something go wrong" and NO to "was it good news, a plan or an ordinary thing"."""
+
+    def ask(self, answers, small):
+        import contextlib
+        from unittest import mock
+
+        from luma.agent.runtime import Agent
+        from luma.llm import brain
+        asked = []
+
+        def yes_or_no(question, **kwargs):
+            asked.append(question)
+            return answers[len(asked) - 1]
+
+        class Stub:
+            planner, use_model, mode = None, True, "friend"
+            _silent = staticmethod(contextlib.nullcontext)
+
+        with mock.patch.object(brain, "yes_or_no", yes_or_no), mock.patch.object(brain, "small_here", lambda: small):
+            return Agent._went_wrong_for_them(Stub(), "my car got towed while I was at the dentist"), asked
+
+    def test_a_bigger_brain_is_asked_once(self):
+        self.assertEqual([len(self.ask(["YES"], False)[1]), self.ask(["YES"], False)[0], self.ask(["NO"], False)[0]], [1, True, False])
+
+    def test_a_small_brain_that_says_yes_to_everything_adds_nothing(self):
+        yes, asked = self.ask(["YES", "YES"], True)
+        self.assertFalse(yes)
+        self.assertEqual(asked, [rapport.hard_prompt("my car got towed while I was at the dentist"), rapport.fine_prompt("my car got towed while I was at the dentist")])
+
+    def test_a_small_brain_is_believed_when_the_two_answers_agree(self):
+        self.assertTrue(self.ask(["YES", "NO"], True)[0])
+        yes, asked = self.ask(["NO"], True)
+        self.assertFalse(yes)
+        self.assertEqual(len(asked), 1)                # a NO needs no second question
+
+    def test_the_two_questions_share_their_examples_the_other_way_round(self):
+        hard, fine = rapport.hard_prompt("x"), rapport.fine_prompt("x")
+        for line in rapport.HARD_NO:
+            self.assertIn(line, hard.split("YES:")[0])
+            self.assertIn(line, fine.split("NO:")[0])
+        for line in rapport.HARD_YES:
+            self.assertIn(line, hard.split("YES:")[1])
+            self.assertIn(line, fine.split("NO:")[1])
+        self.assertTrue(fine.endswith("Answer with one word: YES or NO."))
+
+
+class SaidInWordsLumaDoesntKnow(unittest.TestCase):
+    """The honest number for wishes heard was 4 of 24 (the third set, Nov 20). On a sentence with the plain shape of a
+    wish where Luma hears nothing, a bigger brain is asked one plain question for each way of being met, and believed
+    only when it says YES to exactly one. What that's worth is a brain's to show (`human_eval.py wishes`); these are
+    the rules around it. The lines here are fresh."""
+
+    WISH = "when life gets heavy for me, I want your silliest stories"
+
+    def ask(self, yes_to, small=False, said=None):
+        import contextlib
+        from unittest import mock
+
+        from luma.agent.runtime import Agent
+        from luma.llm import brain
+        asked = []
+
+        def yes_or_no(question, **kwargs):
+            asked.append(question)
+            return "YES" if any(question == rapport.wish_prompt(said or self.WISH, style) for style in yes_to) else "NO"
+
+        class Stub:
+            planner, use_model, mode = None, True, "friend"
+            _silent = staticmethod(contextlib.nullcontext)
+
+        with mock.patch.object(brain, "yes_or_no", yes_or_no), mock.patch.object(brain, "small_here", lambda: small):
+            return Agent._how_they_asked(Stub(), said or self.WISH), asked
+
+    def test_only_a_sentence_with_the_shape_of_a_wish_is_asked_about(self):
+        self.assertIsNone(rapport.said_how(self.WISH))
+        self.assertTrue(rapport.might_be_a_wish(self.WISH))
+        for said in ("when I'm down, take my mind off it",                       # Luma hears it already
+                     "what do you do when I'm having a bad day?",                # a question
+                     "when my brother is upset he wants to be left alone",       # his way, not theirs
+                     "I had pasta for dinner and watched the game",              # no hard time named
+                     "when I was a kid and got sad I hid in the garage",         # long ago
+                     "when things get bad I think about ending it all",          # the crisis net's, never a line about comfort
+                     "let's not talk about my ex anymore"):                      # a closed subject, already kept as one
+            self.assertFalse(rapport.might_be_a_wish(said), said)
+
+    def test_believed_only_on_exactly_one_yes(self):
+        heard, asked = self.ask(["laugh"])
+        self.assertEqual(heard, "laugh")
+        self.assertEqual(len(asked), len(rapport.STYLES))            # every way is asked: a YES to two is no clear wish
+        self.assertIsNone(self.ask([])[0])
+        self.assertIsNone(self.ask(["listen", "laugh"])[0])
+        self.assertIsNone(self.ask(list(rapport.STYLES))[0])         # a brain that says YES to everything teaches nothing
+
+    def test_a_small_brain_isnt_asked(self):
+        heard, asked = self.ask(["laugh"], small=True)
+        self.assertEqual((heard, asked), (None, []))
+
+    def test_what_a_brain_heard_counts_as_a_standing_wish(self):
+        profile = rapport.learn(rapport.empty(), self.WISH, now=NOW, heard="laugh")
+        self.assertEqual(rapport.comfort(profile, NOW + DAY), ("laugh", self.WISH))
+        self.assertIsNone(rapport.learn(rapport.empty(), self.WISH, now=NOW))                      # unheard, it teaches nothing
+        self.assertIsNone(rapport.learn(rapport.empty(), self.WISH, now=NOW, heard="scold"))       # not a way Luma knows
+
+    def test_the_question_is_plain_and_its_examples_are_nobodys_test(self):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts"), str(Path(__file__).resolve().parent)]
+        import finetune_data
+        import human_eval
+        import month_eval
+        import test_finetune_data
+        taken, plain = test_finetune_data.every_test_line()
+        taken.update(plain(turn["said"]) for item in human_eval.load(human_eval.MEETS) for turn in item["turns"])
+        sets = SaidAsHowTheyAre
+        for rows in (sets.HONEST, sets.THIRD):
+            taken.update(plain(line) for lines in rows.values() for line in lines)
+        taken.update(plain(line) for rows in (sets.NOT, sets.HONEST_NOT, sets.THIRD_NOT) for line in rows)
+        taken.update(plain(line) for rows in finetune_data.AS_THEY_ASKED.values() for asked, said, _ in rows for line in (asked, said))
+        for half in ("dev", "heldout"):
+            for seed in month_eval.SEEDS[half]:
+                for _, _, turns in month_eval.Life(seed, half).days():
+                    taken.update(plain(t["say"]) for t in turns)
+        mine = [line for lines in rapport.WISH_YES.values() for line in lines] + rapport.WISH_NO
+        self.assertEqual(sum(1 for line in mine if plain(line) in taken), 0)
+        for style in rapport.STYLES:
+            prompt = rapport.wish_prompt(self.WISH, style)
+            self.assertIn(f'They said: "{self.WISH}"', prompt)
+            self.assertTrue(prompt.endswith("Answer with one word: YES or NO."))
+            yes, no = prompt.split("\nNO: ")[0], prompt.split("\nNO: ")[1]
+            for line in rapport.WISH_YES[style]:
+                self.assertIn(line, yes)
+            for other in rapport.STYLES:
+                if other != style:
+                    self.assertIn(rapport.WISH_YES[other][0], no)       # the other ways are a NO to this question
+                    self.assertNotIn(rapport.WISH_YES[other][0], yes)
+            self.assertFalse([line for line in rapport.WISH_NO if line not in no])
+        self.assertEqual([line for line in rapport.WISH_NO if rapport.said_how(line)], [])
+
+    def in_luma(self, yes_to, plain_questions=True):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+        import human_eval
+        asked = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            last = messages[-1]["content"]
+            if last.startswith("Someone is telling you something about themselves."):
+                asked.append(last)
+                return {"type": "reply", "text": "YES" if any(last == rapport.wish_prompt(self.WISH, style) for style in yes_to) else "NO"}
+            return {"type": "reply", "text": "Okay. I'll remember that."}
+
+        planner.answers_plain_questions = plain_questions
+        return human_eval.Session(planner), asked
+
+    def test_in_luma_its_learned_and_shown_like_any_other(self):
+        s, asked = self.in_luma(["laugh"])
+        try:
+            s.say(self.WISH)
+            self.assertEqual(len(asked), 4)
+            self.assertEqual(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]), ("laugh", self.WISH))
+            asked.clear()
+            s.say("I made a really good soup tonight")                # nothing with the shape of a wish: nothing is asked
+            s.say("when I'm down, take my mind off it")               # Luma hears this one itself
+            self.assertEqual(asked, [])
+        finally:
+            s.close()
+
+    def test_in_luma_no_clear_answer_or_no_one_to_ask_teaches_nothing(self):
+        for yes_to, plain_questions in (([], True), (["listen", "laugh"], True), (["laugh"], False)):
+            s, asked = self.in_luma(yes_to, plain_questions)
+            try:
+                s.say(self.WISH)
+                self.assertIsNone(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]))
+                self.assertEqual(bool(asked), plain_questions)
+            finally:
+                s.close()
+
+    def test_never_in_kids_mode(self):
+        s, asked = self.in_luma(["laugh"])
+        try:
+            s.agent.set_mode("kids")
+            s.say(self.WISH)
+            self.assertEqual(asked, [])
+            self.assertIsNone(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]))
+        finally:
+            s.close()
+
+    def test_the_measuring_command_counts_and_never_keeps_a_line(self):
+        import sys as sys_
+        sys_.path[:0] = [str(Path(__file__).resolve().parents[1] / "scripts")]
+        import human_eval
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            return {"type": "reply", "text": "NO"}
+
+        planner.answers_plain_questions = True
+        out = human_eval.wishes("stand-in", planner, progress=lambda line: None)
+        self.assertEqual(out["third"]["of"], 24)
+        self.assertEqual(out["third"]["by_luma"], 4)                  # the honest number without a brain
+        self.assertEqual((out["third"]["right"], out["third"]["wrong"]), (0, 0))
+        self.assertEqual(sum(out[name]["taken"] for name in ("near_misses", "second_near_misses", "third_near_misses")), 0)
+        self.assertNotIn("when", json.dumps(out).replace("when they", ""))   # counts only
+
+
 class TheSideCheck(unittest.TestCase):
     """data/meets_check.jsonl: a side check for real brains, never counted in Human Test v2 (`--only meets`)."""
 
@@ -609,8 +841,9 @@ class TheSideCheck(unittest.TestCase):
             wish, later = item["turns"]
             self.assertFalse(wish.get("must") or wish.get("must_not"))
             self.assertTrue(later["new_conversation"] and later["at"]["day"] >= 3)        # days later, in a new conversation
-            profile = rapport.learn(rapport.empty(), wish["said"], now=NOW)
-            self.assertEqual(rapport.comfort(profile, NOW)[0], "listen" if item["category"] == "meets_listen" else "distract", wish["said"])
+            for hurting in (False, bool(rapport.hard(feelings.read(wish["said"])))):   # the second is how Luma itself learns it
+                profile = rapport.learn(rapport.empty(), wish["said"], hurting=hurting, now=NOW)
+                self.assertEqual(rapport.comfort(profile, NOW)[0], "listen" if item["category"] == "meets_listen" else "distract", wish["said"])
         self.assertEqual(len(self.he.chosen(self.he.everything("meets"), "meets")), 36)
         self.assertFalse([i for i in self.he.everything(None) if i["category"].startswith("meets")])   # never part of Human Test v2
 
@@ -647,7 +880,7 @@ class TheSideCheck(unittest.TestCase):
             if item["category"] == "meets_listen":
                 continue
             wish, later = item["turns"]
-            profile = rapport.learn(rapport.empty(), wish["said"], now=NOW)
+            profile = rapport.learn(rapport.empty(), wish["said"], hurting=bool(rapport.hard(feelings.read(wish["said"]))), now=NOW)
             felt = feelings.read(later["said"])
             reads[item["category"]] += bool(rapport.owed(profile, later["said"], felt, reply, NOW + DAY))
             asks[item["category"]] += bool(rapport.might_owe(profile, later["said"], felt, reply, NOW + DAY))

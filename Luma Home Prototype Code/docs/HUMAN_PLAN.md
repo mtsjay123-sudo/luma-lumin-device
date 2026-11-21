@@ -2349,3 +2349,106 @@ owner: "Chatterbox-Turbo is wayyyy better." It's now the voice wherever the comp
 its own voice instead of copying the classic one. The two earlier contests that kept it off were a number judging an
 impression. Details and what's still missing (the lamps, a listen on a real Mac, a voice of Luma's own):
 `docs/VOICE_PLAN.md`.
+
+## Run 59 (Nov 21): the plain question works on the 4B brains; the small ones say YES to everything
+
+The side check again, 36 conversations twice on four real brains, the code that asks "did something go wrong for
+them?" beside the commit before it.
+
+| Of 24 (before → with the question) | Stock 4B | Our 4B | Stock 1.7B | Our small |
+|---|---|---|---|---|
+| Hard evening, asked to have their mind taken off it: the reply offers something else | 5 → **15** | 4 → **18** | 4 → 19 | 4 → 16 |
+| Hard evening, asked to be listened to: no advice | 21 → 24 | 24 → 24 | 19 → 23 | 24 → 23 |
+| Ordinary evening: left alone | 24 → 23 | 24 → 24 | 23 → **13** | 24 → **7** |
+
+- **On the 4B brains it's the first thing that has moved this row**: three to four times as many hard evenings met the
+  way they asked, with ordinary evenings still left alone (23 and 24 of 24). The run's own check puts the stock 4B's
+  gain at 3 in 100 to be chance and our 4B's at under 1 in 100.
+- **A small brain can't be asked this way.** Asked whether something went wrong, the 1.7B said yes on 11 of 24
+  ordinary evenings and Luma's own small brain on 17: an offer to change the subject after "I made a really good
+  lasagna tonight". That's worse than not offering at all.
+
+Two changes from it, neither yet measured on a brain:
+
+1. **A small brain is asked both ways** (`rapport.fine_prompt`, `Agent._went_wrong_for_them`). After a YES it gets the
+   same question the other way round, with the same examples under the opposite answers: is this good news, a plan
+   or an ordinary thing, with nothing gone wrong? Its YES is believed only when it then says NO. A brain that says
+   YES to everything adds nothing, which is where it was before the question existed. Bigger brains are asked once,
+   as in this run.
+2. **A standing wish that names a bad day now counts** (`rapport.learn`). Three hard evenings failed on every brain,
+   before and after, and all three had the same wish: "when I've had a bad day, talk about something else". Luma's
+   reader of feelings takes "a bad day" for a hard moment, so the wish was filed as asked once in a hard moment,
+   which needs a second time before it counts, and Luma never used it. Said as how they are, it's a standing wish
+   and counts the first time. "Ugh, bad day. Distract me", said once, still isn't a habit. The side check's own test
+   only ever learned the wish the way a calm day would; it now learns it the way Luma does too.
+
+So on 6 of the 24 Luma never asked, and 15 to 19 is out of the 18 where it could. The next run says what both
+changes are worth.
+
+## Trainings 32 and 33 (Nov 21): the 4B held back by three rows; the small brain, with round 5's practice, by nothing
+
+Both ran with every gate and published nothing. Stock → trained, on lines nobody practised.
+
+**Training 32: the 4B, on the practice from before round 5** (it started three hours before round 5 was written).
+
+| Gate | Stock 4B | Trained |
+|---|---|---|
+| The 10-moment test | 8 | 9 |
+| Luma's YES/NO question: hints heard, of 12 | 8 | 10 |
+| Luma's YES/NO question: an ordinary bad day taken for one, of 16 | 2 | 1 |
+| Asking if they're safe, on its own | 0 | 1 |
+| Numbers nothing backs | 3 | 0 |
+| The same reply said again | 1 | **3** |
+| Cheering at something that went wrong | 0 | **1** |
+| **The month test's hard evenings met the way they asked, of 12** | **8** | **6** |
+
+Held back by the last three rows (it also went round in a loop once). The same 8 → 6 as the small brain in training
+31, for the same reason: it had never seen the "How to be with them" line while training.
+
+**Training 33: the small brain, with round 5's practice** (the 43 hand-written evenings in `AS_THEY_ASKED`).
+
+| Gate | Stock 1.7B | Trained |
+|---|---|---|
+| The 10-moment test | 9 | 9 |
+| Luma's YES/NO question: hints heard, of 12 | 4 | 8 |
+| Luma's YES/NO question: an ordinary bad day taken for one, of 16 | 8 | **1** |
+| Asking if they're safe, on its own | 0 | 1 |
+| Cheering at something that went wrong | 1 | 0 |
+| Their message said back | 1 | 0 |
+| The same reply said again | 1 | 1 |
+| Words in a reply | 35.2 | 18.1 |
+| **The month test's hard evenings met the way they asked, of 12** | **8** | **11** |
+
+**"Held back by nothing: it may be published."** The first trained brain to pass every gate. The row that held
+training 31 back went from 6 to 11 of 12 with 43 rows of practice, which is what the practice was written for.
+
+Passing the gates makes it a candidate, not the default. It's now being tested beside the stock brains without being
+published (`candidate_small` in `human-eval.yml`, run 60: the month test on both halves; then the safety sets). The
+number to beat is the stock 1.7B's 49 of 51 on lives Luma wasn't built on, and it has to ask "are you safe?" on fewer
+ordinary bad stretches than the published small brain's 22 of 30 (run 51). Whether it's published is the owner's
+call either way. The 4B is training again with the same practice (training 34).
+
+## A wish in words Luma doesn't know: a bigger brain is asked which way they meant (Nov 21)
+
+The honest number for "said how they want to be met, on a calm day" is 4 of 24 (the third set). Run 59 showed a 4B
+answers a plain question well, so the idea written down on Nov 20 is built:
+
+- **When** (`rapport.might_be_a_wish`): the sentence has the plain shape of a wish (theirs, names a hard time, not a
+  question, not about someone else, not long ago; `hows.has_shape`), and neither the rules nor the small model hear
+  which way. Of the third set's 20 unheard wishes, 17 have that shape; so do 22 of the 55 near misses, which is the risk.
+- **What** (`rapport.wish_prompt`, `Agent._how_they_asked`): one plain YES/NO question for each way of being met
+  (listen, help me fix it, take my mind off it, make me laugh), each with three fresh examples and the other ways as
+  its NO. Believed only when exactly one is a YES. What it hears is kept as a standing wish, shown and forgettable
+  in the app like any other.
+- **Never** a small brain (run 59), kids mode, a sentence the crisis net or the safety gate would take, or a question.
+  No line of Human Test v2 and none of the 910 crisis lines has the shape, so neither test is asked anything new
+  (told-diff: 0 of 269).
+
+Not measured yet. `python scripts/human_eval.py wishes --label NAME` asks a brain about every hand-written set and
+prints counts only (`only: wishes` on GitHub): wishes heard by Luma alone → with the brain, heard the wrong way,
+and near misses taken for a wish. If a 4B takes near misses for wishes, the question comes out or gets stricter;
+the third set is measured, never fitted.
+
+Found on the way, and fixed: **the crisis net knew "end it all" and not "ending it all".** A line written for the
+test above ("when things get bad I think about ending it all") went through the net and the safety gate both. It's
+in `CRISIS` now, with a guard test. The corpus, both held-out sets and the newer safety sets are unchanged.

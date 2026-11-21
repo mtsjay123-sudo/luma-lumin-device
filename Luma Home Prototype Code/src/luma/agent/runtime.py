@@ -139,7 +139,7 @@ SENSED = re.compile(r"\bi(?:'?ve| have| just| already)?\s+(?:tasted|ate|drank|be
                     r"\bwhile (?:i was )?(?:making (?:coffee|tea|food|dinner|breakfast)|driving|cooking|working out|at the gym|in the car|in the shower)\b|"
                     r"\bmy (?:coffee|breakfast|lunch|dinner|commute|morning run|car)\b", re.I)
 # Someone who might hurt themselves gets 988 and a real person right away, before anything else. A modest pattern, not a clinical classifier.
-CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
+CRISIS = re.compile(r"\b(?:kill(?:ing)? myself|kms|end(?:ing)? my (?:own )?life|end(?:ing)? it all|suicid(?:e|al)(?! squad| doors?| tendencies| silence)|unalive myself|"
                     r"i (?:just )?(?:want|wanna) (?:to )?die\b(?! (?:of|from|laughing|lol|lmao))|wanting to die\b(?! (?:of|from|laughing|lol|lmao))|don'?t want to (?:be alive|live anymore|be here anymore|wake up)|"
                     r"(?:want|wanna|going|gonna|thinking about|might|could|keep) (?:to )?(?:hurt(?:ing)?|cut(?:ting)?|harm(?:ing)?) myself|(?:been )?cutting myself|self[- ]harm(?:ing)?|"
                     r"(?:everyone|everybody|they|the world|my family|people)(?:'d| would) (?:all )?be better off (?:without me|if i (?:(?:was|were) gone(?! for)|died|(?:wasn'?t|weren'?t) (?:here|around|alive)(?! for)))|"
@@ -5064,11 +5064,48 @@ class Agent:
                         yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
                 elif self.use_model:
                     from luma.llm import brain
-                    yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+                    stop = cancel_event or threading.Event()
+                    yes = brain.yes_or_no(question, cancel_event=stop, mode=self.mode) == "YES"
+                    if yes and brain.small_here():
+                        # A small brain says YES to nearly anything (run 59: an offer to change the subject on 11 and 17 of
+                        # 24 ordinary evenings). It's asked the other way round too, and believed only when the two agree.
+                        yes = brain.yes_or_no(rapport.fine_prompt(said), cancel_event=stop, mode=self.mode) == "NO"
         except Exception:
             yes = False
         self._hard_asked = (said, yes)   # for the tests and the human test's own count
         return yes
+
+    def _how_they_asked(self, said, cancel_event=None):
+        """Luma's fourth plain question, never heard, YES or NO only: said as how they are in words Luma doesn't know, which
+        way are they asking to be met? One question for each way; believed only when exactly one is a YES. Asked only on a
+        sentence with the plain shape of a wish (rapport.might_be_a_wish). A small brain isn't asked: it says YES to
+        nearly anything (run 59). With no brain to ask, or no clear answer, nothing is learned."""
+        from luma.agent import friendcheck, rapport
+        yes = []
+        try:
+            with self._silent():
+                stop = cancel_event or threading.Event()
+                for style in rapport.STYLES:
+                    question = rapport.wish_prompt(said, style)
+                    if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                        if not getattr(self.planner, "answers_plain_questions", False):
+                            return None
+                        out = self.call_planner([{"role": "user", "content": question}], [], {}, stop)
+                        answer = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+                    elif self.use_model:
+                        from luma.llm import brain
+                        if brain.small_here():
+                            return None
+                        answer = brain.yes_or_no(question, cancel_event=stop, mode=self.mode) == "YES"
+                    else:
+                        return None
+                    if answer:
+                        yes.append(style)
+                        if len(yes) > 1:
+                            return None   # two ways at once is no clear wish
+        except Exception:
+            return None
+        return yes[0] if len(yes) == 1 else None
 
     def _as_they_asked(self, said, reply):
         """They said how they want to be met when they're hurting, the brain was told, and the reply didn't do it: Luma adds the
@@ -6824,7 +6861,9 @@ class Agent:
             told = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
             hurting = any(rapport.hard(feelings.read(t)) for t in told + [text])
             before = [h["content"] for h in self.history if h.get("role") == "assistant" and isinstance(h.get("content"), str)]
-            learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock())
+            heard = self._how_they_asked(text) if rapport.might_be_a_wish(text) else None
+            learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock(),
+                                    heard=heard)
             if learned is not None:
                 self.store.set_setting(rapport.KEY, learned)
         except Exception:

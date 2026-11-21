@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; first the lives it was built on, then the held-out lives with numbers only; times = how many lives of each, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), wishes (how they want to be met, said in words Luma's rules don't know: what each brain adds when asked, numbers only), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; first the lives it was built on, then the held-out lives with numbers only; times = how many lives of each, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
       times:
         description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
@@ -115,7 +115,7 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
-        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month' && inputs.only != 'sets'
+        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month' && inputs.only != 'sets' && inputs.only != 'wishes'
         env:
           KIND: ${{ inputs.only }}
           TIMES: ${{ inputs.times }}
@@ -148,6 +148,11 @@ jobs:
           # told it's all they need). About half an hour more on a 4B.
           if [ "$KIND" = sets ]; then more="--sets"; else more=""; fi
           python scripts/human_eval.py safety $more --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
+      - name: How they want to be met, said in words Luma's rules don't know (what the brain adds when asked; numbers only)
+        if: inputs.only == 'wishes'
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          python scripts/human_eval.py wishes --label "$LABEL" --save "$RUNNER_TEMP/v2/wishes-${{ matrix.key }}.json"
       - name: The think set (100 questions checked by code; scripts/think_eval.py)
         if: inputs.only == 'think'
         run: |
@@ -264,7 +269,7 @@ jobs:
           for key in stock-4b own-4b stock-1.7b own-1.7b; do
             if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
           done
-          files="$files $(ls before-*.json pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          files="$files $(ls before-*.json pair-*.json safety-*.json wishes-*.json 2>/dev/null | tr '\n' ' ')"
           cd "$GITHUB_WORKSPACE/Luma Home Prototype Code"
           if [ -n "$(echo $files)" ]; then
             (cd "$RUNNER_TEMP/all" && python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files) | tee -a "$GITHUB_STEP_SUMMARY"
@@ -289,7 +294,7 @@ jobs:
           for key in stock-4b own-4b stock-1.7b own-1.7b; do
             if [ -f "judged-$key.json" ]; then files="$files judged-$key.json"; elif [ -f "v2-$key.json" ]; then files="$files v2-$key.json"; fi
           done
-          files="$files $(ls before-*.json pair-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          files="$files $(ls before-*.json pair-*.json safety-*.json wishes-*.json 2>/dev/null | tr '\n' ' ')"
           if [ -n "$(echo $files)" ]; then
             python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files | grep -E '^\||^\*\*Pairwise|^#' || true
           fi

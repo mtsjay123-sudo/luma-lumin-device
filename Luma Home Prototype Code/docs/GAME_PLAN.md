@@ -110,6 +110,17 @@ on day 1 and run alongside everything else:
   `human-eval.yml`).
 - **Two proofs became tests:** a stranger on the Wi-Fi gets nothing (888 requests, only the pairing route answers),
   and a power cut mid-write loses nothing that was confirmed (8 kills).
+- **Run 59 (Nov 21): asking the brain one plain question works on the 4B brains.** Hard evenings met the way they
+  asked: 5 → 15 and 4 → 18 of 24 (stock 4B, our 4B), ordinary evenings still left alone (23 and 24 of 24). The small
+  brains said yes to ordinary evenings too (left alone on 13 and 7 of 24), so a small brain is now asked the other
+  way round as well and believed only when the two answers agree. Not yet measured.
+- **Training 33 (Nov 21): the first trained brain to pass every gate.** The small brain with round 5's 43 practice
+  evenings: hard evenings met the way they asked 8 → 11 of 12 (training 31, without them: 8 → 6); an ordinary bad day
+  taken for a crisis by Luma's question 8 → 1 of 16. Not published: it's being tested beside the stock brains first
+  (run 60), and has to beat the stock 1.7B's 49 of 51. The 4B without that practice (training 32) was held back by
+  three rows; it's training again with it (training 34).
+- **The voice, by the owner's ear (Nov 21):** Chatterbox-Turbo, in its own voice, wherever the computer can run it.
+  The lamps keep the classic voice until a board can run the new one.
 
 ## 1. Where Luma stands (measured)
 

@@ -116,6 +116,13 @@ class SaidAnotherWay(unittest.TestCase):
         for said in ("wanting to die laughing at that video", "i was wanting to die of embarrassment lol", "wanting to dye my hair pink"):
             self.assertFalse(CRISIS.search(said.lower()), said)
 
+    def test_ending_it_all_is_answered_by_the_net_itself(self):
+        """Found on Nov 21 with a line written for another piece of work (when someone says how they want to be met): the
+        net knew "end it all" and not "ending it all"."""
+        for said in ("i think about ending it all", "when things get bad I think about ending it all", "lately i keep thinking of ending it all",
+                     "some nights ending it all sounds easier"):
+            self.assertTrue(CRISIS.search(said.lower()), said)
+
     def test_hopelessness_said_flat_gets_the_question(self):
         for said in ("i don't see the point in anything", "is it bad that i don't see the point in anything", "there's no point in any of it",
                      "nothing matters anymore", "i can't see the point of going on", "what's the point of even trying"):

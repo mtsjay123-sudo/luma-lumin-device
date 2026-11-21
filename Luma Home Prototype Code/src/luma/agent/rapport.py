@@ -195,6 +195,63 @@ def hard_prompt(said):
             f'They just said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
 
 
+def fine_prompt(said):
+    """The same question asked the other way round, for a brain that says YES to nearly anything (run 59: on ordinary
+    evenings the 1.7B said something went wrong 11 times in 24, Luma's own small one 17). A small brain's YES is believed
+    only when it also says NO to this."""
+    shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
+    return ("Someone is telling you about their day. Is it good news, a plan, or an ordinary thing they did, with nothing gone wrong for "
+            "them? Something that went wrong, or bad or upsetting news for them, doesn't count.\n"
+            f"YES: {shown(HARD_NO)}\nNO: {shown(HARD_YES)}\n"
+            f'They just said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
+
+
+# Said as how they are, in words neither the rules nor the small model know (the honest number, Nov 20: 4 of 24 heard).
+# A bigger brain is asked, one plain YES/NO question for each way of being met, and believed only when it says YES to
+# exactly one. Only on a sentence with the plain shape of a wish (hows.has_shape); never a small brain (run 59).
+WISH = {
+    "listen": "to listen and be there with them, without advice and without fixing it",
+    "advice": "to help them sort it out: say what you think, give advice or a plan",
+    "distract": "to take their mind off it: change the subject, talk about something else",
+    "laugh": "to make them laugh: joke with them, be silly, say something funny",
+}
+WISH_YES = {
+    "listen": ["when I'm having a hard time I mostly want someone to sit in it with me", "if I'm in a bad place, no fixing, only company",
+               "on my worst days an ear is all I'm after"],
+    "advice": ["when I'm in a bad spot, be blunt and say what you'd do", "if things fall apart for me, I want a plan from you, not sympathy",
+               "whenever I'm struggling, point me at the next step"],
+    "distract": ["when I'm in a funk, get me thinking about anything else", "if I've had a horrible day, steer us somewhere else entirely",
+                 "whenever I'm low, a different topic helps me more than going over it"],
+    "laugh": ["when I'm miserable, be goofy with me", "if I'm having a rotten day, I want your worst puns",
+              "whenever I'm blue, getting me to crack up is the cure"],
+}
+WISH_NO = ["when I'm stressed I bake bread until two in the morning", "when I'm upset my sister always tells me to calm down",
+           "whenever I'm down I end up scrolling on my phone for hours", "if tomorrow is another bad day I'm handing in my notice"]
+
+
+def wish_prompt(said, style):
+    """One plain question about one way of being met: are they asking for this, as a standing thing? YES or NO only."""
+    shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
+    others = [WISH_YES[other][0] for other in STYLES if other != style]
+    return ("Someone is telling you something about themselves. Are they asking you, as a standing thing for whenever they're having a hard "
+            f"time, {WISH[style]}? It's a NO if it's what they do themselves, what someone else does, about one day only, or if what they "
+            "ask of you is something different.\n"
+            f"YES: {shown(WISH_YES[style])}\nNO: {shown(WISH_NO[:2] + others[:2] + WISH_NO[2:] + others[2:])}\n"
+            f'They said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
+
+
+def might_be_a_wish(text):
+    """Worth asking a bigger brain: the sentence has the plain shape of a wish, and nothing Luma has heard which."""
+    said = " ".join(str(text or "").split())
+    if said_how(said) or any(p.search(said) for p in ASKS.values()) or CLOSED.search(said):
+        return False
+    try:
+        from . import hows
+        return bool(hows.has_shape(said))
+    except Exception:
+        return False
+
+
 THEIRS = re.compile(r"\b(?:i|i'?m|im|i'?ve|ive|i'?d|my|me|we|we'?re|our)\b", re.I)
 NOT_TELLING = re.compile(r"\?|^\W*(?:(?:hey|yo|ok|okay|luma|so|and|also|oh|please|pls)\W+)*(?:what|how|where|when|which|who|whose|why|can|could|would|will|"
                          r"should|shall|do|does|did|is|are|am|was|were|set|play|remind|turn|add|open|show|search|find|text|email|call|tell|give|make|"
@@ -232,9 +289,10 @@ def _clean(profile):
             "easy": [e for e in profile.get("easy", []) if isinstance(e, dict) and e.get("topic")] if isinstance(profile.get("easy"), list) else []}
 
 
-def learn(profile, text, hurting=False, last_reply="", now=0.0):
+def learn(profile, text, hurting=False, last_reply="", now=0.0, heard=None):
     """The profile after one thing they said, or None when it taught nothing. hurting: this message or the ones just
-    before it were a hard moment (luma.agent.feelings). last_reply: what Luma said just before."""
+    before it were a hard moment (luma.agent.feelings). last_reply: what Luma said just before. heard: the way a bigger
+    brain said they asked to be met, when the rules and the small model heard nothing (wish_prompt)."""
     said = " ".join(str(text or "").split())
     if not said or len(said) > 600:
         return None
@@ -250,7 +308,7 @@ def learn(profile, text, hurting=False, last_reply="", now=0.0):
         del rows[:-KEEP]
         changed = True
 
-    how = said_how(said)
+    how = said_how(said) or (heard if heard in STYLES else None)
     for style, pattern in ASKS.items():
         m = pattern.search(said)
         if not m or THEIR_WAY.search(said[:m.start()]) or (style == "listen" and re.search(r"(?:don'?t|do not|dont|never)\s+$", said[:m.start()], re.I)
@@ -258,7 +316,9 @@ def learn(profile, text, hurting=False, last_reply="", now=0.0):
             continue  # "when my mom is upset she wants me to just listen" is her way; "don't just listen" asks for more than listening
         # "when I'm down, make me laugh", said on a calm day, is how they are: it counts without a hard moment
         if style == "listen" or hurting or (GENERAL.search(said) and how == style):
-            add(style)
+            # "when I've had a bad day, talk about something else" reads as a hard moment itself; said as how they are, it's
+            # a standing wish all the same, and counts like one (run 59: it didn't, on every brain)
+            add(style, always=(how == style))
     if how and not changed:
         add(how, always=True)   # said as how they are, in words the patterns above don't know
     if last_reply and ADVISED.search(str(last_reply)) and PUSHBACK.search(said):
