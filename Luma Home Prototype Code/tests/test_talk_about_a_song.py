@@ -165,6 +165,15 @@ class NarrationIsntACommand(unittest.TestCase):
         self.assertIn("Every day at 9 PM", self.reply("every night at 9, play rain sounds"))
         self.assertIn("anything saved", self.reply("remember when my appointment is"))
 
+    def test_asked_if_it_can_see_them_luma_says_whats_true(self):
+        """"can you see me" got "Yes. Drop or paste a photo in the chat and ask me about it." So did "do you see what i mean"."""
+        for said in ["can you see me", "can you see us", "can you see my face", "can you see this"]:
+            self.assertEqual(self.reply(said), "Not right now. I can only see when you turn the camera on, or when you show me a photo.", said)
+        for said in ["do you see what i mean", "can you see my point", "do you see the problem"]:
+            self.assertEqual(self.reply(said), "Just talking.", said)
+        for said in ["can you see photos", "can you see pictures"]:
+            self.assertIn("Drop or paste a photo", self.reply(said), said)
+
     def test_the_second_thirty_written_before_the_fix(self):
         """Measured once: 2 of 30 not left to a friend before, 2 after (one more now gets "Take your time. I'm here.")."""
         self.assertLessEqual(sum(self.reply(said) not in {"Just talking.", STAY} for said in NARRATED_2), 2)

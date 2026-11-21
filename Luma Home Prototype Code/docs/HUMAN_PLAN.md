@@ -3924,3 +3924,9 @@ work ("flip a coin for me", "give me a minute", "every night at 9, play rain sou
 is").
 
 Full suite: 2,035 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.
+
+**Asked about itself (same day, twenty fresh questions).** Eighteen go to the brain, which is right. "can you see me"
+got "Yes. Drop or paste a photo in the chat and ask me about it."; so did "do you see what i mean". Luma now says
+what's true ("Not right now. I can only see when you turn the camera on, or when you show me a photo."), and a
+figure of speech goes to the brain. "do you remember yesterday" gets "I don't have anything saved about that yet."
+on a Luma with nothing saved; left as it is.

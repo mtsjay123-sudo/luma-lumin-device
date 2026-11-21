@@ -66,6 +66,10 @@ def asked(text):
         return "all"
     # "can you even send texts?", "do you do email": a short question about one ability, not a request to do it now
     can = re.match(r"^\W*(?:can|could|do|does) (?:you|luma|u) (?:even |actually |really |also |still )?(?P<rest>[a-z' -]{2,40}?)\W*$", text, re.I)
+    if can and re.match(r"see (?:what|how|why|where|if|whether|who|my point|the (?:point|problem|issue|difference|irony|pattern))\b", can["rest"], re.I):
+        return None   # "do you see what i mean" is a figure of speech: it got "Yes. Drop or paste a photo in the chat"
+    if can and re.match(r"^\W*(?:can|could) ", text, re.I) and re.match(r"see (?:me|us|my|this|that|him|her|it|them|the)\b", can["rest"], re.I):
+        return "see_now", can["rest"]   # "can you see me" got the same: it asks what Luma sees now
     if can and len(can["rest"].split()) <= 4:
         for key, words in AREAS:
             if re.search(rf"\b(?:{words})\b", can["rest"], re.I):
@@ -136,6 +140,8 @@ def about(key, state):
         return "Yes. I compare real prices across stores in my own browser and can add the cheapest to your cart. Checkout and payment always stay with you."
     if key == "social":
         return "Yes. Sign in once in my browser (Apps, then tap the app) and I can catch you up on your feed. Posting, liking and messaging always wait for your OK."
+    if key == "see_now":
+        return "Not right now. I can only see when you turn the camera on, or when you show me a photo."
     if key == "vision":
         ready = "" if state.get("vision") else " My vision model is still downloading in the background, so give it a few minutes."
         return "Yes. Drop or paste a photo in the chat and ask me about it. It never leaves this computer." + ready
