@@ -187,7 +187,10 @@ class AWeatherWordAloneIsTalk(unittest.TestCase):
         agent.integration_on = lambda name: True if name == "web_search" else on(name)
         agent.planner = lambda messages, context, allowed, mode: {"type": "reply", "text": "Just talking."}
         out = agent.chat(said)
-        return sent, str(out.get("text") or out.get("summary") or "") != "Just talking."
+        from luma.agent import friendcheck
+        # The brain's reply as it was, or with the one line Luma adds itself when someone leans on it and the reply speaks of
+        # nobody else ("is it weird that i talk to you more than my friends"): still the brain answering. Anything else isn't.
+        return sent, str(out.get("text") or out.get("summary") or "") not in ("Just talking.", "Just talking. " + friendcheck.PEOPLE_TOO)
 
     def their_words(self, sent):
         """Their sentence went out (three words or more). Reading up on a thing they name sends its name and nothing else."""

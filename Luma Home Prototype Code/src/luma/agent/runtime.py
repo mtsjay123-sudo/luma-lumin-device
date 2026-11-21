@@ -4999,6 +4999,7 @@ class Agent:
                             result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
+                            result["text"] = self._people_too(text, result["text"])  # leaned on, and the reply spoke of nobody else
                             result["text"] = self._as_they_asked(text, result["text"])  # how they asked to be met when they're hurting
                             result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
@@ -5476,6 +5477,28 @@ class Agent:
             try: self._on_text(" " + line)   # they've heard the reply already: only the line is said, after it
             except Exception: pass
         return reply.rstrip() + " " + line
+
+    def _people_too(self, said, reply):
+        """The turn the brain was told, once this week, to be fully there and then gently help them toward a real person, and
+        the reply says nothing of anyone else: Luma adds its one light line itself (friendcheck.PEOPLE_TOO). Never on a
+        safety reply or of anyone who might not be safe, never in kids mode, never twice in a week. Off switch: people_too."""
+        from luma.agent import friendcheck
+        if self.mode == "kids" or not isinstance(reply, str) or not reply.strip() or self.store.setting("people_too", True) is False:
+            return reply
+        turn = getattr(self, "_leaning_turn", None)
+        heard = " ".join(str(said or "").lower().split())
+        if not turn or not turn[1] or turn[1] == LEAN_AGAIN or " ".join(str(turn[0] or "").lower().split()) != heard:
+            return reply   # not the turn that note was given on
+        if CRISIS.search(heard) or SPANISH_CRISIS.search(heard) or friendcheck.at_risk(said) or friendcheck.SAFETY.search(reply):
+            return reply
+        with_line = friendcheck.people_too(reply)
+        if with_line == reply:
+            return reply
+        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
+            try: self._on_text(" " + friendcheck.PEOPLE_TOO)   # they've heard the reply already: only the line is said, after it
+            except Exception: pass
+            return reply.rstrip() + " " + friendcheck.PEOPLE_TOO
+        return with_line
 
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,

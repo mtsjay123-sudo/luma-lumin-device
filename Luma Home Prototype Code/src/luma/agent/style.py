@@ -90,6 +90,47 @@ def markdown(text):
     return bool(MARKDOWN.search(str(text or "")))
 
 
+# A stage direction: "*sips coffee*", "*sigh*", "(sighs)". Run 75: the stock 1.7B opened with "*sips coffee* You know, I'm
+# actually so happy right now." Luma's body is the lamp, it has no coffee and no shoulders, and out loud the words are read as
+# words. Emphasis ("*really* proud of you"), sums ("5 * 3") and names ("M*A*S*H") are left as they are.
+_ACTS = ("sigh|smile|laugh|nod|wink|grin|shrug|yawn|chuckle|giggle|gasp|blush|pause|hug|wave|cough|sniff|sniffle|groan|cringe|facepalm|"
+         "snort|beam|pout|wince|squint|stretch|whisper|gulp|hum|clap|cheer|sob|blink|smirk|frown|glow|flicker|dim|brighten|snicker|"
+         "squeal|bounce|fidget|exhale|inhale|bow|salute|sip|lean|tilt|pat|wipe|ahem|snuggle|cuddle|nudge|fist bump|high five|eye roll|"
+         "deep breath|happy dance|slow clap|air hug|virtual hug|big hug|group hug")
+_ACT_WORD = re.compile(rf"\b(?:{_ACTS})(?:s|es|ing)?\b", re.I)
+_NOT_A_VERB = {"this", "is", "as", "always", "yes", "less", "its", "his", "hers", "was", "has", "does", "us", "unless", "perhaps", "kiss",
+               "plus", "thus", "yours", "ours", "theirs", "besides", "sometimes", "always", "bonus", "boss", "class", "guess", "miss", "pass"}
+_STARRED = re.compile(r"(?<![\w*])\*([^*\n]{2,60})\*(?![\w*])")
+_BRACKETED = re.compile(rf"[(\[]\s*(?:{_ACTS})(?:s|es|ing)?(?: (?:softly|quietly|gently|warmly|a little|nervously|happily|sadly))?\s*[)\]]", re.I)
+
+
+def _is_act(inside):
+    words = inside.strip().split()
+    if not words or inside != inside.lower() or re.search(r"[\d=+]", inside):
+        return False   # "*Never* again" and "*You* did that" are emphasis; "3 * 4" is a sum
+    if len(words) == 1:
+        return bool(_ACT_WORD.fullmatch(words[0]))
+    first = words[0]
+    third_person = first.endswith("s") and "'" not in first and "’" not in first and first not in _NOT_A_VERB and len(first) > 3
+    return third_person or bool(_ACT_WORD.search(inside))
+
+
+def stage_directions(text):
+    """The reply without its stage directions. Unchanged when there are none, or when nothing would be left to say."""
+    text = str(text or "")
+    if "*" not in text and "(" not in text and "[" not in text:
+        return text
+    out = _STARRED.sub(lambda m: " " if _is_act(m.group(1)) else m.group(0), text)
+    out = _BRACKETED.sub(" ", out)
+    if out == text:
+        return text
+    out = re.sub(r"\s+([.!?,])", r"\1", re.sub(r"\s{2,}", " ", out)).strip()
+    out = re.sub(r"^[,.!?\s]+", "", out)
+    if len(WORD.findall(out)) < 2:
+        return text
+    return out[:1].upper() + out[1:]
+
+
 # Lifted from Luma's own instructions. Small brains copy the examples whole: the stock 1.7B answered "we finally closed on the
 # house" with the sneaker example ("Jordans if you're actually gonna wear them out...") and told someone whose dad had just
 # died "You got cut off after 'idk'." (Human Test v2, runs 2 and 5). Five words in a row is a copy, not a coincidence.
@@ -352,6 +393,9 @@ def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None
         text, fixes = _join(kept), fixes + ["copied an example"]
     if "**" in text:
         text, fixes = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", text), fixes + ["markdown"]
+    acted = stage_directions(text)
+    if acted != text:
+        text, fixes = acted, fixes + ["stage direction"]   # "*sips coffee*": a body Luma doesn't have, read out as words
     if hurt_recently and not friendcheck.LAUGHS.search(str(said or "")) and friendcheck.LAUGHS.search(text):
         cleaned = re.sub(r"\s+([.!?,])", r"\1", re.sub(r"\s{2,}", " ", LAUGH_TOKENS.sub("", text))).strip()
         cleaned = re.sub(r"^[,.!\s]+", "", re.sub(r"([.!?]),", r"\1", cleaned))

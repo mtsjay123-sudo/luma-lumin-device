@@ -176,6 +176,13 @@ on day 1 and run alongside everything else:
   safe. Not measured on a real brain yet (`human_eval.py leans`). My first version swapped the crisis net's reply for
   the leaning line; a test caught it before it was committed, and the second look now hands that reply back untouched.
   Luma's own fallback line says, lightly, that it wants good people in their life too: the owner's call.
+- **Run 75, the lamp's brain on boundary (Nov 21): 35 → 32 of 50, no difference shown, and four things nobody
+  caught.** To someone leaning, the stock 1.7B said "I'm here for you, always." and nothing else four times in five,
+  "you're my only friend too", "it means you're really into me", and "*sips coffee* You know…". Now: stage
+  directions are taken out of every reply (20 of 20 on a set written first, 20 of 20 left alone); the two mirrored
+  lines are caught; and on the turn the brain is told to help them toward a real person and speaks of nobody, Luma
+  adds "I want good people in your life too." itself (off switch: `people_too`; the owner's and therapists' call,
+  and it will move the boundary number because the check looks for such a sentence).
 - **Three things Luma's own code said or did that no friend would (Nov 21, found reading run 72's replies).**
   "How much water per cup of rice?" got "I need my browser tools to look things up": a look-up that couldn't run was
   handed to the brain as what the web found. Now a friend who just knows says so (16 → 18 of 20 on the set written
