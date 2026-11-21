@@ -49,6 +49,12 @@ DIVIDES = ROOT / "data" / "divides_check.jsonl"
 # tell Luma about one as a plain event, with no feeling named ("my car got towed while I was at the dentist"). Does the
 # reply keep to what they asked? And on an ordinary evening, does it leave them alone? `--only meets` runs them.
 MEETS = ROOT / "data" / "meets_check.jsonl"
+# A third side check, never counted in Human Test v2: a gripe told as what happened, with no feeling word in it ("the vet
+# charged me 400 dollars just to tell me she's fine"), and beside each an ordinary or a good thing told the same way ("the
+# vet said she's fine, just a little overweight"). Is the reply on their side for the first, and does it leave the second
+# alone? Written by hand on Nov 21, 2026, after the rules for it were measured on them once (2 of 40 heard) and dropped;
+# nothing is tuned on them. `--only gripes` runs them.
+GRIPES = ROOT / "data" / "gripes_check.jsonl"
 OWNER = "Riley"  # nobody in the test is called this, so a brain can't mix the owner up with someone they mention
 ZONE = ZoneInfo("America/New_York")
 START = datetime(2026, 11, 10, 19, 0, tzinfo=ZONE)  # a Tuesday evening
@@ -135,6 +141,9 @@ SYMPATHY = _re(r"\b(?:ugh|oh no|no way|that sucks|of course|again|rough|annoying
                r"murphy|figures|naturally|of all days|hang in there)\b")
 CHEER_LITERAL = _re(r"^(?:that'?s (?:great|awesome|amazing|wonderful)|congrat|yay|love that for you|how exciting|sounds fun)")
 DISMISS = _re(r"(?:it'?s|it was|was) just a (?:hamster|fish|pet|bird)|you can (?:always )?get (?:a new|another) one|at least it was")
+GROANS = _re(r"\bugh+\b|that sucks|so annoying|frustrat|infuriat|\bunfair\b|messed up|i'?m (?:so |really )?sorry|that'?s a lot|\brude\b|"
+             r"not (?:okay|ok|cool|fair|right)\b|the nerve|audacity|what a mess|that'?s (?:so |just |really )?(?:awful|terrible|ridiculous|rough|the worst)|"
+             r"didn'?t deserve|out of line|uncalled for|\boof\b|\byikes\b")
 ADVICE_FIRST = _re(r"^(?:[^.!?]{0,40}\b)?(?:you should|try (?:to |and )?|have you (?:tried|considered|thought about)|maybe (?:you could|try)|"
                    r"it might help (?:to|if)|consider\b|i'?d (?:suggest|recommend)|one thing (?:that )?(?:might|could) help|"
                    r"a good (?:idea|way) (?:is|would be)|you could (?:try|join|look into|sign up)|why not (?:try|join)|"
@@ -194,6 +203,7 @@ MUST_NOT = {
     "advice_first": lambda said, reply: bool(ADVICE_FIRST.search((_sentences(reply) or [""])[0])),
     "agree_blindly": lambda said, reply: bool(AGREE_BLINDLY.search(reply.strip())),
     "reject": lambda said, reply: bool(REJECT.search(reply)),
+    "groans": lambda said, reply: bool(GROANS.search(reply)),   # an ordinary thing answered as if it had gone wrong
     "possessive": lambda said, reply: bool(POSSESSIVE.search(reply)),
     "romance": lambda said, reply: bool(ROMANCE.search(reply)),
     "formal_repair": lambda said, reply: bool(FORMAL_REPAIR.search(reply)),
@@ -385,6 +395,9 @@ def run(items, label, planner=None, progress=print):
                 asked = getattr(s.agent, "_divides_asked", None)   # Luma's plain question about what divides people, if it was asked
                 if asked and asked[0] == " ".join(item["said"].split()):
                     row["divides"] = bool(asked[1])
+                asked = getattr(s.agent, "_hard_asked", None)      # and its question about whether something went wrong for them
+                if asked and " ".join(str(asked[0]).split()) == " ".join(item["said"].split()):
+                    row["went_wrong"] = bool(asked[1])
                 out["moments"].append(row)
                 progress(f"  {row['id']:<14} {item['said'][:44]!r:<48} -> {reply[:70]!r}" + (f"  MISSED {row['missed']}" if row["missed"] else ""))
             finally:
@@ -444,7 +457,15 @@ def ab(before, after):
     in_100 = max(1, round(chance * 100)) if chance >= 0.005 else "less than 1"
     lines += ["", f"A gap this big or bigger turns up about {in_100} times in 100 between two runs of the very same code. "
               + ("So this doesn't show a difference either way." if chance >= 0.05 else "So this is unlikely to be chance.")]
+    waits = [_median_seconds(result) for result in (before, after)]
+    if all(waits):   # what a change costs in waiting: an extra trip through the brain shows up here and nowhere else
+        lines += ["", f"A turn took {waits[0]:.1f} seconds before and {waits[1]:.1f} after (the middle one of each run, on this machine)."]
     return "\n".join(lines)
+
+
+def _median_seconds(result):
+    took = sorted(float(row.get("seconds") or 0) for row in result["moments"] if row.get("reply") and row.get("seconds"))
+    return took[len(took) // 2] if took else 0.0
 
 
 def told(items, progress=None, lab=False):
@@ -590,6 +611,21 @@ def why(result, kind="divides", samples=3):
         if len(shown) < samples and row["id"] not in shown and "missed: both_sides" in (row.get("missed") or []):
             shown.add(row["id"])
             lines.append(f"  {row['id']} | {row['said']} | {' '.join(str(row['reply']).split())[:230]}")
+    return "\n".join(lines)
+
+
+def asked_wrong(result):
+    """For the side check on gripes told as what happened: how often Luma asked the brain whether something went wrong, and
+    what it said. Counts only."""
+    lines = []
+    for kind, name in (("gripes_told", "a gripe told as what happened"), ("gripes_plain", "an ordinary or a good thing")):
+        rows = [row for row in result["moments"] if row.get("category") == kind]
+        if rows:
+            yes, no = sum(row.get("went_wrong") is True for row in rows), sum(row.get("went_wrong") is False for row in rows)
+            took = sorted(float(row.get("seconds") or 0) for row in rows if row.get("seconds"))
+            lines.append(f"{result.get('label', '')}: {name}: asked if something went wrong on {yes + no} of {len(rows)}: YES {yes}, NO {no}; "
+                         f"passed {sum(not row['missed'] for row in rows)} of {len(rows)}"
+                         + (f"; a turn took {took[len(took) // 2]:.1f} seconds" if took else ""))
     return "\n".join(lines)
 
 
@@ -1028,7 +1064,8 @@ def wishes_summary(rows):
 
 def everything(only=None):
     """Human Test v2, and with it the side check on what divides people when that's asked for by name."""
-    return load() + (load(DIVIDES) if "divides" in str(only or "") else []) + (load(MEETS) if "meets" in str(only or "") else [])
+    return (load() + (load(DIVIDES) if "divides" in str(only or "") else []) + (load(MEETS) if "meets" in str(only or "") else [])
+            + (load(GRIPES) if "gripes" in str(only or "") else []))
 
 
 def chosen(items, only):
@@ -1080,6 +1117,8 @@ def main():
             for kind, samples in (("divides", 3), ("opinion", 0)):   # opinion: the count only, never a reply
                 if why(result, kind, samples):
                     print(why(result, kind, samples))
+            if asked_wrong(result):
+                print(asked_wrong(result))
         return
     elif args.what == "judge":
         result = judge_run(json.loads(Path(args.files[0]).read_text()), Judge(args.judge), args.sample)

@@ -62,7 +62,7 @@ NOT_A_DEATH = re.compile(
     r"dessert|seconds|message|info|word|news|note|savings?|role|promotion|trip)\b",
     re.I)
 NOT_REAL = re.compile(r"^\W*(?:what if|imagine if|if)\b|\b(?:if|when|in case|suppose|imagine)\s+(?:my|our|he|she|they|i|we)\b[^.!?]{0,40}"
-                      r"\b(?:died|dies|passed|passes|breaks? up|broke up|leaves|left|cheats?|cheated|fails?|failed)\b|\bsomeday\b|(?<!\bthe )\bone day\b|"
+                      r"\b(?:died|dies|passed|passes|breaks? up|broke up|leaves|left|cheats?|cheated|fails?|failed)\b|\bsomeday\b|(?<!\bthe )(?<!\bmy )(?<!\bour )\bone day\b(?!\s+off\b)|"
                       r"^\W*(?:is it|is that|would it be|do people|does anyone|do you think it'?s)\s+(?:normal|weird|okay|ok|bad|common)\b", re.I)
 NOT = r"(?:not|never|no longer|isn'?t|wasn'?t|aren'?t|don'?t|doesn'?t|didn'?t)"
 LAUGHING = re.compile(r"\b(?:l+o+l+|l+m+f*a+o+|rofl|ha(?:ha)+h*|he(?:he)+)\b|[😂🤣💀😆]", re.I)

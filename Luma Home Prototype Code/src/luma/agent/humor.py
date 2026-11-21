@@ -18,7 +18,7 @@ import re
 from luma.agent import humor_bank as bank
 
 LAUGH = re.compile(r"\b(?:l+o+l+|l+m+f*a+o+|rofl|ha(?:ha)+h*|he(?:he)+|i'?m (?:dead|weak|crying|screaming|wheezing)|ded|bro what|ain'?t no way|"
-                   r"stop+ ?(?:it|lol|😭)?|nah+ (?:you|that'?s) (?:wild|crazy|funny|tweakin)|you'?re (?:wild|funny|hilarious|crazy|tweakin)|jk|just kidding|"
+                   r"stopp+|stop (?:it|lol|😭)|(?:omg|no|bro|girl|bestie|pls|please|oh my god) stop|^\W*stop\W*$|nah+ (?:you|that'?s) (?:wild|crazy|funny|tweakin)|you'?re (?:wild|funny|hilarious|crazy|tweakin)|jk|just kidding|"
                    r"that'?s (?:funny|hilarious|wild|crazy)|crying)\b|[😂🤣💀😹🙃😜😝🤪]", re.I)
 PLAYFUL = re.compile(r"\b(?:lowkey|highkey|bruh|bro|sis|deadass|on god|no cap|fr fr|be so for real|the way|not the|why (?:is|are) (?:you|u) like this|"
                      r"roast me|talk your (?:shit|stuff)|say less|bet|ayo|you'?re a mess|i can'?t with you|clown(?:ing)?|petty|chaos|unhinged|"
@@ -164,6 +164,12 @@ def examples(text, taste=None, grown=False, k=3, rng=random):
 # The example stays: without it (run 36) the stock 4B fell from 28 of 30 to 12, the 1.7B from 22 to 12. A brain needs to hear the groan.
 DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or congratulate. Groan with them first "
        "(\"ugh, of course it did\"), dry like them if you want, then ask what happened.")
+
+
+# Told as what happened, with no feeling word ("the pharmacy lost my prescription and made me come back three times"), and the
+# brain said something went wrong for them (Agent._told_plainly). The venting line's own words, which every run was measured with.
+WENT_WRONG = ("Something went wrong for them: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened "
+              "or help. No jokes at them; if they start joking about it, you can join in.")
 
 
 def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):

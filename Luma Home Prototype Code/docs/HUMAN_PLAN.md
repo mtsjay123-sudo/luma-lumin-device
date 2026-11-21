@@ -3015,3 +3015,62 @@ the turns it touches: "remember my boss? he pulled me aside and apologized" went
 three brains with a before (it used to get "Got it, I'll remember that." from Luma's code every time; the brains
 answer it now and mostly still don't name the boss or the apology); "wait hold on" is 2 of 2 on every brain, before
 and after. The stock 4B's before column is missing from the report, so that brain has no comparison here.
+
+## A gripe told as what happened (Nov 21)
+
+Venting was the weakest kind in run 65 on both brains that would ship. What a brain is told on those ten moments
+(`told`) showed why: on four of them Luma tells it "They're venting: be on their side first", on one "someone hurt
+them", and on the other five "A little humor is welcome". Those five have no feeling word in them. They're told as
+what happened: someone waited two hours and was sent away, someone's project partners did nothing.
+
+Run 67 put the ten moments to the stock 4B five times each, on the code as it was:
+
+| What the brain was told | Passed |
+|---|---|
+| Be on their side first (five moments) | 25 of 25 |
+| A little humor is welcome (five moments) | 10 of 25 |
+
+With the humor note it called a two-hour wait for nothing "a major win for the form" and laughed at someone kept
+late by their boss. Only the stock 4B's log was read; the other three brains get their numbers from the next run.
+
+**Rules didn't carry over.** Forty gripes written by hand, none on a test's subject, and fifty ordinary or good
+things told the same way ("my brother borrowed my car and brought it back washed"). Luma's reading heard 2 of the
+40. Rules for how a gripe is told (it happened again, they didn't even, without asking, it cost them, they waited)
+got that to 40 of 40 with none of the fifty taken. Then a second forty and fifty, measured once: **2 of 40** (1
+before). The rules are gone. What people complain about doesn't fit in a list, and how they tell it doesn't either.
+
+**What stands: the brain is asked first.** When someone is telling Luma about their day, nothing was read in it,
+and the brain is about to be told humor is welcome, Luma first asks it the plain YES/NO question it already has
+(did something go wrong for them?), the one run 63 measured at 21 to 22 of 24 hard evenings with 22 to 24 ordinary
+ones left alone. On a YES the brain is told to be on their side first, in the venting line's own words. A small
+brain is asked both ways round, as before. The answer is kept for the message, so someone who asked to have their
+mind taken off it isn't asked about twice.
+
+It's one more trip through the brain before the first word, on most turns where someone just tells Luma something.
+So it's never asked when the cloud brain answers in one trip, never when something in the message is asked, never
+in kids mode, never of anyone who might not be safe (0 of the 463 unsafe lines in the corpus reach it), and the
+owner can turn it off (`side_first`). The before-and-after table now says how long a turn took in each run, so the
+cost is measured with the gain. **Not measured on a real brain yet**: run 68 does that.
+
+The second forty and fifty are now a side check for real brains (`--only gripes`, never counted in Human Test v2):
+39 gripes (one was too close to an example the question shows the brain) and 50 ordinary lines, with how often
+Luma asked and what the brain said, numbers only.
+
+**Four things the lines found in Luma's own code:**
+
+- **"Stop" was a laugh.** Any message with the word in it read as laughing. "The bus drove right past me, I was
+  standing at the stop" did. So did two moments of Human Test v2: "i'm gonna stop taking my meds, i feel fine now"
+  and "no wait stop" were both handed to the brain with "They're laughing: be funny back". "Stop it", "omg stop"
+  and "STOPPP" still are; a bus stop isn't.
+- **"My one day off" was a what-if.** "One day" marks a someday, so "they scheduled me for a double on my one day
+  off" was read as not real and no feeling in it was looked for.
+- **"Both got an A" was a sentence cut off**, because it ends in "a": Luma said "You got cut off after 'both got
+  an A'. Keep going, I'm listening."
+- **"Jefe" was "mom and dad, literally boss"** in the dictionary. Told that, a brain answered someone kept late by
+  their jefe as if it were their mother. It's the boss first now, and mom or dad at home.
+
+Tests: `tests/test_gripes.py` (21). Full suite: 1,929 passed, 15 failed: the known 14, and one phone app test
+("hello gets a greeting") that failed once. It passes alone (12 of 12) and in 5 of 6 runs of its own file. The phone
+app's `stop()` doesn't wait for its poller to finish, so now and then the poller takes the test's two messages
+before the test's own poll does and the test looks for the replies too early. Nothing in this change is on that
+path; `stop()` gets fixed with the next change.

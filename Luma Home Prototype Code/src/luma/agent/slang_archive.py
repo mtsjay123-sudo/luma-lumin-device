@@ -344,7 +344,7 @@ chilango |  | mexican | s | a person from Mexico City |
 pocho |  | mexican | s | a Mexican American seen as having lost Spanish or Mexican culture | 
 chicano |  | mexican | s | a self-chosen identity term for Mexican Americans, politicized during the civil rights movement of the 1960s | 
 latinx | latine | mexican | s | gender-neutral terms for Latino people | 
-jefa | jefe | mexican | c | mom and dad, literally boss | 
+jefa | jefe | mexican | c | boss; at home it's also what people call their mom (jefa) or dad (jefe) | 
 mija | mijo | mexican | c | my daughter and my son, used as terms of affection | 
 trucha |  | mexican | c | watch out or be alert | 
 ruca |  | mexican | c | a girlfriend or woman | 

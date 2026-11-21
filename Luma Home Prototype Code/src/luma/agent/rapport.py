@@ -286,11 +286,13 @@ NOT_TELLING = re.compile(r"\?|^\W*(?:(?:hey|yo|ok|okay|luma|so|and|also|oh|pleas
                          r"help|look|check|put|start|stop|pause|read|write|order|book|buy|send|save|remember|forget|let'?s|thanks|thank you|good (?:morning|night))\b", re.I)
 
 
-def telling(text):
-    """They're telling Luma something about their life: not asking, not giving it something to do, not laughing."""
+def telling(text, theirs=True):
+    """They're telling Luma something about their life: not asking, not giving it something to do, not laughing.
+    theirs=False: with no "I" or "my" in it either ("the store wouldn't take the return even with the receipt")."""
     from . import feelings
     said = " ".join(str(text or "").split())
-    return bool(6 <= len(said.split()) <= 60 and THEIRS.search(said) and not NOT_TELLING.search(said) and not feelings.LAUGHING.search(said))
+    return bool(6 <= len(said.split()) <= 60 and (THEIRS.search(said) or not theirs) and not NOT_TELLING.search(said)
+                and not feelings.LAUGHING.search(said))
 
 
 RAISED = ("They once asked you not to bring up {topic}. They've raised it themselves now: follow their lead, gently. Don't dig, and "

@@ -213,6 +213,8 @@ def cut_off(text):
         return None  # "a song you like" is whole: "like" there is the verb, not a filler
     if re.search(r"\b(?:feels?|felt|looks?|looked|sounds?|sounded|seems?|tastes?|smells?|is|it's|that's|was|be|been) like$", said, re.I):
         return None  # "is this what thirty feels like" is whole too: it got "You got cut off after “what thirty feels like”."
+    if re.search(r"\b(?:an [aA]|a [b-dfB-DF])[+-]?$", said):
+        return None  # "we both got an A" is whole: the last word is a grade, not the start of something
     asked = QUESTION_START.match(said) or QUESTION_START.match(re.split(r"[,;:]\s*", said)[-1])
     if asked and not re.search(r"\b(?:the|a|an|my|your|and|or|but|um+|uh+)$|\.\.\.$|…$", said, re.I):
         # "who should I send it to" is a whole question, even without the question mark. So is one that comes after the

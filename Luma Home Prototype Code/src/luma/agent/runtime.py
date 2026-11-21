@@ -3349,6 +3349,8 @@ class Agent:
             funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown, recent=earlier)
             if lean and "sense of humor" in funny:
                 funny = ""  # "you're my only friend": nobody is looking for a joke there
+            elif self._told_plainly(text, funny, shape) and self._went_wrong_for_them(str(text), cancel_event):
+                funny = humor.WENT_WRONG  # a gripe told as what happened, no feeling word in it: their side first, not a joke
             if funny: out.append({"humor": True, "text": funny})
             known = lexicon.meanings_note(text)
             if known: out.append({"slang": True, "text": known})
@@ -5104,11 +5106,41 @@ class Agent:
         self._divides_asked = (said, yes)
         return yes
 
+    # "think hard about this: should i take the night shift job or stay where i am": something is asked, after the first words
+    ASKED_INSIDE = re.compile(r"[,:;.!]\s*(?:so\s+|and\s+|but\s+)?(?:should|what|how|why|where|when|which|who|do|does|did|is|are|am|can|could|would|will)\s+"
+                              r"(?:i|we|you|it|he|she|they|this|that|the|my|there)\b|\b(?:think hard|help me (?:decide|think|figure)|i need advice|"
+                              r"what do you think|any (?:ideas|advice|thoughts|tips))\b", re.I)
+
+    def _told_plainly(self, text, funny, shape):
+        """They're telling Luma about their day in plain words, nothing was read in it (no feeling, no laugh, nothing asked),
+        and the brain is about to be told a little humor is welcome. "The pharmacy lost my prescription and made me come back
+        three times" is told this way, and what it needs first is someone on their side. Rules for it heard 40 of the 40
+        gripes they were built on and 2 of 40 written afterwards (Nov 21, 2026): what people complain about doesn't fit in a
+        list, so the brain is asked (_went_wrong_for_them). It's one more trip through the brain before the first word, so:
+        never when the cloud brain answers in one trip, never when something in the message is asked, and off when the
+        owner turns off "side_first"."""
+        from luma.agent import feelings, friendcheck, humor, rapport
+        said = str(text or "")
+        if self.mode == "kids" or shape or (funny and "sense of humor" not in funny) or not rapport.telling(said, theirs=False):
+            return False
+        if self.store.setting("side_first", True) is False or self._one_trip() or self.ASKED_INSIDE.search(said):
+            return False
+        if feelings.read(said) or humor.read_tone(said)["mood"] not in ("neutral", "playful"):
+            return False
+        if friendcheck.at_risk(said) or friendcheck.worth_asking(said) or friendcheck.leaning(said):
+            return False   # the safety question's, or the leaning note's: never a line about a gripe
+        return True
+
     def _went_wrong_for_them(self, said, cancel_event=None):
-        """Luma's third plain question, never heard, YES or NO only: did something go wrong for them? Asked only when they
-        once said to take their mind off it, they're telling Luma about their day, no feeling was read and the reply made
-        no offer (rapport.might_owe). With no brain to ask, or no answer, nothing is added."""
+        """Luma's third plain question, never heard, YES or NO only: did something go wrong for them? Asked when they're
+        telling Luma about their day and no feeling was read: before the reply, so a gripe told as what happened gets their
+        side first and not a joke (_told_plainly); and after it, when they once said to take their mind off it and the
+        reply made no offer (rapport.might_owe). Asked once for one message. With no brain to ask, or no answer, nothing
+        changes."""
         from luma.agent import friendcheck, rapport
+        asked = getattr(self, "_hard_asked", None)
+        if asked and asked[0] == said:
+            return asked[1]
         question, yes = rapport.hard_prompt(said), False
         try:
             with self._silent():
