@@ -141,3 +141,28 @@ What the owner decides after listening:
 1. One of them is close enough: it becomes the voice on the Mac and the Home, and the recordings can wait.
 2. None is: cast a voice (or record their own), sign the release, and read the script. The fine-tune, the data
    checks and a blind A/B page for ten listeners are ours to build while that happens.
+
+### The audition, and the owner's ear (November 21, 2026, the same night)
+
+The three recordings are in `demo/voices/`: the classic voice, Chatterbox, Chatterbox-Turbo, each saying the same
+eight lines with Luma's pauses, its "hmm" and "It's, it's a lot...". The owner listened: **"Chatterbox-Turbo is
+wayyyy better."**
+
+What changed because of it:
+
+- **The expressive voice is on wherever the computer can run it** (`natural.DEFAULT_MODE` is "auto"; it was "off").
+- **It speaks in Chatterbox-Turbo's own voice.** Until tonight it was handed ten seconds of the classic voice to copy.
+  That is what lost both earlier contests: a better model doing an impression of a smaller one, judged by a number.
+  `LUMA_VOICE_REFERENCE=classic` brings the old way back, for comparing.
+- The classic voice is still one tap away in Settings, and still takes over if the new one stops, garbles a phrase or
+  can't keep up.
+
+What this does not do yet, said plainly:
+
+- **Only Apple Silicon.** The expressive voice runs through mlx-audio. The Home lamp's board (a Jetson) and the Mini
+  keep the classic voice until Chatterbox-Turbo runs there too; on the Mini it won't fit.
+- **Not heard on a Mac yet.** The owner heard the PyTorch model on GitHub's CPU. The Mac runs an 8-bit or 4-bit build
+  of the same model, which should sound the same and has not been listened to. The first thing to do on the Mac is
+  listen.
+- **It's a stock voice.** Anyone who downloads Chatterbox-Turbo gets this voice. A voice that is Luma's alone still
+  means a recorded person with a signed release; that hasn't changed, it's just no longer urgent.

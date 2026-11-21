@@ -102,6 +102,32 @@ class NaturalVoiceTests(unittest.TestCase):
         self.assertEqual(rate, 24000)
         self.assertGreater(len(pcm), 2400)
 
+    def test_its_on_where_the_computer_can_run_it_and_speaks_in_its_own_voice(self):
+        """The owner heard the same eight lines in each voice (Nov 21, 2026) and chose Chatterbox-Turbo as itself. Until then
+        it was handed the classic voice to copy, and off."""
+        self.assertEqual(natural.DEFAULT_MODE, "auto")
+        self.assertFalse(natural.learns_the_classic_voice("expressive"))
+        self.assertTrue(natural.learns_the_classic_voice("studio"))        # Qwen3 has no voice of its own to speak in
+        v = natural.NaturalVoice()
+        real, loads = v._call, []
+
+        def seen(what, *args, **kwargs):
+            if what == "load":
+                loads.append(dict(kwargs))
+            return real(what, *args, **kwargs)
+
+        with mock.patch.object(v, "_call", side_effect=seen), mock.patch.object(v, "reference", return_value=self.ref):
+            self.assertEqual(v.prepare("expressive")["state"], "ready")
+        self.assertEqual((loads[0]["engine"], loads[0]["ref"], loads[0]["ref_text"]), ("expressive", None, None))
+        v.stop()
+        v, loads[:] = natural.NaturalVoice(), []
+        real = v._call
+        with mock.patch.dict(os.environ, {"LUMA_VOICE_REFERENCE": "classic"}), mock.patch.object(v, "_call", side_effect=seen), \
+                mock.patch.object(v, "reference", return_value=self.ref):
+            self.assertEqual(v.prepare("expressive")["state"], "ready")
+        self.assertEqual(loads[0]["ref"], str(self.ref))                   # the old way, for comparing
+        v.stop()
+
     def test_luma_speech_uses_it_and_keeps_laughs(self):
         v = natural.voice()
         with mock.patch.object(v, "reference", return_value=self.ref):

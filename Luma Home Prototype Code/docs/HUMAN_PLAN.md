@@ -2340,3 +2340,12 @@ its own that isn't words. Luma had none of the last. Now it has six short sounds
 the words: done, good news, say that again, a rough day, hello, goodnight. Never on a safety reply, never with
 someone hurting, off until the owner has heard them and says "use your sounds". Not measured: whether they sound
 right. The owner has the recording.
+
+## The voice, decided by ear (Nov 21)
+
+The owner heard Luma's classic voice say eight lines and said the words were right and the voice wasn't a person's.
+The same eight lines were then rendered on GitHub's machines in every voice the license rule allows and sent to the
+owner: "Chatterbox-Turbo is wayyyy better." It's now the voice wherever the computer can run it (Apple Silicon), in
+its own voice instead of copying the classic one. The two earlier contests that kept it off were a number judging an
+impression. Details and what's still missing (the lamps, a listen on a real Mac, a voice of Luma's own):
+`docs/VOICE_PLAN.md`.

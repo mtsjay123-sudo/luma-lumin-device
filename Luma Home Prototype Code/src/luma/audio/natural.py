@@ -11,9 +11,11 @@ background, and the classic voice keeps talking until it's ready, and takes over
 one ever stops, garbles a phrase or can't keep up on this Mac.
 Setting "natural_voice": "auto" (on when this computer can run it), "on" or "off".
 
-Off (the classic voice) by default: in two fair contests on a real Mac, judged by UTMOSv2 on each voice's own audio, the classic
-voice with Luma's conversation layer sounded more natural (3.47 and 3.66 out of 5) than Chatterbox-Turbo learning it (3.32 and
-3.20), with the same words right. The expressive voice stays one tap away in Settings for its real laughs.
+On by default where the computer can run it ("auto"), since Nov 21, 2026, and in Chatterbox-Turbo's own voice. Before that
+it was off: in two contests on a real Mac, judged by UTMOSv2, the classic voice (3.47 and 3.66 out of 5) beat Chatterbox-Turbo
+copying the classic voice (3.32 and 3.20). Then the owner heard the same eight lines in each voice, Chatterbox-Turbo as itself,
+and said it was "way better". The number had been judging an impression. The classic voice is one tap away in Settings, and
+still takes over if the new one stops, garbles a phrase or can't keep up.
 """
 from __future__ import annotations
 
@@ -42,7 +44,18 @@ SPEED_LINE = "Alright, so tell me everything that happened today, I'm listening.
 MAX_RTF = 0.9              # it has to make speech faster than it talks, or the conversation stalls between phrases
 SLOW_FOR = 7 * 86400       # an engine that was too slow on this Mac isn't tried again for a week
 ENGINES = ("expressive", "studio", "lifelike")
-DEFAULT_MODE = "off"  # the classic voice, until a new one beats it in the contest (scripts/voice_check.py)
+# On when this computer can run it. It was "off" while a number decided (UTMOSv2 preferred the classic voice, twice). Then
+# the owner listened to the same eight lines in each voice (scripts/voice_audition.py, Nov 21, 2026): "Chatterbox-Turbo is
+# way better". A voice is judged by ear.
+DEFAULT_MODE = "auto"
+# The voices that speak as themselves. What the owner chose was Chatterbox-Turbo in its own stock voice. Until then the
+# expressive voice was handed ten seconds of the classic voice to copy, which is what lost both contests: a better model
+# doing an impression of a smaller one. LUMA_VOICE_REFERENCE=classic brings that back, for comparing.
+OWN_VOICE = {"expressive"}
+
+
+def learns_the_classic_voice(engine):
+    return engine not in OWN_VOICE or os.environ.get("LUMA_VOICE_REFERENCE", "").strip().lower() == "classic"
 # Smaller (quantized) builds of each model: a little less detail, a lot faster. Tried when the full one can't keep up.
 FASTER = {"expressive": ["mlx-community/chatterbox-turbo-8bit", "mlx-community/chatterbox-turbo-4bit"],
           "studio": ["mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit"],
@@ -260,7 +273,8 @@ class NaturalVoice:
             best = None
             for repos in [None] + ([FASTER[candidate]] if FASTER.get(candidate) else []):  # the full model, then its smaller builds
                 try:
-                    result = self._call("load", timeout, engine=candidate, ref=str(ref) if ref else None, ref_text=REF_TEXT if ref else None,
+                    copy = ref if learns_the_classic_voice(candidate) else None
+                    result = self._call("load", timeout, engine=candidate, ref=str(copy) if copy else None, ref_text=REF_TEXT if copy else None,
                                         **({"repos": repos} if repos else {}))
                     self._call("say", 300, text="Okay, I'm here.")  # the first sentence warms it up
                     timed = self._call("say", 300, text=SPEED_LINE)
