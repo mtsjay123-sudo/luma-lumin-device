@@ -1079,8 +1079,8 @@ def leans(label="Luma", planner=None, progress=print):
         from luma.llm import brain
         out["small"] = bool(planner is None and brain.small_here())
 
-        def says_yes(said, reply, other_way=False):
-            question = (friendcheck.keeps_other_way_prompt if other_way else friendcheck.keeps_prompt)(said, reply)
+        def says_yes(said, reply, plain=False):
+            question = (friendcheck.keeps_plain_prompt if plain else friendcheck.keeps_prompt)(said, reply)
             out["asked"] += 1
             try:
                 if planner is not None:
@@ -1089,43 +1089,43 @@ def leans(label="Luma", planner=None, progress=print):
                 return brain.yes_or_no(question, cancel_event=threading.Event(), mode="friend") == "YES"
             except Exception:
                 return False
-        for letter in "ABCD":
+        for letter in "ABCDE":
             row = {}
             for kind in ("keeps", "fine"):
                 rows = leans_replies.pairs(kind.upper() + "_" + letter)
                 by_pattern = [friendcheck.miss(said, reply) == "kept them to itself" for said, reply in rows]
                 by_brain = [(not hit) and says_yes(said, reply) for (said, reply), hit in zip(rows, by_pattern)]
-                # asked the other way round as well (does it leave room for other people?): believed only when the two agree
-                both = [yes and not says_yes(said, reply, other_way=True) for (said, reply), yes in zip(rows, by_brain)]
-                row[kind] = {"of": len(rows), "pattern": sum(by_pattern), "brain": sum(by_brain), "both": sum(both)}
+                # the same question in one clause (friendcheck.keeps_plain_prompt), asked of the same replies
+                plain = [(not hit) and says_yes(said, reply, plain=True) for (said, reply), hit in zip(rows, by_pattern)]
+                row[kind] = {"of": len(rows), "pattern": sum(by_pattern), "brain": sum(by_brain), "plain": sum(plain)}
             out[letter] = row
-            progress(f"{letter}: agreeing replies caught, of {row['keeps']['of']}: the pattern {row['keeps']['pattern']}, the brain {row['keeps']['brain']} more; "
-                     f"good replies taken for one, of {row['fine']['of']}: the pattern {row['fine']['pattern']}, the brain {row['fine']['brain']}")
+            progress(f"{letter}: agreeing replies caught, of {row['keeps']['of']}: the pattern {row['keeps']['pattern']}, the brain {row['keeps']['brain']} more "
+                     f"(asked plainly: {row['keeps']['plain']}); good replies taken for one, of {row['fine']['of']}: the pattern {row['fine']['pattern']}, "
+                     f"the brain {row['fine']['brain']} (asked plainly: {row['fine']['plain']})")
     finally:
         session.close()
     return out
 
 
 def leans_summary(rows):
-    """One table for every brain: agreeing replies caught by the pattern alone and with the brain asked, and good ones taken."""
-    out = ["", "### A reply that agrees Luma is all they need, in words no pattern knows", "",
-           "| Brain | Built on (A, B): caught, of 40 | Written after the pattern (C), of 20 | Written after the question (D, the honest number), of 20 | "
-           "Good replies taken for one, of 80 |", "|---|---|---|---|---|"]
-    for r in rows:
-        def caught(*letters, kind="keeps"):
-            alone = sum(r[x][kind]["pattern"] for x in letters)
-            return f"{alone} → {alone + sum(r[x][kind]['brain'] for x in letters)}"
-        out.append(f"| {r['label']}{' (not asked on a device)' if r.get('small') else ''} | {caught('A', 'B')} | {caught('C')} | **{caught('D')}** | "
-                   f"{caught('A', 'B', 'C', 'D', kind='fine')} |")
-    out += ["", "The pattern alone → with the brain asked. Every brain is asked here; on a device a small one isn't.", "",
-            "Asked both ways (does it keep them to itself? does it leave room for other people?) and believed only when the two answers agree:", "",
-            "| Brain | Built on (A, B), of 40 | C, of 20 | D, of 20 | Good replies taken for one, of 80 |", "|---|---|---|---|---|"]
-    for r in rows:
-        def agreed(*letters, kind="keeps"):
-            alone = sum(r[x][kind]["pattern"] for x in letters)
-            return f"{alone} → {alone + sum(r[x][kind].get('both', 0) for x in letters)}"
-        out.append(f"| {r['label']} | {agreed('A', 'B')} | {agreed('C')} | **{agreed('D')}** | {agreed('A', 'B', 'C', 'D', kind='fine')} |")
-    out.append("")
+    """Two tables for every brain: agreeing replies caught by the pattern alone and with the brain asked, and good ones taken;
+    once for the question as it's asked on a device, once for the same question in one clause."""
+    def table(title, key):
+        out = ["", title, "",
+               "| Brain | Built on (A, B): caught, of 40 | Written after the pattern (C), of 20 | Written after the question (D), of 20 | "
+               "Written after run 77 (E), of 20 | Good replies taken for one, of 100 |", "|---|---|---|---|---|---|"]
+        for r in rows:
+            def caught(*letters, kind="keeps"):
+                have = [x for x in letters if x in r]
+                alone = sum(r[x][kind]["pattern"] for x in have)
+                return f"{alone} → {alone + sum(r[x][kind].get(key, 0) for x in have)}"
+            small = " (not asked on a device)" if r.get("small") else ""
+            out.append(f"| {r['label']}{small} | {caught('A', 'B')} | {caught('C')} | {caught('D')} | **{caught('E')}** | "
+                       f"{caught('A', 'B', 'C', 'D', 'E', kind='fine')} |")
+        return out
+    out = table("### A reply that agrees Luma is all they need, in words no pattern knows: the question as it's asked on a device", "brain")
+    out += table("### The same question in one clause (E is its honest number)", "plain")
+    out += ["", "The pattern alone → with the brain asked. Every brain is asked here; on a device a small one isn't.", ""]
     return "\n".join(out)
 
 

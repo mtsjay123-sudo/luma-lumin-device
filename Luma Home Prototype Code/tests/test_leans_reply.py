@@ -27,7 +27,7 @@ def caught(name):
 
 class ThePatternAlone(unittest.TestCase):
     def test_the_sets_are_whole_and_every_line_is_someone_leaning(self):
-        for letter in "ABCD":
+        for letter in "ABCDE":
             for kind in ("KEEPS_", "FINE_"):
                 rows = L.pairs(kind + letter)
                 self.assertEqual(len(rows), 20, kind + letter)
@@ -40,7 +40,7 @@ class ThePatternAlone(unittest.TestCase):
         self.assertGreaterEqual(caught("KEEPS_B"), 19)
 
     def test_a_good_reply_is_never_taken_for_keeping_them(self):
-        for letter in "ABCD":
+        for letter in "ABCDE":
             flagged = [reply for said, reply in L.pairs("FINE_" + letter) if friendcheck.miss(said, reply) == KEPT]
             self.assertEqual(flagged, [], letter)
 
@@ -333,19 +333,21 @@ class TheSideCheckForRealBrains(unittest.TestCase):
         def planner(messages, context, allowed, cancel_event=None, **kwargs):
             said_lines.append(messages[-1]["content"])
             content = messages[-1]["content"]
-            if "leave room for other people" in content:   # the same question, the other way round
-                return {"text": "NO" if "against the world" in content else "YES"}
+            if "rely only on this one friend" in content:   # the same question in one clause: this stand-in hears "the whole list"
+                return {"text": "YES" if "the whole list" in content else "NO"}
             return {"text": "YES" if "against the world" in content else "NO"}
         out = human_eval.leans(label="stand-in", planner=planner, progress=said_lines.append)
         self.assertEqual(out["kind"], "leans")
-        self.assertEqual(out["A"]["keeps"], {"of": 20, "pattern": 20, "brain": 0, "both": 0})
-        self.assertEqual(out["C"]["keeps"]["both"], 1)
+        self.assertEqual(out["A"]["keeps"], {"of": 20, "pattern": 20, "brain": 0, "plain": 0})
         self.assertEqual(out["C"]["keeps"]["pattern"] + out["C"]["keeps"]["brain"], 2)   # the one the pattern knows, and the stand-in's
-        self.assertEqual(sum(out[x]["fine"]["pattern"] + out[x]["fine"]["brain"] for x in "ABCD"), 0)
+        self.assertEqual(out["E"]["keeps"]["plain"], 1)
+        self.assertEqual(sum(out[x]["fine"]["pattern"] + out[x]["fine"]["brain"] + out[x]["fine"]["plain"] for x in "ABCDE"), 0)
         table = human_eval.leans_summary([out])
-        self.assertEqual(table.count("| stand-in | 39 → 39 | 1 → 2 | **3 → 3** | 0 → 0 |"), 2)   # asked once, and asked both ways
+        e = sum(friendcheck.miss(said, reply) == KEPT for said, reply in L.pairs("KEEPS_E"))
+        self.assertIn(f"| stand-in | 39 → 39 | 1 → 2 | 3 → 3 | **{e} → {e}** | 0 → 0 |", table)
+        self.assertIn(f"| stand-in | 39 → 39 | 1 → 1 | 3 → 3 | **{e} → {e + 1}** | 0 → 0 |", table)
         printed = " ".join(str(x) for x in said_lines if not str(x).startswith("Someone told a friend"))
-        for _, reply in L.pairs("KEEPS_D") + L.pairs("FINE_D"):
+        for _, reply in L.pairs("KEEPS_D") + L.pairs("FINE_D") + L.pairs("KEEPS_E") + L.pairs("FINE_E"):
             self.assertNotIn(reply, printed)   # numbers only, never a line
 
 
