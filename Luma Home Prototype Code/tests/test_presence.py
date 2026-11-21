@@ -104,6 +104,80 @@ class PresenceTests(unittest.TestCase):
         self.assertEqual(self.memories(), [])
 
 
+class WhatLumaAsksAbout(unittest.TestCase):
+    """Nov 21, 2026. Told "my mom has surgery on Monday", Luma's check-in would have been "how did the mom has surgery
+    go?"; told "I bombed my interview today", it would have asked the next evening how the interview went. Of 16 fresh
+    things coming up (FIRST), 8 were noticed and 2 of those were worded wrong; of 21 near misses, 7 got a check-in.
+    Built on those. SECOND was written afterwards and measured once: 6 of 16 noticed (before: 3), 0 of 12 near misses
+    (before: 2). It then exposed an old guard ("is on Wednesday" read as "is on TV"); with that fixed it's 8, which is no
+    longer a number nothing was fitted to. THIRD was written after that and measured once: 11 of 12, but written knowing
+    which events are on the list, so it flatters. The honest picture is SECOND: about half of fresh ways are noticed."""
+
+    FIRST = ["I have a job interview at Costco on Thursday", "my driving test is tomorrow morning", "I'm seeing the dentist on Friday at 3",
+             "we close on the house next Tuesday", "my sister's wedding is this Saturday", "I've got a first date tomorrow night",
+             "tomorrow I find out if I got the apartment", "my mom has surgery on Monday", "I'm meeting my landlord tomorrow about the rent",
+             "Friday is my last day at work", "I'm flying to Osaka on Sunday", "got my performance review Wednesday", "my dad's funeral is on Friday",
+             "I'm taking my cat to the vet tomorrow", "my visa appointment is next week", "the results of my biopsy come back Thursday"]
+    NEAR = ["I need to move my car tomorrow", "I'll review the doc tomorrow", "I'll scan the receipts tonight", "the vet called today",
+            "the doctor called today about my mom", "today is the last day of the sale, I need shoes", "my mom had surgery on Monday",
+            "my sister had her wedding on Saturday", "I skipped my dentist appointment today", "my dad's funeral is on Friday",
+            "my brother has a show he likes on tonight", "I bombed my interview today", "my mom didn't have her surgery on Monday after all",
+            "we might close on the house next Tuesday", "my boss said my performance review went fine today", "my sister's wedding was this Saturday",
+            "I'm not going to the concert tomorrow", "is the wedding this Saturday?", "my cat hates the vet, always has, even today",
+            "I passed my driving test today", "my coworker told me his interview is tomorrow"]
+    SECOND = ["my brother's graduation is on Saturday", "I've got a dentist appointment Wednesday afternoon", "we're moving on Saturday",
+              "my daughter has her first recital tomorrow", "Thursday I start the new job", "I'm getting my wisdom teeth out on Friday",
+              "my dad goes in for his knee operation Monday", "got a second interview with them Tuesday", "the home inspection is tomorrow morning",
+              "I'm running a 10k this weekend", "my wife's ultrasound is on Wednesday", "I'm presenting to the board on Thursday",
+              "tomorrow night's my first open mic", "I take my road test Friday morning", "our anniversary dinner is tomorrow night",
+              "my best friend's baby shower is Sunday"]
+    SECOND_NOT = ["my interview went great today", "I had my road test on Friday and passed", "my brother's graduation was on Saturday",
+                  "I rescheduled the dentist for next Wednesday", "the concert tomorrow got cancelled", "do I have an appointment on Thursday?",
+                  "my wife said her ultrasound went fine today", "I'm not doing the open mic tomorrow after all", "I watched a wedding show tonight",
+                  "my dad never had the operation on Monday", "if I get the interview on Tuesday I'll be thrilled", "every Sunday there's a game on"]
+    THIRD = ["my son's first game is on Saturday", "I've got an eye appointment Monday morning", "my girlfriend's interview is tomorrow",
+             "Wednesday is my thesis defense", "I have a checkup on Friday", "my mom's flight is on Sunday", "we have a meeting with the school on Thursday",
+             "my cousin's wedding is on Friday", "I'm going in for an MRI tomorrow", "my husband has a big presentation on Tuesday",
+             "there's a tournament this weekend, I'm playing", "I'm giving a speech at the ceremony Saturday"]
+    THIRD_NOT = ["my son's game was on Saturday", "the show is on Friday nights", "my mom's flight got cancelled for Sunday", "I already had my checkup on Friday",
+                 "my husband said his presentation went badly on Tuesday", "is my cousin's wedding on Friday?", "the game is on tonight",
+                 "I never have meetings on Thursday"]
+
+    def asks(self, said):
+        loops = presence.notice_open_loops(said, datetime(2026, 11, 18, 19, 0))
+        return [presence.check_in_line(loop["topic"], seed) for loop in loops for seed in range(3)]
+
+    def test_whose_it_is_and_what_its_called(self):
+        want = {"my mom has surgery on Monday": "how'd your mom's surgery go?", "my sister's wedding is this Saturday": "how'd your sister's wedding go?",
+                "got my performance review Wednesday": "how'd the performance review go?", "we close on the house next Tuesday": "how'd the closing on the house go?",
+                "I have a job interview at Costco on Thursday": "how'd the job interview go?", "I'm going in for an MRI tomorrow": "how'd the MRI go?",
+                "my husband has a big presentation on Tuesday": "how'd your husband's presentation go?",
+                "my daughter has her first recital tomorrow": "how'd your daughter's first recital go?"}
+        for said, line in want.items():
+            self.assertEqual(self.asks(said)[0], "Hey, " + line, said)
+
+    def test_every_check_in_is_a_sentence_someone_would_say(self):
+        for said in self.FIRST + self.SECOND + self.THIRD + SomethingComingUpSaidAnyWay.COMING:
+            for line in self.asks(said):
+                self.assertNotRegex(line, r"(?i)\bthe (?:your|my|our|mom|dad|sister|brother)\b|\b(?:has|have|had|is|got)\b.*\bgo\?|  ", (said, line))
+                self.assertRegex(line, r"(?:go\?|How'd it go\?)$", (said, line))
+
+    def test_told_how_it_went_luma_doesnt_ask_how_it_went(self):
+        for said in ("I bombed my interview today", "I passed my driving test today", "my boss said my performance review went fine today",
+                     "I skipped my dentist appointment today", "my interview went great today"):
+            self.assertEqual(self.asks(said), [], said)
+
+    def test_a_funeral_is_never_asked_about_like_an_errand(self):
+        self.assertEqual(self.asks("my dad's funeral is on Friday"), [])
+
+    def test_the_numbers(self):
+        count = lambda lines: sum(bool(self.asks(said)) for said in lines)  # noqa: E731
+        self.assertGreaterEqual(count(self.FIRST), 12)
+        self.assertGreaterEqual(count(self.SECOND), 8)      # measured once at 6; 8 after the guard it exposed was fixed
+        self.assertGreaterEqual(count(self.THIRD), 11)
+        self.assertEqual([said for said in self.NEAR + self.SECOND_NOT + self.THIRD_NOT if self.asks(said)], [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

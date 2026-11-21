@@ -2495,3 +2495,37 @@ Now (`presence.theirs`, `presence.nudge_line`, `Agent._presence_event`): nothing
 moment, it's said quietly and asks nothing: "Happy birthday, Jay. I'm glad I get to say it." Someone else's birthday
 and their anniversary are as before. A date said day-first ("the 21st of October") is read too; it wasn't. Never in
 kids mode, and off with check-ins, as before.
+
+## What Luma asks about afterwards (Nov 21): named properly, and never after being told how it went
+
+Luma's own lines were read against fresh things people say. Two were wrong in a way a person never is:
+
+- Told "my mom has surgery on Monday", the check-in the evening after would have been **"how did the mom has surgery
+  go?"** The event was kept with whatever two words came before it.
+- Told "I bombed my interview today", Luma would have asked the next evening **how the interview went**. The same
+  for "I passed my driving test today" and "my boss said my performance review went fine today".
+
+| | Before | After |
+|---|---|---|
+| 16 fresh things coming up: noticed (worded right) | 8 (6) | **12 (12)** |
+| 21 near misses that got a check-in | 7 | **0** |
+| A second 16, written afterwards and measured once | 3 | **6** |
+| A second 12 near misses | 2 | **0** |
+
+What changed (`presence._topic`, `_WENT`, `EVENTS`, `check_in_line`):
+
+- **What it's called.** The event with the few words that belong to it ("job interview", "driving test", "performance
+  review"), and "the MRI", never "the mri".
+- **Whose it is.** "my mom has surgery", "my sister's wedding", "my daughter has her first recital" are asked about as
+  "your mom's surgery", "your sister's wedding", "your daughter's first recital".
+- **Not after being told how it went.** Bombed, passed, skipped, went fine, was: nothing is asked.
+- **More that a friend asks about:** a wedding, closing on the house, a last day at work, the vet, a performance
+  review, an MRI or a biopsy, a baby shower, an open mic. A funeral still never gets "how'd it go"; it gets the
+  check-in for a loss, as before. Words that are mostly verbs ("move my car", "review the doc", "scan the receipts")
+  were tried and taken back out.
+
+The second set then exposed an old guard: "my wife's ultrasound is on Wednesday" was dropped because "is on" was
+there for "the game is on tonight". With that fixed the second set reads 8 of 16, which is no longer a number
+nothing was fitted to, so 6 is the one to quote. A third set written after that reads 11 of 12, but it was written
+knowing which events are on the list, so it flatters. The honest picture: about half of fresh ways of saying
+something's coming up are noticed, and what's noticed is now asked about the way a person would.

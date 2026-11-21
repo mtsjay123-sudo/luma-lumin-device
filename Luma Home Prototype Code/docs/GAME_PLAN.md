@@ -128,6 +128,10 @@ on day 1 and run alongside everything else:
   for each way, believed on exactly one YES. Being measured on real brains (run 61); the honest number without it
   is 4 of 24.
 - **The crisis net gained "ending it all"** (it knew "end it all"), found with a line written for another test.
+- **Luma's own lines, read against fresh things people say (Nov 21):** on their own birthday it now says happy
+  birthday (it used to offer help with a text); the evening after "my mom has surgery on Monday" it asks "how'd your
+  mom's surgery go?" (it would have said "how did the mom has surgery go?"); and it no longer asks how an interview
+  went after being told it was bombed. Things coming up noticed: 8 → 12 of 16 built on, 3 → 6 of 16 on a second set.
 
 ## 1. Where Luma stands (measured)
 

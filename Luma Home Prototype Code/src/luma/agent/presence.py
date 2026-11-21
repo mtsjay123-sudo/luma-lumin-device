@@ -46,7 +46,10 @@ FACT_PATTERNS = [
 SKIP_FACTS = re.compile(r"\?|^\s*(?:(?:hey|ok|okay)\s+)?(?:luma[,\s]+)?(?:remember|remind|recall|text|message|tell|let|search|look up|find|what|who|when|where|why|how|can you|could you|would you|please)\b"
                         r"|\b(?:text|message|tell|let)\s+(?:my\s+|our\s+)?\w+\s+(?:that|to|know)\b", re.I)
 
-EVENTS = r"(?:job\s+)?interview|exam|test|quiz|final|midterm|appointment|doctor|dentist|surgery|date|game|match|tryouts?|recital|presentation|pitch|demo|meeting|flight|trip|first day|audition|court date|surgery|race|show"
+EVENTS = (r"(?:job\s+)?interview|exam|test|quiz|final|midterm|appointment|doctor|dentist|surgery|date|game|match|tryouts?|recital|presentation|pitch|demo|"
+          r"meeting|flight|trip|first day|last day(?= (?:at|of) (?:work|school|class|college|my job|the job|the office|my internship)\b)|(?<=\bmy )last day|audition|court date|surgery|race|show|wedding|"
+          r"performance review|vet|biopsy|ultrasound|mri|ct scan|procedure|operation|inspection|moving day|baby shower|concert|gig|open mic|marathon|"
+          r"thesis defense")
 OPEN_LOOP = re.compile(
     r"\b(?:(?:I|we)(?:'ve| have)?\s+(?:got\s+)?(?:a|an|my|our)|my|our|there's\s+(?:a|an|my))\s+(?P<event>(?:[a-z]+\s+){0,2}?(?:" + EVENTS + r"))\b"
     r"(?P<rest>[^.?!]{0,40}?)\b(?P<when>tonight|today|tomorrow(?: (?:morning|afternoon|night))?|this (?:morning|afternoon|evening|weekend)|"
@@ -165,17 +168,20 @@ WHEN = (r"tonight|today|tomorrow(?: (?:morning|afternoon|night))?|this (?:mornin
         r"(?:on |next |this )?(?:" + "|".join(WEEKDAYS) + r")(?: (?:morning|afternoon|evening|night))?")
 EVENT_ANYWHERE = re.compile(r"\b(?P<event>(?:bar |driving |road |final |job |court |first |doctor'?s? |dentist |eye |vet )?(?:" + EVENTS + r"|toast|graduation|performance|"
                             r"competition|tournament|checkup|check-up|orientation|hearing|ceremony|speech))\b", re.I)
+CLOSING = re.compile(r"\bclos(?:e|ing) on (?:the|our|my|a) (?:new )?(?P<what>house|apartment|condo|place|home)\b", re.I)
 WHEN_ANYWHERE = re.compile(r"\b(?P<when>" + WHEN + r")\b", re.I)
 THEIRS = re.compile(r"\b(?:i|i'm|im|i've|i'll|we|we're|we've|we'll|my|our|me)\b", re.I)
 FLYING = re.compile(r"\b(?:fly(?:ing)? out|flying (?:to|home|back)|fly (?:to|home|back))\b", re.I)
 NOT_COMING = re.compile(r"\?|\b(?:was|were|had|went|did|got back|came back|watched|saw|yesterday|last (?:night|week|month|time)|ago|already|"
                         r"don'?t|doesn'?t|didn'?t|won'?t|isn'?t|not|no|never|without|cancel\w*|postponed?|called off|reschedul\w*|moved to|pushed|"
-                        r"if|maybe|might|should|would|could|every|always|usually|on tv|is on|are on|results?)\b", re.I)
+                        r"if|maybe|might|should|would|could|every|always|usually|on tv|(?:is|are) on(?! (?:(?:mon|tues|wednes|thurs|fri|satur|sun)day|the \d))|results?|"
+                        r"called|texted|emailed|said|told me|"
+                        r"skipped|bombed|failed|flunked|passed|aced|nailed|blew|missed|finished|survived|crushed)\b", re.I)
 
 
 # Said the plain way and still not coming up: a question, something called off, results that came back, a show that's on.
 # ("I cancelled my dentist appointment tomorrow" got "Hey, how'd the appointment go?")
-CALLED_OFF = re.compile(r"\?\s*$|\b(?:cancel\w*|postponed?|called off|reschedul\w*|results?|(?:show|game|match|race|finale|episode)(?:'s| is| are) on|comes? back|came back|on tv|airs?|premieres?)\b", re.I)
+CALLED_OFF = re.compile(r"\?\s*$|\b(?:cancel\w*|postponed?|called off|reschedul\w*|results?|(?:show|game|match|race|finale|episode)(?:'s| is| are) on|comes? back|came back|on tv|on tonight|airs?|premieres?)\b", re.I)
 
 
 def _other_ways(text, now):
@@ -185,12 +191,54 @@ def _other_ways(text, now):
     when = WHEN_ANYWHERE.search(text)
     event = EVENT_ANYWHERE.search(text)
     topic = " ".join(event["event"].lower().split()) if event else ("flight" if FLYING.search(text) else None)
+    closing = CLOSING.search(text)
+    if closing:
+        topic = "closing on the " + closing["what"].lower()
     if not when or not topic:
         return []
+    if event and not closing:
+        whose = re.search(r"\b(?:my|our)\s+(?P<rel>" + _RELS + r")(?:'s|’s|\s+(?:has|is having|is getting|goes in for|is going in for|has got))\s+"
+                          r"(?:(?:a|an|her|his|their|the)\s+)?(?:[a-z]+\s+){0,2}$", text[:event.start()], re.I)
+        if whose:
+            topic = f"your {whose['rel'].lower()}'s {topic}"   # "my sister's wedding is this Saturday"
     day = _event_day(when["when"], now.date())
     ask_day = day if re.search(r"morning|afternoon", when["when"], re.I) else day + timedelta(days=1)
     ask_at = now.replace(year=ask_day.year, month=ask_day.month, day=ask_day.day, hour=18, minute=0, second=0, microsecond=0)
     return [{"topic": topic, "day": day.isoformat(), "ask_at": ask_at.timestamp()}] if ask_at > now else []
+
+
+# What to call it when Luma asks. "my mom has surgery on Monday" was kept as "mom has surgery" ("how did the mom has
+# surgery go?"). The event itself, with the few words that belong to it ("job interview", "driving test"); when it's
+# their person's, "your mom's surgery"; and nothing at all when the words before it say it's over or not happening.
+_RELS = (r"best friend|bestie|brother|sister|mom|mother|mama|dad|father|son|daughter|wife|husband|girlfriend|boyfriend|partner|friend|cousin|aunt|auntie|"
+         r"uncle|grandma|grandpa|grandmother|grandfather|granny|nana|boss|coworker|roommate|neighbou?r|kid|baby|niece|nephew|fianc[eé]e?|dog|cat|puppy|kitten")
+_CORE = re.compile(r"(?:(?:bar|driving|road|final|job|court|first|second|last|doctor'?s?|dentist|eye|vet|math|history|science|chem|bio|physics|spanish|french|"
+                   r"english|work|team|school|big|blood|stress|soccer|football|baseball|basketball|hockey|piano|dance|choir|band|sales|client|board|"
+                   r"staff|zoom|visa|dmv|therapy|physical|annual|phone|video|panel|group)\s+){0,2}(?:" + EVENTS + r")$", re.I)
+_THEIR_PERSONS = re.compile(r"^(?P<rel>" + _RELS + r")(?:'s|’s)?(?:\s+(?:has|is having|is getting|is going in for|goes in for|got|has got|is having her|is having his))?"
+                            r"(?:\s+(?:a|an|her|his|their|the|some))?\s*$", re.I)
+_OVER = re.compile(r"\b(?:had|was|were|went|did|didn'?t|doesn'?t|don'?t|won'?t|isn'?t|not|no|never|cancel\w*|missed|skipped|bombed|failed|passed|aced|finished)\b", re.I)
+
+
+_WENT = re.compile(r"\b(?:skipped|bombed|failed|flunked|passed|aced|nailed|blew|missed|finished|survived|crushed|went|was|were|had|did|got (?:through|back from|out of)|"
+                   r"came (?:back|home) from|walked out of|just left|is over|is done|are over|are done)\b", re.I)
+
+
+def _topic(event):
+    """("job interview", None), ("surgery", "mom"), or (None, None) when the words say it isn't coming up."""
+    event = " ".join(str(event or "").lower().replace("’", "'").split())
+    core = _CORE.search(event)
+    if not core:
+        return event or None, None
+    lead = event[:core.start()].strip()
+    if not lead:
+        return core.group(0), None
+    if _OVER.search(lead):
+        return None, None
+    theirs = _THEIR_PERSONS.match(lead)
+    if theirs:
+        return core.group(0), theirs["rel"].lower()
+    return core.group(0), None
 
 
 def notice_open_loops(text, now):
@@ -201,7 +249,11 @@ def notice_open_loops(text, now):
     if CALLED_OFF.search(text):
         return []
     for match in OPEN_LOOP.finditer(text):
-        event = " ".join(match["event"].lower().split())
+        event, whose = _topic(match["event"])
+        # "I bombed my interview today", "my review went fine today": told how it went, they aren't asked how it went
+        if not event or _WENT.search(re.split(r"[.;!?]", text[:match.start()])[-1]) or _WENT.search(match["rest"] or ""):
+            continue
+        event = f"your {whose}'s {event}" if whose else event
         day = _event_day(match["when"], now.date())
         # Ask the next day around 6pm, or that same evening when it's in the morning or afternoon ("thursday morning": a
         # friend asks thursday night how it went).
@@ -248,7 +300,11 @@ def check_in_line(topic, seed):
     if str(topic).startswith("feeling:"):
         lines = FEELING_CHECK_INS.get(topic[8:], FEELING_CHECK_INS["hard"])
         return lines[seed % len(lines)]
-    return CHECK_INS[seed % len(CHECK_INS)].format(topic=topic)
+    topic = re.sub(r"\b(?:mri|ct|dmv)\b", lambda m: m.group(0).upper(), str(topic))   # "the MRI", never "the mri"
+    line = CHECK_INS[seed % len(CHECK_INS)]
+    if str(topic).startswith("your "):   # "your mom's surgery": theirs to name, never "the your mom's surgery"
+        line = line.replace("the {topic}", "{topic}")
+    return line.format(topic=topic)
 
 
 BIRTHDAY = re.compile(r"(?:\b(?P<who>[A-Z][a-z]+)(?:'s|’s)\s+|\b(?P<my>[Mm]y|[Oo]ur|[Yy]our)\s+(?:(?P<rel>[a-z]+)(?:'s|’s)?\s+)?)"
