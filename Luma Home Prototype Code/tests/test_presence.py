@@ -178,6 +178,18 @@ class WhatLumaAsksAbout(unittest.TestCase):
         self.assertEqual([said for said in self.NEAR + self.SECOND_NOT + self.THIRD_NOT if self.asks(said)], [])
 
 
+class ABatteryIsntAPlace(unittest.TestCase):
+    """"ugh my phone's at 2 percent" was kept as where the phone is: "Got it. Your phone is at 2 percent. Just ask where is my phone"."""
+
+    def test_a_percent_isnt_where_something_is(self):
+        from luma.agent import presence
+        for said in ("ugh my phone's at 2 percent", "my phone is at 5%", "my laptop's at 12 per cent"):
+            self.assertEqual(presence.notice_facts(said), [], said)
+        self.assertEqual(presence.notice_facts("my keys are on the kitchen counter"), ["Your keys are on the kitchen counter"])
+        self.assertEqual(presence.notice_facts("i left my wallet at 22 elm street"), ["Your wallet is at 22 elm street"])
+        self.assertEqual(presence.notice_facts("my car is at the shop"), ["Your car is at the shop"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

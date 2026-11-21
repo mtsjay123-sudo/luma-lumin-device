@@ -61,7 +61,8 @@ OBJECTS = (r"(?:spare\s+|car\s+|house\s+|work\s+)?(?:keys?|wallet|phone|passport
            r"remote|headphones|airpods|earbuds|ring|watch|id|license|umbrella|jacket|coat|shoes|medicine|meds|pills|credit card|card|tickets?|receipt|"
            r"package|documents|notebook|tablet|ipad|camera|helmet|gloves|hat|badge|key card|keycard)")
 PREP = r"(?:on top of|next to|underneath|under|behind|inside|beside|near|by|on|in|at)"
-PLACE = r"(?P<place>(?:the |my |our |a |his |her |level |spot |row |section )?[\w'#-]+(?: [\w'#-]+){0,5}?)(?=$|[.,!;?]|\s+(?:and|but|so|remind|can|could|please|lol|for later|later|okay|ok|real quick|rn)\b)"
+# "my phone's at 2 percent" isn't where the phone is (it was kept as "Your phone is at 2 percent. Just ask where is my phone")
+PLACE = r"(?!\d+\s*(?:%|percent\b|per cent\b))(?P<place>(?:the |my |our |a |his |her |level |spot |row |section )?[\w'#-]+(?: [\w'#-]+){0,5}?)(?=$|[.,!;?]|\s+(?:and|but|so|remind|can|could|please|lol|for later|later|okay|ok|real quick|rn)\b)"
 LOCATION = [
     re.compile(r"\bI(?:'ve)?\s+(?:just\s+)?(?:left|put|placed|parked|stored|hid|set|dropped|keep|stashed)\s+(?:my|the|our)\s+(?P<obj>" + OBJECTS + r")\s+(?P<prep>" + PREP + r")\s+" + PLACE, re.I),
     re.compile(r"\b(?:my|the|our)\s+(?P<obj>" + OBJECTS + r")(?:\s+(?:is|are)|'s|’s|'re)\s+(?:parked\s+|sitting\s+|at\s+home\s+)?(?P<prep>" + PREP + r")\s+" + PLACE, re.I),

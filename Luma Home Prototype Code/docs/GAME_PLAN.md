@@ -220,6 +220,15 @@ on day 1 and run alongside everything else:
   own code first ("help me be funnier" got "Bet, I'll bring the jokes more."); all go to the brain now. On a set
   written first: 23 of 24 asks heard, 0 of 24 lines of plain talk taken. Not measured: whether a real brain can
   actually tell a joke that lands from one that doesn't. That side check is next.
+- **Practice goes on past the ask (Nov 21).** "can i try a joke on you" / "Go for it." / the joke: the joke used to
+  reach the brain with nothing said about practice (0 of 30). Now the message after the ask is still practice, and so
+  is one that answers Luma asking for the next; it ends when they say so, change the subject with a marker, are
+  hurting, or might not be safe. On a set written first: 0 → 24 of 30 carried, 0 of 16 wrongly. A joke shaped like a
+  question is no longer weighed from four sides as a hard question. A joke close to a hurt (a eulogy joke) gets a
+  gentle note, kind first, where it used to get condolences and nothing about the joke: a call for therapists.
+- **The practice partner's side check is written (`--only practice`, 58 moments).** Jokes that work, jokes broken on
+  purpose, jokes on sensitive ground, rehearsed lines with a weak spot. The number to watch is the gap between the
+  first two. Run 81 is its first run on the four brains.
 - **When they say they're ready, Luma helps, and never before (Nov 21, the owner's ask).** A reader for the ways
   someone says they want people or one person back ("i should call my sister, it's been months"); only then is the
   brain told to help with the next small step and offer to practise it. Lonely or leaning is never read as ready. On

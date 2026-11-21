@@ -3501,8 +3501,15 @@ class Agent:
             # of anyone who's hurting or might not be safe, and only ever because they asked.
             from luma.agent import practice
             trying = practice.note(text)
+            going = None if trying else self._still_practising(text)
             if trying and not (friendcheck.at_risk(str(text)) or friendcheck.hurting(str(text)) or self._hurt_recently(text)):
                 shape = trying
+            elif trying and not practice.bare(text) and not friendcheck.at_risk(str(text)) and not CRISIS.search(str(text).lower()) \
+                    and not any(friendcheck.at_risk(m) or CRISIS.search(m.lower()) for m in
+                                [h["content"] for h in self.history[-8:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)][-3:]):
+                shape = practice.GENTLE   # a joke for their dad's funeral: what they asked for, kind first (never when they might not be safe)
+            elif going:
+                shape = practice.STILL[going]   # the joke that comes after "go for it" (the ask and the joke are two messages)
             elif not shape and practice.ready(text) and not friendcheck.at_risk(str(text)):
                 # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
                 # "should i text him first or wait for him" is a pick, and a friend picks.
@@ -5187,6 +5194,35 @@ class Agent:
         prompt = self._observation_prompt(question, tool, result) + "Answer me naturally in a sentence or two using only that. If it didn't find anything useful, just say so."
         text = self._plain_answer(prompt, cancel_event)
         return self._grounded(question, result, text, lambda note: self._plain_answer(prompt + note, cancel_event)) if text else None
+
+    def _practising(self, text):
+        """They're trying a joke on Luma or rehearsing something, in this message or still (the message after the ask)."""
+        from luma.agent import practice
+        return practice.asks(text) or self._still_practising(text)
+
+    def _still_practising(self, text):
+        """The kind of practice they're in the middle of (practice.still), or None: the joke or the line that comes after the
+        ask. Never of anyone who might not be safe, now or in their last few messages, and never of anyone hurting. A hard line
+        said to somebody ("i'm sorry i hurt you") is the rehearsal itself when it's something to say that they're practising."""
+        from luma.agent import friendcheck, practice
+        if self.mode == "kids":
+            return None
+        earlier = [h["content"] for h in self.history[-14:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
+        if earlier and earlier[-1].strip() == str(text).strip():
+            earlier = earlier[:-1]
+        last = self.history[-1] if self.history else {}
+        said = last.get("content") if last.get("role") == "user" and isinstance(last.get("content"), str) else ""
+        if str(text).strip().lower() not in said.lower():
+            said = str(text)   # as they said it: "by the way ..." is taken off the front before a request is read, and here it matters
+        kind = practice.still(earlier, getattr(self, "last_reply", None) or "", said)
+        if not kind:
+            return None
+        for m in [str(text)] + earlier[-3:]:
+            if friendcheck.at_risk(m) or CRISIS.search(m.lower()) or friendcheck.leaning(m):
+                return None
+            if friendcheck.hurting(m) and not (kind == "say" and practice.to_someone(m)):
+                return None
+        return kind
 
     def _hurt_recently(self, said):
         """They told Luma about a loss, loneliness, a hard day or not being safe, now or in their last few messages."""
@@ -7897,7 +7933,10 @@ class Agent:
                 # answer, as itself, in one trip: four takes and a judge said "What's on your mind?" (Human Test v2, run 34).
                 about_luma = (friendcheck.asked_what_i_am(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.leaning(text)
                               # stopping a medication on their own isn't weighed from four sides either: a friend says one thing first
-                              or friendcheck.stopping_meds(text))
+                              or friendcheck.stopping_meds(text)
+                              # and neither is a joke they're trying on Luma or a line they're rehearsing ("why did the scarecrow get
+                              # a raise? ..." was weighed as a hard question, with nothing said about practice)
+                              or self._practising(text))
                 # And a question about their own life that a memory answers outright ("what's my best friend's name again?")
                 # isn't a hard question: it was being weighed from four sides instead of answered (the month test, Nov 20).
                 if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) and not about_luma \
@@ -7956,7 +7995,7 @@ class Agent:
                 short = style['verbosity'] == 'brief'
                 line = ("Bet. " if casual else "Got it. ") + ("Keeping it " + ("casual" if casual else "simple" if style['language_style'] == 'plain' else "polished") + (" and short" if short else " and detailed" if style['verbosity'] == 'detailed' else "") + " from now on.")
                 return {"text": line, "profile": style}
-            if self.mode != 'kids' and grocery_request(text) and not wants_message(text):
+            if self.mode != 'kids' and grocery_request(text) and not wants_message(text) and not self._practising(text):   # a joke about the price of eggs isn't an order
                 ready = bool(self.providers.env.get('INSTACART_API_KEY'))
                 return {"text": "I can't see real store prices or stock yet, so I won't guess which is cheapest, and I haven't placed an order. " + ("Let's make the list and I'll turn it into an Instacart cart you can check out." if ready else "I can make the list now, and once Instacart is connected I'll turn it into a cart you check out yourself."), "section": "groceries"}
             if re.search(r"\b(?:what|which) (?:llm|(?:language |ai )?model) (?:are you|do you|does luma|is luma)\b", lowered):

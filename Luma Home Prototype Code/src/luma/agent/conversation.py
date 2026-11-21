@@ -62,5 +62,11 @@ def style_update(text, profile):
 
 
 def grocery_request(text):
-    return bool(re.search(r"\b(?:find|buy|order|compare|shop|cheapest|prices?)\b", text, re.I)
-                and re.search(r"\b(?:grocer(?:y|ies)|eggs|food lion|foodline|instacart)\b", text, re.I))
+    """They want groceries found, compared or ordered. A remark about what things cost isn't one: "my grandpa's mad about the
+    price of eggs" used to get "I can't see real store prices or stock yet"; "price" counts only where something is asked."""
+    if not re.search(r"\b(?:grocer(?:y|ies)|eggs|food lion|foodline|instacart)\b", text, re.I):
+        return False
+    if re.search(r"\b(?:find|buy|order|compare|shop|cheapest)\b", text, re.I):
+        return True
+    return bool(re.search(r"\bprices?\b", text, re.I)
+                and re.search(r"\?|^\W*(?:what|how much|where|which|who|can you|could you|check|look up|get me|show me|tell me)\b", text.strip(), re.I))

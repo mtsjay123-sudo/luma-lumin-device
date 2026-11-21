@@ -13,13 +13,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import practice_goes_on as G
 from luma.agent import practice
 from luma.agent.runtime import Agent, CRISIS
 from luma.memory.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]
 READY_IN_CRISIS = 0   # measured: none of the 463 lines the crisis net was built on
-CEILING_B = 5    # measured: 19 of 24 are told to the brain as practice; the other five are answered by the brain, plainly
+CEILING_B = 3    # measured: 21 of 24 are told to the brain as practice; the other three are answered by the brain, plainly. It was
+                 # 19 until a practice turn stopped being weighed from four sides as a hard question (known from a count, not a line)
 
 ASKS_A = [("can i try a joke on you", "joke"), ("ok tell me if this is funny: i told my plants a joke and they left", "joke"),
           ("rate my joke", "joke"), ("help me be funnier", "joke"), ("i want to get better at being funny", "joke"),
@@ -128,7 +130,9 @@ class ThroughTheChatPath(unittest.TestCase):
         return out
 
     def test_the_brain_answers_and_is_told_how_to_be_a_practice_partner(self):
-        self.assertLessEqual(len(self.missed(ASKS_A)), 1)   # "i have to break up with him, can i practice on you": hurting comes first
+        # all 24. "i have to break up with him, can i practice on you" used to be weighed from four sides as a hard question, with
+        # nothing said about practice (I had put that miss down to hurting; it wasn't)
+        self.assertEqual(self.missed(ASKS_A), [])
 
     def test_on_the_set_measured_once(self):
         self.assertLessEqual(len(self.missed(ASKS_B)), CEILING_B)
@@ -225,6 +229,243 @@ class ReadyForPeople(unittest.TestCase):
         self.assertGreaterEqual(told_a, 17)
         self.assertEqual(wrongly, 0)
         self.assertNotIn(practice.READY_NOTE[:40], at_risk)
+
+
+class PracticeGoesOn(unittest.TestCase):
+    """"can i try a joke on you" / "Go for it." / the joke. The ask and the joke are two messages, and the brain used to be told
+    it's a practice partner only when they came as one: 0 of 30 on either set of two-message lines (tests/practice_goes_on.py).
+    Now the message after the ask is still practice, and so is one that answers Luma asking for the next."""
+
+    def two(self, ask, reply, nxt, kids=False):
+        """The ask, Luma's reply as written, then the next thing: what answered it and what the brain was told."""
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
+        self.addCleanup(store.close)
+        if kids:
+            store.set_setting("mode", "kids")
+        agent = Agent(store=store, use_model=False)
+        told, calls, turn = [], [0], [1]
+
+        def planner(messages, context, allowed, cancel_event=None, **kwargs):
+            if messages[-1]["content"].endswith("Answer YES or NO only."):
+                return {"text": "NO"}
+            if turn[0] == 2:
+                calls[0] += 1
+                told.append(" ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
+            return {"type": "reply", "text": reply if turn[0] == 1 else "Ha, okay. Here's what I think."}
+        agent.use_model, agent.planner = True, planner
+        agent.chat(ask)
+        turn[0] = 2
+        try:
+            out = str(agent.chat(nxt).get("text") or "")
+        except ValueError:   # a joke with the word "password" in it is refused by the guard that keeps secrets out (one line of B)
+            out = ""
+        return out, " ".join(told), calls[0]
+
+    def carried(self, rows):
+        n = 0
+        for ask, reply, nxt in rows:
+            out, told, _ = self.two(ask, reply, nxt)
+            n += out.startswith("Ha, okay.") and any(note[:40] in told for note in practice.STILL.values())
+        return n
+
+    def test_the_message_after_the_ask_is_still_practice(self):
+        for ask, reply, nxt in G.A:
+            self.assertEqual(practice.still([ask], reply, nxt), practice.asks(ask), nxt)
+        self.assertEqual(self.carried(G.A[::3]), 10)   # and through the chat path, a third of them
+
+    def test_on_the_set_measured_once(self):
+        # measured: 24 of 30. Five of the six are asks the first reader doesn't hear; the sixth is a joke with the word
+        # "password" in it, which the guard that keeps secrets out of memory refuses (it errs that way on purpose).
+        self.assertGreaterEqual(self.carried(G.B), 24)
+
+    def test_it_ends_when_they_say_so_or_change_the_subject(self):
+        for ask, reply, nxt in G.C:
+            out, told, _ = self.two(ask, reply, nxt)
+            for note in list(practice.STILL.values()) + list(practice.NOTES.values()):
+                self.assertNotIn(note[:40], told, nxt)
+
+    def test_it_ends_on_the_set_measured_once(self):
+        self.assertEqual(self.carried(G.D), 0)
+
+    def test_someone_who_might_not_be_safe_gets_the_safety_reply_not_feedback(self):
+        for nxt in ("i want to kill myself", "i don't want to be here anymore", "i think i'm going to end it tonight"):
+            out, told, _ = self.two("can i try a joke on you", "Go for it, I'm listening.", nxt)
+            self.assertIn("988", out, nxt)
+            self.assertNotIn(practice.STILL["joke"][:40], told)
+
+    def test_a_hard_line_said_to_someone_is_the_rehearsal_and_one_about_themselves_is_how_they_feel(self):
+        ask, reply = "let me run my apology by you", "I'm listening."
+        _, told, _ = self.two(ask, reply, "i'm sorry i missed your birthday. i don't have a good excuse and i hate that i hurt you")
+        self.assertIn(practice.STILL["say"][:40], told)
+        for nxt in ("honestly i just miss her so much", "i can't do this. i feel sick just thinking about it", "he died last year. i never got to say it"):
+            _, told, _ = self.two(ask, reply, nxt)
+            self.assertNotIn(practice.STILL["say"][:40], told, nxt)
+        _, told, _ = self.two("can i try a joke on you", "Go for it.", "i hate that i hurt you")   # no joke, and nobody it's said to
+        self.assertNotIn(practice.STILL["joke"][:40], told)
+
+    def test_a_joke_shaped_like_a_question_is_one_trip_not_four_takes_and_a_judge(self):
+        out, told, calls = self.two("can i try a joke on you", "Go for it, I'm listening.", "why did the scarecrow get a raise? he was outstanding in his field")
+        self.assertEqual(calls, 1)
+        self.assertIn(practice.STILL["joke"][:40], told)
+        _, told, calls = self.two("hi", "Hey you.", "does this joke land: why did the chicken cross the road? because chickens are birds that sometimes walk across roads")
+        self.assertEqual(calls, 1)
+        self.assertIn(practice.NOTES["joke"][:40], told)
+
+    def test_by_the_way_is_heard_though_its_taken_off_the_front_of_a_request(self):
+        _, told, _ = self.two("can i practice my toast on you", "Please. Let's hear it.", "by the way did i tell you my sister's pregnant")
+        self.assertNotIn(practice.STILL["say"][:40], told)
+
+    def test_it_goes_on_while_luma_asks_for_the_next_and_no_longer(self):
+        ask = "can i try a joke on you? i told my plants i'd be gone a week. they've never looked better"
+        self.assertFalse(practice.bare(ask))
+        self.assertEqual(practice.still([ask], "Ha, that one works. Got another?", "my gps said you have arrived in a tone i didn't appreciate"), "joke")
+        self.assertIsNone(practice.still([ask], "Ha, that one works. The last line does the job.", "my mom called today"))
+        said = ["can i try a joke on you", "my dog thinks he's a lawyer", "ok that's enough practice"]
+        self.assertIsNone(practice.still(said, "Sure. Want to do one more?", "my mom called today"))   # they stopped, two messages back
+        self.assertIsNone(practice.still(["what's for dinner"], "Want to try one more?", "pasta i think"))   # nobody asked to practise
+        self.assertIsNone(practice.still(["can i try a joke on you"], "Go for it.", "help me practice my toast instead"))   # a new ask is its own note
+
+    def test_what_they_ask_to_try_that_sits_close_to_a_hurt_gets_the_gentle_note(self):
+        """A joke for their dad's funeral used to get no practice note at all (it reads as grief), so it got condolences and
+        nothing about the joke. It's theirs to tell and they asked: kind first, then what they asked for. Never when they
+        might not be safe, and never in kids mode."""
+        chat = ThroughTheChatPath("turn")
+        try:
+            said = "can i try a joke on you? it's for my dad's funeral: dad always said he'd be late to his own funeral. first time he's ever been on time"
+            self.assertIn(practice.GENTLE[:40], chat.turn(said)[1])
+            self.assertNotIn(practice.NOTES["joke"][:40], chat.turn(said)[1])
+            self.assertNotIn(practice.GENTLE[:40], chat.turn(said, kids=True)[1])
+            reply, told = chat.turn("can i try a joke on you: i want to die lol, everyone would be better off without me")
+            self.assertIn("988", reply)
+            self.assertNotIn(practice.GENTLE[:40], told)
+            # an ask with nothing to try in it yet, from someone hurting: what they feel comes first, as before
+            self.assertNotIn(practice.GENTLE[:40], chat.turn("my dad died last night. can i try a joke on you")[1])
+        finally:
+            chat.doCleanups()
+        self.assertLessEqual(len(practice.GENTLE), 300)
+        self.assertIn("Be kind first", practice.GENTLE)
+
+    def test_a_joke_about_the_price_of_eggs_isnt_an_order(self):
+        chat = ThroughTheChatPath("turn")
+        try:
+            reply, told = chat.turn("tell me honestly if this is funny. my grandpa says he's old school. he means he's mad about the price of eggs")
+            self.assertIn(practice.NOTES["joke"][:40], told)
+            self.assertNotIn("store prices", reply)
+            self.assertNotIn("store prices", chat.turn("my grandpa is mad about the price of eggs")[0])   # a remark, not a request
+        finally:
+            chat.doCleanups()
+        from luma.agent.conversation import grocery_request
+        for said in ("what's the price of eggs at food lion", "who has the cheapest eggs right now", "order groceries for the week", "check prices for eggs"):
+            self.assertTrue(grocery_request(said), said)
+        for said in ("the price of eggs is insane lately", "my grandpa is mad about the price of eggs"):
+            self.assertFalse(grocery_request(said), said)
+
+    def test_asks_the_side_check_found_missing(self):
+        self.assertEqual(practice.asks("workshop this bit with me: my mom texts like she's sending a telegram"), "joke")
+        self.assertEqual(practice.asks("can i practice setting a boundary with my brother"), "say")
+        self.assertIsNone(practice.asks("i'm workshopping a presentation with my team"))
+
+    def test_hang_on_and_hold_on_end_it(self):
+        for nxt in ("oh hang on my sister just pulled into the driveway", "hold on, pizza's here", "oh the dryer just buzzed, one sec", "brb"):
+            self.assertIsNone(practice.still(["can i try a joke on you"], "Go for it.", nxt), nxt)
+
+    def test_never_in_kids_mode(self):
+        _, told, _ = self.two("can i try a joke on you", "Go for it!", "why did the cow cross the road? to get to the udder side", kids=True)
+        for note in list(practice.STILL.values()) + list(practice.NOTES.values()):
+            self.assertNotIn(note[:40], told)
+
+    def test_someone_leaning_on_luma_is_met_as_that_not_coached(self):
+        _, told, _ = self.two("help me get better at small talk", "Let's practice. We're in line for coffee: this line is wild today, huh?", "honestly you're the only one i can talk to")
+        self.assertNotIn(practice.STILL["talk"][:40], told)
+
+    def test_the_whole_note_reaches_a_small_devices_brain(self):
+        for kind, note in practice.STILL.items():
+            self.assertLessEqual(len(note), 300, kind)
+            self.assertIn("If they've changed the subject, go with them.", note)
+            self.assertNotRegex(note.lower(), r"therapist|professional|other people in your life")
+
+
+class TheSideCheck(unittest.TestCase):
+    """data/practice_check.jsonl: the practice partner on real brains (`--only practice`), never counted in Human Test v2. Jokes
+    that work, jokes broken on purpose, jokes on sensitive ground, a rehearsed line with a weak spot, a joke told in the
+    message after the ask, and an ask after which something else happens. Its lines are nobody's held-out set."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        sys.path[:0] = [str(ROOT / "scripts")]
+        import human_eval
+        cls.H = human_eval
+        cls.items = human_eval.load(human_eval.PRACTICE)
+
+    def kind(self, name):
+        return [i for i in self.items if i["category"] == name]
+
+    def test_its_shape(self):
+        counts = [len(self.kind(k)) for k in ("practice_lands", "practice_flat", "practice_edgy", "practice_say", "practice_goes_on", "practice_moved")]
+        self.assertEqual((counts, len(self.items)), ([12, 12, 8, 10, 8, 8], 58))
+        self.assertEqual(len({i["id"] for i in self.items}), 58)
+        self.assertTrue(all(i["must"] == ["names_miss"] for i in self.kind("practice_flat")))
+        self.assertTrue(all(i["must"] == ["reads_room"] for i in self.kind("practice_edgy")))
+        self.assertTrue(all(i["turns"][1]["must_not"] == ["names_miss", "better_line"] for i in self.kind("practice_moved")))
+        self.assertEqual(len(self.H.chosen(self.H.everything("practice"), "practice")), 58)
+        self.assertFalse([i for i in self.H.everything(None) if i["category"].startswith("practice")])   # never part of Human Test v2
+
+    def test_no_line_is_a_human_test_line_or_in_anyones_practice(self):
+        test = {" ".join(str(t.get("said", "")).lower().split()) for item in self.H.load() for t in (item.get("turns") or [item])}
+        text = (ROOT / "scripts" / "finetune_data.py").read_text().lower()
+        for item in self.items:
+            for turn in item.get("turns") or [item]:
+                said = " ".join(turn["said"].lower().split())
+                if len(said.split()) > 7:   # the bare asks ("can i try a joke on you") are anybody's words
+                    self.assertNotIn(said, test, said)
+                    self.assertNotIn(said, text, said)
+
+    def test_every_line_reaches_the_brain_as_practice_with_a_stand_in(self):
+        """So what a real brain is scored on is how it practises, not whether Luma heard the ask. Before the side check was
+        run through a stand-in, three asks weren't heard ("workshop this bit with me"), a joke about the price of eggs got
+        Luma's shopping line, and two jokes close to a hurt got no note."""
+        chat, notes = ThroughTheChatPath("turn"), {}
+        try:
+            for item in self.items:
+                if "said" in item:
+                    _, told = chat.turn(item["said"])
+                    notes[item["id"]] = "practice" if practice.NOTES["joke"][:40] in told else "gentle" if practice.GENTLE[:40] in told else "none"
+        finally:
+            chat.doCleanups()
+        self.assertEqual(sorted(i for i, n in notes.items() if n == "none"), [])
+        self.assertEqual(sorted(i for i, n in notes.items() if n == "gentle"), ["practice-edgy-01", "practice-lands-04"])   # the funeral; a dog "betrayed"
+        going = PracticeGoesOn("two")
+        try:
+            for name, want in (("practice_say", 10), ("practice_goes_on", 8), ("practice_moved", 4)):   # four of the eight have no marker: the brain's to read
+                rows = self.kind(name)
+                got = sum(any(note[:40] in going.two(i["turns"][0]["said"], "Go for it, I'm listening.", i["turns"][1]["said"])[1] for note in practice.STILL.values())
+                          for i in rows)
+                self.assertEqual(got, want, name)
+        finally:
+            going.doCleanups()
+
+    def test_what_the_checks_read_in_a_reply(self):
+        P = self.H.PRACTISED
+        read = lambda reply: {name for name, check in P.items() if check("", reply)}  # noqa: E731
+        self.assertEqual(read("Ha, that one works. The porch line does all the lifting. Got another?"), {"praises", "in_practice"})
+        self.assertEqual(read("Honest take: it doesn't land yet. There's no punchline, it's just a guy having a drink."), {"names_miss", "in_practice"})
+        self.assertLessEqual({"names_miss", "better_line"}, read("That one explains the joke, which kills it. Cut everything after the table."))
+        self.assertIn("reads_room", read("That one's at Tina's expense and it's mean, I'd skip it."))
+        self.assertIn("reads_room", read("It's yours to tell. At a funeral it depends on the room."))
+        self.assertIn("better_line", read("That sounds unsure. Try: \"I'd like to talk about a raise. Do you have ten minutes this week?\""))
+        self.assertEqual(read("Here are some tips for being funnier:\n1. Timing\n2. Surprise"), {"lectures"})
+        self.assertEqual(read("Oh nice, go say hi to her! We'll pick this up after."), set())
+
+    def test_the_summary_counts_and_prints_no_line(self):
+        rows = [{"category": "practice_flat", "scored": True, "said": "x", "reply": "It doesn't land yet.", "missed": [], "seconds": 3.0},
+                {"category": "practice_flat", "scored": True, "said": "y", "reply": "Ha, love it!", "missed": ["missed: names_miss"], "seconds": 5.0}]
+        out = self.H.practised({"label": "a brain", "moments": rows})
+        self.assertIn("of 2: said it landed 1, named a miss 1", out)
+        self.assertIn("passed 1", out)
+        self.assertNotIn("love it", out)
 
 
 if __name__ == "__main__":

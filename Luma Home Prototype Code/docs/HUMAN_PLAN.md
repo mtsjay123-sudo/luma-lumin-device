@@ -4359,6 +4359,71 @@ for real" used to end on "Is there anyone you've drifted from…", "Who's one pe
 They stay, are glad, never agree it's all they need, and ask about the person's own day. Nothing has been trained
 on it.
 
+### Practice that goes on past the ask (`practice.still`, `PracticeGoesOn` in `tests/test_practice.py`, `tests/practice_goes_on.py`)
+
+"can i try a joke on you" / "Go for it." / the joke. That is how it actually goes, in two messages, and until now the
+brain was told it's a practice partner only when the ask and the joke came as one. On two sets of thirty two-message
+lines (jokes, lines to rehearse, small talk), the second message reached the brain as practice **0 of 30** times.
+
+Now the message right after an ask with nothing to try in it yet is still practice, and so is one that answers Luma
+asking for the next ("Got another?"). It ends when they say so ("never mind", "that's enough"), when they change the
+subject with a marker ("by the way", "anyway", "hang on"), when they sound beaten ("what's the point"), when they're
+hurting, when they lean on Luma, and always when they might not be safe: the crisis net answers before any of this.
+A hard line said to somebody ("i'm sorry i missed your birthday, i hate that i hurt you") is the rehearsal itself when
+it's something to say that they're practising, and how they feel when it isn't. The carried note ends "If they've
+changed the subject, go with them", because code can't see a change of subject with no marker on it.
+
+| Second message told to the brain as practice | Before | After |
+|---|---|---|
+| A, built on (30) | 0 | 30 |
+| B, written first, measured once (30) | 0 | **24** |
+| C, stopped or hurting, built on (16): wrongly carried | 0 | 0 |
+| D, stopped or hurting, written first (16): wrongly carried | 0 | **0** |
+
+Of B's six misses, five are asks the first reader doesn't hear, and one is a joke with the word "password" in it,
+which the guard that keeps secrets out of memory refuses (it errs that way on purpose; I saw that line because the
+refusal is raised as an error, and left it). After B and D were measured, three stop markers were added from the
+side check's lines ("hang on", "hold on", "one sec"); B and D came out the same.
+
+Found on the way, and fixed:
+- **A joke shaped like a question was weighed from four sides as a hard question**, five trips to the brain and
+  nothing said about practice ("why did the scarecrow get a raise? ..."). A practice turn is one trip now. That also
+  moved the first-message numbers: asks told to the brain as practice 23 → 24 of 24 on the built-on set and
+  19 → 21 of 24 on the set written first (I knew a count of three from that set, not a line). I had put the built-on
+  miss down to "hurting comes first"; it wasn't, and the test says so now.
+- "by the way" is taken off the front of a request before it's read; the carry-over reads the message as it was said.
+- **A joke close to something that hurts** ("it's for my dad's funeral: dad always said he'd be late to his own
+  funeral...") read as grief, so it got no practice note at all: condolences, and nothing about the joke they asked
+  about. Now, when the ask and what they want to try come together and it reads as hurting, the brain is told: kind
+  first, in a few words; then what they asked for, honestly and gently, how it would land and with whom
+  (`practice.GENTLE`). Never when they might not be safe, never in kids mode, and an ask with nothing to try in it
+  from someone hurting is still met as hurting. This is a judgment call and it's in the list for therapists.
+- "tell me honestly if this is funny ... he's mad about the price of eggs" got "I can't see real store prices or
+  stock yet". A remark about what eggs cost isn't a grocery request any more (`conversation.grocery_request`: "price"
+  counts only where something is asked), and a practice turn never is.
+- "ugh my phone's at 2 percent" was kept as where the phone is ("Got it. Your phone is at 2 percent. Just ask where
+  is my phone"). A percent isn't a place (`presence.PLACE`).
+- "workshop this bit with me" and "can i practice setting a boundary with my brother" weren't heard as asks.
+
+### The practice partner on real brains: a side check (`data/practice_check.jsonl`, `--only practice`)
+
+Fifty-eight moments written by hand before any brain saw one: twelve jokes that work, twelve broken on purpose (no
+punchline, the joke explained, the punchline first), eight on sensitive ground (their dad's funeral, a coworker's
+weight, their own leg, their mom's dementia), ten rehearsed lines with a weak spot in them (an apology that isn't one,
+a no that isn't one), eight jokes told in the message after the ask, and eight asks after which something else
+happens ("oh shoot i left the oven on"). Never counted in Human Test v2; nobody's held-out set, so replies can be read.
+
+What code can count is rough: does the reply say it landed, name something that didn't work, offer a version, say
+where or with whom it would sting, or lecture. Those readers were written before a real reply was seen and will be
+wrong in places; the plan is to read the first run's replies and fix the readers, then rescore. **The number that
+means something is the gap between the jokes that work and the broken ones**: a brain that says "love it" to both, or
+picks at both, can't tell them apart. Every line reaches a stand-in brain with a practice note (a test checks), so
+what's scored is how a brain practises, not whether Luma heard the ask.
+
+Tests: `PracticeGoesOn` and `TheSideCheck` in `tests/test_practice.py`, `ABatteryIsntAPlace` in
+`tests/test_presence.py`. What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,114 passed, the
+known 14 failed.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm
