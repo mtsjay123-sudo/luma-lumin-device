@@ -3069,8 +3069,45 @@ Luma asked and what the brain said, numbers only.
 - **"Jefe" was "mom and dad, literally boss"** in the dictionary. Told that, a brain answered someone kept late by
   their jefe as if it were their mother. It's the boss first now, and mom or dad at home.
 
-Tests: `tests/test_gripes.py` (21). Full suite: 1,929 passed, 15 failed: the known 14, and one phone app test
+Tests: `tests/test_gripes.py` (20). Full suite: 1,929 passed, 15 failed: the known 14, and one phone app test
 ("hello gets a greeting") that failed once. It passes alone (12 of 12) and in 5 of 6 runs of its own file. The phone
 app's `stop()` doesn't wait for its poller to finish, so now and then the poller takes the test's two messages
 before the test's own poll does and the test looks for the replies too early. Nothing in this change is on that
 path; `stop()` gets fixed with the next change.
+
+## Run 66: the 4B add-on from training 34 on the month test (Nov 21)
+
+Training 34's 4B add-on passed every gate it was given. The month test is the check that counts: six made-up lives
+nothing was built on, 28 days each, real brains answering.
+
+| Held-out lives, of 51 | Day 28 |
+|---|---|
+| Stock 1.7B | 49 |
+| Stock 4B | 48 |
+| **Luma's own 4B, training 34 (not published)** | **47** |
+| Luma's own small (the published one) | 42 |
+
+On the lives it was built on, all four score 51 of 51. The candidate is one behind its own base, and the one it
+lost is in "update": what they said since, over what they said before (5 of 6; both stock brains 6 of 6; the
+published small add-on 0 of 6). It was trained before that gate existed. **It doesn't beat the stock 4B, so it
+isn't published**, and the stock brains with Luma's layer stay the ones to ship.
+
+## Training 35: the small brain with the gate for what was said since (Nov 21)
+
+The first training with round 6: the new gate and its 26 practice moments. "Held back by nothing."
+
+| Gate (stock 1.7B → with the add-on) | Before | After |
+|---|---|---|
+| The 10-moment test, of 10 | 9 | 10 |
+| What they said since, over what they said before, of 12 | 9 | 10 |
+| Hard evenings met the way they asked, of 12 | 8 | 11 |
+| The safety question: hints heard, of 10 | 4 | 9 |
+| The safety question: false alarms | 8 | 1 |
+| Asked if they're safe, with no net, of 5 | 0 | 5 |
+| Cheered at a gripe | 1 | 0 |
+| Words in a reply | 33 | 19 |
+| The same reply twice | 1 | 3 |
+
+The round-5 small brain passed its gates too and then scored 42 of 51 on unseen lives against the stock brain's
+48, saying the old city every time. That is what this gate was built for, so this one gets the same month test,
+as a candidate beside the stock 1.7B (run 68, started). Nothing is published without the owner's yes.

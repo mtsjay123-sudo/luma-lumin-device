@@ -160,6 +160,10 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 66 (Nov 21): the 4B add-on from training 34 doesn't beat its base.** Unseen lives, of 51: stock 1.7B 49,
+  stock 4B 48, the candidate 47, the published small add-on 42. Not published. **Training 35** (small, with the
+  gate for what was said since): held back by nothing, 9 → 10 on that gate, false alarms 8 → 1; its month test as
+  a candidate is running.
 - **A gripe told as what happened (Nov 21).** Half the venting moments have no feeling word, so the brain was told
   humor was welcome: with "be on their side" the stock 4B passed 25 of 25, with the humor note 10 of 25 (run 67).
   Rules for it heard 40 of 40 they were built on and 2 of 40 written afterwards, and were dropped. Luma now asks the
