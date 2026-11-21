@@ -107,7 +107,7 @@ def think_aloud(text):
         return text
     h = zlib.crc32(t.encode("utf-8", "ignore"))
     if h % 100 >= 35:
-        return text
+        return stumble(t, h) or text
     pick = (h // 100) % 4
     if THINK_START.match(t):
         lead = ["Hmm...", "Okay so,", "Uh,", "Mm..."][pick]
@@ -117,6 +117,33 @@ def think_aloud(text):
     if m:
         return t[:m.end()] + [", um,", "... uh,", ", like,", "..."][pick] + t[m.end():]
     return text
+
+
+# A person who's thinking as they talk sometimes starts a sentence twice ("I, I think that's fair") or stops for a breath
+# before the part that matters ("It's a good offer... but it isn't the one you wanted"). Rarely: about one reply in
+# fourteen that could take it starts twice, about one in twelve takes the breath, and never a reply that already got a
+# thinking sound. The words themselves are never changed, only said again or waited before.
+START_TWICE = re.compile(r"^(I'd|I'm|I've|I|It's|That's|You're|You|We|There's|This)(?=\s+[a-z])")
+BREATH = re.compile(r",\s+(but|because|though|which is|and honestly)\b")
+
+
+def stumble(text, h=None):
+    """The reply with one small stumble, or None when this reply doesn't get one. Called only for replies think_aloud
+    already found fit for it (long enough, nothing crisp, no numbers) and gave no thinking sound."""
+    t = (text or "").strip()
+    h = zlib.crc32(t.encode("utf-8", "ignore")) if h is None else h
+    roll = h % 100
+    if 35 <= roll < 42:
+        m = START_TWICE.match(t)
+        if m:
+            word = m.group(1)
+            again = word if word == "I" or word.startswith("I'") else word[:1].lower() + word[1:]
+            return f"{word}{', ' if (h // 100) % 2 else '... '}{again}{t[m.end():]}"
+    if 42 <= roll < 50 and len(t.split()) >= 12:
+        m = BREATH.search(t)
+        if m:
+            return t[:m.start()] + "... " + t[m.start(1):]
+    return None
 
 
 def for_voice(text, expressive=False):

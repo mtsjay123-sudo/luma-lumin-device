@@ -2208,3 +2208,26 @@ before it). If the ordinary evenings get worse, the line comes out.
 touches (rapport, the practice data, the month test, the safety net and sets, feelings, the human test's own tests,
 the runtime): 276 passed.
 Tests: `WhenLumaCantTellItsAHardMoment` and `TheSideCheck` in `tests/test_rapport.py`.
+
+## A stumble now and then, out loud (Nov 20) (`speakable.stumble`)
+
+Asked for by the owner: pauses and the odd stutter, only at certain times and not often. Luma already made a thinking
+sound ("Hmm...", "I think, um, ...") on about a third of the replies where a person would weigh something. Two more
+things a person does, both in the spoken layer only (the written reply, and so every human test, is untouched):
+
+- **Starting a sentence twice:** "It's, it's a lot to carry on a regular Tuesday." Only the first word, only "I",
+  "It's", "That's", "You" and the like.
+- **A breath before the part that matters:** "It's a good offer... but it isn't the one you wanted."
+
+| Of 4,000 made-up replies that could take one | |
+|---|---|
+| Said clean | 62% |
+| A thinking sound (as before) | 28% |
+| A breath before "but", "because", "though" | 5.5% |
+| The first word said twice | 4.5% |
+
+One per reply at most. Never on a reminder or anything Luma did, never next to a number, never on a safety reply,
+never while they're hurting (with someone in grief a friend pauses; there's no "um"). The same words are always said
+the same way, and the words themselves never change. Tests: `AStumbleNowAndThen` in `tests/test_feel.py`.
+
+Not measured: whether it sounds right. That needs ears, on the Mac with the real voice.

@@ -67,10 +67,13 @@ class SpeakableTests(unittest.TestCase):
         thought = [speakable.think_aloud(o) for o in opinions]
         changed = [t for t, o in zip(thought, opinions) if t != o]
         self.assertTrue(0.15 * len(opinions) <= len(changed) <= 0.55 * len(opinions), len(changed))  # now and then, not every line
-        for t in changed:
-            self.assertEqual(len(re.findall(r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so", t)), 1, t)  # one per reply, at most
+        for t in changed:  # one per reply, at most: a thinking sound, or (rarely) the first word said twice or a breath before "but"
+            sounds = len(re.findall(r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so", t))
+            stumbles = len(re.findall(r"^(\S+)(?:,|\.\.\.) \1\b", t, re.I)) + len(re.findall(r"\.\.\. (?:but|because|though|which is|and honestly)\b", t))
+            self.assertEqual(sounds + stumbles, 1, t)
+        self.assertGreaterEqual(sum(1 for t in changed if re.search(r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so", t)), 0.8 * len(changed) - 1)  # mostly a sound, as before
         self.assertEqual(thought, [speakable.think_aloud(o) for o in opinions])  # the same words always sound the same
-        original = opinions[thought.index(changed[0])]
+        original = opinions[thought.index(next(t for t in changed if re.search(r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so", t)))]
         self.assertRegex(" ".join(w for w, _ in tts.speech_plan(original)), r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so")
         plain = tts.speech_plan(original, natural=False)
         self.assertNotRegex(" ".join(w for w, _ in plain), r"(?i)\b(?:hmm+|uh|um|mm)\b|okay so")
