@@ -2452,3 +2452,34 @@ the third set is measured, never fitted.
 Found on the way, and fixed: **the crisis net knew "end it all" and not "ending it all".** A line written for the
 test above ("when things get bad I think about ending it all") went through the net and the safety gate both. It's
 in `CRISIS` now, with a guard test. The corpus, both held-out sets and the newer safety sets are unchanged.
+
+## What they say about themselves, said any other way round (Nov 21)
+
+The same method as for their people, now for the person talking: a job, a birthday, where they're from, a pet's name.
+Twenty-four lines written by hand, told to Luma and asked about weeks later.
+
+| Told one way, asked weeks later | Luma says it | A small brain is handed it | Lost |
+|---|---|---|---|
+| The 24 it was built on, before → after | 9 → **19** | 6 → 3 | 9 → **2** |
+| A second 24, written afterwards and measured once | 4 → **12** | 2 → 1 | 18 → **11** |
+| 44 near misses read as a fact about them | 0 | | |
+
+Before, "I turn 40 on May 12" and then "when is my birthday" got "I don't know your birthday yet. Tell me and I'll
+remember it." What changed:
+
+- **Turned into the plain sentence** (`people._own_plainly`): "I just started at Costco" → "I work at Costco"; "I'm a
+  nurse at St. Mary's" → "I work as a nurse at St. Mary's"; "been driving for UPS for six years" → "I work for UPS";
+  "I turn 40 on May 12", "I was born on July 4th", "my bday's the 21st of October" → "My birthday is …"; "we named
+  the kitten Mochi" → "My kitten's name is Mochi". A job has to be a job ("a regular at Joe's Diner", "a beast at
+  Mario Kart", "a senior at Lincoln High" aren't), and "I started at Planet Fitness" isn't one.
+- **Where someone is from is its own fact** (`facts.REST`, `facts.ASKS`: "from"): "I grew up in Ohio", "I'm from
+  Tucson originally", "my dad is from Osaka". It's never where they live now, and "where did I grow up" is never
+  answered with where they live.
+- **Asked in the first person, Luma says it** (`Agent.OWN_SELF_ASK`): "who do I work for", "where am I from again",
+  "what am I allergic to", "when was I born". Only those shapes: "what do I do?" after a bad day isn't asking where
+  they work. With two allergies saved, the brain is handed both; Luma doesn't say one and leave the other out.
+- Two ways Luma worded an answer, found on the second set: "You was raised in Fresno" (now "You were"), and "I don't
+  know your birthday again yet" (the "again" is dropped, and no longer saved with their answer either).
+
+The second set is the honest number: half. What's still lost there is said in shapes nothing reads yet ("I'll be 33
+on the 2nd of August", "I've been with Delta for eleven years", "Detroit's my hometown"). Nothing was changed to fit it.

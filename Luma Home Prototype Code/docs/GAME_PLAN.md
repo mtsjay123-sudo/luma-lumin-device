@@ -121,6 +121,13 @@ on day 1 and run alongside everything else:
   three rows; it's training again with it (training 34).
 - **The voice, by the owner's ear (Nov 21):** Chatterbox-Turbo, in its own voice, wherever the computer can run it.
   The lamps keep the classic voice until a board can run the new one.
+- **What they say about themselves (Nov 21):** a job, a birthday, where they're from, a pet's name, said any way round
+  and asked weeks later. On the 24 lines it was built on Luma says the fact 9 → 19 times and loses it 9 → 2; on a
+  second 24 written afterwards and measured once, 4 → 12 and 18 → 11. Half is the honest number. 0 of 44 near misses.
+- **A wish in words Luma doesn't know (Nov 21):** a bigger brain is asked which way they meant, one plain question
+  for each way, believed on exactly one YES. Being measured on real brains (run 61); the honest number without it
+  is 4 of 24.
+- **The crisis net gained "ending it all"** (it knew "end it all"), found with a line written for another test.
 
 ## 1. Where Luma stands (measured)
 

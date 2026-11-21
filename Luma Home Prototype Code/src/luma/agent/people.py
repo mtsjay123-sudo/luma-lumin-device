@@ -358,6 +358,86 @@ def _more_plainly(text):
     return []
 
 
+# The same, about themselves: "I turn 40 on May 12", "I just started at Costco", "I'm a nurse at St. Mary's", "been driving
+# for UPS for six years", "Ohio is where I grew up", "we named the kitten Mochi". Of 24 such lines written by hand on
+# Nov 21, 2026 and asked about days later, Luma said the fact 9 times, handed it to the brain 7 times and had lost it 8
+# times ("I don't know your birthday yet"). A job has to be a job ("a regular at Joe's" and "a beast at Mario Kart"
+# aren't), a place has to be said like a place, and a pet's name like a name.
+_JOBS = (r"nurse|chef|cook|teacher|doctor|clerk|barista|cashier|mechanic|engineer|lawyer|pilot|janitor|custodian|receptionist|dentist|vet|tech|technician|"
+         r"analyst|designer|manager|driver|guard|aide|intern|temp|host|hostess|server|waiter|waitress|bartender|paramedic|emt|cop|officer|firefighter|coach|"
+         r"tutor|professor|lecturer|librarian|pharmacist|therapist|counselor|electrician|plumber|carpenter|welder|machinist|stocker|packer|picker|loader|"
+         r"agent|rep|associate|assistant|supervisor|director|admin|administrator|secretary|accountant|bookkeeper|programmer|developer|writer|editor|"
+         r"reporter|photographer|stylist|barber|hairdresser|nanny|caregiver|housekeeper|cleaner|gardener|landscaper|trucker|courier|dispatcher|operator|"
+         r"teller|baker|butcher|dishwasher|busser|bouncer|lifeguard|instructor|trainer|surgeon|hygienist|radiologist|scientist|researcher|consultant|"
+         r"recruiter|planner|architect|contractor|foreman|inspector|attendant|porter|concierge|sommelier|translator|interpreter|paralegal|principal|dean")
+_NOT_A_JOB_PLACE = r"(?!(?:[\w&'.-]+ ){0,3}(?:University|College|School|Academy|Gym|Fitness|CrossFit|Yoga|Pilates|Church|Kindergarten|Preschool|High|Elementary|Middle)\b)"
+OWN_BORN = [re.compile(p, re.I) for p in (
+    rf"\bi was born (?:on )?{_DATE}\b",
+    rf"\bi(?:'m| am)? turn(?:ing)? \d{{1,3}} (?:on |this )?{_DATE}\b",
+    rf"\bmy (?:bday|b-day|birth date|date of birth)(?:'s| is) (?:on )?{_DATE}\b",
+    rf"\b{_DATE} is (?:when )?(?:my (?:birthday|bday|b-day)|i was born)\b",
+    rf"\bmy birthday(?:'s| is)?(?: coming up)?,? (?:on |this |it's )?{_DATE}\b",
+)]
+OWN_WORKS = [(re.compile(p), how) for p, how in (
+    (rf"\bI(?:'m| am) (?P<job>an? (?:[a-z]+ ){{0,2}}(?:{_JOBS})) (?:at|for) {_ORG}", "as"),
+    (rf"\bI (?:just |recently |finally )?(?:got hired|got a job|got taken on|started (?:a (?:new )?job|working|work)|am employed|am working|"
+     rf"have been working|have worked|work(?: nights| days| weekends| part[- ]time| full[- ]time)?) (?P<prep>at|by|for) {_ORG}", "at"),
+    (rf"\bI (?:just |recently |finally )?started (?P<prep>at) {_NOT_A_JOB_PLACE}{_ORG}", "at"),
+    (rf"(?:\bI(?:'ve| have|'d| had) |^\W*(?:(?:yeah|yep|well|so|oh|honestly)\W+)*)[Bb]een (?:driving|working|cooking|teaching|nursing|delivering|bartending|waiting tables|coding|selling|cleaning|"
+     rf"stocking shelves|cutting hair|fixing cars) (?P<prep>for|at) {_ORG}", "at"),
+    (rf"\b{_ORG} is where I work\b", "at"),
+    (rf"\b[Mm]y (?:new )?job is (?:at|with) {_ORG}", "at"),
+)]
+_FROM_OK = r"(?!(?:HR|IT|Marketing|Sales|Accounting|Legal|Finance|Gen|Team|Earth|Mars|Venus|Hell|Heaven|Luma)\b)"
+OWN_FROM = [(re.compile(p), how) for p, how in (
+    (rf"(?:\bI(?: was|'m| am) |^\W*)[Bb]orn and raised in {_FROM_OK}{_PLACE}", "grew up in"),
+    (rf"\bI (?:grew up|was raised|was brought up|spent my (?:whole )?childhood) (?:way |far )?(?:out |down |up |over |back )?in {_FROM_OK}{_PLACE}", "grew up in"),
+    (rf"\b{_FROM_OK}{_PLACE} is where I (?:grew up|was raised|was born|come from|'m from|am from)\b", "grew up in"),
+    (rf"\bI(?:'m| am) (?:originally |actually )?from {_FROM_OK}{_PLACE}", "from"),
+    (rf"\bI come from {_FROM_OK}{_PLACE}", "from"),
+)]
+_PET = r"(?P<species>dog|cat|puppy|kitten|parrot|bird|rabbit|bunny|hamster|turtle|fish|horse|lizard|snake|guinea pig|ferret)"
+OWN_PET = [re.compile(p) for p in (
+    rf"\b(?:[Ww]e|I)(?:'ve| have)? (?:just |finally )?(?:named|called|ended up calling|decided to call|decided to name|are calling|'re calling) (?:the|our|my) (?:new )?{_PET} {_NAME}\b",
+    rf"\b(?:[Oo]ur|[Mm]y) (?:new )?{_PET} (?:is called|is named|goes by|answers to|'s called|'s named) {_NAME}\b",
+    rf"\b{_NAME} is (?:the name of )?(?:my|our) {_PET}\b",
+)]
+NOT_A_PET_NAME = re.compile(r"^(?:This|That|It|He|She|Here|There|These|Those|What|Which|Who|Where|Why|How|Yes|No|Not|So|And|But|Because|Today|Now|Everyone|"
+                            r"Someone|Nobody|Mine|Yours|One|Each|Every)$")
+JUST_TODAY = re.compile(r"\b(?:today|tonight|tomorrow|right now|for now|temporarily|until|till|this (?:week|weekend|morning|afternoon|evening)|for (?:the|a) (?:day|night|weekend|week|summer|holidays?))\b", re.I)
+OWN_UNSURE = re.compile(r"\b(?:might|maybe|i think|not sure|if|whether|should|could|would|wish|pretend|imagine|feels? like|as if|supposed to|almost|nearly)\b", re.I)
+
+
+def _own_plainly(text):
+    """["My birthday is May 12"], ["I work at Costco"], ["I grew up in Ohio"], ["My kitten's name is Mochi"]: one fact about
+    themselves, or []."""
+    if OWN_UNSURE.search(text) or re.search(r"\b(?:lol|lmao|haha+|jk|kidding)\b", text, re.I):
+        return []
+    for pattern in OWN_BORN:
+        m = pattern.search(text)
+        if m:
+            date = m["date"]
+            return ["My birthday is " + (date[:1].upper() + date[1:] if not date.lower().startswith("the ") else date)]
+    if not NOT_WORKING_THERE.search(text) and not JUST_TODAY.search(text):
+        for pattern, how in OWN_WORKS:
+            m = pattern.search(text)
+            if m and not NOT_A_NAME.search(m["org"].split()[0]):
+                org = m["org"].rstrip(".,")
+                if how == "as":
+                    return [f"I work as {m['job']} at {org}"]
+                return [f"I work {'for' if m.groupdict().get('prep') == 'for' else 'at'} {org}"]
+    if not ONLY_VISITING.search(text):
+        for pattern, how in OWN_FROM:
+            m = pattern.search(text)
+            if m and not NOT_A_NAME.search(m["place"].split()[0]):
+                return [f"I grew up in {m['place']}" if how == "grew up in" else f"I'm from {m['place']}"]
+    for pattern in OWN_PET:
+        m = pattern.search(text)
+        if m and not NOT_A_PET_NAME.match(m["name"]) and not NOT_A_NAME.search(m["name"]):
+            return [f"My {m['species'].lower()}'s name is {m['name']}"]
+    return []
+
+
 def plainly(text, names=()):
     """["My sister's name is Priya", "My mom lives in Tampa"]: the same facts, read from a sentence turned any other way.
     Only from a statement, never a question; a name has to be said like a name and a place like a place. names: the
@@ -386,4 +466,4 @@ def plainly(text, names=()):
             found = _named_by_links(text)
             if found:
                 out.append(f"My {found[0]}'s name is {found[1]}")
-    return out or _more_plainly(text)
+    return out or _more_plainly(text) or _own_plainly(text)

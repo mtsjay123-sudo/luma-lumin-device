@@ -25,7 +25,7 @@ PEOPLE_FACT = re.compile(rf"^(?P<name>{NAME}) \((?:their|your|my) (?P<rel>{RELAT
 REL_NAME = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} name is (?P<name>{NAME})\b", re.I)
 PET_NAME = re.compile(rf"^(?:my|your) (?P<species>{SPECIES}){POSS} name is (?P<name>{NAME})\b", re.I)
 REL_REST = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}){POSS} (?P<rest>birthday is .+)$", re.I)
-REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|isn't|has|just|got|moved|started|can't|cannot|can not|"
+REL_IS = re.compile(rf"^(?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?P<rel>{RELATIONS}) (?P<rest>(?:lives?|works?|is|isn't|has|just|got|moved|started|can't|cannot|can not|grew|was|"
                     rf"relocated|transferred|left|ended|settled|landed|wound|took|accepted|packed|bought|found|rented|went|no longer|now|recently|finally|currently|still) .+)$", re.I)
 # "my brother's in Denver now", "my sister's back in Ohio": the 's is "is" here, not "my brother's birthday"
 REL_S_IN = re.compile(rf"^((?:my|your) (?:(?:little|big|older|younger|baby|twin|best)\s+)?(?:{RELATIONS}))'s (?=(?:back |now |still |living |currently )*in\b)", re.I)
@@ -68,6 +68,11 @@ REST = [
     ("home", re.compile(r"^(?:took|got|accepted|started) (?:a|the|that|his|her|their) (?:new )?job in (?P<place>.+?) and (?:moved|relocated)\b.*$", re.I)),
     ("home", re.compile(r"^(?:packed up and )?(?:went|moved|headed|gone) to (?P<place>.+?) for good$", re.I)),
     ("home", re.compile(r"^(?:isn't|is not|no longer|is no longer) in [A-Za-z .'-]{2,30}? any ?more,? (?:and |but )?(?:he|she|they)(?:'s|'re| is| are) (?:now )?in (?P<place>.+?)(?:\s+now)?$", re.I)),
+    # Where someone is from ("I grew up in Ohio", "my dad is from Osaka originally"): a place said like a place, and never
+    # where they live now.
+    ("from", re.compile(r"^(?:is |are |am |was |were )?(?:originally |actually )?from (?!(?:hr|it|marketing|sales|accounting|legal|finance|gen|team|earth|mars|venus|hell|heaven|luma)\b)(?P<place>[^,;:]+?)(?:,? originally)?$", re.I)),
+    ("from", re.compile(r"^(?:grew up|(?:was |were )?raised|(?:was |were )?brought up|(?:was |were )?born(?: and raised)?) in "
+                        r"(?!(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b)(?P<place>[^,;:]+?)$", re.I)),
     ("work", re.compile(r"^(?:still |now )?works? (?:as|at|for) (?P<value>.+)$", re.I)),
     ("work", re.compile(r"^(?:just |recently )?(?:started|got|took) (?:a |an )?new job (?:at|with|as) (?P<value>.+)$", re.I)),
     ("pet", re.compile(rf"^ha(?:s|ve) an? (?P<species>{SPECIES}) (?:named|called) (?P<value>{NAME})\b", re.I)),
@@ -88,10 +93,13 @@ REL_IN_QUESTION = re.compile(rf"\b(?:my|our) (?:(?:little|big|older|younger|baby
 HOP = re.compile(r"(?:'s|’s)\s+(?P<hop>spouse|husband|wife|partner)\b", re.I)
 ASKS = [
     ("spouse", re.compile(r"\bmarried to\b|\bwho (?:is|did) .{1,40} (?:married|marry)\b", re.I)),
+    ("from", re.compile(r"\bgr[eo]w(?:n)? up\b|\b(?:was|were|am|is|are|get|got) raised\b|\bwhere (?:am i|are we|(?:is|was|are) (?:my|our) [^?]{1,30}?) from\b|"
+                        r"\bwhere (?:do|does|did) [^?]{1,30} come from\b|\boriginally from\b|\bwhere (?:was|were) [^?]{1,30}\b(?:born|raised)\b|"
+                        r"\bwhere (?:i'?m|i am|we'?re|we are) from\b", re.I)),
     ("birthday", re.compile(r"\bbirthday\b|\bb-?day\b|\bborn\b", re.I)),
     ("favorite", re.compile(r"\bfavou?rite\s+(?P<thing>[a-z][a-z ]{1,30}?)(?=\s+(?:these days|now|lately|again|is|are)\b|[?.!]|$)|"
                             r"\bwhich (?P<thing2>[a-z]+) do i (?:like|love) (?:best|most|the most)\b", re.I)),
-    ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b", re.I)),
+    ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b|\bcan(?:'t|not) (?:i|we|she|he|they|(?:my|our) [a-z]+) eat\b", re.I)),
     ("work", re.compile(r"\bworks? (?:as|at|for)\b|\bwhere (?:do|does|did) .{1,30}\bwork\b|\bjobs?\b|\bfor a living\b|\bfor work\b|\bprofession\b|\bcareer\b|"
                         r"\bemployer\b|\bwhat (?:do|does) .{1,30}\bdo\b\s*(?:[?.!]|$)", re.I)),
     ("home", re.compile(r"\b(?:do|does|did) .{1,30}\blive\b|\blives?\b|\bliving\b|\b(?:what|which) (?:city|town|state|country)\b|\bbased\b|\bmoved?\b|\brelocated?\b|"

@@ -311,5 +311,114 @@ class ABirthdayAJobAnAllergy(unittest.TestCase):
             self.assertLessEqual(got.count("MISS"), missed, f"{kind}: {got}")
 
 
+class AboutThemselves(unittest.TestCase):
+    """The same method for what they say about themselves (Nov 21, 2026): a job, a birthday, where they're from, a pet's
+    name. BUILT_ON: 24 lines written by hand, told to Luma and asked about weeks later. Luma said 9 back, a small brain was
+    handed 6, and 9 were lost ("I turn 40 on May 12", then "I don't know your birthday yet"). The readers were built on those and
+    on the near misses. HONEST was written after the readers were finished and measured once; nothing was changed for
+    it, except two ways Luma worded an answer ("You was raised in Fresno", "I don't know your birthday again yet")."""
+
+    BUILT_ON = [
+        ("I work at the library downtown", "where do I work?", "library"), ("I just started at Costco last week", "where do I work again", "Costco"),
+        ("I'm a nurse at St. Mary's", "what do I do for work?", "nurse"), ("been driving for UPS for six years now", "who do I work for?", "UPS"),
+        ("my birthday is March 9", "when's my birthday?", "March 9"), ("I turn 40 on May 12", "when is my birthday", "May 12"),
+        ("I was born on July 4th", "do you remember my birthday?", "July 4"), ("my bday's the 21st of October", "what day is my birthday?", "October"),
+        ("I'm allergic to shellfish", "what am I allergic to?", "shellfish"), ("I can't eat gluten", "what can't I eat?", "gluten"),
+        ("I'm a vegetarian", "do I eat meat?", "vegetarian"), ("penicillin gives me hives, I'm allergic", "which medicine am I allergic to?", "penicillin"),
+        ("my dog's name is Biscuit", "what's my dog's name?", "Biscuit"), ("we named the kitten Mochi", "what did we name the kitten?", "Mochi"),
+        ("I have a cat called Pepper", "what's my cat called?", "Pepper"), ("Biscuit is my dog, he's a beagle", "what kind of dog is Biscuit?", "beagle"),
+        ("I live in Osaka", "where do I live?", "Osaka"), ("I grew up in Ohio", "where did I grow up?", "Ohio"),
+        ("I'm from Tucson originally", "where am I from?", "Tucson"), ("we moved to Fukuoka in the spring", "where do I live now?", "Fukuoka"),
+        ("my favorite food is ramen", "what's my favorite food?", "ramen"), ("I drive a blue Honda Civic", "what car do I drive?", "Civic"),
+        ("I root for the Mariners", "which team do I root for?", "Mariners"), ("my middle name is Rae", "what's my middle name?", "Rae"),
+    ]
+    TURNED = {"I just started at Costco last week": "I work at Costco", "I'm a nurse at St. Mary's": "I work as a nurse at St. Mary's",
+              "been driving for UPS for six years now": "I work for UPS", "I turn 40 on May 12": "My birthday is May 12",
+              "I was born on July 4th": "My birthday is July 4th", "my bday's the 21st of October": "My birthday is the 21st of October",
+              "we named the kitten Mochi": "My kitten's name is Mochi", "Biscuit is my dog, he's a beagle": "My dog's name is Biscuit",
+              "I've been cooking at Denny's since March": "I work at Denny's", "born and raised in Dayton": "I grew up in Dayton",
+              "Ohio is where I grew up": "I grew up in Ohio", "I come from Lisbon": "I'm from Lisbon"}
+    NOT = ["I'm a regular at Joe's Diner", "I'm a beast at Mario Kart", "I'm a senior at Lincoln High", "I used to work at Costco", "I applied at Costco last week",
+           "I might start at Target next month", "I started at Planet Fitness yesterday", "I work with Dana on Tuesdays", "I shop at Costco every Sunday",
+           "my interview is at Google tomorrow", "I'm working at Starbucks today to get out of the house", "I quit my job at Walmart", "I got fired from Amazon",
+           "I'm a huge fan of Costco", "if I worked at Disney I'd never leave", "my brother has been driving for UPS for years", "I'm a student at Ohio State",
+           "I turn 40 next year", "I was born in a hospital in the middle of a blizzard", "my birthday party is on Saturday",
+           "I feel like I was born on the wrong planet", "I was born in June", "I think my birthday dinner is on May 12", "my passport expires on March 9",
+           "I'm from the future", "I just came from Target", "I grew up in a small town", "I grew up poor", "I'm back from Denver", "I got a call from Chicago",
+           "I'm from HR", "my wife says I'm from Mars", "I wish I grew up in Hawaii", "I'm visiting from Chicago this week",
+           "my sister was born and raised in Ohio", "this is my dog", "That is my cat on the couch", "we called the vet about the kitten",
+           "I named the file Report", "Here is my cat", "we might name the puppy Max", "what did we name the kitten?", "where did I grow up?", "when was I born?"]
+    HONEST = [
+        ("I teach third grade over at Lincoln Elementary", "where do I work?", "Lincoln"), ("got hired at Trader Joe's, I start Monday", "where do I work now?", "Trader Joe's"),
+        ("I'm a line cook at Denny's", "what's my job again?", "cook"), ("I've been with Delta for eleven years", "who do I work for?", "Delta"),
+        ("I do IT support for the county", "what do I do for a living?", "IT support"), ("my job's at the Honda plant", "where do I work?", "Honda"),
+        ("my birthday's coming up, June 14", "when's my birthday?", "June 14"), ("I'll be 33 on the 2nd of August", "when is my birthday?", "August"),
+        ("born December 1st, a winter baby", "when was I born?", "December 1"), ("October 30 is my birthday", "what's my birthday?", "October 30"),
+        ("I'm a March baby, the 17th", "when's my birthday again?", "17"), ("I'm a Texas girl, born and raised in Lubbock", "where did I grow up?", "Lubbock"),
+        ("originally I'm from Manila", "where am I from?", "Manila"), ("I was raised in Fresno by my grandparents", "where was I raised?", "Fresno"),
+        ("Detroit's my hometown", "where did I grow up?", "Detroit"), ("I spent my whole childhood in Lagos", "where am I from again?", "Lagos"),
+        ("our new puppy is called Waffles", "what's my puppy's name?", "Waffles"), ("I named my cat Miso", "what's my cat's name?", "Miso"),
+        ("Juniper is our rabbit", "what's our rabbit called?", "Juniper"), ("my parrot answers to Kiwi", "what's my parrot's name?", "Kiwi"),
+        ("I have a peanut allergy", "what am I allergic to?", "peanut"), ("dairy doesn't agree with me, I'm lactose intolerant", "what can't I eat?", "lactose"),
+        ("I live out in Sapporo these days", "where do I live?", "Sapporo"), ("we just bought a house in Raleigh", "where do I live now?", "Raleigh"),
+    ]
+
+    @staticmethod
+    def about_them(line):
+        """What the readers take from a line as a fact about the person talking (a job, a birthday, where they're from, a pet's name)."""
+        pets = {"dog", "cat", "kitten", "puppy", "rabbit", "parrot"}
+        slots = [slot for text in [line] + people.plainly(line) for slot in (getattr(facts.read(text), "slots", None) or [])]
+        return [slot for slot in slots if (slot[0] == "you" and slot[1] in ("work", "birthday", "from"))
+                or (slot[1] == "name" and slot[0].startswith("rel:") and slot[0][4:] in pets)]
+
+    def test_each_is_turned_into_the_plain_sentence(self):
+        for line, plain in self.TURNED.items():
+            self.assertEqual(people.plainly(line), [plain], line)
+            self.assertTrue(self.about_them(plain), plain)
+
+    def test_where_they_are_from_is_its_own_fact_and_its_own_question(self):
+        for line, who in (("I grew up in Ohio", "you"), ("I'm from Tucson originally", "you"), ("I was born in Osaka", "you"),
+                          ("my dad is from Osaka originally", "rel:dad"), ("my mom grew up in Tampa", "rel:mom")):
+            self.assertEqual([(slot[0], slot[1]) for slot in facts.read(line).slots], [(who, "from")], line)
+        for question in ("where did I grow up?", "where am I from?", "where was I born?", "where is my dad from?", "where did my mom grow up"):
+            self.assertEqual(facts.asked(question)["what"], "from", question)
+        for question in ("when was I born", "where do I live?", "where does my mom live"):
+            self.assertNotEqual(facts.asked(question)["what"], "from", question)
+
+    def test_near_misses_are_not_facts_about_them(self):
+        self.assertEqual([line for line in self.NOT if self.about_them(line)], [])
+
+    def test_only_a_question_about_the_fact_is_answered_from_it(self):
+        from luma.agent.runtime import Agent
+        for question in ("who do I work for?", "where am I from again", "what am I allergic to?", "where do I work again", "can you remind me where I work",
+                         "do you remember where I grew up", "when was I born?", "what can't I eat?"):
+            self.assertTrue(Agent.OWN_SELF_ASK.match(Agent.POLITE_ASK.sub("", question)), question)
+        for question in ("what do I do?", "what do I do now", "where do I go from here", "who do I call about this", "what am I doing wrong",
+                         "where am I supposed to park", "when do I leave for the airport", "what can I eat tonight", "where did I put my keys",
+                         "who do I work with on Friday", "where should I work today"):
+            self.assertFalse(Agent.OWN_SELF_ASK.match(Agent.POLITE_ASK.sub("", question)), question)
+
+    def test_said_back_in_good_english(self):
+        from luma.agent.runtime import Agent
+        self.assertEqual(Agent._yours("I was raised in Fresno by my grandparents"), "You were raised in Fresno by your grandparents")
+        self.assertEqual(Agent._yours("I am allergic to shellfish"), "You are allergic to shellfish")
+        self.assertEqual(Agent._yours("I work at Costco"), "You work at Costco")
+
+    def test_told_then_asked_what_was_built_on(self):
+        """Measured Nov 21, 2026: Luma says it 19 of 24 (before: 9), a small brain is handed 3 (6), lost 2 (9)."""
+        got = [lived([], line, question, want) for line, question, want in self.BUILT_ON]
+        self.assertGreaterEqual(got.count("LUMA"), 19, got)
+        self.assertLessEqual(got.count("MISS"), 2, got)
+
+    def test_the_honest_number_on_lines_nothing_was_built_on(self):
+        """Measured once, Nov 21, 2026: Luma says it 12 of 24 (before: 4), a small brain is handed 1 (2), lost 11 (18)."""
+        got = [lived([], line, question, want) for line, question, want in self.HONEST]
+        self.assertGreaterEqual(got.count("LUMA"), 12, got)
+        self.assertLessEqual(got.count("MISS"), 11, got)
+
+    def test_two_allergies_are_the_brains_to_say_together(self):
+        self.assertEqual(lived(["I'm allergic to shellfish"], "I can't eat gluten", "what am I allergic to?", "gluten"), "told")
+
+
 if __name__ == "__main__":
     unittest.main()

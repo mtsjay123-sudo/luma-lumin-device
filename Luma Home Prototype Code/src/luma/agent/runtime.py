@@ -6483,7 +6483,9 @@ class Agent:
     def _yours(text):
         """What they told Luma, said back to them: "my mom's birthday" -> "your mom's birthday"."""
         swaps = {"my": "your", "mine": "yours", "i": "you", "i'm": "you're", "im": "you're", "me": "you", "myself": "yourself", "we": "you", "our": "your", "us": "you"}
-        out = re.sub(r"\b(?:my|mine|i'm|im|i|me|myself)\b", lambda m: swaps[m.group(0).lower()], str(text), flags=re.I)
+        # "I was raised in Fresno" is "you were raised in Fresno", never "you was"; "I am" is "you are"
+        out = re.sub(r"\bi (was|am)\b", lambda m: "you " + {"was": "were", "am": "are"}[m.group(1).lower()], str(text), flags=re.I)
+        out = re.sub(r"\b(?:my|mine|i'm|im|i|me|myself)\b", lambda m: swaps[m.group(0).lower()], out, flags=re.I)
         out = proper_names(CALENDAR_WORD.sub(lambda m: m.group(0).capitalize(), out))  # "june 3" said back as "June 3"
         return out[:1].upper() + out[1:]
 
@@ -6525,6 +6527,19 @@ class Agent:
     # "has my mom called?" asks about a phone call, and "call" anywhere else is in OWN_LIFE_MORE for that reason.
     NAME_ASKED = re.compile(r"\bwhat(?:'s|’s| is| was)?\s+(?:my|our)\s+[\w'’]+(?:\s+[\w'’]+)?\s+(?:(?:is|are)\s+)?called\b|"
                             r"\bwhat do (?:i|we) call (?=(?:my|our)\b)", re.I)
+
+    # The same about themselves, in the first person ("who do I work for", "where am I from again", "what am I allergic
+    # to"). Only these shapes: "what do I do?" after a bad day isn't asking where they work.
+    OWN_SELF_ASK = re.compile(r"^\W*(?:(?:yo|hey|ok|okay|luma|aye|so|wait)\W+)*(?:(?:(?:do you|u) (?:remember|know)|remind me|tell me)\s+)?(?:"
+                              r"where (?:do|did) (?:i|we) (?:work|live|grow up|come from)|where (?:i|we) (?:work|live|grew up|come from)|"
+                              r"where (?:am i|are we) (?:from|living|working|based)|where (?:i'?m|i am|we'?re|we are) from|where was i (?:born|raised)|"
+                              r"who (?:do|did) i work for|who i work for|what do i do for (?:work|a living)|what i do for (?:work|a living)|"
+                              r"what am i allergic to|what i'?m allergic to|what (?:can'?t|cannot) i eat|what i (?:can'?t|cannot) eat|"
+                              r"when was i born|when i was born|when do i turn \w+)"
+                              r"(?:\s+(?:again|now|these days))?\W*$", re.I)
+
+    def _asks_about_themselves(self, text):
+        return bool(self.mode != "kids" and self.OWN_SELF_ASK.match(self.POLITE_ASK.sub("", str(text or "").strip())))
 
     def _asks_their_own_life(self, text):
         text = self.POLITE_ASK.sub("", str(text or "").strip())
@@ -6611,6 +6626,18 @@ class Agent:
     def _memory_answer(self, text):
         text = self.POLITE_ASK.sub("", str(text or "").strip())
         m = self.MEMORY_Q.match(text.strip())
+        if not m and self._asks_about_themselves(text):
+            try:
+                found = self.store.search(text, limit=5, now=self.clock(), zone=self.zone)
+                facts_ = [row for row in found["memories"] if row.get("answers") and not row.get("ended")]
+            except Exception:
+                facts_ = []
+            if len(facts_) != 1:
+                return None   # nothing saved says it, or more than one thing does (two allergies): the brain is handed them all
+            said = self._yours(self._said_now(facts_[0])).rstrip(". ")
+            if re.search(r"[.?!:;]\s+\S", said):
+                return None
+            return {"text": said + ".", "memory": facts_[0]["id"]}
         if (not m and self.mode != "kids" and (self.MEMORY_Q_VERB.match(text.strip()) or self.MEMORY_Q_TOLD.match(text.strip()) or self._asks_their_own_life(text))
                 and not re.search(r"\b(?:should|would|could|can|think|feel|want|need|mean|before|used to|originally)\b", text, re.I)):
             fact = self._true_now(text)
@@ -6655,8 +6682,9 @@ class Agent:
             guess = understanding.guess(text, 1)
             personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
             if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
-                self.asked_about = {"about": " ".join(m["about"].split()), "at": self.clock()}  # their next answer gets saved
-                return {"text": f"I don't know {self._yours(m['about']).lower()} yet. Tell me and I'll remember it."}
+                about = re.sub(r"\s+(?:again|now|these days)\s*$", "", m["about"], flags=re.I)   # "when's my birthday again": never "your birthday again yet"
+                self.asked_about = {"about": " ".join(about.split()), "at": self.clock()}  # their next answer gets saved
+                return {"text": f"I don't know {self._yours(about).lower()} yet. Tell me and I'll remember it."}
             return None  # "what's my schedule": something Luma looks up, not something it was told
         return {"text": self._yours(self._said_now(best[1])).rstrip(". ") + ".", "memory": best[1]["id"]}
 
