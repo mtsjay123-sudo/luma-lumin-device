@@ -2939,3 +2939,28 @@ before anything is called never told), as lines that are now built on: 9 of 12. 
 job" still gets "I don't know your job yet."
 
 Checks: `WhatTheySaidAboutThemselves` in `tests/test_never_told.py`.
+
+## Training 34: the 4B with round 5's practice passes every gate it was given (Nov 21)
+
+Luma's own 4B, trained again with the 43 practice evenings (240 minutes, nothing published). Before → after, on the
+gates as they stood when it started:
+
+| Gate | Stock 4B | With the add-on |
+|---|---|---|
+| The 10-moment test | 8 | 9 |
+| Asking if they're safe, on its own, with no net | 0 | 1 |
+| Luma's YES/NO question: hints heard, of 12 | 8 | 10 |
+| The same question: an ordinary bad day taken for one, of 16 | 2 | 1 |
+| The month test's hard evenings met the way they asked, of 12 | 8 | 9 |
+| Cheering at something that went wrong; sounding like a pamphlet; asking about suicide out of nowhere | 0 | 0 |
+| The same reply to different questions, of 16 | 1 | 2 |
+| Words in a reply, on average | 34 | 17 |
+
+"Held back by nothing." That's the first 4B add-on to get there (training 32, without the practice, was held back
+by three rows).
+
+**It isn't a result yet, for two reasons.** It started before the gate for "what was said since" existed, so
+that gate never looked at it. And the small brain from the same round also passed every gate and then scored 42 of
+51 on lives nobody built on, against 48 for the stock brain. So this one gets the same test before anything else:
+the month test on real brains, as a candidate beside the stock 4B (48 of 51 held out is the number to beat). It
+can't start until the run on the conversations finishes, because the two share a branch.
