@@ -470,6 +470,27 @@ def wants_a_take(text):
     return any(OPINION.match(lead.sub("", CHATTER.sub("", part).strip())) for part in re.split(r"(?<=[.!?,])\s+", plain) if part.strip())
 
 
+# Said in passing: the sentence ends by saying whose words they are, or with a shrug. "turn the page, they say" opened the
+# news; "set in my ways, I guess" offered to connect Gmail; "forget him, honestly" forgot something; "text me when you're
+# home, she used to say" asked for a phone number. Nobody ends a request that way.
+IN_PASSING = re.compile(r"(?:,|\.\.\.|…| -|—)?\s*(?:(?:they|she|he|people|everyone|everybody|mom|mum|dad|grandma|grandpa|my \w+) (?:say|says|said|used to say|always says?|always said|"
+                        r"keeps? (?:saying|telling me)|told me|would say)|i (?:told|tell|keep telling|kept telling) myself|i said|i guess|i suppose|honestly|tbh|ngl|figures|i swear|universe|"
+                        r"as they say|or whatever|whatever that means|right|allegedly)\W*$", re.I)
+# Things people say that start like a command and aren't one
+SAYINGS = re.compile(r"\b(?:connect(?:ing|ed)? the dots|read(?:ing)? the room|turn(?:ing|ed)? the page|break(?:ing)? the ice|call(?:ing)? it (?:a day|quits|even)|hit(?:ting)? the (?:road|hay|sack)|"
+                     r"set in (?:my|his|her|their|your) ways|open(?:ing)? (?:up )?(?:a )?can of worms|check(?:ing)? all the boxes|upgrad\w+ (?:my|your|his|her|our) (?:life|self|situation|standards|mindset)|"
+                     r"show me the money|find (?:my|your)self|search (?:my|your) soul|play(?:ing)? it by ear|mute button for)\b", re.I)
+
+
+# "play along", "play it cool", "play dumb": things people say, not things to put on
+PLAY_SAYING = re.compile(r"(?:a game|with|around|it cool|it safe|along|alone|dumb|nice|fair|the victim|hard to get|it by ear|by ear|devil'?s advocate|games|pretend|dead|house|"
+                         r"catch|tag|the fool|favou?rites|god|the field|ball|it off|it down|it up|me for a fool|second fiddle|your cards|my cards|the game|the part|a part|a role)\b", re.I)
+
+
+def said_in_passing(text):
+    return bool(IN_PASSING.search(str(text or "").strip())) and len(str(text or "").split()) >= 3
+
+
 def just_talking(text):
     """Laughing, venting or grieving about something and not asking for anything: a friend just talks back. "lmao my boss
     scheduled a meeting at 4:59 on a friday" is a story, not a calendar question, and nobody needs a stock price in it."""
@@ -4331,6 +4352,8 @@ class Agent:
         r"(?:text|txt|message|msg|hit up|hmu)\s+((?:my|our)\s+[\w'-]+|[A-Za-z][\w'-]*)\s+(?!(?:back|later|tonight|tomorrow|tmrw|in \d|at \d|when|about)\b)(.{2,})", re.I | re.S)
 
     def _text_request(self, text):
+        if said_in_passing(text):
+            return None   # "text me when you're home, she used to say" asked for a phone number
         match = self.TEXT_REQUEST.fullmatch(text.strip())
         if match and match["r1"]:
             recipient, connector, request = match["r1"], "to" if match["c1"].lower() == "to" else "that", match["b1"]
@@ -4338,7 +4361,9 @@ class Agent:
             recipient, connector, request = match["r2"], "that", match["b2"]
         else:
             tell = self.TELL_REQUEST.fullmatch(text.strip()) or self.TEXT_BARE.fullmatch(text.strip())
-            if not tell: return None
+            if not tell or said_in_passing(text): return None
+            if re.match(r"(?:my|our)\s+(?:why|what|how|when|where|who|which|whole|own|side|truth|story|problems?|business|feelings?|life|self|secrets?|mind|heart|brain|body)\b", tell[1], re.I):
+                return None  # "tell my why I keep doing this to myself" (a slip for "tell me why") was a text to "my why"
             if not re.match(r"(?:my|our)\s", tell[1], re.I):
                 try: self.contacts.resolve(tell[1])  # "tell X" only means a text when X is someone saved
                 except ValueError: return None
@@ -5941,6 +5966,29 @@ class Agent:
                           r"(?:\s+(?:for|today|tomorrow|tonight|this|next|week|weekend|morning|afternoon|evening|please|now|the|on|"
                           r"monday|tuesday|wednesday|thursday|friday|saturday|sunday))*", re.I)
 
+    # A sure reading is acted on only when a word of its own is in what they said. The words are the reading's own examples
+    # (scenarios.INTENTS), minus the ones every request shares ("set", "turn", "open", "page"): "set in my ways, I guess" was
+    # read as "connect my email" at 0.92 and has no email, inbox or Gmail in it.
+    FIXED_SUBJECT = frozenset("""open_feed open_news open_ideas open_goals open_identity open_library open_browser open_connectors open_settings open_rules
+        list_tasks list_timers briefing news check_email calendar recall_me recap grill hush mute style_casual style_short connect_email connect_calendar
+        connect_chrome pair_device cloud_brain luma_plus talk teach where_is""".split())
+    SHARED_WORDS = frozenset("""set turn open show get give make put take go check add start stop tell find look use see need want let keep run pull bring switch
+        page tab thing things stuff today now please can could would will what whats how does did the and for with you your yours mine this that these those
+        some any all new more about from into just really here there have has had got gonna wanna lemme gimme out off over one going been being them they are was
+        were not dont don't it's its i'm im time day way ways much many like know think feel say said says""".split())
+    _own_words = {}
+
+    @classmethod
+    def _words_of(cls, intent):
+        """The stems of the words a reading's own examples are made of, minus the ones every request shares."""
+        if intent not in cls._own_words:
+            from luma.agent.scenarios import INTENTS
+            spec = INTENTS.get(intent) or {}
+            lines = " ".join(list(spec.get("t") or []) + [str(spec.get("label") or ""), str(spec.get("say") or "")])
+            words = re.findall(r"[a-z']{3,}", re.sub(r"\{[^}]*\}", " ", lines.lower()))
+            cls._own_words[intent] = {w[:5] for w in words if w not in cls.SHARED_WORDS}
+        return cls._own_words[intent]
+
     def _guess_and_act(self, text, lowered, cancel_event):
         """None of the exact phrasings matched. The understanding model reads the meaning: it acts when it's sure,
         asks "did you mean" when it's torn, and stays out of the way when it's just conversation."""
@@ -5955,12 +6003,30 @@ class Agent:
             # just above or left it to the brain on purpose. Either way it's a question, never a command.
             return None
         intent, p = top[0]
+        if said_in_passing(text) or SAYINGS.search(lowered):
+            return None
+        if intent in self.FIXED_SUBJECT and p >= 0.8:
+            said = {w[:5] for w in re.findall(r"[a-z']{3,}", lowered + " " + understanding.respell(text).lower()) if w not in self.SHARED_WORDS}
+            if not said & self._words_of(intent):
+                return None   # nothing of the reading's own is in the words
+        if intent == "music" and re.search(r"\bplay(?:ing|ed|s)? " + PLAY_SAYING.pattern, lowered):
+            return None
         if intent == "mute" and self.NOT_LUMAS_MIC.search(lowered):
             return None  # "mute the tv" was read as "mute" and turned Luma's own mic off
         if intent == "photo" and not re.search(r"\b(?:photos?|pictures?|pics?|images?|screenshots?|camera|look|see|scan|show|read|receipt|describe|analy[sz]e|say)\b", lowered):
             return None  # "what did I spend this month" was read as "look at a photo": "Show me. Tap the picture button…"
-        if intent == "abilities" and not re.search(r"\b(?:you|u|ya|your|ur|yourself|luma|help|features|capabilities|abilities)\b", lowered):
-            return None  # "where does Kofi work now?" was read as "what can you do?" and got the list of what Luma can do
+        if intent == "abilities" and (not re.search(r"\b(?:you|u|ya|your|ur|yourself|luma|help|features|capabilities|abilities)\b", lowered)
+                                      or re.search(r"\bup to\b|\b(?:you|u) (?:been )?(?:doing|thinking|feeling)\b|\bhow are\b|"
+                                                   r"\bwhat do (?:you|u) do (?:when|while|all|at|for|if|on|in|with|about|to)\b", lowered)):
+            return None  # "where does Kofi work now?" was read as "what can you do?" and got the list of what Luma can do; so was "what are you up to"
+        if intent == "forget_last" and (not re.search(r"\b(?:forget|scratch|delete|erase|remove|undo|unremember|don'?t (?:remember|save|keep)|do not (?:remember|save|keep)|"
+                                                      r"never ?mind|take (?:that|it) back)\b", lowered)
+                                        or (re.search(r"\bforget it\b|\bnever ?mind\b", lowered) and not (self.last_noticed or getattr(self, "last_planned", [])))):
+            return None  # "turn that frown upside down lol" was read as "forget that"; "forget it, it's not important" with nothing just told is "never mind"
+        if intent == "search" and re.match(r"\W*search me\b", lowered):
+            return None  # "search me, I have no idea why she left": it went looking
+        if intent == "weather" and not re.search(r"\b(?:weather|forecast|rain\w*|snow\w*|storm\w*|temperature|degrees|hot|cold|warm|sunny|cloudy|humid|windy|umbrella|jacket|coat|outside)\b", lowered):
+            return None  # "how loud is it set" was read as the weather: "Which city?"
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
             return None  # "what should we do on saturday?", "got any ideas?" are talk: the brain answers; a page opens when they ask for one
         from luma.agent.scenarios import INTENTS
@@ -6796,6 +6862,9 @@ class Agent:
             if re.search(r"\b(?:pass ?word|pass ?code|pass ?phrase|pin|card number|cvv|cvc|security code|social security|ssn)\b", about, re.I):
                 # "what's my wifi password" was answered "I don't know your wifi password yet. Tell me and I'll remember it."
                 return {"text": "I don't keep passwords, PINs or card numbers, so that's not something I have. A password manager is the right home for it."}
+            if said_in_passing(text) or re.search(r"\b(?:problem|deal|issue|point|purpose|excuse|fault|damage|life|future|plan|type|vibe|move|worth|value|place|role|"
+                                                  r"mistake|crime|sin|secret|story|legacy|destiny|fate|luck)\b", about, re.I):
+                return None   # "what's my problem honestly" got "I don't know your problem honestly yet. Tell me and I'll remember it."
             guess = understanding.guess(text, 1)
             personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|code|blood type|middle name)\b", about, re.I)
             if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
@@ -7125,7 +7194,8 @@ class Agent:
                          r"(?:mic|microphone) off|stop listening(?: to (?:me|us|the room|everything))?|don'?t listen(?: to (?:me|us|this))?|"
                          r"go deaf|close your ears|cover your ears)(?: (?:please|now|for now|for a (?:bit|while|minute|sec|second)|right now))?\W*$", re.I)
     NOT_LUMAS_MIC = re.compile(r"\b(?:tv|television|music|radio|speakers?|phone|laptop|computer|call|zoom|meeting|notifications?|group ?chat|chat|him|her|them|"
-                               r"video|tab|podcast|song|alarm|game|stream|youtube|spotify|ex|boss|brother|sister|mom|dad|news)\b", re.I)
+                               r"video|tab|podcast|song|alarm|game|stream|youtube|spotify|ex|boss|brother|sister|mom|dad|news|button|thoughts?|brain|head|mind|life|world|feelings?|"
+                               r"everyone|everybody|people|kids|neighbou?rs?|coworkers?|roommates?|anxiety|inner \w+|myself)\b", re.I)   # "mute button for my thoughts please" turned the mic off
     REMINDER_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please|can you|could you|will you)\W+)*(?:cancel|delete|remove|clear|drop|scrap|get rid of|turn off|stop) "
                               r"(?:(?P<all>all (?:of )?(?:my |the |those )?reminders|(?:my|the|those) reminders|every reminder|every one of my reminders)|"
                               r"(?:the |my |that |this )?(?:(?P<what>[\w' -]{2,60}?) reminder|reminder (?:to |about |for |that i (?:need|have) to )(?P<what2>[\w' -]{2,60}?)|(?P<one>reminder)))"
@@ -7186,6 +7256,9 @@ class Agent:
         first = (title.split() or [""])[0].lower()
         return bool(first) and first not in {"the", "a", "an", "my", "our", "that", "this", "his", "her", "their"} and not first.endswith(("ing", "'s")) and not first[:1].isdigit()
 
+    ONE_MOMENT = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|wait|um|uh|sorry)\W+)*(?:(?:give me|gimme|i need|just) (?:a|one|just a|like a) (?:minute|min|sec|second|moment|bit)|"
+                            r"(?:hold|hang) on(?: (?:a|one) (?:sec|second|minute|moment))?|(?:one|just a|just one) (?:sec|second|minute|moment)|brb|be right back)"
+                            r"(?: (?:please|luma|ok|okay))?\W*$", re.I)
     TURN_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|so|and|wait)\W+)*(?:how (?:do|can|would|could|should) (?:i|we|you|one) (?:turn|switch|shut|power) (?:you|u|luma|this(?: thing)?|the lamp|it) "
                           r"(?:off|down)|how (?:do|can|would|could) (?:i|we) (?:turn|switch|shut|power) (?:off|down) (?:you|luma|this(?: thing)?|the lamp)|"
                           r"(?:can|could|may) (?:i|we) (?:turn|switch|shut|power) (?:you|u|luma) (?:off|down)|(?:do|have) you (?:have |got )?an? off (?:switch|button)|"
@@ -7269,6 +7342,8 @@ class Agent:
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
             stopped = self.athome.stopping(lowered)   # "stop" to a ringing alarm or the music stops that, before it means "hush"
             if stopped is not None: return stopped
+            if self.ONE_MOMENT.match(lowered):   # it said "Okay, I'll keep quiet for half an hour."
+                self.hush(5); return {"text": "Take your time. I'm here."}
             if lowered in {"hush", "not now", "stop"} and not ((self.store.setting("grilling") or self.walking) and lowered == "stop"):
                 self.hush(); return {"text": "Okay, I'll keep quiet for half an hour."}
             if lowered in {"mute", "privacy on"} or self.MIC_OFF.match(lowered):
@@ -7414,25 +7489,38 @@ class Agent:
             if household_result is not None:
                 household_result.setdefault("section", "cooking")
                 return household_result
-            if lowered.startswith(("remember ", "recall ", "do you remember ")):
+            reminiscing = (re.match(r"(?:do you )?remember (?:when|that time|the time|how) (?:we|i|you)\b", lowered)
+                           or re.match(r"(?:do you )?remember (?:the|that|those|our|my|all the|how) (?:[\w'-]+ ){1,5}(?:we|i|you|she|he|they) (?:\w+ed|was|were|had|did|went|drove|got|"
+                                       r"made|took|came|saw|met|ran|sat|ate|sang|said|told|used to|would|could)\b", lowered)
+                           or re.match(r"do you remember how \w+ (?:i|we|you|she|he|they|it) (?:was|were|felt|got|looked)\b", lowered)) and not self.MEMORY_Q_TOLD.match(text.strip())
+            # "remember when we talked about my brother" got "I don't have anything saved about that yet.": it's the start of a story, and the brain's
+            if lowered.startswith(("remember ", "recall ", "do you remember ")) and not reminiscing:
                 rest = re.sub(r"^(?:do you remember|remember|recall)\s+", "", text, flags=re.I).strip()
                 asking = lowered.startswith(("recall ", "do you remember ")) or rest.endswith("?") or re.match(r"(?:where|when|what|who|how|if|whether|which)\b", rest, re.I)
-                if not asking:
+                if not asking and not re.fullmatch(r"(?:this|that|it|this for me|that for me|something)\W*", rest, re.I) and not re.search(
+                        r"\b(?:is|are|was|were|am|has|have|had|will|to|that|parked|left|put|keeps?|lives?|works?|likes?|loves?|hates?|needs?|wants?|goes|takes?|owes?|wears?|uses?)\b|"
+                        r"'s\b|’s\b|[:=]|\d", rest, re.I) and re.match(r"(?:the|that|those|my|our|his|her|their|all the) ", rest, re.I):
+                    asking = None   # "remember the place with the terrible karaoke": a thing brought up, with nothing said about it. It was saved as a memory.
+                    reminiscing = True
+                if reminiscing:
+                    pass
+                elif not asking:
                     if re.fullmatch(r"(?:this|that|it|this for me|that for me|something)\W*", rest, re.I):
                         self.unfinished = {"prefix": "remember ", "at": self.clock(), "intent": "remember"}
                         return {"text": "Sure. What should I remember?", "asked": True}
                     return self.propose("memory.remember", {"text": rest})
-                if self.MEMORY_Q_TOLD.match(text.strip()):
-                    told = self._memory_answer(text)   # a saved fact states that very thing: Luma says it, with its day
-                    if told is not None:
-                        return told
-                found = self.propose("memory.recall", {"query": rest.rstrip("?")})
-                if self.use_model and found.get("memories"):
-                    spoken = self._answer_from(text, "memory.recall", found, cancel_event)
-                    if spoken: found = {**found, "text": spoken}
-                elif not found.get("memories"):
-                    found = {**found, "text": "I don't have anything saved about that yet."}
-                return found
+                if not reminiscing:
+                    if self.MEMORY_Q_TOLD.match(text.strip()):
+                        told = self._memory_answer(text)   # a saved fact states that very thing: Luma says it, with its day
+                        if told is not None:
+                            return told
+                    found = self.propose("memory.recall", {"query": rest.rstrip("?")})
+                    if self.use_model and found.get("memories"):
+                        spoken = self._answer_from(text, "memory.recall", found, cancel_event)
+                        if spoken: found = {**found, "text": spoken}
+                    elif not found.get("memories"):
+                        found = {**found, "text": "I don't have anything saved about that yet."}
+                    return found
             if lowered in {"tasks", "my tasks", "my reminders"}: return self.propose("tasks.list", {})
             m = re.fullmatch(r"remind me in (\d+) (minute|minutes|hour|hours|day|days) to (.+)", text, re.I)
             if m:
@@ -7445,7 +7533,9 @@ class Agent:
             if podcast is not None: return podcast
             made = self._app_request(text)
             if made is not None: return made
-            if lowered.startswith("search ") and not (self._hands().connected() and self.SEARCH_ON.match(lowered)): return self.propose("web.search", {"query": text[7:].strip()})
+            if lowered.startswith("search ") and not re.match(r"search (?:me|my (?:soul|heart|feelings|memory)|yourself|your (?:soul|heart|feelings))\b", lowered) \
+                    and not (self._hands().connected() and self.SEARCH_ON.match(lowered)):   # "search me, I have no idea why she left" went looking
+                return self.propose("web.search", {"query": text[7:].strip()})
             # Common ways of asking for a text are drafted by rules, not the model,
             # so nothing gets added to what the owner said.
             dialed = self._humor_dial(text, lowered)  # "be funnier", "less jokes"
@@ -7473,7 +7563,7 @@ class Agent:
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
             music = re.match(r"^\W*(?:(?:can you|could you|can u|please|yo|hey|aye|ayo|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
-            if music and self.mode != "kids" and not re.match(r"(?:a game|with|around|it cool|it safe)\b", music["what"]):
+            if music and self.mode != "kids" and not said_in_passing(text) and not PLAY_SAYING.match(music["what"]):   # "play along with me here" opened "along with me here" on YouTube Music
                 what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", self.TAGS.sub("", music["what"])).strip(" ,.") or "music for right now"
                 from urllib.parse import quote_plus
                 if self._hands().connected():

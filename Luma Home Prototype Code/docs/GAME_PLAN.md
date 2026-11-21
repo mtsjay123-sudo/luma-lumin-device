@@ -150,6 +150,10 @@ on day 1 and run alongside everything else:
 - **Round 6 for training (Nov 21):** a gate for "what was said since" (twelve lines, asked with what the device hands a
   brain) and 26 practice moments. Writing the gate found four more places where Luma itself said the old thing or
   didn't keep the new one; fixed in the device. Not trained yet.
+- **Talk is never a command (Nov 21):** "this weather is making me so sad" got "Which city?", "what are you up to" got
+  the feature list, "mute button for my thoughts please" turned the mic off. Four sets of 60 ordinary lines, each
+  written after the fixes before it: wrongly answered by code 4 → 0, 14 → 8, 11 → 11, 10 → 6. The third set showed
+  that fixing line by line doesn't carry over; guards on each path do.
 
 ## 1. Where Luma stands (measured)
 

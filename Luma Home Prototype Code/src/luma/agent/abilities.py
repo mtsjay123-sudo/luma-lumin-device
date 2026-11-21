@@ -13,7 +13,7 @@ ASKS_ALL = re.compile(
     r"\bwhat (?:all |else |exactly |even )?(?:(?:can|could) (?:you|luma|u|she|it)|(?:you|luma|u) (?:can|could)) (?:do|help (?:me |us )?with)\b"
     r"(?!\s+(?:about|with|to|if|when|on|for (?:my|this|that|the|her|him|them))\b)"
     r"|\bwhat (?:are|r) (?:your|luma'?s|ur|her) (?:abilities|capabilities|features|skills|powers|superpowers)\b"
-    r"|\bwhat (?:do you|does luma) do\b(?!\s+(?:when|if|with|about|for|to|on)\b)|\bwhat (?:are you|is luma) (?:capable of|good at|able to do)\b"
+    r"|\bwhat (?:do you|does luma) do\b(?!\s+(?:when|if|with|about|for|to|on|all|at|in|while|every|after|before|during|these|lately|now)\b)|\bwhat (?:are you|is luma) (?:capable of|good at|able to do)\b"
     r"|\bhow (?:can|could) (?:you|luma) help(?: me| us)?\s*[?!.]*$|\bwhat can i (?:ask|use|get) (?:you|luma)(?: to do| for)?\b"
     r"|\b(?:show|tell) (?:me|us|em|them|him|her|\w{1,4}) (?:what|everything) (?:you|luma) can do\b"
     r"|^\W*(?:help|capabilities|features|abilities|what can you do|what do you do)\W*$", re.I)

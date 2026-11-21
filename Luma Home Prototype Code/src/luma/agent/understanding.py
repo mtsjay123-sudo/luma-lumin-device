@@ -211,6 +211,8 @@ def cut_off(text):
         return None
     if re.search(r"\b(?:you|u|i|we|they|ya|y'all|people|everyone) (?:really |actually |would |might )?like$", said, re.I):
         return None  # "a song you like" is whole: "like" there is the verb, not a filler
+    if re.search(r"\b(?:feels?|felt|looks?|looked|sounds?|sounded|seems?|tastes?|smells?|is|it's|that's|was|be|been) like$", said, re.I):
+        return None  # "is this what thirty feels like" is whole too: it got "You got cut off after “what thirty feels like”."
     asked = QUESTION_START.match(said) or QUESTION_START.match(re.split(r"[,;:]\s*", said)[-1])
     if asked and not re.search(r"\b(?:the|a|an|my|your|and|or|but|um+|uh+)$|\.\.\.$|…$", said, re.I):
         # "who should I send it to" is a whole question, even without the question mark. So is one that comes after the
@@ -389,5 +391,7 @@ def walk_topic(text):
                        ("rules", r"rules?|approv|permission|allow"), ("deck", r"deck|slides|presentation|powerpoint|keynote")]:
         if re.search(rf"\b(?:{words})", lowered):
             return key
+    if not re.search(r"\b(?:you|u|your|ur|luma|app|here|this|it)\b", lowered):
+        return None   # "where do I even start with my taxes" got the walk-through for Luma's memory: a how-to is Luma's only when it's about Luma
     top = guess(text, 1)
     return WALK_FOR.get(top[0][0]) if top and top[0][1] >= 0.5 else None

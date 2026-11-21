@@ -482,5 +482,94 @@ class CancellingAReminder(Home):
         self.assertEqual(sum(1 for line in lines if Agent.REMINDER_OFF.match(line.lower())), 0)      # a count: never printed
 
 
+class TalkIsNeverACommand(unittest.TestCase):
+    """Ordinary things people say, read with a stand-in brain (Nov 21, 2026). Each line here got an answer from Luma's own
+    code as if it were a command: a forecast for "this weather is making me so sad", the feature list for "what are you up
+    to", the mic turned off for "mute button for my thoughts please", a memory saved for "remember the place with the
+    terrible karaoke", "Opening along with me here on YouTube Music" for "play along with me here".
+
+    Four sets of 60 lines, each written after the fixes before it and measured once. Wrongly answered by code, before ->
+    after the fixes that existed when the set was written: 4 -> 0 (built on), 14 -> 8, 11 -> 11 (fixing line by line
+    didn't carry over), 10 -> 6 (guards on each path did: said in passing, a reading's own words, sayings). The lines
+    below are the ones that were wrong in any set; all are left to the brain now, which is no number at all."""
+
+    TAKEN = ["the weather has been matching my mood", "remember when we talked about my brother", "what are you up to",
+             "the cold weather makes my knees ache", "I can't stand this weather anymore", "remember that time I locked myself out", "remember how we used to stay up talking",
+             "do you remember when I got the job", "what do you do when I'm not here", "turn that frown upside down lol", "forget it, it's not important",
+             "search me, I have no idea why she left", "tell my why I keep doing this to myself", "show me a person who has it together",
+             "I need an umbrella for my life lol", "I'm going to snow myself in and hibernate", "the forecast for my love life is bleak",
+             "remember the summer we drove to the coast", "remember how bad I was at this a year ago", "what do you do all night", "where do I even start with my taxes",
+             "mute button for my thoughts please", "forget him, honestly", "play along with me here", "text me when you're home, she used to say", "set in my ways, I guess",
+             "what's my problem honestly", "turn the page, they say", "remember the place with the terrible karaoke", "remember my old apartment, the one with the leak",
+             "do you remember how nervous I was", "play it by ear, that's my plan", "read the room, I told myself", "what's my deal with unavailable people",
+             "is this what thirty feels like", "connect the dots, he's gone", "upgrade my life, please", "this weather is making me so sad", "I hate cold weather",
+             "the weather was perfect for the funeral"]
+    # what the same code must still do when it's asked (the reply starts this way)
+    ASKED = [("play some jazz", "Opening jazz on YouTube Music."), ("text my mom I'll be late", "What's your mom's name and number?"),
+             ("remember that I parked on level 3", "Got it"), ("remember my sister's birthday is May 2", "Got it"), ("forget that", "There was nothing new to forget."),
+             ("what can you do", "Here's what I can do"), ("what do you do", "Here's what I can do"), ("open the news page", "Here's the news."),
+             ("what do you remember about me", "Not much yet."), ("take me 2 my goalz", "Nothing running on its own yet."), ("how do I pair my device", "Sure, let's do it step by step."),
+             ("stop listening", "Mic's off."), ("give me a minute", "Take your time. I'm here."), ("hold on a sec", "Take your time. I'm here."),
+             ("where are my keys", "You haven't told me where your keys are.")]
+
+    @staticmethod
+    def said(line):
+        import human_eval
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            return {"type": "reply", "text": "Okay."}
+
+        s = human_eval.Session(planner)
+        try:
+            result = s.agent.chat(line)
+            return str(result.get("text") or result.get("summary") or "")
+        finally:
+            s.close()
+
+    def test_every_line_that_was_taken_is_left_to_the_brain(self):
+        wrong = [(line, self.said(line)) for line in self.TAKEN]
+        self.assertEqual([(line, reply) for line, reply in wrong if reply != "Okay."], [])
+
+    def test_what_is_asked_is_still_done(self):
+        for line, starts in self.ASKED:
+            self.assertTrue(self.said(line).startswith(starts), (line, self.said(line)))
+
+    def test_the_word_weather_alone_isnt_a_question(self):
+        from luma.skills import weather
+        for line in ("what's the weather", "weather", "weather in tokyo", "how's the weather today", "is it going to rain tomorrow", "do i need a jacket",
+                     "what's the weather, I hate not knowing", "check the weather for me", "tomorrow's weather", "will it snow tonight"):
+            self.assertTrue(weather.wants(line), line)
+        for line in ("this weather is making me so sad", "i hate cold weather", "the weather was perfect for the funeral", "i love this weather",
+                     "the weather has been matching my mood", "the forecast for my love life is bleak", "I need an umbrella for my life lol",
+                     "I'm going to snow myself in and hibernate", "nice weather we're having", "i've been under the weather all week"):
+            self.assertFalse(weather.wants(line), line)
+
+    def test_said_in_passing_and_sayings(self):
+        from luma.agent import runtime
+        for line in ("turn the page, they say", "set in my ways, I guess", "forget him, honestly", "text me when you're home, she used to say",
+                     "read the room, I told myself", "find a hobby, they said", "booked and busy, allegedly"):
+            self.assertTrue(runtime.said_in_passing(line), line)
+        for line in ("play some jazz", "text my mom I'll be late", "what's the weather", "remind me to call the vet at 3", "they say it's going to rain",
+                     "honestly just play something", "open the news page", "I guess"):
+            self.assertFalse(runtime.said_in_passing(line), line)
+        for line in ("connect the dots, he's gone", "upgrade my life, please", "play it by ear, that's my plan"):
+            self.assertTrue(runtime.SAYINGS.search(line), line)
+
+    def test_a_sure_reading_needs_a_word_of_its_own(self):
+        from luma.agent.runtime import Agent
+        self.assertIn("email", Agent._words_of("connect_email"))
+        self.assertIn("news", Agent._words_of("open_news"))
+        for intent in Agent.FIXED_SUBJECT:
+            self.assertTrue(Agent._words_of(intent), intent)
+            self.assertFalse(Agent._words_of(intent) & {w[:5] for w in ("set", "turn", "open", "page", "show", "get")}, intent)
+
+    def test_a_whole_question_that_ends_in_like_isnt_cut_off(self):
+        from luma.agent import understanding
+        for line in ("is this what thirty feels like", "do you know what that sounds like", "I wonder what her new place looks like"):
+            self.assertIsNone(understanding.cut_off(line), line)
+        self.assertIsNotNone(understanding.cut_off("remind me to"))
+        self.assertIsNotNone(understanding.cut_off("so I was thinking, like"))
+
+
 if __name__ == "__main__":
     unittest.main()

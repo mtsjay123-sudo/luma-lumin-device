@@ -29,8 +29,31 @@ CODES = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "cloudy", 45: "fo
          85: "snow showers", 86: "snow showers", 95: "thunderstorms", 96: "thunderstorms with hail", 99: "thunderstorms with hail"}
 
 
+# The word alone isn't a question. "this weather is making me so sad", "I hate cold weather", "the weather was perfect for
+# the funeral" each got "Which city?" or a forecast. Said about how it is, was or feels, it's talk, unless it's also asked.
+WEATHER_ASKED = re.compile(r"(?:\bwhat(?:'s| is|s)?|\bhow(?:'s| is|s)?|\bcheck|\btell me|\bshow me|\bgive me|\bget me|\bknow|\blook up|\bpull up|\bcan you|\bcould you)\b.{0,25}\bweather\b|"
+                           r"\bweather (?:in|for|at|near|around|report|update|forecast)\b|\bweather\s*\?|^\W*(?:the |today'?s |tomorrow'?s )?weather(?: (?:today|tomorrow|tonight|now|rn|outside|like))?\W*$", re.I)
+WEATHER_TALK = re.compile(r"\b(?:mood|sad|depress\w*|miss(?:ing)?|hate|hated|love|loved|lonely|cry(?:ing)?|funeral|reminds?|making me|makes me|made me|match(?:es|ing|ed)?|feels?|feeling|felt|"
+                          r"perfect|ruined|was|were|has been|had been|have been|been|nice|beautiful|gorgeous|lovely|awful|terrible|crazy|weird|gloomy|miserable|"
+                          r"(?:this|that|hot|cold|bad|good|rainy|sunny|grey|gray) weather|under the weather|bleak|grim)\b", re.I)
+
+
+# A figure of speech is never a forecast: "the forecast for my love life is bleak", "I need an umbrella for my life lol",
+# "I'm going to snow myself in and hibernate" each went looking for the weather in "My Love Life Is Bleak".
+FIGURE = re.compile(r"\b(?:my (?:love |whole |entire |social |dating |sex )?life|myself|my (?:heart|soul|head|mood|feelings|marriage|career|future|relationship|bank account|week|day)|"
+                    r"(?:i'm|i am|im|we're|we are) (?:gonna|going to|finna) (?:rain|snow|storm))\b", re.I)
+
+
 def wants(text):
-    return bool(ASKS.search(str(text or "")))
+    text = str(text or "")
+    found = ASKS.search(text)
+    if not found:
+        return False
+    if WEATHER_ASKED.search(text):
+        return True
+    if FIGURE.search(text):
+        return False
+    return found.group(0).lower() not in ("weather", "forecast") or not WEATHER_TALK.search(text)
 
 
 def place_in(text):

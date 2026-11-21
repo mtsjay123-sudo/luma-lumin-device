@@ -2774,3 +2774,60 @@ the device, so every brain gets them:
 
 After those, all twelve gate lines reach a brain with the newer line first. Tests:
 `WhatWasSaidSinceIsGatedAndPractised` in `tests/test_finetune_data.py`, and three more in `SaidSince`.
+
+## Talk is never a command (Nov 21)
+
+The other side of the speaker commands: ordinary things people say, read with a stand-in brain, counting every line
+Luma's own code answered as if it had been asked to do something.
+
+| They say | Luma did |
+|---|---|
+| "this weather is making me so sad" | "Which city? Say something like “weather in Raleigh”…" |
+| "what are you up to" | The list of everything it can do |
+| "mute button for my thoughts please" | Turned its microphone off |
+| "remember the place with the terrible karaoke" | Saved it as a memory: "Got it, I'll remember that." |
+| "play along with me here" | "Opening along with me here on YouTube Music." |
+| "set in my ways, I guess" | Offered to connect Gmail |
+| "turn the page, they say" | Opened the news |
+| "text me when you're home, she used to say" | Asked for a phone number |
+| "the forecast for my love life is bleak" | Looked for the weather in "My Love Life Is Bleak" |
+| "is this what thirty feels like" | "You got cut off after “what thirty feels like”. Keep going, I'm listening." |
+
+Four sets of 60 lines, each written after the fixes before it and measured once:
+
+| Set | Wrongly answered by code, before | After the fixes that existed then |
+|---|---|---|
+| 1 (built on) | 4 | 0 |
+| 2 | 14 | 8 |
+| 3 | 11 | **11** |
+| 4 | 10 | **6** |
+
+Set 3 is the lesson: fixing the lines one by one carried over to nothing. What Luma uses to read a request is
+sure of itself on sayings ("set in my ways, I guess" is "connect my email" at 0.92). So the fixes after set 3 are
+on each path instead, and set 4 shows they carry: 10 → 6.
+
+- **Said in passing** (`runtime.said_in_passing`): a sentence that ends by saying whose words they are ("…, they
+  say", "…, she used to say", "…, I told myself") or with a shrug ("…, I guess", "…, honestly") is never a request.
+- **A reading needs a word of its own** (`Agent._words_of`, `FIXED_SUBJECT`): a sure reading is acted on only when
+  a word from that reading's own examples is in what they said, not counting the words every request shares
+  ("set", "turn", "open", "page"). Spelled badly still counts ("take me 2 my goalz").
+- **Sayings** (`runtime.SAYINGS`, `PLAY_SAYING`): "connect the dots", "read the room", "play it by ear".
+- **The weather** (`weather.wants`): the word alone isn't a question when it's said about how things are, were or
+  feel, and a figure of speech is never a forecast.
+- **Remembering**: "remember when we…", "remember how bad I was…" and "remember the place with the terrible
+  karaoke" are the start of a story. Something to keep has something said about it ("remember that I parked on
+  level 3").
+- "give me a minute" and "hold on" get "Take your time. I'm here." (it said "Okay, I'll keep quiet for half an
+  hour."); "what do you do all night" and "what are you up to" are asking after Luma; a how-to is walked through
+  only when it's about Luma ("where do I even start with my taxes" got the walk-through for memory).
+
+After the last round all four sets are clean, which is no number: they've all been built on now. Forty-three real
+commands answer exactly as before.
+
+**This touches Human Test v2** (6 of 269 turns are told something different, the first change today that does):
+"wait hold on" in the middle of an explanation is answered by Luma itself, briefly; and in one conversation
+"remember my boss? he pulled me aside and apologized" used to get "Got it, I'll remember that." from Luma's code
+on every brain, and now goes to the brain. Neither was tuned on: both came from the fresh lines above. A
+before-and-after run on the four brains is owed before this counts.
+
+Checks: `TalkIsNeverACommand` in `tests/test_what_luma_says.py`.
