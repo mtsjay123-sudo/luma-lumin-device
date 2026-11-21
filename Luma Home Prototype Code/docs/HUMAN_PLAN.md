@@ -2931,10 +2931,11 @@ their job, their home or where they're from. "I'm a mess today", "I'm a night ow
 | Built on, 10 | 3 → 7 | 1 → 0 |
 | Second, 12, written afterwards and measured once | **1 → 7** | **3 → 1** |
 
-What's left on the second set: "where did I grow up" / "I was raised in a tiny town outside Fresno", "where am I
-originally from" / "I come from a big family in Lagos" and "where's my home" / "I bought a condo near the lake"
-(marked, and the question isn't read as asking for it), "what do I do all day" / "I'm a stay-at-home dad", and
-"where was I before I moved here", which Luma answers with a line about the diary. With nothing said, "what's my
+What was left on the second set when it was measured: "where did I grow up" / "I was raised in a tiny town outside
+Fresno", "where am I originally from" / "I come from a big family in Lagos", "where's my home" / "I bought a condo
+near the lake", "what do I do all day" / "I'm a stay-at-home dad", and "where was I before I moved here", which
+Luma answers with a line about the diary. The first two are fixed since (their own plain words are looked for
+before anything is called never told), as lines that are now built on: 9 of 12. The number measured stays 7. With nothing said, "what's my
 job" still gets "I don't know your job yet."
 
 Checks: `WhatTheySaidAboutThemselves` in `tests/test_never_told.py`.

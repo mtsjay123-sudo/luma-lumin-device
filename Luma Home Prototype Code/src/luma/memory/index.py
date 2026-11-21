@@ -516,6 +516,14 @@ class LifeIndex:
                 others = sorted((int(r) for r in theirs), key=lambda r: (r not in topic, -created[r]))
                 picked += [r for r in closest + others if r not in picked][:limit * 2]
 
+        # 1b. asked about their own job, home or where they're from, with no fact: what they said in the plain shape of saying it
+        own_rows = []
+        bit = OWN.get(ask["what"].split(":")[0]) if ask["what"] else None
+        if bit and known and not fact_rows and whos and whos[-1] == {"you"}:
+            theirs_own = np.flatnonzero(((kind & bit) > 0) & (alive > 0))
+            own_rows = [int(r) for r in theirs_own[np.argsort(-created[theirs_own])] if not self.ended[int(r)]][:limit]
+            picked += [r for r in own_rows if r not in picked]
+
         # 2. what was said at that time
         window_rows = []
         if span:
@@ -555,7 +563,7 @@ class LifeIndex:
         # says which words it has never seen ("middle"): whether that answers the question is for the brain to say.
         rest = terms - used - GENERIC - NOISE
         unseen = sorted(t for t in rest if not self.df.get(t))
-        if known and not person and not spoken_of and rest and len(unseen) == len(rest) and not close and not window_rows and not fact_rows:
+        if known and not person and not spoken_of and not own_rows and rest and len(unseen) == len(rest) and not close and not window_rows and not fact_rows:
             other = set().union(*(SAME.get(t, set()) for t in unseen)) if unseen else set()
             # never one a newer fact replaced: "Work is fine I guess" was handed "(Used to be true, not anymore) I moved to Denver
             # last month for a new job", the line the Denver fact itself was read from
@@ -569,10 +577,6 @@ class LifeIndex:
             # ("I'm a nurse at the children's hospital" isn't read as a fact here; "I work nights at the bakery" is one more)
             wider = cue | set().union(*(SAME.get(t, set()) for t in cue))
             picked = [r for _, r in self.words(q, limit, terms={t for t in wider if self.df.get(t)}) if not self.ended[r]]
-            bit = OWN.get(ask["what"].split(":")[0]) if ask["what"] else None
-            if not picked and bit and whos and whos[-1] == {"you"}:   # "what's my job", and "I'm a nurse at the children's hospital" was said
-                theirs_own = np.flatnonzero(((kind & bit) > 0) & (alive > 0))
-                picked = [int(r) for r in theirs_own[np.argsort(-created[theirs_own])] if not self.ended[int(r)]][:limit]
         if not picked and known:
             known, why = False, "nothing saved about that"
 
@@ -580,7 +584,7 @@ class LifeIndex:
         if not past:  # what used to be true comes after what's true now
             picked = [r for r in picked if r not in ended] + [r for r in picked if r in ended]
         return {"rows": picked[:limit], "known": known, "why": why, "window": span[:2] if span else None, "ended": ended & set(picked[:limit]),
-                "unseen": unseen if known and len(unseen) <= 2 and len(rest) <= 3 else [], "facts": set(fact_rows) & set(picked[:limit])}
+                "unseen": unseen if known and not own_rows and len(unseen) <= 2 and len(rest) <= 3 else [], "facts": set(fact_rows) & set(picked[:limit])}
 
     def _about(self, who):
         """Rows that mention this person by name or by relation."""
