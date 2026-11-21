@@ -1,22 +1,25 @@
-# An experiment: can a meaning model small enough for the lamp find what was told in other words?
+# The lamp's small meaning model, measured (luma.memory.meaning, the "small" engine).
 #
-# Luma's meaning model (Qwen3-Embedding-0.6B) runs on computers with 16 GB. On a $250 lamp recall is by words alone, and
-# a fact asked about in other words is mostly not found (tests/test_a_fact_in_a_crowd.py: 19 of 40, and 11 of 40
-# wrongly "never told"). This fetches a static model (a table of word-piece meanings, numpy only to run), puts it in a
-# folder of its own, and prints what recall would be with it: the two fresh sets of forty, the memory test on the lives
-# it was built on, and on the held-out lives (counts only). Nothing in Luma changes; nothing is published.
-# It runs when its script or this file changes on the working branch (a dispatch needs the file on main, which doesn't
-# move). Free machines; nothing is billed.
+# Luma's meaning model (Qwen3-Embedding-0.6B) runs on computers with 16 GB. A $250 lamp can hold a static one instead: a
+# row of numbers for each word-piece, averaged over a sentence (potion-base-8M, 30 MB). It's off until the owner
+# switches it on, because it's a download. This fetches the model into a folder of its own, checks that Luma's own
+# reader gives the same numbers as the package the model was made with, and prints what recall is with it through
+# Luma's own search: the two fresh sets of forty (tests/test_a_fact_in_a_crowd.py), the memory test on the lives it was
+# built on, and on the held-out lives (counts only). Nothing is published.
 #
-# Rule 7: the package is model2vec (MIT). The model's own license is printed from its card before anything is counted;
-# it is used here only if that says MIT, Apache-2.0 or BSD.
-name: Meaning model for the lamp (experiment)
+# Rule 7: the model's own license is printed from its card before anything is counted, and the run stops unless that
+# says MIT, Apache-2.0 or BSD. model2vec (MIT) is installed only for the comparison; Luma doesn't use it.
+#
+# It runs when its script, the meaning code or this file changes on the working branch (a dispatch needs the file on
+# main, which doesn't move). Free machines; nothing is billed.
+name: Meaning model for the lamp
 
 on:
   push:
     branches: [claude/hopeful-feynman-z2294x]
     paths:
       - "Luma Home Prototype Code/scripts/meaning_small_eval.py"
+      - "Luma Home Prototype Code/src/luma/memory/meaning.py"
       - ".github/workflows/meaning-small.yml"
   workflow_dispatch:
     inputs:
@@ -25,7 +28,7 @@ on:
         default: "minishlab/potion-base-8M"
       close:
         description: "How close a memory has to be to count (cosine); one run for each"
-        default: "0.35,0.45,0.55,0.65"
+        default: "0.35,0.4,0.45,0.55"
 
 permissions:
   contents: read
@@ -53,7 +56,7 @@ jobs:
           du -sh "$RUNNER_TEMP/meaning-small"
           grep -i -m 3 "^license" "$RUNNER_TEMP/meaning-small/README.md" || echo "no license line on the card"
           grep -i -q -m 1 -E "^license: *(mit|apache-2\.0|bsd)" "$RUNNER_TEMP/meaning-small/README.md"
-      - name: What recall would be with it (the two sets of forty, the memory test on both halves; counts only)
+      - name: What recall is with it, through Luma's own reader and search (the two sets of forty, the memory test on both halves; counts only)
         env:
-          CLOSE: ${{ github.event.inputs.close || '0.35,0.45,0.55,0.65' }}
+          CLOSE: ${{ github.event.inputs.close || '0.35,0.4,0.45,0.55' }}
         run: python -I scripts/meaning_small_eval.py --model "$RUNNER_TEMP/meaning-small" --close "$CLOSE" | tee -a "$GITHUB_STEP_SUMMARY"

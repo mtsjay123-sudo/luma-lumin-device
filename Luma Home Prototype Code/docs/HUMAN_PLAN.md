@@ -3585,3 +3585,76 @@ marking isn't a loss when the sentence says what happened and nothing in it says
 What a brain is told on both human tests: 0 of 269 turns differ. Hard-or-not, held out: unchanged (108 of 150, 0 of 150).
 
 Tests: `tests/test_good_news_plainly.py` (5). Full suite: 1,988 passed, the known 14 failed.
+
+## Meaning search on the lamp, built (Nov 21) (`src/luma/memory/meaning.py`, the "small" engine)
+
+The experiment above said it was worth it, so it's in Luma now, as a second model in the place the 16 GB one plugs
+in:
+
+- **What it is.** potion-base-8M (its card says MIT): a row of 256 numbers for each word-piece, averaged over a
+  sentence. 30 MB, no network to run. Luma reads its two files itself, with numpy and the tokenizers package that
+  Luma's packages already bring; the package the model was made with (model2vec) isn't needed.
+- **Off until the owner says yes.** It's a download, so it's a new outbound call, behind its own switch
+  (`memory_by_meaning_small`, off). Switched on, the three files are asked for from Hugging Face the next time
+  something is looked up, each is checked against what the host lists for it before any is kept, and one that
+  doesn't match throws the lot away. Nothing about the owner is sent: it's a request for files. Switched off, it
+  stops being used. `scripts/egress_check.py`, settings as they come: still 0 hosts.
+- **A download is never trusted.** The model file's header is checked against the file before a number is read
+  (five ways of being wrong are tested); anything off, and Luma recalls by words alone, as before.
+- **Never mixed up.** Each meaning is kept under the name of the model that worked it out, encrypted like the
+  memory and forgotten with it. Where the 16 GB model is there, it's the one used.
+- **How close counts**: 0.4, between the two settings the experiment liked (0.35: 27 of 40, 0.45: 23 of 40).
+
+Tests: `tests/test_meaning_small.py` (10), with a tiny stand-in model built in the test, in the real one's two
+files: off until switched on and nothing fetched (a call to the network fails the test), finds what's said in
+other words, kept under its own name and encrypted, the bigger model's numbers never read as its own, switched off
+again it stops, a wrong file is never used, and the download with the host replaced: nothing asked for without the
+yes, checked and used on a yes, a tampered file thrown away and not tried again straight away.
+
+Full suite: 1,998 passed, the known 14 failed. What leaves the home, settings as they come: 0 hosts.
+
+What's not known until it runs on GitHub with the real model (the workflow runs when this is pushed): that Luma's
+own reader gives the same numbers as the package the model was made with, and the recall numbers through Luma's own
+search rather than a stand-in for it.
+
+## Run 72: Human Test v2 on this morning's code, four brains (Nov 21)
+
+The whole test again, on f261e12: everything up to the brain being asked first about a gripe and bad news with a
+laugh. (The small model for lonely and worried, the memory order, "... ago today" and the lamp's meaning search came
+after; none of them changes what a brain is told on these moments, bar one lonely turn.) One run each, so a few
+points either way is noise.
+
+| | Stock 4B | Luma's own 4B | Stock 1.7B | Luma's own small |
+|---|---|---|---|---|
+| Passed, of 255 (run 65 → run 72) | 222 → **235** | 203 → 206 | 196 → 195 | 203 → 200 |
+| Judge, 1 to 5 | 3.75 → 3.68 | 3.48 → 3.5 | 3.39 → 3.42 | 3.43 → 3.4 |
+| Not safe, answered with safety | 13 of 13 | 13 of 13 | 13 of 13 | 13 of 13 |
+| Asked about suicide where nothing hinted at it | 2 → 3 | 8 → 7 | 3 → 3 | 5 → 4 |
+| Claimed to be human | 0 | 0 | 0 | 0 |
+| A made-up life | 0 | 0 | 1 | 0 |
+
+The kinds that were weakest in run 65, on the two brains that would ship:
+
+| Kind | Stock 4B, run 65 → 72 | Stock 1.7B, run 65 → 72 |
+|---|---|---|
+| Venting, of 10 | 6 → **9** | 4 → 5 |
+| Big news, of 10 | 8 → **10** | 5 → 5 |
+| Disagreement, of 8 | 6 → 7 | 6 → 6 |
+| Not a joke, of 4 | 4 → 4 | 2 → 3 |
+| Conversations, of 115 | 96 → **101** | 86 → 85 |
+| Lonely, of 16 | 15 → 16 | 15 → 12 |
+| Grief, of 8 | 8 → 8 | 7 → 8 |
+
+- **The stock 4B with Luma's layer: 235 of 255 (92%)**, thirteen more than this morning, and every kind but
+  conversations (101 of 115), opinion (8 of 10) and three single misses is at full marks. Venting went 6 → 9: that's
+  the brain being asked first, the thing this stretch was aimed at. It is the brain to ship.
+- **The stock 1.7B didn't move** (196 → 195), which is what the venting runs said: it isn't asked, and it doesn't
+  follow the note when it's given one. Its lonely row went 15 → 12 in a single run; run 73 looks at exactly those
+  moments five times over.
+- **Luma's add-ons**: 206 and 200. Side by side the judge picked the stock 4B over our 4B add-on 31 times to 2 (17
+  ties), and the stock 1.7B over our small add-on 18 times to 12 (20 ties). The same story as run 65: they pass
+  about as many checks and read as less of a friend. Neither is the brain to ship.
+- **The safety net with each brain answering Luma's one question**, on lines nobody tuned on: stock 4B 14 and 19 of
+  24 caught with 0 and 1 false alarms; stock 1.7B 13 and 16 with 2 and 3; our 4B 18 and 22 with 2 and 2; our small
+  19 and 24 with 10 and 7. All four: 60 of 60 on the corpus spread. The same as run 65, to the line.
+- Opinion moments: no brain picked a side on what divides people.

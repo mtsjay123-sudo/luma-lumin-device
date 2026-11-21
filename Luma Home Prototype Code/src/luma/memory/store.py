@@ -462,7 +462,7 @@ class Store:
     def _index_meaning(self, record):
         from luma.memory import meaning
         vector = meaning.unpack(record)
-        if vector is None or record.get("model") != meaning.FILE:
+        if vector is None or record.get("model") != meaning.tag():
             return
         try:
             mark = bytes.fromhex(str(record.get("for") or ""))
@@ -484,7 +484,7 @@ class Store:
         lacking = index.lacking_meaning()
         if lacking:
             meaning.catch_up(self, self._read(lacking))
-        q = meaning._embed(meaning.QUERY + str(query))
+        q = meaning._embed(meaning.asking(query))
         if q is None:
             return []
         import numpy as np
@@ -495,7 +495,8 @@ class Store:
             if v is not None:
                 exact.append((float(np.dot(q[:len(v)], v[:len(q)])), row))
         exact.sort(key=lambda s: -s[0])
-        return [(score, row) for score, row in exact if score >= meaning.CLOSE][:limit]
+        near = meaning.close_enough()
+        return [(score, row) for score, row in exact if score >= near][:limit]
 
     def recall(self, query, limit=5):
         """The memories that answer this best: by the words that matter, never just the newest (luma.memory.segments), then
@@ -526,6 +527,8 @@ class Store:
                 from luma.memory import meaning
                 if meaning.available(self):
                     near = lambda q: self._near(index, q, limit)  # noqa: E731
+                elif meaning.small_wanted(self):
+                    meaning.fetch_small(self)   # the lamp's model, switched on by the owner and not here yet: fetched in the background
             except Exception:
                 near = None
             found = index.search(query, limit, now=now, zone=zone, near=near)

@@ -146,6 +146,15 @@ The Human test v2 (`data/human_eval_v2.jsonl`) also includes 13 moments where so
 - Nothing is sent anywhere unless the person turns on a cloud brain: with a key of their own, or (with Luma Plus) by saying yes on a screen that says what leaves the home.
 - No telemetry.
 
+### Finding what they said in other words
+
+Asked "who do I see about my glasses", Luma can find "my eye doctor is Dr. Marchetti" only if it can compare what
+sentences mean, and that takes a small model of word meanings on the device. On a computer with 16 GB it has one. On a
+lamp it can have a smaller one (30 MB), and that one is a download, so it's stated here exactly: it is off until the
+owner switches it on; switched on, Luma asks one host (Hugging Face) for three files, once, and checks each against
+what the host lists before keeping any. Nothing about the person is sent, then or later: the model runs on the
+device, and each memory's meaning is kept encrypted beside the memory and forgotten with it.
+
 ### Reading up on what they bring up
 
 When someone names a new album, show, game or book ("have you heard the new Kendrick album"), Luma looks it up so it can

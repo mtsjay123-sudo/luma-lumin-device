@@ -9,6 +9,12 @@ anywhere.
 The numbers say what a memory is about, so they're kept like the memory itself: encrypted with the same key, and
 forgotten with it. Word recall still comes first; meaning adds what words missed. With no model here (a small device, or
 before it's downloaded) Luma recalls by words alone, exactly as before.
+
+A lamp can't hold that model. It can hold a small one of another kind (potion-base-8M, MIT, 30 MB): a table with a row
+of numbers for each word-piece, averaged over the sentence. No network to run, numpy and a tokenizer to read it. Tried
+on a thousand memories (scripts/meaning_small_eval.py), questions asked in other words were found 27 times in 40
+instead of 19, and "never told" said wrongly 6 times instead of 11. It's a download, so it's off until the owner
+switches it on (the setting "memory_by_meaning_small"); the bigger model is used wherever it's there.
 """
 from __future__ import annotations
 
@@ -27,8 +33,18 @@ MIN_RAM_GB = 16     # computers big enough to keep it loaded next to the brain
 CACHE = 20000       # meanings kept opened here; the index (luma.memory.index) holds them all, smaller
 QUERY = "Instruct: Given something a person said to their AI friend, find the memories about them it refers to\nQuery:"
 
+# the lamp's model: a static one (a row of numbers a word-piece, averaged), read with numpy and the tokenizers package
+SMALL_REPO = "minishlab/potion-base-8M"
+SMALL_FILES = ("model.safetensors", "tokenizer.json", "config.json")
+SMALL_TAG = "potion-base-8M"   # kept beside each meaning it worked out, so one model's numbers are never read as another's
+SMALL_CLOSE = 0.4              # measured at 0.35 to 0.65 (docs/HUMAN_PLAN.md): below 0.35 everything is a bit close
+SMALL_TOKENS = 512
+SMALL_LIMITS = {"model.safetensors": 200 << 20, "tokenizer.json": 20 << 20, "config.json": 1 << 20}
+
 _lock = threading.Lock()
 _model = {"llm": None, "failed": False}
+_small = {"model": None, "failed": False}
+fetching_small = {"running": False, "error": None, "tried": 0.0}
 _cache = {}          # memory id -> (text fingerprint, unit vector), decrypted once
 _catching_up = {"running": False}
 fetching = {"running": False, "error": None}
@@ -42,6 +58,98 @@ def folder():
 def model_path():
     path = folder() / FILE
     return path if path.is_file() and (path.parent / (FILE + ".ok")).exists() else None
+
+
+def small_folder():
+    return folder() / "small"
+
+
+def small_path():
+    path = small_folder()
+    return path if (path / "ok").exists() and all((path / name).is_file() for name in SMALL_FILES[:2]) else None
+
+
+def _tensors(path):
+    """The tables in a .safetensors file, read in place: {name: array}. It's a download, so every number in its header is
+    checked against the file before anything is read."""
+    import numpy as np
+    kinds = {"F32": np.float32, "F16": np.float16, "F64": np.float64}
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        n = int.from_bytes(f.read(8), "little")
+        if not 2 <= n <= min(size - 8, 16 << 20):
+            raise ValueError("not a table of meanings")
+        header = json.loads(f.read(n))
+    out = {}
+    for name, info in header.items():
+        if name == "__metadata__" or not isinstance(info, dict):
+            continue
+        kind, shape, (start, end) = kinds.get(info.get("dtype")), tuple(int(x) for x in info.get("shape") or ()), info.get("data_offsets") or (0, 0)
+        if kind is None or len(shape) != 2 or min(shape) < 1:
+            continue
+        if not (0 <= start < end <= size - 8 - n) or end - start != shape[0] * shape[1] * np.dtype(kind).itemsize:
+            raise ValueError("not a table of meanings")
+        out[name] = np.memmap(path, dtype=kind, mode="r", offset=8 + n + start, shape=shape)
+    return out
+
+
+class _Static:
+    """The lamp's model: each word-piece has a row of numbers; a sentence is their average."""
+
+    def __init__(self, path):
+        from tokenizers import Tokenizer
+        self.words = Tokenizer.from_file(str(path / "tokenizer.json"))
+        tables = _tensors(path / "model.safetensors")
+        self.rows = tables.get("embeddings")
+        if self.rows is None or self.rows.shape[1] < DIMS or self.rows.shape[0] < self.words.get_vocab_size():
+            raise ValueError("not a table of meanings")
+        self.unknown = self.words.token_to_id("[UNK]")
+
+    def __call__(self, text):
+        import numpy as np
+        ids = [i for i in self.words.encode(str(text or ""), add_special_tokens=False).ids if i != self.unknown and 0 <= i < self.rows.shape[0]]
+        if not ids:
+            return None
+        return np.asarray(self.rows[ids[:SMALL_TOKENS]], dtype=np.float32).mean(axis=0)
+
+
+def _static(text):
+    with _lock:
+        if _small["model"] is None:
+            if _small["failed"]:
+                return None
+            try:
+                _small["model"] = _Static(small_path())
+            except Exception:
+                _small["failed"] = True   # no tokenizers here, or a file that isn't what it should be: words alone, as before
+                return None
+        model = _small["model"]
+    return model(text)
+
+
+def engine():
+    """Which model works out a meaning here: "test" (a stand-in), "big" (the 16 GB one), "small" (the lamp's), or None."""
+    if embedder is not None:
+        return "test"
+    if model_path() is not None and not _model["failed"]:
+        return "big"
+    if small_path() is not None and not _small["failed"]:
+        return "small"
+    return None
+
+
+def tag():
+    """The name kept beside each meaning: which model's numbers they are."""
+    return SMALL_TAG if engine() == "small" else FILE
+
+
+def close_enough():
+    return SMALL_CLOSE if engine() == "small" else CLOSE
+
+
+def asking(question):
+    """A question as the model wants it: the bigger one is told what it's for; the small one just reads the words."""
+    return str(question) if engine() == "small" else QUERY + str(question)
 
 
 def _fingerprint(text):
@@ -101,7 +209,8 @@ embedder = None  # tests (and a future engine) can set this to a callable: text 
 
 
 def _embed(text):
-    fn = embedder or (_Llama() if model_path() else None)
+    which = engine()
+    fn = embedder if which == "test" else _Llama() if which == "big" else _static if which == "small" else None
     if fn is None:
         return None
     try:
@@ -111,10 +220,18 @@ def _embed(text):
     return _unit(values) if values is not None and len(values) else None
 
 
+def small_wanted(store):
+    """The lamp's model is a download, so it's used (and fetched) only when the owner has switched it on."""
+    return store is not None and store.setting("memory_by_meaning", True) is not False and store.setting("memory_by_meaning_small", False) is True
+
+
 def available(store=None):
     if store is not None and store.setting("memory_by_meaning", True) is False:
         return False
-    return embedder is not None or (model_path() is not None and not _model["failed"])
+    which = engine()
+    if which == "small":
+        return store is None or small_wanted(store)
+    return which is not None
 
 
 def _vector(store, memory):
@@ -127,7 +244,7 @@ def _vector(store, memory):
     if hit and hit[0] == mark:
         return hit[1]
     kept = store.get("vector", "vector:" + mid)
-    if kept and kept.get("for") == mark and kept.get("model") == FILE:
+    if kept and kept.get("for") == mark and kept.get("model") == tag():
         v = _unit(unpack(kept) if unpack(kept) is not None else [])
         if v is not None:
             if len(_cache) > CACHE:
@@ -148,7 +265,7 @@ def _work_out(store, memories):
                 if v is None:
                     continue
                 mark = _fingerprint(memory.get("text", ""))
-                store.put("vector", {"model": FILE, "for": mark, "h": pack(v)}, "vector:" + memory["id"])
+                store.put("vector", {"model": tag(), "for": mark, "h": pack(v)}, "vector:" + memory["id"])
                 if len(_cache) > CACHE:
                     _cache.clear()
                 _cache[memory["id"]] = (mark, v)
@@ -170,18 +287,18 @@ def close(store, question, memories, limit=5, wait=False):
     """The memories closest in meaning to the question: [(closeness, memory)], best first, only ones close enough."""
     if not memories or not str(question or "").strip() or not available(store):
         return []
-    q = _embed(QUERY + str(question))
+    q = _embed(asking(question))
     if q is None:
         return []
     import numpy as np
-    scored, missing = [], []
+    scored, missing, near = [], [], close_enough()
     for memory in memories:
         v = _vector(store, memory)
         if v is None:
             missing.append(memory)
             continue
         score = float(np.dot(q, v))
-        if score >= CLOSE:
+        if score >= near:
             scored.append((score, memory))
     if missing:
         catch_up(store, missing, wait=wait)
@@ -240,3 +357,57 @@ def fetch(store=None):
             fetching["running"] = False
 
     threading.Thread(target=run, daemon=True, name="luma-meaning-fetch").start()
+
+
+def _checked(name, entry, data):
+    """Does a downloaded file match what the host lists for it? Big files are listed by SHA-256, small ones the way git names them."""
+    listed = (entry.get("lfs") or {}).get("oid")
+    if listed:
+        return hashlib.sha256(data).hexdigest() == listed
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() == entry.get("oid")
+
+
+def fetch_small(store):
+    """Download the lamp's model in the background: only when the owner has switched it on, and only with the tokenizers
+    package here to read it. Each file is checked against what the host lists before it's kept; one that doesn't match is
+    thrown away. Tried again no more than once an hour."""
+    import time
+    if fetching_small["running"] or small_path() or not small_wanted(store) or time.time() - fetching_small["tried"] < 3600:
+        return
+    try:
+        import tokenizers  # noqa: F401
+    except Exception:
+        fetching_small["error"] = "The small memory model needs the tokenizers package, which isn't installed here."
+        return
+    fetching_small.update(running=True, error=None, tried=time.time())
+
+    def run():
+        from luma.llm import brain
+        try:
+            with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/api/models/{SMALL_REPO}/tree/main", headers=brain.UA), timeout=30) as r:
+                listed = {f.get("path"): f for f in json.load(r)}
+            out = small_folder()
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "ok").unlink(missing_ok=True)
+            kept = {}
+            for name in SMALL_FILES:
+                entry = listed.get(name)
+                if not entry:
+                    raise RuntimeError("Couldn't find the small memory model's files right now.")
+                with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/{SMALL_REPO}/resolve/main/{name}", headers=brain.UA), timeout=60) as r:
+                    data = r.read(SMALL_LIMITS[name] + 1)
+                if len(data) > SMALL_LIMITS[name] or not _checked(name, entry, data):
+                    raise RuntimeError("The small memory model's download didn't check out, so I threw it away.")
+                kept[name] = data
+            for name, data in kept.items():   # only once every file has checked out
+                part = out / (name + ".part")
+                part.write_bytes(data)
+                os.replace(part, out / name)
+            (out / "ok").write_text(SMALL_TAG)
+            _small.update(model=None, failed=False)
+        except Exception as error:
+            fetching_small["error"] = str(error)[:200]
+        finally:
+            fetching_small["running"] = False
+
+    threading.Thread(target=run, daemon=True, name="luma-meaning-small-fetch").start()
