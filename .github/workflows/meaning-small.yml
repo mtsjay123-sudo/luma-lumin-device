@@ -1,16 +1,23 @@
-# An experiment, run by hand: can a meaning model small enough for the lamp find what was told in other words?
+# An experiment: can a meaning model small enough for the lamp find what was told in other words?
 #
 # Luma's meaning model (Qwen3-Embedding-0.6B) runs on computers with 16 GB. On a $250 lamp recall is by words alone, and
 # a fact asked about in other words is mostly not found (tests/test_a_fact_in_a_crowd.py: 19 of 40, and 11 of 40
 # wrongly "never told"). This fetches a static model (a table of word-piece meanings, numpy only to run), puts it in a
 # folder of its own, and prints what recall would be with it: the two fresh sets of forty, the memory test on the lives
 # it was built on, and on the held-out lives (counts only). Nothing in Luma changes; nothing is published.
+# It runs when its script or this file changes on the working branch (a dispatch needs the file on main, which doesn't
+# move). Free machines; nothing is billed.
 #
 # Rule 7: the package is model2vec (MIT). The model's own license is printed from its card before anything is counted;
 # it is used here only if that says MIT, Apache-2.0 or BSD.
 name: Meaning model for the lamp (experiment)
 
 on:
+  push:
+    branches: [claude/hopeful-feynman-z2294x]
+    paths:
+      - "Luma Home Prototype Code/scripts/meaning_small_eval.py"
+      - ".github/workflows/meaning-small.yml"
   workflow_dispatch:
     inputs:
       model:

@@ -48,7 +48,7 @@ All commands run from `Luma Home Prototype Code/`.
 | The turns a change touches, many times over (a reply is sampled), then before against after | `python scripts/human_eval.py run --only pet_loss-01 --times 20 --save out/after.json`, `python scripts/human_eval.py ab out/before.json out/after.json` (`LUMA_EVAL_SRC=<an earlier checkout>/src` runs the same test on that code) |
 | Memory test (made-up lives) | `python scripts/memory_eval.py run --sizes 1000,10000 --split dev --lives 3` |
 | The month test: a made-up person lives 28 days with one Luma, then the same moments on a Luma that never met them. Without a brain it reads what a brain is told (a minute); `--brain` has the real brain answer the checked moments | `python scripts/month_eval.py run --split dev --save out/month-dev.json` (`--split heldout`: numbers only; `--brain --lives 6 --label NAME`) |
-| An experiment: what recall would be with a meaning model small enough for the lamp (needs the model, which GitHub's machines can fetch; nothing in Luma loads it) | `python -I scripts/meaning_small_eval.py --model <a folder holding the model>` (GitHub: `meaning-small.yml`, by hand) |
+| An experiment: what recall would be with a meaning model small enough for the lamp (needs the model, which GitHub's machines can fetch; nothing in Luma loads it) | `python -I scripts/meaning_small_eval.py --model <a folder holding the model>` (GitHub: `meaning-small.yml`) |
 | Cloud brain lab (a stand-in API without a key) | `python scripts/luma_lab.py cloud --turns 15` |
 | Router, on turns it never saw | `python scripts/train_router.py test` |
 | The small model that hears the best-friend moves: score it on a fifth of the dev half, then teach it the whole dev half and save it | `PYTHONPATH=src python3 scripts/train_moves.py` (`--check`: only the score; `--heldout`: the saved model on the half it never saw, numbers only) |
@@ -82,7 +82,7 @@ GitHub workflows:
 - `voice-audition.yml`: the same eight lines in each voice the license rule allows (the classic voice, Chatterbox, Chatterbox-Turbo), one job per voice, committed to `demo/voices/` to be judged by ear. It runs when `scripts/voice_audition.py` or the workflow changes on the working branch.
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
-- `meaning-small.yml`: by hand. Fetches a small static meaning model into a folder of its own, prints the license its card states (and stops unless it's MIT, Apache-2.0 or BSD), then what recall would be with it: the two sets of forty in `tests/test_a_fact_in_a_crowd.py` and the memory test on both halves, counts only.
+- `meaning-small.yml`: runs when `scripts/meaning_small_eval.py` or the workflow changes on the working branch. Fetches a small static meaning model into a folder of its own, prints the license its card states (and stops unless it's MIT, Apache-2.0 or BSD), then what recall would be with it: the two sets of forty in `tests/test_a_fact_in_a_crowd.py` and the memory test on both halves, counts only.
 - `si-lab.yml`: the license check (rule 7), the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
 
 ## The human test decides
