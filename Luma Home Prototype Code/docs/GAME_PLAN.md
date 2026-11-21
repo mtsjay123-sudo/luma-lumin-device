@@ -160,6 +160,11 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **A fact in a crowd (Nov 21).** Forty things people tell a friend, hidden among a thousand memories. "what are my
+  mom's favorite flowers" was handed five other facts about mom; "what do i do on saturday mornings" was "nothing
+  saved from then"; "my mother" wasn't "my mom". Fixed. On a second forty written first: asked plainly 33 → 38 found,
+  asked in other words 17 → 19, and 11 still wrongly "never told". Other words need a meaning model small enough for
+  the lamp: next.
 - **Run 70 (Nov 21): asking first, on 129 fresh lines.** Stock 4B: gripes met on their side 16 → 28 of 39, bad news
   with a laugh not laughed at 11 → 17 of 20, two more ordinary lines groaned at; a turn takes about 8 seconds longer on
   the test machine. The stock 1.7B gains as much (7 → 18, 4 → 10) but a turn doubles to 12 seconds, so a small brain

@@ -59,7 +59,17 @@ _SAME = ["job work works working worked career employed employer shift", "car dr
          "home house apartment place live lives living", "doctor dr physician", "pet pets dog cat", "married wife husband wedding spouse anniversary",
          "school class grade college university", "birthday born bday", "cook cooks cooking makes bake bakes recipe", "hurt broke injured injury sprained",
          "travel trip flew visited vacation went", "hobby hobbies into enjoy love loves", "allergic allergy intolerant can't cannot",
-         "study studying major degree", "boss manager supervisor", "money pay paid salary rent", "phone number cell", "team play plays sport"]
+         "study studying major degree", "boss manager supervisor report reports", "money pay paid salary rent", "phone number cell",
+         "team play plays sport", "dentist teeth tooth dental", "pill pills medication medicine meds prescription", "hair haircut salon barber",
+         "dairy lactose milk", "race marathon", "taxes tax accountant", "soccer football", "holiday holidays christmas",
+         "mechanic fixed repair repaired", "choir sing sings singing voice", "meat vegetarian vegan", "locked key keys lock"]
+# the same person by another everyday word: "my mother" when everything kept says "mom"
+_KIN = ["mom mother mama mum mommy", "dad father papa daddy", "grandma grandmother granny nana gran", "grandpa grandfather granddad gramps",
+        "wife wifey", "husband hubby", "kid child"]
+KIN = {}
+for _line in _KIN:
+    for _w in _line.split():
+        KIN[_w] = [w for w in _line.split() if w != _w]
 SAME = {}
 for _line in _SAME:
     _words = set().union(*(segments.words(w) for w in _line.split()))
@@ -431,6 +441,8 @@ class LifeIndex:
         terms = segments.words(q)
         ask = facts.asked(q)
         span = when.window(q, now, zone or timezone.utc)
+        if span and not when.said_then(q, span[2]):
+            span = None   # a habit ("on saturday mornings") or something still to come ("this fall"): not a day to look back at
         past = when.about_the_past(q)
         alive, created, _, said, weight, kind = self._arrays()
         picked, why, known = [], "", True
@@ -445,6 +457,13 @@ class LifeIndex:
             used |= segments.words(rel)
             named |= segments.words(rel)
             names = self.people.named(rel)
+            if not names and "rel:" + rel not in self.by_who:
+                # "my mother" and every memory says "mom": the same person under the other word
+                rel = next((other for other in KIN.get(rel, []) if self.people.named(other) or "rel:" + other in self.by_who
+                            or any(self.df.get(t) for t in segments.words(other))), rel)
+                used |= segments.words(rel)
+                named |= segments.words(rel)
+                names = self.people.named(rel)
             if names:
                 group = set()
                 for name in names:
@@ -489,7 +508,7 @@ class LifeIndex:
             whos = [{"you"}]
 
         # 1. the fact itself, then whatever else is kept about them
-        fact_rows, cue = [], set()
+        fact_rows, cue, maybe_newer = [], set(), []
         person = bool(whos) and whos[-1] != {"you"}
         if unknown:
             known, why = False, f"nobody saved as my {unknown}"
@@ -515,6 +534,22 @@ class LifeIndex:
                 topic = set(int(r) for r in on_topic)
                 others = sorted((int(r) for r in theirs), key=lambda r: (r not in topic, -created[r]))
                 picked += [r for r in closest + others if r not in picked][:limit * 2]
+
+        # 1a. a memory that stands out by the question's own words. "what are my mom's favorite flowers" has "my mom's favorite
+        # flowers are peonies" far above anything else by its words, and it was handed five other facts about mom instead:
+        # whatever else is kept about a person used to come first. Now the one or two memories whose words fit the question
+        # much better than the rest come right after the fact itself. Never for a question about a time.
+        if known and not unknown and not span:
+            ranked = self.words(q, limit * 2, terms=terms - NOISE)
+            if len(ranked) >= 4:
+                typical = sorted(score for score, _ in ranked)[len(ranked) // 2]
+                stand_out = [row for score, row in ranked if score >= 1.6 * typical][:2]
+            else:   # the question's words are in three memories or fewer: those are the ones
+                stand_out = [row for _, row in ranked[:2]]
+            if stand_out:
+                first = set(fact_rows) | set(maybe_newer)   # the fact asked for, and a newer one that may be what's true now
+                head = [r for r in picked if r in first]
+                picked = head + [r for r in stand_out if r not in head] + [r for r in picked if r not in head and r not in stand_out]
 
         # 1b. asked about their own job, home or where they're from, with no fact: what they said in the plain shape of saying it
         own_rows = []
@@ -545,7 +580,8 @@ class LifeIndex:
                 known, why = False, "nothing saved from then"
 
         # 3. words and meaning: facts first, then the talk around them
-        lists = [(1.5, [r for _, r in self.words(q, limit * 2, mask=(said == 0))]), (1.0, [r for _, r in self.words(q, limit * 2)])]
+        # deep enough that the same sentence said many times can't fill the list by itself
+        lists = [(1.5, [r for _, r in self.words(q, limit * 6, mask=(said == 0))]), (1.0, [r for _, r in self.words(q, limit * 6)])]
         close = []
         if near is not None:
             close = [r for _, r in near(q)]
@@ -577,9 +613,22 @@ class LifeIndex:
             # ("I'm a nurse at the children's hospital" isn't read as a fact here; "I work nights at the bakery" is one more)
             wider = cue | set().union(*(SAME.get(t, set()) for t in cue))
             picked = [r for _, r in self.words(q, limit, terms={t for t in wider if self.df.get(t)}) if not self.ended[r]]
+        if not picked and known and unseen:
+            # someone they've spoken of, and the thing asked is kept under another everyday word ("what does my father
+            # drive" / "my dad's truck is a Ford"): looked for under it before Luma says there's nothing
+            wider = set().union(*(SAME.get(t, set()) for t in unseen))
+            picked = [r for _, r in self.words(q, limit, terms={t for t in wider if self.df.get(t)}) if not self.ended[r]] if wider else []
         if not picked and known:
             known, why = False, "nothing saved about that"
 
+        # the same sentence said six times ("Took the car in, it's making that noise again") is handed over once
+        told, once = set(), []
+        for r in picked:
+            mark = bytes(self.marks[r * 8:r * 8 + 8])
+            if mark not in told:
+                told.add(mark)
+                once.append(r)
+        picked = once
         ended = {r for r in picked if self.ended[r]}
         if not past:  # what used to be true comes after what's true now
             picked = [r for r in picked if r not in ended] + [r for r in picked if r in ended]

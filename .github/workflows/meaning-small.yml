@@ -1,0 +1,52 @@
+# An experiment, run by hand: can a meaning model small enough for the lamp find what was told in other words?
+#
+# Luma's meaning model (Qwen3-Embedding-0.6B) runs on computers with 16 GB. On a $250 lamp recall is by words alone, and
+# a fact asked about in other words is mostly not found (tests/test_a_fact_in_a_crowd.py: 19 of 40, and 11 of 40
+# wrongly "never told"). This fetches a static model (a table of word-piece meanings, numpy only to run), puts it in a
+# folder of its own, and prints what recall would be with it: the two fresh sets of forty, the memory test on the lives
+# it was built on, and on the held-out lives (counts only). Nothing in Luma changes; nothing is published.
+#
+# Rule 7: the package is model2vec (MIT). The model's own license is printed from its card before anything is counted;
+# it is used here only if that says MIT, Apache-2.0 or BSD.
+name: Meaning model for the lamp (experiment)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "The static model to try (a Hugging Face repo id)"
+        default: "minishlab/potion-base-8M"
+      close:
+        description: "How close a memory has to be to count (cosine); one run for each"
+        default: "0.35,0.45,0.55,0.65"
+
+permissions:
+  contents: read
+
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q --prefer-binary "cryptography>=44" numpy tzdata model2vec huggingface_hub
+      - name: The model, in a folder of its own, and what its card says its license is
+        env:
+          MODEL: ${{ github.event.inputs.model || 'minishlab/potion-base-8M' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/meaning-small"
+          python -I -c "import os; from huggingface_hub import snapshot_download; snapshot_download(os.environ['MODEL'], local_dir=os.path.join(os.environ['RUNNER_TEMP'], 'meaning-small'))"
+          ls -la "$RUNNER_TEMP/meaning-small"
+          du -sh "$RUNNER_TEMP/meaning-small"
+          grep -i -m 3 "^license" "$RUNNER_TEMP/meaning-small/README.md" || echo "no license line on the card"
+          grep -i -q -m 1 -E "^license: *(mit|apache-2\.0|bsd)" "$RUNNER_TEMP/meaning-small/README.md"
+      - name: What recall would be with it (the two sets of forty, the memory test on both halves; counts only)
+        env:
+          CLOSE: ${{ github.event.inputs.close || '0.35,0.45,0.55,0.65' }}
+        run: python -I scripts/meaning_small_eval.py --model "$RUNNER_TEMP/meaning-small" --close "$CLOSE" | tee -a "$GITHUB_STEP_SUMMARY"

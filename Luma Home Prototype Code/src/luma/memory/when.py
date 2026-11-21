@@ -119,6 +119,22 @@ def window(text, now=None, zone=timezone.utc):
     return span[0].timestamp(), span[1].timestamp(), found.group(0)
 
 
+# "what do i do on saturday mornings", "when does the recycling go out on thursdays": a habit, not one day
+HABIT = re.compile(r"\b(?:every|each|usually|normally|always|typically|generally)\b|\b(?:mon|tues|wednes|thurs|fri|satur|sun)days\b|"
+                   r"\b(?:mornings|afternoons|evenings|nights|weekends|weekdays|weeknights)\b", re.I)
+# the words that say a question looks back: "what did i say last week", "what happened in march", "where was i yesterday"
+LOOKS_BACK = re.compile(r"\b(?:did|didn'?t|was|were|wasn'?t|weren'?t|had|said|told|went|happened|mentioned|talked|got|made|saw|ate|took|came|"
+                        r"gave|felt|bought|been|last|ago|yesterday|earlier|past|recently|the other day|back in)\b", re.I)
+
+
+def said_then(text, words=""):
+    """Is a time in the question about when something was SAID or DONE (so only what was kept then can answer), and not a
+    habit or something still to come? "which race am i running this fall" was answered "nothing saved from then": the
+    race was mentioned months before the fall it's about."""
+    text = str(text or "")
+    return not HABIT.search(text) and bool(LOOKS_BACK.search(text) or LOOKS_BACK.search(str(words or "")))
+
+
 def about_the_past(text):
     """ "where did i live before", "my old job": the answer is what used to be true, not what's true now."""
     return bool(BEFORE.search(str(text or "")))

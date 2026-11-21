@@ -3482,3 +3482,50 @@ What each brain answered when asked "did something go wrong for them?":
 - **Luma's own small add-on says NO to everything** (3 YES in 116), so asking it adds nothing, and its gripes went
   21 → 13 anyway. I can't say why from the numbers; it isn't asked any more.
 - Nothing here is counted in Human Test v2.
+
+## A fact in a crowd (Nov 21): the first five, among a thousand (`tests/test_a_fact_in_a_crowd.py`)
+
+The memory test asks about the facts its made-up lives were built from. I wrote forty other things people tell a
+friend (a dentist, where the spare key is, a daughter's cello), each asked plainly and asked in other words, and hid
+them in one of the test's built-on lives: a thousand other memories, with a mom, a daughter and a boss already there.
+
+| Forty facts, found in the first five | Asked plainly | Asked in other words | Wrongly "never told" |
+|---|---|---|---|
+| Built on, before → after | 31 → **38** | 17 → **27** | 8 → **0** |
+| A second forty, written before any fix, measured once before and once after | 33 → **38** | 17 → 19 | 12 → 11 |
+
+What the first forty showed, and what changed (`src/luma/memory/index.py`, `when.py`):
+
+- **Everything else about mom came first.** "what are my mom's favorite flowers", with "my mom's favorite flowers are
+  peonies" saved, was handed five other facts about mom. When a question names someone Luma knows, whatever else is
+  kept about them was listed before the one memory that has the question's own words. A memory whose words fit the
+  question much better than the rest now comes right after the fact itself.
+- **A habit isn't a day.** "what do i do on saturday mornings" was read as last Saturday, and "which race am i
+  running this fall" as memories made this fall: both "nothing saved from then". A time in a question only narrows
+  the search when the question looks back ("what did I say last week").
+- **"My mother" is "my mom".** "what flowers should i get my mother" was "nobody saved as my mother".
+- **Said six times, handed over once.** "Took the car in, it's making that noise again", six times over, was the
+  whole list for "what car do i drive".
+- **Someone spoken of, and the thing under another word.** "what does my father drive" / "my dad's truck is a Ford".
+- A dozen more everyday words for the same thing (dentist and teeth, pill and medication, taxes and accountant),
+  from the first forty only.
+
+**What the second forty say.** The order is better for questions asked in the fact's own words (five more of forty).
+Asked in other words, almost nothing moved, and eleven of forty are still "never told" when they were told: "who do
+i see about my glasses" has no word of "my eye doctor is Dr. Marchetti". A list of words for the same thing fixed
+its own forty and two of the next forty. That gap needs the meaning model, which today runs only on computers with
+16 GB; a small one for the lamp is the next thing to try (it has to be fetched on GitHub's machines, not here).
+
+Nothing else moved: the memory test on both halves (built on: all found; held out: 159 of 187 plain, 102 of 135 in
+other words, 0 of 18 two-step), the month test (360 of 360; held out 236 of 240), and what a brain is told on both
+human tests (0 of 269 turns). A look-up takes half a millisecond, as before.
+
+The first full suite failed one test, rightly: a newer line that may be what's true now ("the job at the river
+clinic came through and I said yes", after "You work at Brightside Dental") had been pushed behind the stand-out
+memory. It stays first, with the fact.
+
+**The experiment for other words** is ready to run on GitHub (`scripts/meaning_small_eval.py`, workflow "Meaning
+model for the lamp (experiment)"): a static meaning model of a few megabytes, standing in for the 16 GB one for the
+length of a run, on the two sets of forty and the memory test's two halves. Nothing in Luma loads it yet.
+
+Tests: `tests/test_a_fact_in_a_crowd.py` (6). Full suite: 1,983 passed, the known 14 failed.
