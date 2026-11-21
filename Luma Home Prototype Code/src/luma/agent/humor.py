@@ -33,7 +33,7 @@ GRIEF = re.compile(r"\b(?:passed away|passed on|died|(?:is|was|are|were|found) d
                    r"(?:had to )?put (?:my|our) (?:dog|cat|pet|baby) (?:down|to sleep)|we lost (?:my |our )?(?:mom|dad|grandma|grandpa|nana|papa|baby|\w+) (?:today|yesterday|last night|this (?:morning|week)))\b", re.I)
 UPSET = re.compile(r"\b(?:i'?m|im|i am|feeling|feel|been)\s+(?:so\s+|really\s+|super\s+|lowkey\s+)?(?:sad|depressed|anxious|scared|stressed|overwhelmed|lonely|"
                    r"hurt|heartbroken|exhausted|drained|hopeless|worthless|not okay|not ok|struggling|panicking)\b|"
-                   r"\b(?:i can'?t do this|i need help|i'?m not okay|having a panic attack|my heart hurts|broke up with me|got fired|lost my job|got laid off|"
+                   r"\b(?:i can'?t do this|i need help|i'?m not okay|having a panic attack|my heart hurts|broke up with me|got fired(?! up)|lost my job|got laid off|"
                    r"in the hospital|diagnos\w+|bad news|worst day|everything is falling apart|i hate my life)\b", re.I)
 VENT = re.compile(r"\b(?:(?:i'?m|im|i am)\s+(?:so\s+|really\s+|just\s+|lowkey\s+)?(?:tired of|sick of|fed up|over (?:it|this|them|him|her)|done with|annoyed|frustrated|irritated|pissed|mad|furious)|"
                   r"ugh+|can'?t stand|this (?:job|place|day|week) is (?:killing|draining)|i hate (?:this|my|when|that)|so annoying|what a day|long day|rough day|"
@@ -169,12 +169,9 @@ DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or
 
 VENTING = ("They're venting: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened or help. "
            "No jokes at them; if they start joking about it, you can join in.")
-# For a small brain. Told the line above, the stock 1.7B took their side 13 times in 50 (run 69): it opened "Nah," or "uh," and
-# riffed on the thing ("that's like a 300 dollar increase in your allowance"). The sarcasm line it does follow is an order with
-# a groan in it, so this one is too, and it doesn't say they may join in a joke. Being measured (run 71); it stays only if the
-# 1.7B is clearly up.
-VENTING_SMALL = ("They're venting: something went wrong and they're annoyed. Groan with them first (\"ugh, that's so unfair\"), "
-                 "on their side, then ask what happened. No jokes, no advice.")
+# A plainer line for a small brain ("Groan with them first… No jokes, no advice.") was tried and measured: the stock 1.7B took
+# their side 18 times in 50 with the line above and 21 with the plainer one, our small add-on 33 and 33 (run 71). No
+# difference, so there's one line for every brain.
 
 
 # Told as what happened, with no feeling word ("the pharmacy lost my prescription and made me come back three times"), and the
@@ -188,6 +185,36 @@ WENT_WRONG = ("Something went wrong for them: be on their side first, like a fri
 # 2026). When the brain says something went wrong for them (Agent._told_plainly), it's told this. Under 200 characters.
 LAUGHED_OFF = ("They said it with a laugh, but it's bad news for them. Don't joke back and don't laugh. Be on their side first, "
                "gently, then ask how they're doing with it.")
+
+
+# Things nobody laughs about unless they're laughing it off: an illness, a hospital, losing a home, a job, a marriage, the law,
+# a crash. With a laugh beside one of these Luma doesn't need to ask anyone: it's bad news. A small brain is never asked, so
+# without this "lol so i have cancer" was "be funny back" there. Built on twenty new lines and twenty funny ones (16 of the
+# twenty were "be funny back"); the forty in the side check were kept unseen and measured once afterwards.
+GRAVE = re.compile(
+    r"\b(?:cancer|tumou?rs?|biops\w+|chemo|malignant|a stroke|heart attack|seizures?|dementia|alzheimer'?s|parkinson'?s|diabet\w+|"
+    r"(?:have|has|got|be|it'?s|with) ms\b|icu|intensive care|life support|hospice|in the hospital|hospitali[sz]ed|surgery|miscarr\w+|"
+    r"overdos\w+|od'?d|relapsed?|evict\w+|foreclos\w+|repossess\w+|repo'?d|homeless|bankrupt\w*|in debt|overdrawn|"
+    r"(?:account|balance) (?:is |was )?(?:at )?negative|shut(?:ting)? off (?:our|my|the) (?:power|water|gas|electric\w*|heat|lights)|"
+    r"(?:got|was|been|getting) (?:fired|laid off|expelled|suspended|arrested|evicted|robbed|mugged|served|dumped)\b(?! up\b)|(?:got|was|been) let go\b(?! of)|"
+    r"fired me|lost my job|a dui|in jail|in prison|divorce papers|divorc\w+|wants a separation|separated|"
+    r"(?:he|she|they|wife|husband|boyfriend|girlfriend|partner|fianc[eé]e?) (?:just |finally )?left me\b(?! (?:on|a|an|the|some|alone with|hanging|with the))|"
+    r"dumped me|broke up with me|cheat(?:ed|ing) on me|totaled|crashed (?:my|the|our) (?:car|truck|van|bike|motorcycle|moped|scooter)|crashed into|"
+    r"car accident|wrecked my|broken into|"
+    r"doesn'?t (?:remember|recogni[sz]e|know) (?:who i am|me\b)|failed (?:my|the) (?:\w+ )?(?:boards|bar|exam|finals|class|course|test)\b)", re.I)
+TURNED_OUT_FINE = re.compile(r"\b(?:never been happier|so happy|thank god|thank goodness|finally free|free at last|best thing|good news|great news|"
+                             r"went (?:great|well|fine|perfectly|smoothly)|survived|all clear|no cancer|not cancer|cancer[- ]free|benign|in remission|"
+                             r"came back (?:clean|clear|negative|normal|fine)|is (?:okay|ok|fine|home) now|got (?:it|him|her|them) back|dropped the charges|"
+                             r"case (?:was )?dismissed|won the (?:case|appeal)|paid (?:it )?off|out of debt|debt[- ]free)\b", re.I)
+NOT_REALLY = re.compile(r"\b(?:in (?:the|my|this|that|a) (?:game|show|movie|book|episode|dream|sims|simulation)|characters?|npc|fantasy (?:league|football|team)|"
+                        r"my (?:phone|laptop|computer|console|save file|wifi|sims?|plant|tamagotchi)|minecraft|fortnite|gta|monopoly|\buno\b|chess|practice (?:test|exam))\b", re.I)
+
+
+def laughed_off(text):
+    """Bad news with a laugh on it, by the words alone."""
+    said = str(text or "")
+    from luma.agent import feelings
+    return bool(GRAVE.search(said) and not NOT_REALLY.search(said) and not TURNED_OUT_FINE.search(said) and not feelings.not_a_loss(said))
 
 
 def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):
@@ -218,6 +245,8 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
                                                                  "Be warm, plain and present, like a good friend.")
     if line and tone["mood"] not in ("laughing", "serious", "grief", "upset"):
         return line  # good news, pride, relief, missing someone: a friend is glad or gentle first; it isn't a cue for a joke
+    if tone["mood"] == "laughing" and how != "none" and not (felt and felt["family"] in feelings.GOOD) and laughed_off(text):
+        return LAUGHED_OFF
     if line and tone["mood"] == "laughing" and felt and felt["family"] in feelings.A_LITTLE and not felt["heavy"]:
         return line  # "slightly terrified of this presentation lol": the laugh is nerves
     if line and tone["mood"] == "laughing" and felt and felt["family"] in feelings.GOOD:

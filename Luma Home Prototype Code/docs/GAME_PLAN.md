@@ -160,6 +160,14 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 71 (Nov 21): a plainer venting line for the small brain did nothing, and is gone.** Stock 1.7B 18 → 21 of
+  50 (a gap that size turns up 68 times in 100 by chance), Luma's own small 33 → 33. One line for every brain
+  again. Not being asked first, the small brains are back at 4 to 6 seconds a turn. Venting on the 1.7B is still
+  open; our small add-on (33) is the best a small brain does at it.
+- **Serious things said with a laugh, by the words alone (Nov 21).** A small brain isn't asked, so "lol so i have
+  cancer" was still "be funny back" on the $250 device. A short list of what nobody laughs about (an illness, a
+  hospital, a home, a job, a marriage, the law, a crash) settles it without asking: 18 → 2 of 20 on unseen lines,
+  all 20 funny lines still funny.
 - **Run 68 (Nov 21): the new small add-on fixes what it was trained for and still doesn't beat its base.** Unseen
   lives, of 51: stock 1.7B 50, stock 4B 48, the candidate from training 35 48 (what they said since: 6 of 6; the
   published small add-on 0 of 6 and 42 overall). Not published.

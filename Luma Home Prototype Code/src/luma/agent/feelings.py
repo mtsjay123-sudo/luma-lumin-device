@@ -277,7 +277,7 @@ DISAPPOINTED = re.compile(
     rf"\b{I}\s+{VERY}bummed(?: out)?\b|"   # a small one (read()): "kinda bummed i didn't get invited"
     r"\b(?:didn'?t|did not) get (?:the|that|my|in\b|it\b|into|accepted|picked|chosen|hired|a callback|an offer)\b|\b(?:went|going|gone) with someone else\b|"
     r"\b(?:picked|chose|hired) someone else\b|\bi (?:failed|flunked|bombed|blew)\b(?! (?:to\b|at being))|\bgot (?:rejected|turned down|passed over|cut from|"
-    r"laid off|let go|fired|denied|waitlisted)\b|\b(?:fell|falling) through\b|\b(?:didn'?t|did not) make (?:the (?:team|cut|list)|it (?:onto|into) the)\b|"
+    r"laid off|let go|fired|denied|waitlisted)\b(?! up\b)|\b(?:fell|falling) through\b|\b(?:didn'?t|did not) make (?:the (?:team|cut|list)|it (?:onto|into) the)\b|"
     r"\blost my job\b|\b(?:they|he|she) (?:said|told me) no\b|\bdidn'?t (?:pass|qualify|win)\b|\b(?:so|really) disappointed\b|\bgot my hopes up\b|"
     r"\b(?:application|loan|visa|claim|appeal|request|offer|proposal|manuscript|submission)\s+(?:was|got|has been)\s+(?:denied|rejected|declined|turned down)\b|"
     r"\b(?:another\s+)?rejection\s+(?:letter|email)\b|\banother rejection\b|\bgave\s+(?:the|my)\s+(?:job|promotion|role|part|spot)\s+to\s+(?:someone else|him|her)\b|"

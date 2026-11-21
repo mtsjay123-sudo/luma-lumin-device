@@ -126,25 +126,23 @@ class TheBrainIsAskedFirst(unittest.TestCase):
         finally:
             s.close()
 
-    def test_a_small_brain_gets_the_plainer_venting_line(self):
+    def test_every_brain_gets_the_same_venting_line(self):
+        # a plainer line for the small brain was measured and changed nothing (run 71: 18 → 21 of 50, 33 → 33), so it's gone
         s, _, _ = session()
         try:
             from luma.llm import brain
             line = "ugh i'm so annoyed, the pharmacy lost my prescription again"
             notes = lambda: " ".join(n["text"] for n in s.agent._mind_context(line) if n.get("humor"))  # noqa: E731
-            self.assertIn(humor.VENTING, notes())
             planner, model, small = s.agent.planner, s.agent.use_model, brain.small_here
             try:
-                s.agent.planner, s.agent.use_model, brain.small_here = None, True, lambda: True
-                self.assertIn(humor.VENTING_SMALL, notes())
-                self.assertNotIn("join in", notes())
-                brain.small_here = lambda: False
-                self.assertIn(humor.VENTING, notes())
+                for is_small in (True, False):
+                    s.agent.planner, s.agent.use_model, brain.small_here = None, True, lambda v=is_small: v
+                    self.assertIn(humor.VENTING, notes())
             finally:
                 s.agent.planner, s.agent.use_model, brain.small_here = planner, model, small
         finally:
             s.close()
-        self.assertLessEqual(len(humor.VENTING_SMALL), 200)
+        self.assertFalse(hasattr(humor, "VENTING_SMALL"))
         self.assertLessEqual(len(humor.VENTING), 200)
 
     def test_only_where_the_brain_would_have_been_told_humor_is_welcome(self):
@@ -188,7 +186,7 @@ class LaughedOff(unittest.TestCase):
     it, eighteen were handed to the brain with "They're laughing: be funny back" (Nov 21, 2026); the twenty funny ones
     beside them ("lol my cat just fell off the couch in her sleep") were all read as laughing, and still are. Which one
     it is, is the brain's to say: the same plain question, asked first."""
-    BAD = "lol the test came back positive, it's diabetes"
+    BAD = "haha the basement flooded while we were away"    # nothing in it Luma's own lists know: the brain's to say
     FUNNY = "lol my nephew called a penguin a tuxedo chicken"
 
     def said(self, line, **how):
@@ -245,6 +243,36 @@ class LaughedOff(unittest.TestCase):
         for item in items:
             if item["category"] in ("gripes_funny", "gripes_laughed_off"):   # a funny thing is still a laugh; bad news is never good news
                 self.assertFalse(first(item["said"]).startswith(("They have good news", "They did something hard")), item["said"])
+
+    def test_serious_words_with_a_laugh_need_no_question(self):
+        """An illness, a hospital, losing a home, a job, a marriage, the law, a crash: with a laugh beside one of these Luma
+        doesn't have to ask. A small brain is never asked, so without this "lol so i have cancer" was "be funny back" there.
+        Built on twenty new lines and twenty funny ones; the forty in the side check were kept unseen and measured once:
+        told "be funny back" 18 -> 2 of 20, and all twenty funny lines still funny."""
+        built = ['lol so i have cancer', 'haha my wife left me last night', 'lmao just got evicted', "lol my mom's in the icu", 'haha i got fired again', '😂 they repossessed my truck', 'lol my dad had a stroke yesterday', 'haha failed my nursing boards for the third time', 'lmao my boyfriend dumped me on my birthday', 'lol the house is in foreclosure', 'haha i relapsed last night', 'lol i got a dui', '😂 so my kid got expelled', 'haha my grandma has dementia now, fun times', "lmao i'm 40k in debt", 'lol crashed my car into a pole', 'haha they found a tumor', "lol my brother's in jail", "lmao we're getting divorced", 'haha i got robbed at the gas station']
+        funny = ['lol my dog ate my homework for real', 'haha my mom just called the wifi "the wiffy"', 'lmao i locked myself out in my pajamas', 'lol my boss replied all by accident', '😂 my sister fell in the pool with her phone', 'haha i put salt in my coffee', 'lmao my cat screamed at a cucumber', 'lol i got a parking ticket in my own driveway', 'haha my grandpa is on tiktok now', 'lol i fell asleep in the dentist chair', '😂 my kid told the teacher i snore', 'haha we got matching tattoos by accident', 'lmao the pizza guy knows my name', 'lol i just hugged a stranger thinking it was my husband', 'haha my phone autocorrected boss to babe', 'lol my little brother got stuck in the dog door', 'lmao i burned the toast again', 'haha my dad is fighting with the gps', 'lol i tripped on stage at karaoke', '😂 the baby laughed at my haircut']
+        joke = lambda line: "be funny back" in humor.turn_note(line)  # noqa: E731
+        self.assertEqual([line for line in built if joke(line)], [])
+        self.assertEqual([line for line in funny if not joke(line)], [])
+        items = human_eval.load(human_eval.GRIPES)
+        unseen = [i["said"] for i in items if i["category"] == "gripes_laughed_off"]
+        self.assertLessEqual(sum(joke(line) for line in unseen), 2)                                         # measured once: 2 of 20 (18 before)
+        self.assertEqual(sum(joke(i["said"]) for i in items if i["category"] == "gripes_funny"), 20)
+        s, asked, _ = session()
+        try:
+            s.say("lol so i have cancer")
+        finally:
+            s.close()
+        self.assertEqual(asked, [])                                                                         # and nobody was asked
+
+    def test_good_news_and_a_figure_of_speech_arent_bad_news(self):
+        for line in ("lol i'm officially cancer free", "haha the tumor is benign", "biopsy came back clean lol", "lol i survived the surgery",
+                     "lol no cancer, just a cyst", "lmao the divorce is final and i've never been happier", "haha i totally crashed the party",
+                     "lol i got fired up watching that game", "lol my character got arrested in the game", "lol my phone died again",
+                     "😂 my sims house got foreclosed"):
+            self.assertNotEqual(humor.turn_note(line), humor.LAUGHED_OFF, line)
+        self.assertIsNone(feelings.read("i got fired up watching that game"))           # it was read as losing a job
+        self.assertEqual(feelings.read("i got fired today")["family"], "disappointed")
 
     def test_telling_with_a_laugh_is_only_for_this(self):
         self.assertFalse(rapport.telling("lol i totaled my car on the way home"))            # the offer after a reply is as it was

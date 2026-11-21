@@ -3299,7 +3299,7 @@ sits on, both in comfort, so by the rule it isn't published, and the stock brain
 to ship. Whether it should replace the published small add-on in the meantime is the owner's call: it's better
 than that one on every count here, and worse than no add-on at all.
 
-## A plainer venting line for the small brain, being measured (Nov 21)
+## A plainer venting line for the small brain: tried, measured, taken out (Nov 21)
 
 Run 69 showed the stock 1.7B doesn't take their side when someone vents even when it's told to: 1, 0 and 1 of 5 on
 the moments where the line was already there. The line it does follow is the sarcasm one, which is an order with
@@ -3318,3 +3318,46 @@ can't stop laughing", "ok stop that's too funny", "no bc stop"). They're laughs 
 Tests: `test_a_small_brain_gets_the_plainer_venting_line` and more lines in `test_a_bus_stop_isnt_a_laugh`
 (`tests/test_gripes.py`). Full suite: 1,961 passed, the known 14 failed. What a brain is told on both human
 tests: 0 of 269 turns differ (the harness's stand-in isn't a small brain).
+
+**Run 71 said no.** The ten venting moments, five times each, the old line against the plainer one:
+
+| Brain | Took their side, old line | Plainer line | Seconds a turn |
+|---|---|---|---|
+| Stock Qwen3 1.7B | 18 of 50 | 21 of 50 | 6.8 → 5.5 |
+| Luma's own small | 33 of 50 | 33 of 50 | 4.1 → 4.0 |
+
+A gap of three turns up about 68 times in 100 between two runs of the very same code, so this shows nothing. The
+plainer line is out (`humor.VENTING_SMALL` is gone; `test_every_brain_gets_the_same_venting_line` pins that
+there's one line). Two things the run does show: the small brains are back at their old speed now that they're
+not asked first (run 69 had them at 10 seconds a turn), and the stock 1.7B's number moves a lot by itself
+(12, 13, 18, 21 of 50 across four runs of this kind), so nothing under about ten turns of difference means
+anything on it. Venting on the 1.7B is still open: Luma's own small add-on (33) is the best a small brain does
+here, which is one honest argument for the add-on on the $250 device.
+
+## Serious things said with a laugh, by the words alone (Nov 21)
+
+Asking the brain covers bad news said with a laugh on the 4B. A small brain isn't asked, so on the $250 device
+"lol so i have cancer" was still "be funny back". But the things nobody laughs about unless they're laughing it
+off are a short list: an illness, a hospital, losing a home, a job, a marriage, the law, a crash. With a laugh
+beside one of those, Luma tells the brain it's bad news without asking anyone.
+
+Built on twenty new lines and twenty funny ones; the forty lines of the side check were kept unseen and measured
+once afterwards:
+
+| | Told "be funny back" | Funny lines still funny |
+|---|---|---|
+| The lines it was built on, before → after | 16 → 0 of 20 | 20 of 20 |
+| The side check's forty, unseen, measured once | **18 → 2 of 20** | 20 of 20 |
+
+The two still missed: a landlord selling the place, and a grandfather's broken hip. Good news in the same words
+isn't taken for bad ("lol i'm officially cancer free", "biopsy came back clean lol", "the divorce is final and
+I've never been happier"), nor a figure of speech ("crashed the party", "got fired up"), nor a game. Of the 8,871
+lines of the other sets none is told this; in Human Test v2 the two "not a joke" moments said with a laugh are,
+on every brain now, where they had been "be funny back".
+
+Found on the way: "I got fired up watching that game" was read as losing a job.
+
+Tests: `test_serious_words_with_a_laugh_need_no_question` and
+`test_good_news_and_a_figure_of_speech_arent_bad_news` (`LaughedOff` in `tests/test_gripes.py`). Full suite:
+1,963 passed, the known 14 failed (run before the plainer venting line came out; the 95 tests around it pass
+after). What a brain is told on both human tests: 2 of 269 turns differ, the two "not a joke" moments.
