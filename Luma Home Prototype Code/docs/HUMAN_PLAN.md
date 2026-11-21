@@ -2326,7 +2326,13 @@ Tests: `ABirthdayAJobAnAllergy` in `tests/test_said_another_way.py`.
 Checks on `a69bf13` (the yes/no question in, the "if" line out, the three more facts): `told-diff` 0 of 269 turns;
 month test without a brain 360 of 360 and 236 of 240; full suite 1,775 passed, 14 failed (the 14 known ones).
 
-## A voice of its own (Nov 21) (`src/luma/audio/chirps.py`)
+## A voice of its own (Nov 21) (`src/luma/audio/chirps.py`): not what the owner meant
+
+Correction, the same hour: the owner meant C-3PO, the one who talks like a person, not R2-D2. `docs/DREAM.md` now has
+that picture. The sounds below stay in the code, switched off. What was sent instead: a recording of Luma's real
+voice saying eight lines through its own speaking pipeline (hello, a remembered birthday, friend talk, a "hmm", the
+new restart, a breath before "because", a rough day, "what are you?"), for the owner's ears.
+
 
 The owner asked what the dream model looks like if the dream is R2-D2. The answer is in `docs/DREAM.md`: R2 isn't a
 person and never pretends to be (rule 1), it's loyal and remembers (run 57), it does things, and it has a voice of
