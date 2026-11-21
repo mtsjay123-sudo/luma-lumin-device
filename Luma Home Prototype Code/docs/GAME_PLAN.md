@@ -202,6 +202,12 @@ on day 1 and run alongside everything else:
   was there before it. Human Test v2's four leaning turns now ask for warmth and no hand-off; run 76's boundary gain
   came from the removed sentence and no longer stands. Kept: Luma never says it's all they need and never runs people
   down. Next: the practice partner, a reader for "I'm ready", and the practice data that still teaches the old nudge.
+- **Somewhere to practise (Nov 21, the owner's ask).** Asked to try a joke on it, to rehearse a hard conversation or
+  to get better at talking with people, Luma's brain is told to be an honest practice partner: what landed, what
+  didn't and why, one better version, then again. Only when they ask. Five such asks used to be answered by Luma's
+  own code first ("help me be funnier" got "Bet, I'll bring the jokes more."); all go to the brain now. On a set
+  written first: 23 of 24 asks heard, 0 of 24 lines of plain talk taken. Not measured: whether a real brain can
+  actually tell a joke that lands from one that doesn't. That side check is next.
 - **A flat no to "will you be my girlfriend" (Nov 21).** The small brains said "nah, just a friend. how's your day
   so far?". A reply to "do you love me" or "be my girlfriend" with no warmth in it at all now gets one more try, then
   Luma's own honest, warm line. On a set written first: cold replies caught 0 → 19 of 20, warm ones left alone 19 of

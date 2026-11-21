@@ -4222,6 +4222,39 @@ tries the new warmth check asks for ("do you love me", "do you actually care abo
 girlfriend"). Full suite: 2,080 passed, the known 14 failed (seven fewer tests than this afternoon: the ones
 for the removed line are gone with it).
 
+### Somewhere to practise: a joke before it's told, a hard thing before it's said (`src/luma/agent/practice.py`, `tests/test_practice.py`)
+
+The first piece of the owner's answer that is new and not a removal: "luma can train them to be funny, use their
+personality the same way in real life, joke on what jokes would land what wouldn't".
+
+When someone asks to try a joke on Luma ("can i try a joke on you", "does this joke land or is it too much", "help me
+be funnier"), to rehearse something they have to say ("can i practice what i'm going to say to my boss", "pretend
+you're the interviewer and ask me questions"), or to get better at talking with people ("help me practice small
+talk"), the brain is told how to be a practice partner: say honestly what landed and what didn't and why, offer one
+better version, then go again. Never flattery, never a lesson. **Only when they ask**: Luma never suggests practising
+for other people, which would be the nudge that was just taken out. Never in kids mode, and never of anyone who's
+hurting or might not be safe.
+
+Before this was built, Luma's own code answered some of these asks before a brain saw them:
+- "help me be funnier" got "Bet, I'll bring the jokes more." (taken for Luma's own joke dial).
+- "pretend you're the interviewer and ask me questions" got "Say less. Interviewer And Ask Me Questions mode, starting
+  now." (taken for a voice to put on).
+- "let's do a mock interview" started Luma's own get-to-know-you questions about them.
+- "teach me how to be funny" got "Sure, let's do it step by step. Open my browser."
+- "i need to practice how to ask her out" got "You got cut off after 'to ask her out'."
+All five now go to the brain, told what's being asked. "be funnier" and "can you be funnier" are still about Luma's
+own jokes; "pretend you're a real person" and "pretend you're my girlfriend" are never practice (rules 1 and 3).
+
+| Sets written before the reader | Heard as an ask to practise, the right kind | Plain talk taken for one | Through the chat path: the brain is told |
+|---|---|---|---|
+| Built on | 24 of 24 | 0 of 24 | 23 of 24 (the other is someone hurting, by design) |
+| **Written first, measured once** | **23 of 24** | **0 of 24** | 19 of 24; the other five are answered by the brain, plainly |
+
+No line of Human Test v2 or of the crisis corpus is taken for practice, and what a brain is told on Human Test v2 is
+unchanged (0 of 269). **What isn't measured: whether a real brain is any good at it.** Being told to say what landed
+and why is the easy half; a 1.7B brain may well say every joke is great. That needs its own side check on real brains
+(a set of jokes that land and jokes that don't, and whether the reply tells them apart), and it isn't built.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm

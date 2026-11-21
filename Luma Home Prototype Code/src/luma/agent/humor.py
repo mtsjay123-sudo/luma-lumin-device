@@ -359,6 +359,9 @@ def learn(taste, sign, bit=None):
 
 def dial_request(text):
     """'be funnier' -> +1, 'less jokes' -> -1, else None."""
+    from luma.agent import practice
+    if practice.asks(text):
+        return None   # "help me be funnier" is about their jokes, not Luma's: it got "Bet, I'll bring the jokes more."
     lowered = str(text or "").lower()
     if MORE_JOKES.search(lowered):
         return 1

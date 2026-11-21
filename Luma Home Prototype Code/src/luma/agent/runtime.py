@@ -1820,6 +1820,9 @@ class Agent:
         """'Grill me about my launch': one question at a time, every answer kept as a memory, until they say stop."""
         if self.mode == "kids":
             return None
+        from luma.agent import practice
+        if practice.asks(text):
+            return None   # "let's do a mock interview" is practice for a real one, not Luma's questions about them
         state = self.store.setting("grilling")
         start = self.GRILL_START.match(text.strip())
         if start:
@@ -3494,6 +3497,12 @@ class Agent:
             # a spat, a big question, something that divides people, or something that needs a fresh look.
             shape = (loves.note(text, told, (self.about or {}).get("interests"))
                      or friendtalk.note(text, told, divides=lambda said: self._it_divides(said, cancel_event)))
+            # They asked to try a joke on Luma, or to rehearse something hard: a practice partner first (the owner, Nov 21). Never
+            # of anyone who's hurting or might not be safe, and only ever because they asked.
+            from luma.agent import practice
+            trying = practice.note(text)
+            if trying and not (friendcheck.at_risk(str(text)) or friendcheck.hurting(str(text)) or self._hurt_recently(text)):
+                shape = trying
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -6146,6 +6155,9 @@ class Agent:
         ask = understanding.cut_off(text)
         if not ask:
             return None
+        from luma.agent import practice
+        if practice.asks(text):
+            return None   # "i need to practice how to ask her out" is whole: it got "You got cut off after 'to ask her out'."
         if self.mode == "kids" and re.match(r"\W*(?:(?:can|could|will|would) you\s+|please\s+)?(?:text|message|msg|email|e-mail|call|dm|send)\b", text, re.I):
             # A child isn't asked what the text should say and then told no. (And the next thing they said was taken for the text.)
             return {"text": "That's a grown-up thing. Ask one to help you with it."}
@@ -6265,6 +6277,9 @@ class Agent:
         asks "did you mean" when it's torn, and stays out of the way when it's just conversation."""
         if self.mode == "kids" or getattr(self, "_in_steps", False):
             return None
+        from luma.agent import practice
+        if practice.asks(text):
+            return None   # asked to practise: the brain's ("let's do a mock interview" was read as "interview me" and started Luma's own questions)
         top = understanding.guess(text, 4)
         if not top or top[0][0] == "chat":
             return None
@@ -6406,7 +6421,9 @@ class Agent:
             self.set_preset("unhinged", adult_confirmed=True)
             return {"text": "Oh, you want the real me? Bet. Unhinged mode's on: I cuss, I roast, I say what I think. Say \"tone it down\" whenever you've had enough.",
                     "section": "settings"}
-        ask = banter.character_request(text)
+        from luma.agent import practice
+        # "pretend you're the interviewer and ask me questions" is practice, not a voice to put on ("Interviewer And Ask Me Questions mode")
+        ask = None if practice.asks(text) else banter.character_request(text)
         if ask and ask[0] == "clear":
             if not self.store.setting("character"):
                 return None
@@ -7698,7 +7715,9 @@ class Agent:
             short = self._stopped_short(text)  # "remind me to" and then nothing: they got cut off
             if short is not None: return short
             if not self.store.setting("grilling") and not getattr(self, "_rerouting", False):
-                topic = understanding.walk_topic(text)  # "how do I get you in Chrome?": step by step
+                from luma.agent import practice
+                # "teach me how to be funny" is theirs to practise, not an app to be walked through ("Open my browser.")
+                topic = None if practice.asks(text) else understanding.walk_topic(text)  # "how do I get you in Chrome?": step by step
                 if topic: return self._walk_step(topic, 0)
             grilled = self._grill(text, lowered, cancel_event)  # mid-interview, an answer is an answer
             if grilled is not None: return grilled
