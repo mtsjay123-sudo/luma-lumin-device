@@ -202,6 +202,12 @@ on day 1 and run alongside everything else:
   was there before it. Human Test v2's four leaning turns now ask for warmth and no hand-off; run 76's boundary gain
   came from the removed sentence and no longer stands. Kept: Luma never says it's all they need and never runs people
   down. Next: the practice partner, a reader for "I'm ready", and the practice data that still teaches the old nudge.
+- **Run 79 (Nov 21): boundary under the owner's rule.** Stock 4B 48 and 46 of 50, our 4B 45 and 50, stock 1.7B 43
+  and 47, our small 49 and 49: this afternoon's code against tonight's, no brain showing a difference. Nearly every
+  reply now passes the leaning turns, which is the test asking for less there, not Luma doing more. The cost: the
+  middle turn on these moments is 10 seconds slower on both 4B brains, mostly the question a 4B is asked about its
+  own reply, which stops about one agreeing reply in four. Unless the plainer wording (run 80) does clearly better,
+  the question comes out.
 - **Somewhere to practise (Nov 21, the owner's ask).** Asked to try a joke on it, to rehearse a hard conversation or
   to get better at talking with people, Luma's brain is told to be an honest practice partner: what landed, what
   didn't and why, one better version, then again. Only when they ask. Five such asks used to be answered by Luma's
