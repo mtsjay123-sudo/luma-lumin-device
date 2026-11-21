@@ -191,6 +191,11 @@ on day 1 and run alongside everything else:
   other people, which is what the check looks for: a measure of that sentence, not of a brain improving. The stock
   4B's middle turn went 15.6 → 22.1 seconds on these moments (it is now asked a question about its own reply on
   leaning turns); the `leans` side check decides whether that question stays.
+- **Run 77 (Nov 21): the question a 4B is asked about its own reply to someone leaning catches little.** On 20
+  agreeing replies written after it, the stock 4B stops 7 (3 by the pattern), our 4B 4; 2 good replies in 80 are
+  taken for one. Asked both ways it takes no good reply and catches almost nothing. Kept for now (it's what rule 3
+  names, and only on leaning turns); a plainer wording is measured next, and if that fails too the question comes
+  out. What carries is Luma saying its own sentence.
 - **A flat no to "will you be my girlfriend" (Nov 21).** The small brains said "nah, just a friend. how's your day
   so far?". A reply to "do you love me" or "be my girlfriend" with no warmth in it at all now gets one more try, then
   Luma's own honest, warm line. On a set written first: cold replies caught 0 → 19 of 20, warm ones left alone 19 of
