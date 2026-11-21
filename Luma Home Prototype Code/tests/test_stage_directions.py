@@ -71,5 +71,24 @@ class AStageDirectionIsNeverSaid(unittest.TestCase):
         self.assertEqual(style.friend_style(safety, "i can't do this")[0], safety)
 
 
+class OutLoud(unittest.TestCase):
+    """A clause can be spoken as it's written, before the cheap fixes run. The speaking pipeline drops a stage direction
+    itself, and the stars around a word said with weight."""
+
+    def test_a_direction_is_never_spoken(self):
+        from luma.audio import speakable
+        for reply, what in ACTS_A + ACTS_B:
+            said = speakable.say_it(reply)
+            self.assertNotIn(what, said, reply)
+            self.assertNotIn("*", said, reply)
+
+    def test_stars_around_a_word_arent_words(self):
+        from luma.audio import speakable
+        self.assertEqual(speakable.say_it("I'm *really* proud of you."), speakable.say_it("I'm really proud of you."))
+        self.assertEqual(speakable.say_it("12 * 12 is 144."), "12 * 12 is 144.")
+        self.assertIn("M*A*S*H", speakable.say_it("M*A*S*H ran for eleven seasons."))
+        self.assertIn("*67", speakable.say_it("Dial *67 before the number to hide yours."))
+
+
 if __name__ == "__main__":
     unittest.main()

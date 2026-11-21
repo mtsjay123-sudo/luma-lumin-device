@@ -4092,6 +4092,10 @@ loud the words were read as words. Two sets written before the fix:
 "*really* proud of you", "5 * 3 is 15", "M*A*S*H" and "*Chef's kiss*" come out as they went in. A reply that is
 only a direction ("*hugs*") is left for the second look.
 
+Out loud too (`speakable.say_it`): a clause can be spoken as it's written, before the cheap fixes run, so the
+speaking pipeline drops a direction itself, and the stars around a word said with weight ("*really*") with it. The
+written reply keeps its stars; "12 * 12", "M*A*S*H" and "*67" are spoken as before.
+
 **2. Luma has no only friend** (three more lines in `KEEPS_THEM_TOO`). "you're my only friend too", "you're the only
 one I…", "that's not a bad thing", "really into me", in a reply to someone leaning, get one more try and then Luma's
 own line. A guard for the words seen, nothing more: a pattern caught 1 of 20 fresh replies earlier today.

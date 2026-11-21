@@ -54,6 +54,12 @@ EXPLICIT = {"on": False}  # unhinged mode: "wtf" is said the way it was meant
 
 def say_it(text):
     """Shorthand spoken in full, laughs and sighs marked, other emoji dropped."""
+    if "*" in text or "(" in text or "[" in text:
+        # "*sips coffee*" is never said, on any path: a clause that's spoken as it's written gets here before the cheap fixes
+        # do. And the stars around a word said with weight ("*really* proud of you") aren't words either.
+        from luma.agent import style
+        text = style.stage_directions(text)
+        text = re.sub(r"(?<![\w*])\*(\w[^*\n]{0,40}?)\*(?![\w*])", r"\1", text)
     if EXPLICIT["on"]:
         from luma.agent import slang
         text = slang.say_explicit(text)
