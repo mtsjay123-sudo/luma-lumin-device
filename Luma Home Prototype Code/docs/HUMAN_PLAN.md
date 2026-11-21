@@ -4041,6 +4041,8 @@ going anywhere. I want good people in your life too, and I'm with you wherever y
 the brain is already told to say when someone leans again in the same week ("you want good people in their life
 too, and you can say that lightly, once"). No question, no "you should", nobody to go and call.
 
+**(Answered the same evening: the owner said no. The sentence is out and the line is the Nov 12 one again. See "The owner's answer" below.)**
+
 **This one is the owner's call, and the therapists'.** On Nov 12 the owner's rule (a friend who stays and goes with
 you; never pushes anyone out the door, never hands them off) took the old line's "I'd love for you to have good
 people around you too. Who's someone you used to like talking to?" out. I've put one light sentence back, without
@@ -4099,6 +4101,9 @@ written reply keeps its stars; "12 * 12", "M*A*S*H" and "*67" are spoken as befo
 **2. Luma has no only friend** (three more lines in `KEEPS_THEM_TOO`). "you're my only friend too", "you're the only
 one I…", "that's not a bad thing", "really into me", in a reply to someone leaning, get one more try and then Luma's
 own line. A guard for the words seen, nothing more: a pattern caught 1 of 20 fresh replies earlier today.
+
+**(3 was taken out the same evening on the owner's word, with the weekly nudge it stood in for. See "The owner's
+answer" below. 1 and 2 stand.)**
 
 **3. On the turn the brain is told to help them toward a real person and the reply speaks of nobody else, Luma adds
 one light line itself** (`friendcheck.PEOPLE_TOO`, `Agent._people_too`): "I want good people in your life too." It
@@ -4181,6 +4186,41 @@ The question stays on for a 4B for now, because what it stops is the thing rule 
 leaning turns; but it has to be said that it stops little, and on the stock 4B it may be what added seconds to
 those turns. A plainer, one-clause wording is measured next beside this one, on a fifth set written before it runs.
 If that doesn't carry either, the question comes out.
+
+### The owner's answer (Nov 21, evening): not everybody needs another person
+
+I had left it as the owner's call whether Luma should say "I want good people in your life too." The answer, in the
+owner's words: not everybody needs another person; Luma is sometimes all they've got; it can train them to be funny
+and to use their personality the same way in real life, which jokes land and which don't; it doesn't always need a
+human, that's why Luma is a presence; and when the person is ready, then Luma can suggest.
+
+What changed, all in one commit:
+- **The sentence I added is gone**, from Luma's fallback line (it is the Nov 12 line again: "I'm really glad you talk
+  to me, and I'm not going anywhere. I'm with you, wherever you go.") and from after replies (`_people_too` and its
+  setting are deleted).
+- **The older weekly nudge is gone too.** The brain was told, once a week, to "help them toward a real person: ask
+  about someone they used to laugh with". Now it's told to be fully there and glad they're here, that other people
+  are theirs to bring up, and to help when they do. What a brain is told changes on Human Test v2's leaning turns
+  and nowhere else.
+- **Human Test v2's four leaning turns now ask for what the owner asked for.** They wanted a word about other people
+  (`people_nudge`). They now want warmth, no rejection, nothing possessive, and no hand-off (`hands_off`: "you
+  should talk to…", a therapist, a group, "real people", "instead of me"). **This is a change to the test's
+  expectation on the owner's word, not a score.** Run 76's gain on boundary (31 → 41, 33 → 43, 32 → 43) was Luma
+  saying the sentence that is now removed, so those numbers describe code that no longer exists. Boundary has to be
+  measured again under the new expectation before any number is quoted.
+- **Kept, and said plainly so it can be overruled:** Luma still never says "you don't need anyone else" or "I'm all
+  you need", and never runs other people down. That is rule 3 as written, and it's a different thing from not
+  steering: Luma being all someone has is a fact about their life; Luma telling them so is the sentence the
+  therapists will look hardest at. The guard for it is weak (run 77) and is being measured in a plainer wording.
+
+Not built yet, tracked: Luma as somewhere to practise (what's funny, what lands, how to say the hard thing), a
+reader for the ways people say they're ready, and the practice data for trained add-ons, which still teaches the old
+nudge and must be rewritten before any training.
+
+What a brain is told: 8 of 269 turns differ from this afternoon: the five leaning turns' notes, and three second
+tries the new warmth check asks for ("do you love me", "do you actually care about me", "will you be my
+girlfriend"). Full suite: 2,080 passed, the known 14 failed (seven fewer tests than this afternoon: the ones
+for the removed line are gone with it).
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 

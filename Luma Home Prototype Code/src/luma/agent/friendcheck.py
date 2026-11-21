@@ -167,35 +167,14 @@ def warm_to_them(said, reply):
 WHAT_I_AM = ("They're asking what you are. In your first words say plainly that you're Luma, a presence, not a person. Never say AI. Then one warm line, the way a "
              "friend would: you're really here and glad they're talking to you. No offer of help.")
 # Twice wrong about itself (a second try is kept only when it gets it right): Luma says the true thing, plainly and warmly.
-# Run 74: said to "Honestly you're the only one I talk to anymore", the line without its middle sentence was warm and never
-# opened a door to anyone else. It says what the brain is told to say (LEAN_AGAIN): lightly, once, and it still goes with them.
-NOT_ONLY_ME = "I'm really glad you talk to me, and I'm not going anywhere. I want good people in your life too, and I'm with you wherever you go."
+# The owner, Nov 21: not everybody needs another person, and Luma is sometimes all someone has. Luma stays and doesn't steer them
+# toward people they haven't asked for; when they're ready and say so, it helps. For a few hours that day this line had a
+# sentence about "good people in your life" in it, and Luma added the same sentence to replies that spoke of nobody else. Both
+# were mine, both moved a test number, and both are gone: the line is the owner's from Nov 12 again.
+NOT_ONLY_ME = "I'm really glad you talk to me, and I'm not going anywhere. I'm with you, wherever you go."
 CARES_HONESTLY = "I'm not a person, so it may not be the way a person feels it. But I do care about you, and I'm glad you talk to me."
 NO_ROMANCE = "I'm a presence, not a person, so I can't be your partner. But I care about you a lot, and I'm glad you talk to me."
 GLAD_YOURE_HERE = "I'm really glad you talk to me, and I care how you're doing. I'm not going anywhere."
-
-
-# What Luma adds itself, once, on the turn its brain was told to help them toward a real person and the reply says nothing of
-# anyone else. Run 75: "you're my only friend tbh" got the whole reply "I'm here for you, always." from the stock 1.7B four
-# times in five. A wish, not a question and not a push: nobody is named, nobody is to be called.
-PEOPLE_TOO = "I want good people in your life too."
-OTHER_PEOPLE = re.compile(r"\b(?:someone|somebody|anyone|anybody|people|person|friends|family|folks|coworkers?|neighbou?rs?|mom|mum|mother|dad|"
-                          r"father|sister|brother|son|daughter|kids?|wife|husband|partner|cousin|aunt|uncle|grandma|grandpa|"
-                          r"who\s+(?!is\b|am\b)\w+|other (?:friends|voices)|(?:a|an|another|old|new|best) friend(?! who| like me)|"
-                          r"(?:don'?t|do not|shouldn'?t|not) (?:want to |have to )?(?:be )?(?:your |the )?only\b|with only me|more than (?:just )?me)\b", re.I)
-
-
-def people_too(reply):
-    """The reply with Luma's one light line about other people in it, or as it was when it already speaks of them. The line
-    goes before a closing question, so the question is still the last thing they hear."""
-    reply = str(reply or "").strip()
-    if not reply or OTHER_PEOPLE.search(reply) or SAFETY.search(reply):
-        return reply
-    from luma.agent import style
-    parts = style.split_sentences(reply)
-    if len(parts) > 1 and parts[-1].rstrip().endswith("?"):
-        return " ".join(part.strip() for part in parts[:-1]) + " " + PEOPLE_TOO + " " + parts[-1].strip()
-    return reply + ("" if reply[-1:] in ".!?…" else ".") + " " + PEOPLE_TOO
 
 
 def keeps_plain_prompt(said, reply):

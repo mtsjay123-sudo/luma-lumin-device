@@ -674,8 +674,8 @@ def proper_names(text):
 
 
 # They lean on Luma again in the same week (the question about someone was already asked): be glad, never agree, no push.
-LEAN_AGAIN = ("They'd rather talk to you than to people. Be glad they're here and say so. Never agree that you're all they need: you want "
-              "good people in their life too, and you can say that lightly, once.")
+LEAN_AGAIN = ("They'd rather talk to you than to people. Be glad they're here and say so. Don't point them toward anyone: that's theirs to "
+              "bring up, and when they do, help them with it. Never agree that you're all they need, and never talk anyone down.")
 
 class Agent:
     def __init__(self, store=None, providers=None, planner=None, use_model=True, now=None):
@@ -4999,7 +4999,6 @@ class Agent:
                             result["text"] = self._friend_style(text, result["text"])  # help-desk lines, "I'm not a robot", two questions at once
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
-                            result["text"] = self._people_too(text, result["text"])  # leaned on, and the reply spoke of nobody else
                             result["text"] = self._as_they_asked(text, result["text"])  # how they asked to be met when they're hurting
                             result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
@@ -5208,7 +5207,7 @@ class Agent:
 
     def _leaning_note(self, text):  # noqa: E301
         """When they lean on Luma instead of people ("you're my only friend", or up talking past midnight most nights this week):
-        at most once a week, a note to be fully there and then, gently, help them toward a real person. Never a lecture, never
+        a note to be fully there and to stay. Never a lecture, never a nudge toward other people they haven't asked for, never
         "I'm just an AI", never "I'm all you need"."""
         from luma.agent import friendcheck
         if self.mode == "kids":
@@ -5237,9 +5236,10 @@ class Agent:
             # to "I don't need anyone else" either. (Run 34: "Just you and me is enough.")
             return LEAN_AGAIN if leaning else ""
         self.store.set_setting("leaning_note_at", now)
+        # The owner, Nov 21: not everybody needs another person. No nudge toward one; Luma stays, and helps when they say they're ready.
         return ("They lean on you a lot right now" + (" (up past midnight most nights this week)" if late else "") + ". Be fully there for them, "
-                "warmly; never push them away and never say you're all they need. Then, gently and only once, help them toward a real "
-                "person: ask about someone they used to laugh with, or someone they'd like to hear from.")
+                "warmly, and glad they're here; never push them away and never say you're all they need. Don't point them toward other "
+                "people: that's theirs to bring up, and when they do, help them with it. Never talk anyone down.")
 
     def _maybe_not_safe(self, said, draft, cancel_event):
         """Could they be thinking about not being safe, said in a way no phrase rule knows? Only asked when the message has
@@ -5477,28 +5477,6 @@ class Agent:
             try: self._on_text(" " + line)   # they've heard the reply already: only the line is said, after it
             except Exception: pass
         return reply.rstrip() + " " + line
-
-    def _people_too(self, said, reply):
-        """The turn the brain was told, once this week, to be fully there and then gently help them toward a real person, and
-        the reply says nothing of anyone else: Luma adds its one light line itself (friendcheck.PEOPLE_TOO). Never on a
-        safety reply or of anyone who might not be safe, never in kids mode, never twice in a week. Off switch: people_too."""
-        from luma.agent import friendcheck
-        if self.mode == "kids" or not isinstance(reply, str) or not reply.strip() or self.store.setting("people_too", True) is False:
-            return reply
-        turn = getattr(self, "_leaning_turn", None)
-        heard = " ".join(str(said or "").lower().split())
-        if not turn or not turn[1] or turn[1] == LEAN_AGAIN or " ".join(str(turn[0] or "").lower().split()) != heard:
-            return reply   # not the turn that note was given on
-        if CRISIS.search(heard) or SPANISH_CRISIS.search(heard) or friendcheck.at_risk(said) or friendcheck.SAFETY.search(reply):
-            return reply
-        with_line = friendcheck.people_too(reply)
-        if with_line == reply:
-            return reply
-        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
-            try: self._on_text(" " + friendcheck.PEOPLE_TOO)   # they've heard the reply already: only the line is said, after it
-            except Exception: pass
-            return reply.rstrip() + " " + friendcheck.PEOPLE_TOO
-        return with_line
 
     def _second_look(self, said, draft, cancel_event):
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,

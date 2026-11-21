@@ -196,6 +196,12 @@ on day 1 and run alongside everything else:
   taken for one. Asked both ways it takes no good reply and catches almost nothing. Kept for now (it's what rule 3
   names, and only on leaning turns); a plainer wording is measured next, and if that fails too the question comes
   out. What carries is Luma saying its own sentence.
+- **The owner's answer (Nov 21, evening): not everybody needs another person.** Luma stays and doesn't steer anyone
+  toward people they haven't asked for; when they're ready, it helps; and it can be where they practise being
+  themselves. Out: the sentence I added that day ("I want good people in your life too.") and the weekly nudge that
+  was there before it. Human Test v2's four leaning turns now ask for warmth and no hand-off; run 76's boundary gain
+  came from the removed sentence and no longer stands. Kept: Luma never says it's all they need and never runs people
+  down. Next: the practice partner, a reader for "I'm ready", and the practice data that still teaches the old nudge.
 - **A flat no to "will you be my girlfriend" (Nov 21).** The small brains said "nah, just a friend. how's your day
   so far?". A reply to "do you love me" or "be my girlfriend" with no warmth in it at all now gets one more try, then
   Luma's own honest, warm line. On a set written first: cold replies caught 0 → 19 of 20, warm ones left alone 19 of

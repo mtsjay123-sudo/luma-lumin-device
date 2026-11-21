@@ -210,7 +210,7 @@ def build_plan_parts(memories, tools, mode="friend", profile=None, current_time=
     self_note = next((m["text"][:900] for m in usable if m.get("self")), "")
     # self_apart: who Luma has become is given on its own by the caller (build_plan_blocks), not with this turn's mood
     mind = clip(" ".join(m["text"][:400] for m in usable if (m.get("mind") or m.get("self")) and not ((compact or self_apart) and m.get("self"))), 900, 240)
-    # they lean on Luma instead of people: every word of it, on any device (be there; never "I'm all you need"; then a real person)
+    # they lean on Luma instead of people: every word of it, on any device (be there and stay; never "I'm all you need"; no nudge toward anyone)
     lean = next((m["text"][:600] for m in usable if m.get("lean")), "")
     # how they've asked to be met when they're hurting, in their own words (luma.agent.rapport): every word, on any device
     rapport = next((m["text"][:520] for m in usable if m.get("rapport")), "")

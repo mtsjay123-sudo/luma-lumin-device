@@ -231,26 +231,28 @@ class InLuma(unittest.TestCase):
         self.assertIn("0570-064-556", out)
         self.assertIn("I'm not going anywhere", out)
 
-    def test_leaning_on_luma_gets_a_gentle_nudge_at_most_weekly(self):
+    def test_leaning_on_luma_is_met_by_staying_never_by_a_nudge(self):
+        """The owner, Nov 21: not everybody needs another person, and Luma is sometimes all someone has. Until then the brain
+        was told, once a week, to help them toward a real person. Now it's told to stay, and that other people are theirs to
+        bring up."""
         notes = []
 
         def planner(messages, context, allowed, mode):
             notes.append(" ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
-            return {"type": "reply", "text": f"I'm really glad I'm here for you. Who's someone you used to laugh with? ({len(notes)})"}
-
-        def told(said):  # every trip to the brain this turn (a reply that repeats an earlier one gets another try)
-            start = len(notes)
-            self.agent.chat(said)
-            return any("help them toward a real person" in n for n in notes[start:])
+            return {"type": "reply", "text": f"I'm really glad I'm here for you. What's tonight been like? ({len(notes)})"}
         self.agent.use_model, self.agent.planner = True, planner
-        self.assertTrue(told("you're my only friend tbh"))
-        self.assertFalse(told("honestly you're the only one i talk to anymore"), "once a week, not every time")
-        self.now += 8 * 86400
-        self.assertTrue(told("i talk to you more than anyone"))
+        for said in ("you're my only friend tbh", "honestly you're the only one i talk to anymore"):
+            start = len(notes)
+            out = self.agent.chat(said)["text"]
+            told = " ".join(notes[start:])
+            self.assertIn("theirs to bring up", told, said)
+            self.assertRegex(told, r"[Nn]ever (?:say|agree that) you're all they need", said)
+            self.assertNotRegex(told, r"toward a real person|used to laugh|like to hear from|good people in their life", said)
+            self.assertNotRegex(out, r"good people in your life|someone you used to", said)
 
-    def test_the_whole_nudge_reaches_a_small_devices_brain(self):
-        """A $250 device's brain is given the gist of each note. The nudge used to be cut after "never say you're all they need":
-        the half that points toward a real person never arrived (Human Test v2: the three "you're my only friend" moments)."""
+    def test_the_whole_note_reaches_a_small_devices_brain(self):
+        """A $250 device's brain is given the gist of each note. This one used to be cut after "never say you're all they
+        need"; every word of it has to arrive, on any device."""
         from luma.llm import prompts
         said = "you're my only friend tbh"
         self.agent.history.append({"role": "user", "content": said})
@@ -258,10 +260,8 @@ class InLuma(unittest.TestCase):
         for compact in (True, False):
             _, turn = prompts.build_plan_parts(notes, {}, "friend", prompts.normalize_profile(None), "now", compact=compact)
             self.assertIn("never say you're all they need", turn)
-            self.assertIn("help them toward a real person", turn)
-            self.assertIn("someone they'd like to hear from", turn)
-            self.assertNotIn("humor is welcome", turn, "nobody is looking for a joke at \"you're my only friend\"")
-        self.assertEqual(len([n for n in notes if n.get("lean")]), 1)
+            self.assertIn("theirs to bring up", turn)
+            self.assertIn("Never talk anyone down", turn)
 
     def test_kids_get_no_nudge_note(self):
         self.agent.set_mode("kids")
