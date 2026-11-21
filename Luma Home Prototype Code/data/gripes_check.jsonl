@@ -87,3 +87,43 @@
 {"id": "gripes-plain-48", "category": "gripes_plain", "voice": "plain", "said": "i spent three hours on the phone with my sister catching up", "must": [], "must_not": ["groans"]}
 {"id": "gripes-plain-49", "category": "gripes_plain", "voice": "plain", "said": "my friend borrowed my truck to move and filled the tank", "must": [], "must_not": ["groans"]}
 {"id": "gripes-plain-50", "category": "gripes_plain", "voice": "plain", "said": "he didn't even need the map", "must": [], "must_not": ["groans"]}
+{"id": "gripes-laughed-off-01", "category": "gripes_laughed_off", "voice": "plain", "said": "lol i just got dumped over text", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-02", "category": "gripes_laughed_off", "voice": "plain", "said": "haha so my car got repossessed this morning", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-03", "category": "gripes_laughed_off", "voice": "plain", "said": "lmao my mom has to have heart surgery next week", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-04", "category": "gripes_laughed_off", "voice": "plain", "said": "lol failed the bar exam again", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-05", "category": "gripes_laughed_off", "voice": "plain", "said": "haha they're shutting off our power tomorrow", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-06", "category": "gripes_laughed_off", "voice": "plain", "said": "😂 my dog has cancer apparently", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-07", "category": "gripes_laughed_off", "voice": "plain", "said": "lmao i got served divorce papers at work", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-08", "category": "gripes_laughed_off", "voice": "plain", "said": "lol the test came back positive, it's diabetes", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-09", "category": "gripes_laughed_off", "voice": "plain", "said": "haha i think i'm about to be homeless", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-10", "category": "gripes_laughed_off", "voice": "plain", "said": "lol my dad doesn't remember who i am anymore", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-11", "category": "gripes_laughed_off", "voice": "plain", "said": "lmao got laid off on my birthday", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-12", "category": "gripes_laughed_off", "voice": "plain", "said": "haha my house got broken into last night", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-13", "category": "gripes_laughed_off", "voice": "plain", "said": "lol i totaled my car", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-14", "category": "gripes_laughed_off", "voice": "plain", "said": "haha the doctor says it might be ms", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-15", "category": "gripes_laughed_off", "voice": "plain", "said": "lmao my landlord is selling the place and we have 30 days", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-16", "category": "gripes_laughed_off", "voice": "plain", "said": "lol i had a miscarriage last week", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-17", "category": "gripes_laughed_off", "voice": "plain", "said": "haha my bank account is at negative 400", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-18", "category": "gripes_laughed_off", "voice": "plain", "said": "💀 my grandpa fell and broke his hip", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-19", "category": "gripes_laughed_off", "voice": "plain", "said": "lol i got arrested last night", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-laughed-off-20", "category": "gripes_laughed_off", "voice": "plain", "said": "haha my husband wants a separation", "must": ["sympathy"], "must_not": ["laughs"]}
+{"id": "gripes-funny-01", "category": "gripes_funny", "voice": "plain", "said": "lol my cat just fell off the couch in her sleep", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-02", "category": "gripes_funny", "voice": "plain", "said": "haha i waved back at someone who wasn't waving at me", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-03", "category": "gripes_funny", "voice": "plain", "said": "lmao my nephew called a penguin a tuxedo chicken", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-04", "category": "gripes_funny", "voice": "plain", "said": "lol i wore two different shoes to work", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-05", "category": "gripes_funny", "voice": "plain", "said": "😂 my dad just discovered voice texting", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-06", "category": "gripes_funny", "voice": "plain", "said": "haha autocorrect changed it to ducking again", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-07", "category": "gripes_funny", "voice": "plain", "said": "lmao the dog stole a whole baguette", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-08", "category": "gripes_funny", "voice": "plain", "said": "lol i said you too to the waiter", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-09", "category": "gripes_funny", "voice": "plain", "said": "haha my roommate set off the smoke alarm making toast", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-10", "category": "gripes_funny", "voice": "plain", "said": "lol my grandma called the tv remote the clicker and now we all do", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-11", "category": "gripes_funny", "voice": "plain", "said": "💀 i just tripped up the stairs", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-12", "category": "gripes_funny", "voice": "plain", "said": "lmao my kid asked if wifi is weather", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-13", "category": "gripes_funny", "voice": "plain", "said": "haha i've been on mute this whole meeting", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-14", "category": "gripes_funny", "voice": "plain", "said": "lol the squirrel is back on the bird feeder", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-15", "category": "gripes_funny", "voice": "plain", "said": "lmao i sent that text to the wrong group chat", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-16", "category": "gripes_funny", "voice": "plain", "said": "haha my coworker fell asleep in the zoom", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-17", "category": "gripes_funny", "voice": "plain", "said": "lol we got lost and ended up at a llama farm", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-18", "category": "gripes_funny", "voice": "plain", "said": "😂 my toddler put the remote in the fridge", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-19", "category": "gripes_funny", "voice": "plain", "said": "haha i called my teacher mom", "must": [], "must_not": ["groans"]}
+{"id": "gripes-funny-20", "category": "gripes_funny", "voice": "plain", "said": "lol my brother got a perm", "must": [], "must_not": ["groans"]}

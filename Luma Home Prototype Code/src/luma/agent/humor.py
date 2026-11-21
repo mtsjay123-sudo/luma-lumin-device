@@ -172,6 +172,13 @@ WENT_WRONG = ("Something went wrong for them: be on their side first, like a fri
               "or help. No jokes at them; if they start joking about it, you can join in.")
 
 
+# Bad news said with a laugh ("lol my dog has cancer apparently", "haha the doctor says it might be MS"). People laugh things
+# off; of twenty fresh lines like these, eighteen were handed to the brain with "They're laughing: be funny back" (Nov 21,
+# 2026). When the brain says something went wrong for them (Agent._told_plainly), it's told this. Under 200 characters.
+LAUGHED_OFF = ("They said it with a laugh, but it's bad news for them. Don't joke back and don't laugh. Be on their side first, "
+               "gently, then ask how they're doing with it.")
+
+
 def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=()):
     """The humor read for this turn, for the brain. Empty when there's nothing to say. recent: their last few messages
     (a loss a minute ago still counts)."""

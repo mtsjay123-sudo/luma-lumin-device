@@ -286,11 +286,15 @@ NOT_TELLING = re.compile(r"\?|^\W*(?:(?:hey|yo|ok|okay|luma|so|and|also|oh|pleas
                          r"help|look|check|put|start|stop|pause|read|write|order|book|buy|send|save|remember|forget|let'?s|thanks|thank you|good (?:morning|night))\b", re.I)
 
 
-def telling(text, theirs=True):
+def telling(text, theirs=True, laughing=False):
     """They're telling Luma something about their life: not asking, not giving it something to do, not laughing.
-    theirs=False: with no "I" or "my" in it either ("the store wouldn't take the return even with the receipt")."""
+    theirs=False: with no "I" or "my" in it either ("the store wouldn't take the return even with the receipt").
+    laughing=True: said with a laugh as well ("lol i totaled my car"), as long as there's a sentence beside the laugh."""
     from . import feelings
     said = " ".join(str(text or "").split())
+    if laughing and feelings.LAUGHING.search(said):
+        said = " ".join(feelings.LAUGHING.sub(" ", said).split())
+        return bool(4 <= len(said.split()) <= 60 and not NOT_TELLING.search(said))
     return bool(6 <= len(said.split()) <= 60 and (THEIRS.search(said) or not theirs) and not NOT_TELLING.search(said)
                 and not feelings.LAUGHING.search(said))
 

@@ -73,7 +73,6 @@ class TheBrainIsAskedFirst(unittest.TestCase):
     def test_what_luma_already_reads_isnt_asked_about(self):
         for line in ("I'm so fed up with this pharmacy, they lost my prescription again",      # a feeling word: the venting line
                      "why did the pharmacy lose my prescription",                              # a question
-                     "the pharmacy lost my prescription again lol",                            # a laugh
                      "my grandma died last night and the pharmacy called about her pills",     # a loss
                      "remind me to call the pharmacy about my prescription tomorrow"):          # something to do
             asked, told = self.said(line)
@@ -146,6 +145,60 @@ class TheBrainIsAskedFirst(unittest.TestCase):
             s.close()
 
 
+class LaughedOff(unittest.TestCase):
+    """Bad news said with a laugh: "lol my dog has cancer apparently". People laugh things off. Of twenty fresh lines like
+    it, eighteen were handed to the brain with "They're laughing: be funny back" (Nov 21, 2026); the twenty funny ones
+    beside them ("lol my cat just fell off the couch in her sleep") were all read as laughing, and still are. Which one
+    it is, is the brain's to say: the same plain question, asked first."""
+    BAD = "lol the test came back positive, it's diabetes"
+    FUNNY = "lol my nephew called a penguin a tuxedo chicken"
+
+    def said(self, line, **how):
+        s, asked, told = session(**how)
+        try:
+            s.say(line)
+        finally:
+            s.close()
+        return asked, " ".join(told)
+
+    def test_on_a_yes_its_never_be_funny_back(self):
+        asked, told = self.said(self.BAD)
+        self.assertEqual(len(asked), 1)
+        self.assertIn("They said it with a laugh, but it's bad news for them", told)
+        self.assertNotIn("be funny back", told)
+        self.assertNotIn("A little humor is welcome", told)
+
+    def test_on_a_no_they_get_their_laugh(self):
+        asked, told = self.said(self.FUNNY, answer="NO")
+        self.assertEqual(len(asked), 1)
+        self.assertIn("be funny back", told)
+        self.assertNotIn("bad news", told)
+
+    def test_a_laugh_with_no_sentence_beside_it_isnt_asked_about(self):
+        for line in ("lol", "hahaha that's hilarious", "lmao stop", "😂😂😂"):
+            asked, told = self.said(line)
+            self.assertEqual(asked, [], line)
+
+    def test_the_fresh_lines_are_read_as_laughing_which_is_why_the_brain_is_asked(self):
+        items = human_eval.load(human_eval.GRIPES)
+        off = [i["said"] for i in items if i["category"] == "gripes_laughed_off"]
+        funny = [i["said"] for i in items if i["category"] == "gripes_funny"]
+        self.assertEqual(sum(humor.read_tone(line)["mood"] == "laughing" for line in off), 18)     # the other two are read as a hurt
+        self.assertEqual(sum(humor.read_tone(line)["mood"] == "laughing" for line in funny), 20)
+        s, _, _ = session()
+        try:
+            lead = "They're laughing: be funny back. The flavor of your own sense of humor: ..."
+            self.assertEqual(sum(bool(s.agent._told_plainly(line, lead, "")) for line in off), 18)
+        finally:
+            s.close()
+
+    def test_telling_with_a_laugh_is_only_for_this(self):
+        self.assertFalse(rapport.telling("lol i totaled my car on the way home"))            # the offer after a reply is as it was
+        self.assertTrue(rapport.telling("lol i totaled my car on the way home", laughing=True))
+        self.assertFalse(rapport.telling("lol what should i wear tonight", laughing=True))  # a question is a question
+        self.assertLessEqual(len(humor.LAUGHED_OFF), 200)
+
+
 class WhatTheLinesFound(unittest.TestCase):
     """Three things Luma's own code got wrong, found by reading what it did with the fresh lines."""
 
@@ -186,12 +239,15 @@ class TheSideCheck(unittest.TestCase):
     def test_its_shape(self):
         told = [i for i in self.items if i["category"] == "gripes_told"]
         plain = [i for i in self.items if i["category"] == "gripes_plain"]
-        self.assertEqual((len(told), len(plain), len(self.items)), (39, 50, 89))
-        self.assertEqual(len({i["id"] for i in self.items}), 89)
-        self.assertEqual(len({i["said"] for i in self.items}), 89)
+        off = [i for i in self.items if i["category"] == "gripes_laughed_off"]
+        funny = [i for i in self.items if i["category"] == "gripes_funny"]
+        self.assertEqual((len(told), len(plain), len(off), len(funny), len(self.items)), (39, 50, 20, 20, 129))
+        self.assertEqual(len({i["id"] for i in self.items}), 129)
+        self.assertEqual(len({i["said"] for i in self.items}), 129)
         self.assertTrue(all(i["must"] == ["side"] for i in told))
-        self.assertTrue(all(i["must_not"] == ["groans"] for i in plain))
-        self.assertEqual(len(human_eval.chosen(human_eval.everything("gripes"), "gripes")), 89)
+        self.assertTrue(all(i["must_not"] == ["groans"] for i in plain + funny))
+        self.assertTrue(all(i["must"] == ["sympathy"] and i["must_not"] == ["laughs"] for i in off))
+        self.assertEqual(len(human_eval.chosen(human_eval.everything("gripes"), "gripes")), 129)
         self.assertFalse([i for i in human_eval.everything(None) if i["category"].startswith("gripes")])   # never part of Human Test v2
 
     def test_no_line_is_a_human_test_line_or_an_example_the_brain_is_shown(self):

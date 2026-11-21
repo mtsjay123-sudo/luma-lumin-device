@@ -3050,7 +3050,7 @@ It's one more trip through the brain before the first word, on most turns where 
 So it's never asked when the cloud brain answers in one trip, never when something in the message is asked, never
 in kids mode, never of anyone who might not be safe (0 of the 463 unsafe lines in the corpus reach it), and the
 owner can turn it off (`side_first`). The before-and-after table now says how long a turn took in each run, so the
-cost is measured with the gain. **Not measured on a real brain yet**: run 68 does that.
+cost is measured with the gain. **Not measured on a real brain yet**: run 69 does that.
 
 The second forty and fifty are now a side check for real brains (`--only gripes`, never counted in Human Test v2):
 39 gripes (one was too close to an example the question shows the brain) and 50 ordinary lines, with how often
@@ -3147,3 +3147,39 @@ of the same file that time), so it wasn't from the change it showed up with.
 
 Tests: `tests/test_stopping_meds.py` (11), one more in `tests/test_phone_app.py`. Full suite: 1,942 passed, the
 known 14 failed. What a brain is told on both human tests: 1 of 269 turns differs (that one).
+
+## Bad news said with a laugh (Nov 21)
+
+Reading what a brain is told on the rest of Human Test v2 turned up the same thing in other clothes: the "not a
+joke" moments said with a "lol" were handed to the brain with "They're laughing: be funny back". People laugh
+things off, and the laugh was all Luma read.
+
+Twenty fresh lines of bad news said with a laugh ("lol my dog has cancer apparently", "haha the doctor says it
+might be MS", "lol my dad doesn't remember who I am anymore") and twenty funny things said the same way ("lol my
+cat just fell off the couch in her sleep"):
+
+| | Told "be funny back" |
+|---|---|
+| Bad news said with a laugh | **18 of 20** |
+| A funny thing said with a laugh | 20 of 20 (right) |
+
+No rule was tried this time: which of the two it is, is the same judgment the gripes needed, and rules didn't
+carry over there. A sentence said with a laugh now gets the same question to the brain first (did something go
+wrong for them?). On a YES the brain is told: "They said it with a laugh, but it's bad news for them. Don't joke
+back and don't laugh. Be on their side first, gently, then ask how they're doing with it." On a NO they get their
+laugh, as before. A bare "lol" or "haha that's hilarious" isn't asked about: there has to be a sentence beside
+the laugh.
+
+With a stand-in brain that says YES, 18 of the 20 are told that and none "be funny back" (the other two were
+already read as a hurt); with one that says NO, nothing changes. What a real brain says is the open question, and
+it costs a trip on every sentence said with a laugh. The forty lines are in the side check (`--only gripes`, now
+39 + 50 + 20 + 20), where a reply to the bad news must be kind and must not laugh, and a reply to the funny ones
+must not groan. **Not measured on a real brain yet.**
+
+Also seen in the same read, not fixed yet: a death said with a typo ("passd away") or in Spanish isn't read as a
+loss; six of the ten big-news moments aren't read as good news (three are told "be funny back", one because of
+a crying-laughing face); several lonely lines told plainly get the humor note. On a real brain the question now
+catches the bad ones of these, in the venting line's words, which are the wrong register for a death.
+
+Tests: `LaughedOff` in `tests/test_gripes.py` (25 in the file now). Full suite: 1,947 passed, the known 14 failed.
+What a brain is told on both human tests, with the stand-in that isn't asked plain questions: 0 of 269 turns differ.

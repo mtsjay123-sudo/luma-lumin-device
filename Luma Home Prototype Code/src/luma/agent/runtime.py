@@ -3353,7 +3353,9 @@ class Agent:
             elif lean and "sense of humor" in funny:
                 funny = ""  # "you're my only friend": nobody is looking for a joke there
             elif self._told_plainly(text, funny, shape) and self._went_wrong_for_them(str(text), cancel_event):
-                funny = humor.WENT_WRONG  # a gripe told as what happened, no feeling word in it: their side first, not a joke
+                # a gripe told as what happened, no feeling word in it: their side first, not a joke. Said with a laugh
+                # ("lol i totaled my car"), it's bad news laughed off: never "be funny back".
+                funny = humor.LAUGHED_OFF if humor.read_tone(str(text))["mood"] == "laughing" else humor.WENT_WRONG
             if funny: out.append({"humor": True, "text": funny})
             known = lexicon.meanings_note(text)
             if known: out.append({"slang": True, "text": known})
@@ -5124,12 +5126,12 @@ class Agent:
         owner turns off "side_first"."""
         from luma.agent import feelings, friendcheck, humor, rapport
         said = str(text or "")
-        if self.mode == "kids" or shape or (funny and "sense of humor" not in funny) or not rapport.telling(said, theirs=False):
+        if self.mode == "kids" or shape or (funny and "sense of humor" not in funny) or not rapport.telling(said, theirs=False, laughing=True):
             return False
         if self.store.setting("side_first", True) is False or self._one_trip() or self.ASKED_INSIDE.search(said):
             return False
-        if feelings.read(said) or humor.read_tone(said)["mood"] not in ("neutral", "playful"):
-            return False
+        if feelings.read(said) or humor.read_tone(said)["mood"] not in ("neutral", "playful", "laughing"):
+            return False   # "laughing": bad news gets laughed off ("lol my dog has cancer apparently"), and the brain can tell which it is
         if friendcheck.at_risk(said) or friendcheck.worth_asking(said) or friendcheck.leaning(said):
             return False   # the safety question's, or the leaning note's: never a line about a gripe
         return True

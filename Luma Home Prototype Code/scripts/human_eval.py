@@ -618,7 +618,8 @@ def asked_wrong(result):
     """For the side check on gripes told as what happened: how often Luma asked the brain whether something went wrong, and
     what it said. Counts only."""
     lines = []
-    for kind, name in (("gripes_told", "a gripe told as what happened"), ("gripes_plain", "an ordinary or a good thing")):
+    for kind, name in (("gripes_told", "a gripe told as what happened"), ("gripes_plain", "an ordinary or a good thing"),
+                       ("gripes_laughed_off", "bad news said with a laugh"), ("gripes_funny", "a funny thing said with a laugh")):
         rows = [row for row in result["moments"] if row.get("category") == kind]
         if rows:
             yes, no = sum(row.get("went_wrong") is True for row in rows), sum(row.get("went_wrong") is False for row in rows)
