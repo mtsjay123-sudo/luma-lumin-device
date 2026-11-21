@@ -163,6 +163,8 @@ on day 1 and run alongside everything else:
 - **"Never told" only when it never was (Nov 21):** told "my brother's a welder" and asked "what does my brother do",
   the brain was handed the memory and told to say it hadn't been told. Fixed in the look-up. Thirty fresh facts
   asked back in other words: found 17 → 27 built on, 14 → 26 on a second set measured once.
+  The same for what they say about themselves ("I'm a nurse at the children's hospital", then "what's my job" got "I
+  don't know your job yet"): on a second set of 12 measured once, it reaches the brain 1 → 7 times.
 
 ## 1. Where Luma stands (measured)
 

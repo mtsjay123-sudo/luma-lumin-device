@@ -29,6 +29,7 @@ from luma.memory import facts, segments, when
 CATEGORIES = list(segments.CATEGORIES)
 SAID = {"said", "log"}                 # lines of talk kept as they were said; everything else is a fact Luma keeps
 TRIP, MILESTONE, PRIVATE = 1, 2, 4     # bits in `kind`
+OWN = {"work": 8, "home": 16, "from": 32}   # said about themselves, in the plain shape of saying it (facts.says_own)
 RRF = 60                               # reciprocal rank fusion: the usual constant
 BIG = 20000                            # past this many meanings, a first pass on one bit a number, then the real ones
 # words in a question that don't name the thing asked about
@@ -222,7 +223,8 @@ class LifeIndex:
         said = source in SAID
         self.said.append(1 if said else 0)
         self.weight.append(facts.weight(text, source))
-        self.kind.append((TRIP if facts.is_trip(text) else 0) | (PRIVATE if facts.private(text, category) else 0))
+        own = sum(OWN[what] for what in facts.says_own(text))   # their own words, kept as said or as a card
+        self.kind.append((TRIP if facts.is_trip(text) else 0) | (PRIVATE if facts.private(text, category) else 0) | own)
         self.alive.append(1)
         self.ended.append(0)
         self.marks.extend(fingerprint(text))
@@ -562,11 +564,15 @@ class LifeIndex:
                 picked = under_other_words + [r for r in picked if r not in under_other_words]
             else:
                 known, why = False, "nothing saved mentions " + ", ".join(unseen)
-        if not picked and known and cue and not person:
+        if not picked and known and (cue or (ask["what"] or "").split(":")[0] in OWN) and not person:
             # asked for a kind of thing no fact holds ("what's my job"), and something they said has it under another word
             # ("I'm a nurse at the children's hospital" isn't read as a fact here; "I work nights at the bakery" is one more)
             wider = cue | set().union(*(SAME.get(t, set()) for t in cue))
             picked = [r for _, r in self.words(q, limit, terms={t for t in wider if self.df.get(t)}) if not self.ended[r]]
+            bit = OWN.get(ask["what"].split(":")[0]) if ask["what"] else None
+            if not picked and bit and whos and whos[-1] == {"you"}:   # "what's my job", and "I'm a nurse at the children's hospital" was said
+                theirs_own = np.flatnonzero(((kind & bit) > 0) & (alive > 0))
+                picked = [int(r) for r in theirs_own[np.argsort(-created[theirs_own])] if not self.ended[int(r)]][:limit]
         if not picked and known:
             known, why = False, "nothing saved about that"
 

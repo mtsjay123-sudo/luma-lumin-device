@@ -2914,3 +2914,27 @@ them?" and "was it an ordinary evening?" and believes it only when the two agree
   behind the stock one it's built on.
 - Where this started (run 50): told to offer something else, brains stayed with the feeling 13 times of 18. Now
   the three brains that would ship offer it 21 or 22 times of 24.
+
+### The same, for what they say about themselves
+
+Through a real conversation: told "I'm a nurse at the children's hospital", asked twelve days later "what's my
+job", Luma itself said "I don't know your job yet. Tell me and I'll remember it." The sentence was kept, as a card
+even. Nothing read it as a job.
+
+A sentence with the plain shape of saying what they do, where they live or where they're from ("I'm a…", "I've
+been a…", "I rent…", "I grew up in…") is marked when it's kept (`facts.says_own`), and found when they ask about
+their job, their home or where they're from. "I'm a mess today", "I'm a night owl", "I live for the weekend" and
+"I was born tired" aren't that shape. And Luma no longer says it doesn't know when the look-up has something.
+
+| Set | Reaches the brain, before → after | Luma says it doesn't know, before → after |
+|---|---|---|
+| Built on, 10 | 3 → 7 | 1 → 0 |
+| Second, 12, written afterwards and measured once | **1 → 7** | **3 → 1** |
+
+What's left on the second set: "where did I grow up" / "I was raised in a tiny town outside Fresno", "where am I
+originally from" / "I come from a big family in Lagos" and "where's my home" / "I bought a condo near the lake"
+(marked, and the question isn't read as asking for it), "what do I do all day" / "I'm a stay-at-home dad", and
+"where was I before I moved here", which Luma answers with a line about the diary. With nothing said, "what's my
+job" still gets "I don't know your job yet."
+
+Checks: `WhatTheySaidAboutThemselves` in `tests/test_never_told.py`.

@@ -287,6 +287,28 @@ def is_trip(text):
     return bool(TRAVEL.search(str(text or "")))
 
 
+# Something they said about themselves that has the plain shape of saying what they do, where they live or where
+# they're from, in words no rule reads as a fact: "I'm a nurse at the children's hospital", "I rent a studio above a
+# laundromat", "I grew up in a town called Marfa". Asked "what's my job" later, Luma said "I don't know your job yet."
+_NOT_A_JOB = (r"bit|little|lot|mess|wreck|fan|big|huge|person|man|woman|guy|girl|kid|mom|mother|dad|father|parent|twin|friend|loser|failure|burden|idiot|fool|joke|"
+              r"disappointment|morning|night|sucker|believer|sagittarius|virgo|leo|gemini|few|couple|month|year|week|day|while|minute|second|long|good|bad|"
+              r"terrible|great|decent|horrible|light|heavy|only|single|different|new|huge|total|complete|real|nervous|hot|hopeless|slow|fast|picky")
+OWN_SAID = {
+    "work": re.compile(rf"^(?:so |well |and |anyway,? |fyi,? )?i(?:'m| am|'ve been| have been| work as| worked as) (?:an? |the )(?!(?:{_NOT_A_JOB})\b)[a-z][a-z' -]{{2,40}}?"
+                       r"(?: at | for | in | on | with |,| since | now|\.|!|$)|^(?:so |well |and )?i (?:work|teach|drive|cook|wait tables|bartend|nurse|clean|deliver|manage|run|own) "
+                       r"(?:nights|days|shifts|at|for|in|the|a|an|my|our)\b", re.I),
+    "home": re.compile(r"^(?:so |well |and )?i (?:rent|live|stay|share|just moved into|moved into|bought|own) (?:in |on |at |with |a |an |the |my |above |near |by |over |out )",
+                       re.I),
+    "from": re.compile(r"^(?:so |well |and )?i (?:grew up|was raised|was born (?:in|at|on|and raised)|come from|came (?:over |here )?from|moved here from|am originally from|'m originally from)\b", re.I),
+}
+
+
+def says_own(text):
+    """Which of work, home and from a sentence about themselves states, in plain shape: a set."""
+    said = " ".join(str(text or "").split())
+    return {what for what, shape in OWN_SAID.items() if shape.search(said)} if 3 <= len(said.split()) <= 30 and "?" not in said else set()
+
+
 def asks_about_travel(question):
     return bool(TRAVEL_ASK.search(str(question or "")))
 

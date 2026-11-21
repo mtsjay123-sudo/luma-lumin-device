@@ -120,5 +120,86 @@ class NeverToldOnlyWhenItNeverWas(unittest.TestCase):
         self.assertNotIn("say you haven't been told", told)
 
 
+class WhatTheySaidAboutThemselves(unittest.TestCase):
+    """Through a real conversation. Told "I'm a nurse at the children's hospital" and asked "what's my job" twelve days
+    later, Luma itself said "I don't know your job yet. Tell me and I'll remember it." A sentence with the plain shape of
+    saying their job, their home or where they're from is marked when it's kept (facts.says_own) and found when they ask.
+
+    BUILT_ON, 10: reaches the brain 3 -> 7, and Luma saying it doesn't know 1 -> 0.
+    SECOND, 12, written afterwards and measured once: reaches the brain 1 -> 7, Luma saying it doesn't know 3 -> 1."""
+
+    BUILT_ON = [("I rent a studio above a laundromat", "where do I live", "laundromat"), ("I've been a line cook for six years", "what do I do for a living", "cook"),
+                ("I usually have oatmeal in the morning", "what do I eat for breakfast", "oatmeal"), ("I had my appendix out when I was twelve", "have I ever had surgery", "appendix"),
+                ("I'm a nurse at the children's hospital", "what's my job", "nurse"), ("I grew up in a town called Marfa", "where am I from", "marfa"),
+                ("I work nights at the bakery on 5th", "where's my job", "bakery"), ("I drive a blue Corolla", "what car do I have", "corolla"),
+                ("I usually go to bed around eleven", "what time do I go to sleep", "eleven"), ("I'm lactose intolerant", "is there anything I shouldn't drink", "lactose")]
+    SECOND = [("I'm a dental hygienist", "what do I do for work", "hygienist"), ("I've been a bus driver since 2015", "what's my job again", "bus driver"),
+              ("I share a house with three roommates in Echo Park", "where's my place", "echo park"), ("I was raised in a tiny town outside Fresno", "where did I grow up", "fresno"),
+              ("I'm an electrician for the city", "who do I work for", "city"), ("I stay with my aunt in Queens", "where am I living", "queens"),
+              ("I come from a big family in Lagos", "where am I originally from", "lagos"), ("I teach at the community college", "where do I work", "community college"),
+              ("I'm a stay-at-home dad", "what do I do all day", "dad"), ("I bought a condo near the lake", "where's my home", "lake"),
+              ("I work as a paralegal downtown", "what's my line of work", "paralegal"), ("I moved here from Ohio", "where was I before I moved here", "ohio")]
+
+    @staticmethod
+    def counted(rows):
+        """(how many reach the brain or are said right by Luma, how many times Luma itself says it doesn't know)."""
+        import human_eval
+        from luma.llm import prompts
+        has = wrong = 0
+        for said, ask, gold in rows:
+            calls = []
+
+            def planner(messages, context, allowed, *args, **kwargs):
+                calls.append(list(context))
+                return {"type": "reply", "text": "(brain)"}
+
+            s = human_eval.Session(planner)
+            try:
+                s.say(said)
+                s.at({"day": 12, "time": "19:00"})
+                s.new_conversation()
+                start = len(calls)
+                reply = s.say(ask)[0]
+                told = " ".join(prompts.build_plan_parts(context, [], "friend", None, "(the time)", compact=True)[1] for context in calls[start:])
+            finally:
+                s.close()
+            by_luma = not ("glitched" in reply or reply == "(brain)")
+            has += gold in (reply if by_luma else told).lower()
+            wrong += by_luma and gold not in reply.lower()
+        return has, wrong
+
+    def test_the_lines_it_was_built_on(self):
+        has, wrong = self.counted(self.BUILT_ON)
+        self.assertGreaterEqual(has, 7)
+        self.assertEqual(wrong, 0)
+
+    def test_the_honest_number(self):
+        has, wrong = self.counted(self.SECOND)
+        self.assertGreaterEqual(has, 7)
+        self.assertLessEqual(wrong, 1)
+
+    def test_the_plain_shape_and_what_only_looks_like_it(self):
+        from luma.memory import facts
+        for said, what in (("I'm a nurse at the children's hospital", "work"), ("I've been a line cook for six years", "work"), ("I'm a teacher", "work"),
+                           ("I work nights at the bakery on 5th", "work"), ("I rent a studio above a laundromat", "home"), ("I stay with my aunt in Queens", "home"),
+                           ("I grew up in a town called Marfa", "from"), ("I moved here from Ohio", "from")):
+            self.assertEqual(facts.says_own(said), {what}, said)
+        for said in ("I'm a mess today", "I'm a big fan of yours", "I'm a little tired", "I am a failure", "I live for the weekend", "I'm a night owl", "I'm an only child",
+                     "I run every morning", "I own that mistake", "I was born tired", "I'm a burden to everyone", "am I a bad person?", "I stay up too late"):
+            self.assertEqual(facts.says_own(said), set(), said)
+
+    def test_with_nothing_said_luma_still_says_it_doesnt_know(self):
+        import human_eval
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            return {"type": "reply", "text": "(brain)"}
+
+        s = human_eval.Session(planner)
+        try:
+            self.assertEqual(s.say("what's my job")[0], "I don't know your job yet. Tell me and I'll remember it.")
+        finally:
+            s.close()
+
+
 if __name__ == "__main__":
     unittest.main()

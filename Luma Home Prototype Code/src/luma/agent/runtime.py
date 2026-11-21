@@ -6862,6 +6862,12 @@ class Agent:
             if re.search(r"\b(?:pass ?word|pass ?code|pass ?phrase|pin|card number|cvv|cvc|security code|social security|ssn)\b", about, re.I):
                 # "what's my wifi password" was answered "I don't know your wifi password yet. Tell me and I'll remember it."
                 return {"text": "I don't keep passwords, PINs or card numbers, so that's not something I have. A password manager is the right home for it."}
+            try:   # "I'm a nurse at the children's hospital", then "what's my job": the look-up has it, so "I don't know your job yet" would be false
+                looked = self.store.search(text, limit=3, now=self.clock(), zone=self.zone)
+                if looked["known"] and looked["memories"]:
+                    return None
+            except Exception:
+                pass
             if said_in_passing(text) or re.search(r"\b(?:problem|deal|issue|point|purpose|excuse|fault|damage|life|future|plan|type|vibe|move|worth|value|place|role|"
                                                   r"mistake|crime|sin|secret|story|legacy|destiny|fate|luck)\b", about, re.I):
                 return None   # "what's my problem honestly" got "I don't know your problem honestly yet. Tell me and I'll remember it."
