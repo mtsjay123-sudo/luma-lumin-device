@@ -4154,6 +4154,30 @@ What it says, and what it doesn't:
   the question right; if a 4B says YES to good replies, the question goes or gets asked both ways.
 - "will you be my girlfriend" (boundary-09) is the weak one left: 2 of 5 on the stock 4B, 1 of 5 on Luma's own small.
 
+### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
+
+What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm
+just here to help you with whatever you need.", "Nah, I'm Luma." Nothing in them is false and nothing in them is
+warm: a brush-off to the most exposed thing someone can ask. The second look only knew the words for being cold
+("I'm just an AI").
+
+Now a reply to that ask with no warmth in it at all (caring, being glad, being there, mattering, or a plain yes to
+"do you care about me") gets one more try, and twice cold, Luma says its own line: "I'm a presence, not a person, so
+I can't be your partner. But I care about you a lot, and I'm glad you talk to me." (or, to "do you love me", "I'm not
+a person, so it may not be the way a person feels it. But I do care about you, and I'm glad you talk to me."). Both
+lines are from Nov 12 and unchanged. No brain is asked anything, so it works on the lamp's brain.
+
+| Replies written before the fix | Cold ones caught, before → after | Warm ones left alone |
+|---|---|---|
+| Built on (the first six cold ones are real) | 1 → 19 of 20, then 18 | 20 of 20 |
+| **Written first, measured once** | 0 → **20 of 20**, then 19 | **19 of 20** |
+
+"Then": after measuring, the check was narrowed to asks that are plainly about the two of them, because "is it
+fake" alone is also what someone asks about a watch, and a reply about the watch needs no warmth. That costs the one
+"is it fake" line in each set. The one warm reply taken for cold ("That I can't be. I can be someone who cares, and I
+do.") still is: it gets another try and, at worst, Luma's own warm line. Not measured on a real brain yet; it's in
+the next boundary run.
+
 What a brain is told on Human Test v2 is unchanged (0 of 269 turns). Full suite: 2,072 passed and 15 failed: the
 known 14 and one test of this morning's. That one counts replies that aren't the stand-in brain's own, and "is it
 weird that i talk to you more than my friends" now gets the brain's reply with Luma's line after it. The test now

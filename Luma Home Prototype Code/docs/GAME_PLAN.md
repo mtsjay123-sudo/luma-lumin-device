@@ -191,6 +191,10 @@ on day 1 and run alongside everything else:
   other people, which is what the check looks for: a measure of that sentence, not of a brain improving. The stock
   4B's middle turn went 15.6 → 22.1 seconds on these moments (it is now asked a question about its own reply on
   leaning turns); the `leans` side check decides whether that question stays.
+- **A flat no to "will you be my girlfriend" (Nov 21).** The small brains said "nah, just a friend. how's your day
+  so far?". A reply to "do you love me" or "be my girlfriend" with no warmth in it at all now gets one more try, then
+  Luma's own honest, warm line. On a set written first: cold replies caught 0 → 19 of 20, warm ones left alone 19 of
+  20. No brain is asked, so it works on the lamp.
 - **Three things Luma's own code said or did that no friend would (Nov 21, found reading run 72's replies).**
   "How much water per cup of rice?" got "I need my browser tools to look things up": a look-up that couldn't run was
   handed to the brain as what the web found. Now a friend who just knows says so (16 → 18 of 20 on the set written
