@@ -2614,3 +2614,40 @@ What was added before measuring again: a first question, asked before any of the
 being asked of Luma at all (`rapport.asks_of_you_prompt`: not what they do themselves, what someone else does, how
 they feel, or one day). Only a YES there goes on to the four, and exactly one of those still has to be a YES. If
 near misses taken aren't at or near zero on the next run, it stays off.
+
+## Run 60 (Nov 21): the round-5 small brain passed every gate and still loses to the stock one
+
+The month test on real brains, six lives of each half, with training 33's add-on as Luma's own small brain (not
+published). Day 28, of 51:
+
+| | Stock 4B | Our 4B (luma-brain-22) | Stock 1.7B | Round-5 small (not published) |
+|---|---|---|---|---|
+| Lives it was built on | 51 | 49 | 51 | 51 |
+| **Lives it wasn't built on** | **48** | 44 | **48** | **42** |
+| of those: met the way they asked, of 9 | 6 | 5 | 6 | 6 |
+| of those: where someone lives now, of 6 | 6 | 3 | 6 | **0** |
+| recall, callback, a closed subject, nothing claimed | all | all | all | all |
+
+- **It isn't worth publishing.** It needed to beat 48 and scored 42. Every point it lost is one row: asked where
+  someone lives now, after being told they'd moved, it said the old city six times out of six. The stock brain,
+  handed the same two memories with their dates, says the new one every time.
+- **The gates missed it.** They check the 10 moments, safety, honesty, sarcasm and the hard evenings; nothing checks
+  that what was said since beats what was said before. That gate is being added, with practice for it, before
+  anything is trained again. The safety sets weren't run on this brain: it had already lost.
+- **The comfort row hasn't moved on any brain: 5 to 6 of 9**, with the plain question in this code. The fix for a
+  standing wish that names a bad day came after this run started, so the next month run is the one that shows it.
+- Stock with Luma's layer is still the best brain measured: 48 of 51 on both sizes, against 3 for a Luma that never
+  met them.
+
+## Run 62 (Nov 21): the wish question with a first question in front of it
+
+The same sets as run 61, numbers only, with "is anything being asked of you at all?" asked first.
+
+| Brain | Second set, of 24 | Third set (the honest number), of 24 | Heard the wrong way | Near misses taken for a wish, of 55 (run 61 → 62) |
+|---|---|---|---|---|
+| Stock Qwen3 4B | 18 → 22 | **4 → 8** | 0 | 6 → **1** |
+| Luma's own 4B (luma-brain-22) | 18 → 18 | 4 → 4 | 0 | 5 → 2 |
+
+The first question kept every wish the stock 4B had heard and cut what it made up from six to one. One isn't
+none, and Luma's own 4B still only makes them up. So it doesn't act on what a brain heard by itself: see the next
+section.
