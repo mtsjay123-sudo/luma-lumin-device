@@ -1,7 +1,7 @@
 """Luma notices, checks back and remembers when asked, and forgets when told."""
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -106,6 +106,61 @@ class PresenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheirOwnBirthday(unittest.TestCase):
+    """Found Nov 21, 2026, once "I turn 40 on May 12" became a birthday Luma keeps: on the day it would have said "It's
+    your birthday today. Want help with a text or a last-minute plan?", and "Heads up, your birthday is on Friday" for
+    three days before. A friend says happy birthday, on the day."""
+
+    MINE = [{"text": "My birthday is May 12"}]
+
+    def on(self, day, memories=None):
+        return [b for b in presence.birthdays(memories or self.MINE, day) if b["days"] <= 3]
+
+    def test_on_the_day_luma_says_happy_birthday(self):
+        line = presence.nudge_line(self.on(date(2027, 5, 12))[0], "Jay")
+        self.assertTrue(line.startswith("Happy birthday, Jay!"), line)
+        self.assertNotRegex(line, r"(?i)text|plan|heads up")
+        self.assertTrue(presence.nudge_line(self.on(date(2027, 5, 12))[0]).startswith("Happy birthday!"))
+
+    def test_never_a_heads_up_about_their_own_birthday(self):
+        for day in (9, 10, 11):
+            item = self.on(date(2027, 5, day))[0]
+            self.assertTrue(presence.theirs(item))
+            self.assertEqual(presence.nudge_line(item), "")
+
+    def test_someone_elses_birthday_and_their_anniversary_are_as_before(self):
+        memories = [{"text": "My mom's birthday is June 3"}, {"text": "My anniversary is June 4"}]
+        mom, wedding = self.on(date(2027, 6, 2), memories)
+        self.assertEqual(presence.nudge_line(mom), "Heads up, your mom's birthday is tomorrow. Want me to help you plan something?")
+        self.assertFalse(presence.theirs(mom) or presence.theirs(wedding))
+        self.assertIn("your anniversary", presence.nudge_line(wedding))
+
+    def test_a_date_said_day_first_is_read_too(self):
+        found = self.on(date(2027, 10, 21), [{"text": "My birthday is the 21st of October"}])
+        self.assertEqual([(b["whose"], b["days"]) for b in found], [("your", 0)])
+
+    def test_in_luma_the_day_before_is_quiet_and_the_day_itself_is_warm(self):
+        agent = Agent(store=Store(Path(tempfile.mkdtemp()) / "s.db", Path(tempfile.mkdtemp()) / "k"), use_model=False)
+        try:
+            agent.store.set_setting("personality", {"name": "Jay Rivera", "tone": "warm", "language_style": "plain", "verbosity": "balanced"})
+            agent.store.put("memory", {"text": "My birthday is May 12", "created": 1.0})
+            before = agent._presence_event(1.0, datetime(2027, 5, 11, 9, 0))
+            self.assertIsNone(before)
+            event = agent._presence_event(2.0, datetime(2027, 5, 12, 9, 0))
+            self.assertEqual(event["type"], "nudge")
+            self.assertTrue(event["text"].startswith("Happy birthday, Jay!"), event["text"])
+            self.assertIsNone(agent._presence_event(3.0, datetime(2027, 5, 12, 15, 0)))    # once, not all day
+            agent.store.set_setting("nudge_day", "")
+            agent.history.append({"role": "user", "content": "my dad died last week and I can't stop crying"})
+            quiet = agent._presence_event(3.5, datetime(2027, 5, 12, 15, 30))["text"]      # in a hard stretch it's said quietly and asks nothing
+            self.assertEqual(quiet, "Happy birthday, Jay. I'm glad I get to say it.")
+            agent.store.set_setting("nudge_day", "")
+            agent.set_mode("kids")
+            self.assertIsNone(agent._presence_event(4.0, datetime(2027, 5, 12, 16, 0)))    # no check-ins in kids mode
+        finally:
+            agent.store.close()
 
 
 class SomethingComingUpSaidAnyWay(unittest.TestCase):

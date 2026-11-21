@@ -252,7 +252,8 @@ def check_in_line(topic, seed):
 
 
 BIRTHDAY = re.compile(r"(?:\b(?P<who>[A-Z][a-z]+)(?:'s|’s)\s+|\b(?P<my>[Mm]y|[Oo]ur|[Yy]our)\s+(?:(?P<rel>[a-z]+)(?:'s|’s)?\s+)?)"
-                      r"(?P<what>birthday|bday|anniversary)\s+is\s+(?:on\s+)?(?P<month>[A-Za-z]+)\.?\s+(?P<day>\d{1,2})")
+                      r"(?P<what>birthday|bday|anniversary)\s+is\s+(?:on\s+)?(?:(?:the\s+)?(?P<day2>\d{1,2})(?:st|nd|rd|th)?\s+of\s+(?P<month2>[A-Za-z]+)|"
+                      r"(?P<month>[A-Za-z]+)\.?\s+(?P<day>\d{1,2}))")   # "the 21st of October", or "June 3"
 
 
 def birthdays(memories, today):
@@ -262,9 +263,10 @@ def birthdays(memories, today):
         match = BIRTHDAY.search(memory.get("text", ""))
         if not match:
             continue
-        month = MONTHS.get(match["month"].lower()) or MONTHS.get(match["month"].lower()[:3])
+        said, day = match["month"] or match["month2"], match["day"] or match["day2"]
+        month = MONTHS.get(said.lower()) or MONTHS.get(said.lower()[:3])
         try:
-            when = date(today.year, month, int(match["day"])) if month else None
+            when = date(today.year, month, int(day)) if month else None
         except ValueError:
             when = None
         if not when:
@@ -282,8 +284,20 @@ def birthdays(memories, today):
     return sorted(found, key=lambda b: b["days"])
 
 
-def nudge_line(item):
+def theirs(item):
+    """Their own birthday, not someone else's and not an anniversary."""
+    return item["whose"] == "your" and item["what"] == "birthday"
+
+
+def nudge_line(item, name="", gentle=False):
     days = item["days"]
+    if theirs(item):
+        # Their own birthday isn't a thing to plan a text for. A friend says happy birthday, on the day and not before.
+        # gentle: they've been having a hard time, so it's said quietly and asks nothing of them.
+        if days:
+            return ""
+        who = ", " + name if name else ""
+        return f"Happy birthday{who}. I'm glad I get to say it." if gentle else f"Happy birthday{who}! I'm glad I get to say it. How do you want to spend it?"
     if days == 0:
         return f"It's {item['whose']} {item['what']} today. Want help with a text or a last-minute plan?"
     when = "tomorrow" if days == 1 else "on " + item["date"].strftime("%A")

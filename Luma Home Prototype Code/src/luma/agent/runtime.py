@@ -4438,9 +4438,12 @@ class Agent:
         today = local.date()
         if self.store.setting("nudge_day") != today.isoformat() and local.hour >= self.store.setting("daily_briefing_hour", 8):
             self.store.set_setting("nudge_day", today.isoformat())
-            soon = [b for b in presence.birthdays(self.store.all("memory", 1000), today) if b["days"] <= 3]
+            soon = [b for b in presence.birthdays(self.store.all("memory", 1000), today) if b["days"] <= 3 and not (presence.theirs(b) and b["days"])]
             if soon:
-                text = presence.nudge_line(soon[0])
+                from luma.agent import feelings, rapport
+                lately = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
+                text = presence.nudge_line(soon[0], (self.profile.get("name") or "").strip().split(" ")[0],
+                                           gentle=any(rapport.hard(feelings.read(said)) for said in lately))
                 self.store.set_setting("last_proactive", now)
                 self.history.append({"role": "assistant", "content": text})
                 return {"type": "nudge", "text": text, "created": now}

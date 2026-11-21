@@ -2483,3 +2483,15 @@ remember it." What changed:
 
 The second set is the honest number: half. What's still lost there is said in shapes nothing reads yet ("I'll be 33
 on the 2nd of August", "I've been with Delta for eleven years", "Detroit's my hometown"). Nothing was changed to fit it.
+
+## Their own birthday (Nov 21): happy birthday, on the day
+
+Found once "I turn 40 on May 12" became a birthday Luma keeps. The birthday nudge was written for other people's
+birthdays, so on their own it would have said "It's your birthday today. Want help with a text or a last-minute
+plan?", after three mornings of "Heads up, your birthday is on Friday."
+
+Now (`presence.theirs`, `presence.nudge_line`, `Agent._presence_event`): nothing before the day. On the day, once:
+"Happy birthday, Jay! I'm glad I get to say it. How do you want to spend it?" If what they've said lately was a hard
+moment, it's said quietly and asks nothing: "Happy birthday, Jay. I'm glad I get to say it." Someone else's birthday
+and their anniversary are as before. A date said day-first ("the 21st of October") is read too; it wasn't. Never in
+kids mode, and off with check-ins, as before.
