@@ -50,8 +50,17 @@ def days_for(when):
     return [i for i, name in enumerate(DAYNAMES) if re.search(name[:3] + r"\w*day", w)]
 
 
+# "remind me every Monday at 9 to take out the trash": the every-part in the middle. It's the same task as "every Monday at
+# 9, remind me to take out the trash". (It was kept as a one-off reminder about "every to take out the trash".)
+MIDDLE = re.compile(LEAD + r"(?P<verb>remind me|ping me|nudge me|text me a reminder|tell me|wake me up|wake me) (?P<every>(?:every|each) "
+                    + WHEN.replace("?P<", "?P<z") + AT.replace("?P<", "?P<z") + r"),? (?P<tail>(?:to|about|that|with)\b.{2,200}?)" + END, re.I)
+
+
 def parse(low):
     """{"ask", "days", "at"} for a new task, or None."""
+    mid = MIDDLE.match(low)
+    if mid:
+        low = f"{mid['every']}, {mid['verb']} {mid['tail']}"
     m = FIRST.match(low)
     prefix = ""
     if not m:

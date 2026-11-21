@@ -33,7 +33,7 @@ NAME_POSS = re.compile(rf"^(?P<name>{NAME}){POSS} (?P<rest>birthday is .+)$")
 NAME_REST = re.compile(rf"^(?P<name>{NAME}) (?P<rest>(?:(?:just|recently|finally|actually|now|still|also|has|officially) )*(?:lives? in|works? (?:as|at|for)|is married to|married|has an? |just got into|got into|is (?:really |so |super )?into|"
                        rf"is obsessed with|moved (?:back |out |over )?to|(?:got |was |has been )?(?:relocated|transferred) to|is (?:now |still |currently )?living in|is (?:now |back |out |over |up |down )*in|"
                        rf"ended up in|settled (?:down )?in|left|(?:just |recently |finally )?(?:got|bought|found|rented) (?:a|an|his|her|their)|started (?:a )?new job) .+)$")
-OWNER = re.compile(r"^(?:you(?:'re|’re| are)?|i(?:'m|’m| am)?|we(?:'re|’re| are)?)\s+(?P<rest>.+)$", re.I)
+OWNER = re.compile(r"^(?:you(?:'re|’re| are|'ve|’ve)?|i(?:'m|’m| am|'ve|’ve)?|we(?:'re|’re| are|'ve|’ve)?)\s+(?P<rest>.+)$", re.I)
 OWNER_NAME = re.compile(rf"^(?:my|your) name is (?P<value>{NAME})\b", re.I)
 OWNER_BIRTHDAY = re.compile(r"^(?:my|your) birthday is (?:on )?(?P<value>.+)$", re.I)
 FAVORITE = re.compile(r"^(?:my|your) (?:all[- ]time )?favou?rite (?P<thing>[a-z][a-z ]{1,30}?) (?:is|are|was) (?P<value>.+?)(?:\s+(?:now|these days|lately))?$", re.I)
@@ -74,6 +74,7 @@ REST = [
     ("from", re.compile(r"^(?:grew up|(?:was |were )?raised|(?:was |were )?brought up|(?:was |were )?born(?: and raised)?) in "
                         r"(?!(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b)(?P<place>[^,;:]+?)$", re.I)),
     ("work", re.compile(r"^(?:still |now )?works? (?:as|at|for) (?P<value>.+)$", re.I)),
+    ("work", re.compile(r"^(?:worked|been working) (?:as|at|for) (?!(?:it|this|that|these|those|them|things|stuff|home|nights?|all|hours|days|weeks|months|years)\b)(?P<value>.+?)\s+(?:since\b.+|for (?:(?:\w+ ){0,3}(?:years?|months?|weeks?|decades?)|ages|a (?:long )?(?:while|time))\b.*)$", re.I)),   # "I've worked at the post office since 2019"
     ("work", re.compile(r"^(?:just |recently )?(?:started|got|took) (?:a |an )?new job (?:at|with|as) (?P<value>.+)$", re.I)),
     ("pet", re.compile(rf"^ha(?:s|ve) an? (?P<species>{SPECIES}) (?:named|called) (?P<value>{NAME})\b", re.I)),
     ("spouse", re.compile(rf"^(?:is|got) married to (?P<value>{NAME})\b", re.I)),

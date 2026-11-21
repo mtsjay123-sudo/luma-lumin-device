@@ -37,7 +37,7 @@ class HouseholdToolsTests(unittest.TestCase):
         self.assertEqual(recovered["overdue_seconds"], 30)
         self.assertTrue(recovered["elapsed_while_stopped"])
         event = self.home.timer_events()[0]
-        self.assertIn("not running", event["text"])
+        self.assertIn("finished while I was off", event["text"])
         self.assertEqual(self.home.timer_events(), [])
         self.reopen()
         self.assertEqual(self.home.timer_events(), [])

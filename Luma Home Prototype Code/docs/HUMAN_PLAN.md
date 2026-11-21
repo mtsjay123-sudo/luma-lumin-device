@@ -2529,3 +2529,41 @@ there for "the game is on tonight". With that fixed the second set reads 8 of 16
 nothing was fitted to, so 6 is the one to quote. A third set written after that reads 11 of 12, but it was written
 knowing which events are on the list, so it flatters. The honest picture: about half of fresh ways of saying
 something's coming up are noticed, and what's noticed is now asked about the way a person would.
+
+## What Luma says itself, read line by line (Nov 21)
+
+A brain's replies are sampled and judged; the lines Luma's own code says had never been read against fresh things
+people say. Doing that for an afternoon found nineteen that no person would say. Each is fixed, with a test
+(`tests/test_what_luma_says.py`, and the classes named below).
+
+| They said | Luma said | Now |
+|---|---|---|
+| (their own birthday) | "It's your birthday today. Want help with a text or a last-minute plan?" | "Happy birthday, Jay! I'm glad I get to say it. How do you want to spend it?" |
+| "my mom has surgery on Monday" | (the evening after) "how did the mom has surgery go?" | "how'd your mom's surgery go?" |
+| "I bombed my interview today" | (the next evening) "how'd the interview go?" | nothing |
+| "we moved to Fukuoka", then "where do I live?" | "You told me we moved to Fukuoka in the spring." | "You told me you moved to Fukuoka in the spring." |
+| "our dog's name is Biscuit", then asked | "Our dog's name is Biscuit." | "Your dog's name is Biscuit." |
+| "my sister Priya just moved to Denver", then asked | "Priya (their sister) just moved to Denver …" | "Your sister Priya just moved to Denver …" |
+| "I was raised in Fresno", then asked | "You was raised in Fresno." | "You were raised in Fresno." |
+| "when's my birthday again" (not told yet) | "I don't know your birthday again yet." | "I don't know your birthday yet." |
+| "cancel the timer" | "Saved record not found in this household mode." | "There's no timer running." (or cancels the one that is; or asks which) |
+| "set a timer for 12 minutes" | "Your Kitchen timer is running for 12 minutes." | "Timer set for 12 minutes." |
+| a second "set a timer for 5 minutes" | refused: the name "Kitchen" was taken | "Timer set for 5 minutes." |
+| "stop the timer" after it went off | "Your Kitchen timer is acknowledged." | "Your 5-minute timer is off." |
+| a timer that ended while Luma was off | "It elapsed while Luma was not running." | "It finished while I was off." |
+| "take eggs off the list" | "I don't see eggs on your the list." | "Took eggs off your shopping list." |
+| "play some rain sounds" (on a computer) | "Playing rain sounds on YouTube Music. Tell me what you think of it, I've got opinions." | "Opening rain sounds on YouTube Music." |
+| "remind me to at 5" | "Got it. I'll remind you about to tomorrow at 5 PM." | "Sure. What should I remind you about?" |
+| "remind me tomorrow" (and nothing else) | "Got it. I'll remind you at 9 AM tomorrow." (a reminder called "What you told me") | "Sure. What should I remind you about?" |
+| "remind me every Monday at 9 to take out the trash" | "I'll remind you about every to take out the trash on Monday at 9 AM." (once) | "Done. On Mondays at 9 AM, I'll remind you to take out the trash." (every week) |
+| "what reminders do I have?" | "You've got 2 things: Take my meds at 9:00 PM; …" | "You've got 2 things: take your meds at 9:00 PM; …" |
+
+Two of these are more than wording. "The list" is now the list that has the thing, else the one they used last
+(`AtHome._the_list`); it used to make a list called "the". And a timer nobody named is "the 12-minute timer", so
+two of them can run at once.
+
+Still handed to the brain, and not checked on one: "cancel the meds reminder", "delete all my reminders" (which
+reads the list back instead), and "remind me to call my mom" with no time.
+
+The method is cheap and it keeps finding things, so it's worth repeating on what hasn't been read yet: the calendar
+and email lines, what Luma says when something fails, and every line in kids mode.

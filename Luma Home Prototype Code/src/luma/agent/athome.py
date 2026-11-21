@@ -642,15 +642,28 @@ class AtHome:
                 out.append(bit)
         return out[:20]
 
+    def _the_list(self, word, items=()):
+        """"take eggs off the list", "add milk to my list": the list that has them, else the one they used last, else the
+        shopping list. (It used to be a list called "the": "I don't see eggs on your the list.")"""
+        if (word or "").lower().strip() not in {"the", "my", "our", "that", "this"}:
+            return self.list_name(word)
+        rows = [r for r in self._rows("list_item") if not r.get("done")]
+        holding = {r["list"] for r in rows for item in items if item.lower() in r["item"].lower()}
+        if len(holding) == 1:
+            return holding.pop()
+        return max(rows, key=lambda r: r["at"])["list"] if rows else "shopping"
+
     def _list_cmd(self, text, low):
         if LIST_ALL.match(low): return self.all_lists()
         m = LIST_CLEAR.match(low)
-        if m: return self.clear_list(self.list_name(m["list"]))
+        if m: return self.clear_list(self._the_list(m["list"]))
         m = LIST_DROP.match(low)
-        if m: return self.drop_items(self.list_name(m["list"]), self.items_in(_keep_case(text, m.start("items"), m.end("items"))))
+        if m:
+            items = self.items_in(_keep_case(text, m.start("items"), m.end("items")))
+            return self.drop_items(self._the_list(m["list"], items), items)
         m = LIST_ADD.match(low) or LIST_ADD2.match(low)
         if m and not re.fullmatch(r"(?:me|you|us|him|her|them|someone|somebody|my name|your name)", m["items"].strip()):
-            return self.add_items(self.list_name(m["list"]), self.items_in(_keep_case(text, m.start("items"), m.end("items"))))
+            return self.add_items(self._the_list(m["list"]), self.items_in(_keep_case(text, m.start("items"), m.end("items"))))
         m = LIST_READ.match(low)
         if m and (m["list"] or "").lower() not in {"what", "this", "that", "a", "the"}: return self.read_list(self.list_name(m["list"]))
         return None

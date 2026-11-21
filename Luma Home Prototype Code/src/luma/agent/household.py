@@ -19,6 +19,7 @@ from luma.memory.store import reject_payment_secrets
 
 CATEGORIES = ("pantry", "location", "preference", "manual", "warranty", "maintenance")
 MODES = {"friend", "study", "cofounder", "kids"}
+UNNAMED = re.compile(r"^\d+-(?:second|minute|hour)(?: \d+)?$", re.I)   # a timer nobody named: "12-minute"
 TOOL_SPECS = {
     "timers.start": {"description": "Start a named local cooking timer, 1 to 86400 seconds", "fields": {"name": "string", "seconds": "integer"}},
     "timers.list": {"description": "Read named timers and time remaining", "fields": {}},
@@ -182,7 +183,7 @@ class Household:
             for row in rows:
                 row.update(announced=True, announced_at=self._now())
                 self.store.put("household_timer", row, row["id"])
-                suffix = " It elapsed while Luma was not running." if row["elapsed_while_stopped"] else ""
+                suffix = " It finished while I was off." if row["elapsed_while_stopped"] else ""
                 events.append({"type": "timer", "id": row["id"], "name": row["name"], "text": f"Your {row['name']} timer is done.{suffix}",
                     "recovered_after_restart": row["recovered_after_restart"], "elapsed_while_stopped": row["elapsed_while_stopped"], "overdue_seconds": row["overdue_seconds"]})
             return events
@@ -333,14 +334,22 @@ class Household:
             raise ValueError("Household tool arguments do not match the declared fields.")
         if name == "timers.start":
             row = self.start_timer(**args, mode=mode)
+            if UNNAMED.match(row["name"]):   # "set a timer for 12 minutes": it has no name to say back
+                return {"timer": row, "summary": f"Timer set for {_duration(row['duration_seconds'])}."}
             return {"timer": row, "summary": f"Your {row['name']} timer is running for {_duration(row['duration_seconds'])}."}
         if name == "timers.list":
             rows = self.timers(mode)
-            descriptions = [f"{r['name']}: {_duration(r['remaining_seconds'])} left{' (paused)' if r['state'] == 'paused' else ''}" if r["state"] != "elapsed" else f"{r['name']}: done" for r in rows]
-            return {"timers": rows, "summary": "; ".join(descriptions) + "." if rows else "You don't have any active timers."}
+            if len(rows) == 1 and UNNAMED.match(rows[0]["name"]):
+                r = rows[0]
+                said = "Your timer is done." if r["state"] == "elapsed" else f"{_duration(r['remaining_seconds'])} left on your timer{' (paused)' if r['state'] == 'paused' else ''}."
+                return {"timers": rows, "summary": said[:1].upper() + said[1:]}
+            called = lambda r: r["name"] + (" timer" if UNNAMED.match(r["name"]) else "")  # noqa: E731
+            descriptions = [f"{called(r)}: {_duration(r['remaining_seconds'])} left{' (paused)' if r['state'] == 'paused' else ''}" if r["state"] != "elapsed" else f"{called(r)}: done" for r in rows]
+            return {"timers": rows, "summary": "; ".join(descriptions) + "." if rows else "There's no timer running."}
         if name == "timers.control":
             row = self.timer_action(**args, mode=mode)
-            state = "acknowledged" if args["action"] == "acknowledge" else row["state"]
+            # said the way a person would: a timer that already went off is "off", one started again is "running again"
+            state = "off" if args["action"] == "acknowledge" else "running again" if args["action"] == "resume" else row["state"]
             return {"timer": row, "summary": f"Your {row['name']} timer is {state}."}
         if name == "household.save":
             return {"record": self.save_record(**args, mode=mode), "summary": "Saved. I'll remember that about the house."}

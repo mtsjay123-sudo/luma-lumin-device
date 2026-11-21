@@ -1460,7 +1460,9 @@ class Agent:
             tasks = [r for r in self.store.all("task") if not r["done"] and r.get("mode", "friend") == self.mode]
             tasks.sort(key=lambda r: r["due"])
             if not tasks: return {"tasks": [], "summary": "Nothing on your list right now."}
-            spoken = "; ".join(f"{r['title']} {self._when(r['due'])}" for r in tasks[:5])
+            # "Take my meds" is theirs to say; said back it's "take your meds"
+            mine = lambda title: re.sub(r"\bmy\b", "your", re.sub(r"\bi\b", "you", title[:1].lower() + title[1:] if not re.match(r"[A-Z]{2}|I\b", title) else title))  # noqa: E731
+            spoken = "; ".join(f"{mine(r['title'])} {self._when(r['due'])}" for r in tasks[:5])
             more = f", plus {len(tasks) - 5} more" if len(tasks) > 5 else ""
             return {"tasks": tasks, "summary": f"You've got {len(tasks)} thing{'s' if len(tasks) != 1 else ''}: {spoken}{more}."}
         if name == "tasks.complete":
@@ -5738,6 +5740,8 @@ class Agent:
         what = self.TAGS.sub("", what).strip(" ,.;:!?")
         if re.fullmatch(r"(?:instead|instead of (?:that|it)|of (?:it|that)|it|that|this|about (?:it|that|this))", what, re.I):
             return None  # "just remind me instead": the conversation it belongs to knows what
+        if re.fullmatch(r"(?:to|about|that|for|of|on|at|me|and|remind me(?: to| about)?)", what, re.I):
+            what = ""   # "remind me to at 5": nothing was said to do. (It was kept as a reminder about "to".)
         if due is None and self._asks_their_own_life(text) and self._memory_answers(text):
             return None  # "remind me my sister's name": no time said, and a saved fact states it. A question, answered below.
         if not what:
@@ -6485,10 +6489,16 @@ class Agent:
     @staticmethod
     def _yours(text):
         """What they told Luma, said back to them: "my mom's birthday" -> "your mom's birthday"."""
-        swaps = {"my": "your", "mine": "yours", "i": "you", "i'm": "you're", "im": "you're", "me": "you", "myself": "yourself", "we": "you", "our": "your", "us": "you"}
+        swaps = {"my": "your", "mine": "yours", "i": "you", "i'm": "you're", "im": "you're", "me": "you", "myself": "yourself", "we": "you", "our": "your",
+                 "us": "you", "ours": "yours", "we're": "you're", "we've": "you've", "we'll": "you'll", "we'd": "you'd", "i've": "you've", "i'll": "you'll",
+                 "i'd": "you'd", "ourselves": "yourselves"}
+        # A card about one of their people is kept as "Priya (their sister) moved to Denver": said back, it's "Your sister Priya moved to Denver"
+        out = re.sub(r"^([A-Z][\w'’-]+) \((?:their|your|my) ([^)]{2,30})\) ", r"Your \2 \1 ", str(text).replace("’", "'"))
         # "I was raised in Fresno" is "you were raised in Fresno", never "you was"; "I am" is "you are"
-        out = re.sub(r"\bi (was|am)\b", lambda m: "you " + {"was": "were", "am": "are"}[m.group(1).lower()], str(text), flags=re.I)
-        out = re.sub(r"\b(?:my|mine|i'm|im|i|me|myself)\b", lambda m: swaps[m.group(0).lower()], out, flags=re.I)
+        out = re.sub(r"\bi (was|am)\b", lambda m: "you " + {"was": "were", "am": "are"}[m.group(1).lower()], out, flags=re.I)
+        # "we moved to Fukuoka" is "you moved to Fukuoka": Luma didn't move. ("the US" stays the US.)
+        out = re.sub(r"\b(?:my|mine|i'm|im|i've|i'll|i'd|i|me|myself|we're|we've|we'll|we'd|we|ours|ourselves|our|us)\b",
+                     lambda m: m.group(0) if m.group(0) == "US" else swaps[m.group(0).lower()], out, flags=re.I)
         out = proper_names(CALENDAR_WORD.sub(lambda m: m.group(0).capitalize(), out))  # "june 3" said back as "June 3"
         return out[:1].upper() + out[1:]
 
@@ -6873,7 +6883,10 @@ class Agent:
             due = now + timedelta(hours=3)
         else:
             due = now + timedelta(hours=1)
-        about = (places[0] if places else facts[0] if facts else re.sub(r"^\W*(?:i\s+)?", "", self.REMIND_LATER.sub("", text)).strip(" ,.")) or "what you told me"
+        about = places[0] if places else facts[0] if facts else re.sub(r"^\W*(?:i\s+)?", "", self.REMIND_LATER.sub("", text)).strip(" ,.")
+        if not about:   # "remind me tomorrow", and nothing else: there's nothing to remind them of yet. (It was kept as "What you told me".)
+            self.unfinished = {"prefix": "remind me to ", "suffix": " " + when, "at": self.clock()}
+            return {"text": "Sure. What should I remind you about?", "asked": True}
         title = about[0].upper() + about[1:]
         result = self.propose("tasks.create", {"title": title[:160], "due": due.isoformat()})
         if isinstance(result, dict) and result.get("state") != "failed":
@@ -7132,12 +7145,38 @@ class Agent:
                 return {"text":answer.get("text", "Could you tell me which part to shorten?")}
             timer = re.fullmatch(r"(?:please )?(?:set|start) (?:a |an )?(?:(.+?) )?timer (?:for )?(\d+) (seconds?|minutes?|hours?)", text, re.I)
             alternate = re.fullmatch(r"(?:please )?(?:set|start) (?:a |an )?(\d+)[ -](seconds?|minutes?|hours?) (.+?) timer", text, re.I)
-            if timer or alternate:
-                name, amount, unit = timer.groups() if timer else (alternate[3],alternate[1],alternate[2])
+            plain = re.fullmatch(r"(?:please )?(?:set|start) (?:a |an )?(\d+)[ -](seconds?|minutes?|hours?) timer(?: please)?", text, re.I)
+            if timer or alternate or plain:
+                name, amount, unit = timer.groups() if timer else (alternate[3],alternate[1],alternate[2]) if alternate else (None, plain[1], plain[2])
                 seconds = int(amount) * (3600 if unit.lower().startswith("hour") else 60 if unit.lower().startswith("minute") else 1)
-                return self.propose("timers.start", {"name":name or "Kitchen", "seconds":seconds})
-            timer_control = re.fullmatch(r"(pause|resume|cancel|acknowledge) (?:the )?(.+?) timer", text, re.I)
-            if timer_control: return self.propose("timers.control", {"id":timer_control[2], "action":timer_control[1].lower()})
+                if not name or name.lower() in {"the", "my", "another", "a", "new", "second"}:
+                    # nobody named it: it's "the 12-minute timer", and a second one doesn't trip over the first
+                    name = base = f"{int(amount)}-{unit.lower().rstrip('s')}"
+                    taken, n = {t["name"].casefold() for t in self.household.timers(self.mode)}, 2
+                    while name.casefold() in taken:
+                        name, n = f"{base} {n}", n + 1
+                return self.propose("timers.start", {"name":name, "seconds":seconds})
+            bare = re.fullmatch(r"(?:please )?(pause|resume|cancel|stop|end|kill|acknowledge|dismiss) (?:the |my |that |this )?timer(?: please)?", text, re.I)
+            timer_control = None if bare else re.fullmatch(r"(pause|resume|cancel|stop|acknowledge) (?:the |my )?(.+?) timer", text, re.I)
+            if bare or timer_control:
+                # "cancel the timer" was looked up as a timer called "the": "Saved record not found in this household mode."
+                action = (bare or timer_control)[1].lower()
+                action = {"stop": "cancel", "end": "cancel", "kill": "cancel", "dismiss": "acknowledge"}.get(action, action)
+                active = self.household.timers(self.mode)
+                if bare:
+                    if not active: return {"text": "There's no timer running.", "section": "cooking"}
+                    if len(active) > 1:
+                        names = [f"the {t['name']} timer" for t in active]
+                        return {"text": "Which one? You have " + ", ".join(names[:-1]) + " and " + names[-1] + ".", "asked": True, "section": "cooking"}
+                    which = active[0]
+                else:
+                    wanted = timer_control[2].strip().casefold()
+                    which = next((t for t in active if t["name"].casefold() in (wanted, wanted.replace(" ", "-"))), None)
+                    if not which: return {"text": f"I don't see a {timer_control[2].strip()} timer running.", "section": "cooking"}
+                if which["state"] == "elapsed" and action == "cancel": action = "acknowledge"   # it already went off: "stop the timer" quiets it
+                if which["state"] == "paused" and action == "pause": return {"text": "It's already paused.", "section": "cooking"}
+                if which["state"] == "running" and action == "resume": return {"text": "It's already running.", "section": "cooking"}
+                return self.propose("timers.control", {"id":which["id"], "action":action})
             if lowered in {"timers", "my timers", "show my timers"}: return self.propose("timers.list", {})
             if lowered in {"my briefing", "daily briefing", "what's my day looking like", "what is my day looking like"}: return self.propose("briefing.today", {})
             household_result = self.household.command(text, mode=self.mode)
@@ -7210,7 +7249,10 @@ class Agent:
                     # Their own Chrome, in a tab of its own behind what they're doing: music in the back.
                     threading.Thread(target=self._play_in_chrome, args=(what,), name="luma-chrome-play", daemon=True).start()
                     return {"text": f"Playing {what} in Chrome, in a tab in the back. Say \"what's playing\" or ask for something else anytime.", "section": "music", "chrome": "play"}
-                return {"text": f"Playing {what} on YouTube Music. Tell me what you think of it, I've got opinions.", "open_url": "https://music.youtube.com/search?q=" + quote_plus(what), "section": "music"}
+                # It opens the page; it doesn't press play. And rain isn't something to have opinions about.
+                sounds = re.search(r"\b(?:sounds?|noise|rain\w*|ocean|waves?|thunder\w*|fireplace|white|brown|pink|asmr|ambient)\b", what)
+                return {"text": f"Opening {what} on YouTube Music." + ("" if sounds else " Tell me what you think of it, I've got opinions."),
+                        "open_url": "https://music.youtube.com/search?q=" + quote_plus(what), "section": "music"}
             if re.match(r"^\W*(?:what'?s|what is|what song is|which song is) (?:this song|playing|this|on)(?: right now| rn)?\W*$", lowered) and self.now_playing:
                 return {"text": f"{self.now_playing}, playing in Chrome.", "section": "music"}
             chromed = self._chrome_request(text, lowered, cancel_event)

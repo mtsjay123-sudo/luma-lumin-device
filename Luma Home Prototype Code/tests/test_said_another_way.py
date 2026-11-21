@@ -404,6 +404,27 @@ class AboutThemselves(unittest.TestCase):
         self.assertEqual(Agent._yours("I am allergic to shellfish"), "You are allergic to shellfish")
         self.assertEqual(Agent._yours("I work at Costco"), "You work at Costco")
 
+    def test_we_is_you_and_a_card_about_their_person_is_said_like_a_sentence(self):
+        """Found Nov 21, 2026 by reading what Luma says back: "You told me we moved to Fukuoka" (Luma didn't move), "Our
+        dog's name is Biscuit", and a card's own format said out loud: "Priya (their sister) just moved to Denver"."""
+        from luma.agent.runtime import Agent
+        for told, said in (("we just bought a house in Raleigh", "You just bought a house in Raleigh"), ("Our dog's name is Biscuit", "Your dog's name is Biscuit"),
+                           ("my mom lives with us in Dayton", "Your mom lives with you in Dayton"), ("we're from Ohio", "You're from Ohio"),
+                           ("I've worked at the post office since 2019", "You've worked at the post office since 2019"),
+                           ("Priya (their sister) just moved to Denver", "Your sister Priya just moved to Denver"),
+                           ("Marcus (their brother) lives in Austin", "Your brother Marcus lives in Austin"),
+                           ("I moved to the US in 2019", "You moved to the US in 2019"), ("the house is ours now", "The house is yours now")):
+            self.assertEqual(Agent._yours(told), said)
+        self.assertEqual(lived([], "we moved to Fukuoka in the spring", "where do I live?", "You told me you moved to Fukuoka"), "LUMA")
+
+    def test_a_job_held_for_a_while_is_a_job(self):
+        for line, value in (("I've worked at the post office since 2019", "the post office"), ("I've been working at Costco for three years", "costco"),
+                            ("I have worked for the city for almost ten years", "the city")):
+            self.assertEqual(facts.read(line).slots, [("you", "work", value)], line)
+        for line in ("I've worked hard for this", "I've worked at a lot of places", "I've been working for hours", "I've been working at it for weeks",
+                     "I worked at Costco in college"):
+            self.assertIsNone(facts.read(line), line)
+
     def test_told_then_asked_what_was_built_on(self):
         """Measured Nov 21, 2026: Luma says it 19 of 24 (before: 9), a small brain is handed 3 (6), lost 2 (9)."""
         got = [lived([], line, question, want) for line, question, want in self.BUILT_ON]

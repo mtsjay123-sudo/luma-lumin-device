@@ -132,6 +132,8 @@ on day 1 and run alongside everything else:
   birthday (it used to offer help with a text); the evening after "my mom has surgery on Monday" it asks "how'd your
   mom's surgery go?" (it would have said "how did the mom has surgery go?"); and it no longer asks how an interview
   went after being told it was bombed. Things coming up noticed: 8 → 12 of 16 built on, 3 → 6 of 16 on a second set.
+  The same read of timers, lists and saved facts said back found nine more ("Saved record not found in this household
+  mode." for "cancel the timer"; "You told me we moved to Fukuoka"). The table is in `docs/HUMAN_PLAN.md`.
 
 ## 1. Where Luma stands (measured)
 
