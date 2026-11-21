@@ -2322,3 +2322,6 @@ have kids" is not a food, "my mom is so allergic to mornings lol" is a joke, "my
 `told-diff`: 0 of 269 turns. Month test without a brain: 360 of 360 and 236 of 240. Memory test unchanged on both
 halves (held out: 159 of 187, 102 of 135, 65 of 65). Held-out cards 102 of 125, passing remarks 0.
 Tests: `ABirthdayAJobAnAllergy` in `tests/test_said_another_way.py`.
+
+Checks on `a69bf13` (the yes/no question in, the "if" line out, the three more facts): `told-diff` 0 of 269 turns;
+month test without a brain 360 of 360 and 236 of 240; full suite 1,775 passed, 14 failed (the 14 known ones).
