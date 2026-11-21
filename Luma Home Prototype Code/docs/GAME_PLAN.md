@@ -139,6 +139,10 @@ on day 1 and run alongside everything else:
   went after being told it was bombed. Things coming up noticed: 8 → 12 of 16 built on, 3 → 6 of 16 on a second set.
   The same read of timers, lists and saved facts said back found nine more ("Saved record not found in this household
   mode." for "cancel the timer"; "You told me we moved to Fukuoka"). The table is in `docs/HUMAN_PLAN.md`.
+- **What was said since comes first, however it's asked (Nov 21):** told an uncle lives in Boise, then that he sold
+  the house and is out in Reno, and asked "where's my uncle living these days?", Luma itself said Boise. And "where
+  does Kofi work now?" got the list of what Luma can do. Both fixed. Built-on 8: all right. A second 8 written
+  afterwards: the old one said flat 2 → 1.
 
 ## 1. Where Luma stands (measured)
 

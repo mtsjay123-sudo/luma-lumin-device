@@ -5413,6 +5413,11 @@ class Agent:
             pass
         return bool(cls.KEEP_START.match(bare)) and not asks_for_something(bare)
 
+    # Mom, Dad, Grandma said like a name, doing or having something. Never "dad jokes", "mom jeans" or "a soccer mom".
+    BARE_KIN = re.compile(r"(?:^|[.!,;]\s+|\b(?:and|but|so|then|because|when)\s+)(?:mom|mum|mama|dad|papa|grandma|grandpa|nana|granny|gran)"
+                          r"(?:(?:'s|’s)\s+(?!jokes?\b|jeans\b|bod\b)|\s+(?:is|was|has|had|got|just|finally|called|said|says|moved|went|wants|needs|"
+                          r"keeps|loves|hates|thinks|told|came|left|sold|bought|started|quit|retired|fell|broke)\b)", re.I)
+
     def _about_their_people(self, line):
         """Something said about someone in their life ("my brother", or a name Luma already knows as one of theirs), and not
         a question or a request. What a friend is told about their people is what a friend remembers, however the sentence
@@ -5421,8 +5426,8 @@ class Agent:
         from luma.memory import facts
         if line.rstrip(" .!").endswith("?") or asks_for_something(facts.LEAD_IN.sub("", line) or line):
             return False
-        if facts.REL_IN_QUESTION.search(line):
-            return True
+        if facts.REL_IN_QUESTION.search(line) or self.BARE_KIN.search(line):
+            return True   # "dad's place in Sarasota finally closed": nobody says "my" every time, and it wasn't kept at all
         try:
             known = self.store.index().people.display
         except Exception:
@@ -5946,6 +5951,8 @@ class Agent:
         intent, p = top[0]
         if intent == "mute" and self.NOT_LUMAS_MIC.search(lowered):
             return None  # "mute the tv" was read as "mute" and turned Luma's own mic off
+        if intent == "abilities" and not re.search(r"\b(?:you|u|ya|your|ur|yourself|luma|help|features|capabilities|abilities)\b", lowered):
+            return None  # "where does Kofi work now?" was read as "what can you do?" and got the list of what Luma can do
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
             return None  # "what should we do on saturday?", "got any ideas?" are talk: the brain answers; a page opens when they ask for one
         from luma.agent.scenarios import INTENTS
@@ -6628,7 +6635,8 @@ class Agent:
         lives in Austin", then "my brother's whole life is in Denver these days".) Then the fact may be out of date, and
         saying it flat would be worse than letting the brain weigh both."""
         from luma.memory import facts
-        if facts.asked(question)["what"] not in ("home", "work", None):
+        what = facts.asked(question)["what"]
+        if what not in ("home", "work", None) and not str(what).startswith("where:"):   # "where's my sister?" asks where she lives too
             return []  # a sister's name or a mom's birthday isn't out of date because she moved since. (Counted on the month
             #            test's held-out lives, Nov 20: 8 of 8 name questions were held back by what was said about a move.)
         who = facts.REL_IN_QUESTION.search(str(question or ""))
@@ -6740,14 +6748,31 @@ class Agent:
             return None  # "what's my sister up to": never a question a saved fact answers
         best = self._true_now(text)  # the fact that states it, the newest one ("You moved to Denver" over "You live in Austin")
         if best:
+            # Asked this way too, what they've said since about the same person comes first. ("my uncle lives in Boise", then "my
+            # uncle sold the house and he's out in Reno with his new wife", then "where's my uncle living these days?" got "Your
+            # uncle lives in Boise.": only the other shapes of the question checked.)
+            newer = self._something_newer(text, best)
+            if newer:
+                self._newer_said = (text, newer)
+                return None
             have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(best.get("text", "")).lower())}
             if want - have - {stem(w) for w in self.ASKED_WITH}:
                 return None  # the question has a word the fact doesn't ("dating", "best friend", "up to"): it asks for more than the fact, so it's the brain's
         best = (0, best) if best else None
+        fits = []
         for row in ([] if best else self.store.recall(m["about"], limit=8)):
             have = {stem(w) for w in re.findall(r"[a-z0-9]+", str(row.get("text", "")).lower())}
-            if want <= have and (best is None or len(have) < best[0]):  # every word they asked about, in the shortest memory that has them
-                best = (len(have), row)
+            if want <= have:
+                fits.append(row)
+                if best is None or len(have) < best[0]:  # every word they asked about, in the shortest memory that has them
+                    best = (len(have), row)
+        if best and fits and re.match(r"\W*(?:\w+\W+){0,3}where\b", text, re.I):
+            # "where's my sister?" with "My sister lives in Queens" kept, and since then "my sister is loving Lisbon, she says she's
+            # never coming back": the shortest memory is the old one. Anything said later about them goes to the brain with it.
+            later = [row for row in fits if float(row.get("created") or 0) > float(best[1].get("created") or 0) + 1]
+            if later:
+                self._newer_said = (text, later[:3])
+                return None
         if re.fullmatch(r"(?:my|our) name", m["about"].strip(), re.I) and (self.profile.get("name") or "").strip():
             return {"text": f"You're {self.profile['name'].split(' ')[0]}. I'd never forget that."}
         if not best:

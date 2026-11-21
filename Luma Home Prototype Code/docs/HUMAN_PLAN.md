@@ -2671,3 +2671,36 @@ brain hears how someone wants to be met in words Luma's rules don't know, Luma s
 So the step is on wherever a 4B or bigger answers, with an off switch (`ask_wishes`). What a made-up wish costs now
 is one question they can say no to: on run 62's numbers, once in about twenty sentences that have the shape of a
 wish and aren't one. What it's worth: on the stock 4B, wishes heard on the honest set go from 4 to 8 of 24.
+
+## What was said since comes first, however it's asked (Nov 21)
+
+Found while writing a training gate for "where someone lives now" (the row the round-5 small brain lost 0 of 6 on).
+Two of them weren't the brain's doing at all:
+
+| They said | Then, days later | Then asked | Luma said, itself |
+|---|---|---|---|
+| "my uncle lives in Boise" | "my uncle sold the house and he's out in Reno with his new wife" | "where's my uncle living these days?" | "Your uncle lives in Boise." |
+| "my best friend Kofi works at the bank" | "Kofi finally quit and he's teaching full time over at Jefferson Middle" | "where does Kofi work now?" | "Here's what I can do…" (the list of features) |
+
+- Only some shapes of the question looked at what had been said since about the same person. "where's … living these
+  days?" and the long way round ("do you remember where…") didn't. They all do now: when something newer has been
+  said, Luma doesn't say the saved fact; the brain is handed the newer thing first.
+- "where does Kofi work now?" was heard as "what can you do?" by the model that reads commands. A question is only
+  about what Luma can do when it's about Luma ("you", "your", "Luma", "help", "features").
+- "dad's place in Sarasota finally closed" wasn't kept as being about their dad (no "my"). Mom, dad, grandma and
+  grandpa at the start of a sentence or after "and then" are their people; "dad jokes", "mom jeans", "a soccer mom"
+  aren't.
+
+Measured with a stand-in brain (what Luma says itself, and what a brain is handed):
+
+| Set | Before | After |
+|---|---|---|
+| Built on, 8 (6 with something newer, 2 without) | old one said flat 2; feature list 1 | all 8 right |
+| Second, 8, written afterwards and measured once | old one said flat **2**; right 5 | old one said flat **1**; right 6 |
+
+What's left on the second set: "she left the clinic, she's doing grooming on her own now" names nobody, so nothing
+ties it to the girlfriend; and "where does Luis live?", asked by first name with nothing newer, goes to the brain
+instead of being said. Nothing was changed to fit that set.
+
+Checks: `SaidSince` in `tests/test_said_another_way.py`; the month test without a brain 360 of 360 and 236 of 240
+(unchanged); what a brain is told on both human tests: 0 of 269 turns differ.

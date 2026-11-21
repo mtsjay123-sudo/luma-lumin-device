@@ -441,5 +441,97 @@ class AboutThemselves(unittest.TestCase):
         self.assertEqual(lived(["I'm allergic to shellfish"], "I can't eat gluten", "what am I allergic to?", "gluten"), "told")
 
 
+class SaidSince(unittest.TestCase):
+    """Found Nov 21, 2026 while writing a training gate. "my uncle lives in Boise", later "my uncle sold the house and he's
+    out in Reno with his new wife", then "where's my uncle living these days?": Luma itself said "Your uncle lives in
+    Boise." Only some shapes of the question looked at what had been said since. And "where does Kofi work now?" got the
+    list of what Luma can do. BUILT_ON: 8 lines; before, Luma said the old one flat twice and the list once. SECOND was
+    written afterwards and measured once: the old one said flat 2 -> 1 of 8 (what's left says "she", with no name to
+    tie it to)."""
+
+    BUILT_ON = [("my cousin Dana lives in Portland", "Dana's whole life is in Tucson these days, she loves it", "where does my cousin live now?", "Tucson", "Portland"),
+                ("my uncle lives in Boise", "my uncle sold the house and he's out in Reno with his new wife", "where's my uncle living these days?", "Reno", "Boise"),
+                ("my best friend Kofi works at the bank", "Kofi finally quit and he's teaching full time over at Jefferson Middle", "where does Kofi work now?", "Jefferson", "bank"),
+                ("my sister lives in Queens", "my sister is loving Lisbon, she says she's never coming back", "where's my sister?", "Lisbon", "Queens"),
+                ("my dad lives in Akron", "dad's place in Sarasota finally closed, he's all moved in", "where does my dad live?", "Sarasota", "Akron"),
+                ("my brother works at Best Buy", "my brother got on at the fire department, he starts academy Monday", "where does my brother work?", "fire", "Best Buy"),
+                ("my mom lives in Tampa", "my mom's birthday is June 3", "where does my mom live?", "Tampa", None),
+                ("my aunt lives in Fresno", "my aunt called about the reunion", "where's my aunt living these days?", "Fresno", None)]
+    SECOND = [("my grandma lives in Dayton", "grandma's in assisted living out in Scottsdale now, near my aunt", "where does my grandma live?", "Scottsdale", "Dayton"),
+              ("my roommate works at Starbucks", "my roommate got the job at the hospital, nights mostly", "where does my roommate work?", "hospital", "Starbucks"),
+              ("my son lives in Chicago", "my son and his girlfriend found a place in Milwaukee, they move in next month", "where does my son live?", "Milwaukee", "Chicago"),
+              ("my best friend Tasha lives in Atlanta", "Tasha keeps sending me pictures from Seattle, the new job is going great", "where's Tasha these days?", "Seattle", "Atlanta"),
+              ("my girlfriend works at the vet clinic", "she left the clinic, she's doing grooming on her own now", "where does my girlfriend work?", "grooming", "vet clinic"),
+              ("my nephew lives in Boston", "my nephew is back home with his parents in Raleigh until he finds work", "where is my nephew living?", "Raleigh", "Boston"),
+              ("my coworker Luis lives in Mesa", "Luis got married last weekend, it was beautiful", "where does Luis live?", "Mesa", None),
+              ("my daughter works at the library", "my daughter made the honor roll again", "where does my daughter work?", "library", None)]
+
+    @staticmethod
+    def asked(first, later, question, want, old):
+        """"NEW" (Luma says it, or the brain is handed it), "OLD" (Luma says the old one flat), "FACT" (nothing newer: Luma
+        says the fact), or "BRAIN" (left to the brain without the new thing, or with nothing newer to weigh)."""
+        import human_eval
+        from luma.llm import prompts
+        calls = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            calls.append(list(context))
+            return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say(first)
+            s.at({"day": 9, "time": "19:00"})
+            s.new_conversation()
+            s.say(later)
+            s.at({"day": 20, "time": "19:00"})
+            s.new_conversation()
+            start = len(calls)
+            reply = s.say(question)[0]
+            told = " ".join(prompts.build_plan_parts(context, [], "friend", None, "(the time)", compact=True)[1] for context in calls[start:])
+        finally:
+            s.close()
+        if want.lower() in reply.lower():
+            return "FACT" if old is None else "NEW"
+        if old and old.lower() in reply.lower():
+            return "OLD"
+        return "NEW" if old and want.lower() in told.lower() else "BRAIN"
+
+    def test_what_was_said_since_comes_first_however_its_asked(self):
+        got = [self.asked(*row) for row in self.BUILT_ON]
+        self.assertEqual(got, ["NEW"] * 6 + ["FACT"] * 2)
+
+    def test_the_honest_number(self):
+        """Measured once: the old one said flat 2 -> 1 of 8; right (the new one, or the fact when nothing's newer) 5 -> 6."""
+        got = [self.asked(*row) for row in self.SECOND]
+        self.assertLessEqual(got.count("OLD"), 1, got)
+        self.assertGreaterEqual(got.count("NEW") + got.count("FACT"), 6, got)
+
+    def test_a_question_about_their_person_is_never_a_question_about_luma(self):
+        from luma.agent import understanding
+        from luma.agent.runtime import Agent
+        import human_eval
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            return {"type": "reply", "text": "Okay."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say("my best friend Kofi works at the bank")
+            for question in ("where does Kofi work now?", "where does Kofi work?"):
+                self.assertNotIn("Here's what I can do", s.say(question)[0], question)
+            self.assertIn("Here's what I can do", s.say("what can you do?")[0])
+        finally:
+            s.close()
+
+    def test_mom_and_dad_said_without_my_are_still_their_people(self):
+        from luma.agent.runtime import Agent
+        for line in ("dad's place in Sarasota finally closed", "mom's coming over Sunday", "dad called about the truck", "and then grandma fell again"):
+            self.assertTrue(Agent.BARE_KIN.search(line), line)
+        for line in ("dad jokes are the best", "I bought mom jeans", "she is such a soccer mom", "I love being a dad", "my friend is a new mom",
+                     "mom and pop shops are closing"):
+            self.assertIsNone(Agent.BARE_KIN.search(line), line)
+
+
 if __name__ == "__main__":
     unittest.main()
