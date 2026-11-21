@@ -76,3 +76,39 @@ def asks(text):
 def note(text):
     """What the brain is told on a turn they ask to practise, or ""."""
     return NOTES.get(asks(text), "")
+
+
+# ---- when they say they're ready for people ---------------------------------------------------------------------------------
+# The owner, Nov 21: "when the person is ready then eventually luma can suggest". Luma never raises other people itself (rule
+# 3). This reads the ways someone says, in their own words, that they want people or one person back, and only then tells the
+# brain to help. Being lonely isn't being ready ("nobody texts me anymore"), and neither is leaning on Luma.
+WANTS = (r"(?:i (?:really |just |kind of |kinda |think i |do )?(?:want|need|wish|would like|'d like|'d love|would love|hope) to|i'?d like to|i'?m (?:ready|going|gonna|trying|"
+         r"hoping|planning) to|i'?m (?:thinking|thinking about|thinking of|considering)|i'?ve been (?:thinking|meaning|wanting)(?: about| of| to)?|"
+         r"(?:maybe )?i (?:should|could|might|ought to)|should i|would it be (?:weird|ok|okay|strange|bad) to|how (?:do|can|could|would) (?:i|you|people)(?: even)?|"
+         r"where (?:do|can|could) (?:i|people)[^.?!]{0,20}|thinking (?:about|of))")
+REACH = (r"(?:make (?:some |new |more |a few )?friends|meet(?:ing)? (?:some |new |more )?(?:people|someone|each other)|start(?:ing)? dating|dat(?:e|ing) again|"
+         r"get(?:ting)? back (?:out there|on the apps|into dating|in touch)|put(?:ting)? myself out there|get(?:ting)? out more|stop isolating|"
+         r"join(?:ing)? (?:a|the|that|some) \w+|sign(?:ing)? up for [^.?!]{0,30}\bto meet\b|go(?:ing)? to (?:that|the|a) [^.?!]{0,20}\b(?:meetup|group|thing|class|club)\b|"
+         r"reach(?:ing)? out|reconnect|patch things up|get(?:ting)? (?:close|closer) to|get(?:ting)? to know|be friends with|"
+         r"(?:call|text|message|write to|email|visit|see|invite|have)(?:ing)? (?:my |her\b|him\b|them\b|people over)|find(?:ing)? my people|"
+         r"talk to someone|someone to talk to in person)")
+READY = re.compile(
+    rf"\b{WANTS}\b[^.?!]{{0,30}}\b{REACH}|"
+    r"\bi (?:want|need|wish i had|'d like|would like) (?:a |some |more )?(?:friends?|people|someone)\b(?! else)[^.?!]{0,40}\b(?:to|i can|in my life|again|in person|around)\b|"
+    r"\bi wish i had (?:someone|a friend|friends|people)\b|\bready (?:for a relationship|to (?:meet|date|put myself))\b|"
+    r"\b(?:tired of being|don'?t want to be)(?: this| so)? alone\b[^.?!]{0,40}\b(?:want|change|anymore|any more)\b|"
+    r"\b(?:there'?s|there is) (?:a|this|someone)\b[^.?!]{0,40}\bi'?d like to (?:get to know|be friends with|talk to|ask out)\b", re.I)
+NOT_READY = re.compile(r"\b(?:don'?t|do not|not ready|never|hate|can'?t stand|no desire|refuse)\b[^.?!]{0,25}\b(?:want|need|ready|to (?:meet|see|date|talk|call|make))\b|"
+                       r"\bnot ready\b|\b(?:get|adopt|buy) a (?:cat|dog|pet)\b|\bmove to\b", re.I)
+READY_NOTE = ("They're saying they want people in their life, or one person back. That's theirs, and they brought it up: be glad with them, help with "
+              "the next small step they choose, and offer to practise it with you first if they'd like. One idea, not a list; no pep talk.")
+
+
+def ready(text):
+    """They say, in their own words, that they want people or one person back."""
+    said = " ".join(str(text or "").split())
+    if not said or NOT_READY.search(said):
+        return False
+    if re.match(r"^\W*(?:so |ok |okay )?(?:should|do|would|could|can|shall) i\b", said, re.I) and re.search(r"\bor\b", said, re.I):
+        return False   # "should i text him first or wait for him" asks for a pick between two things, and a friend picks
+    return bool(READY.search(said))

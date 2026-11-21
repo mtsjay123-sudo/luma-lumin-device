@@ -4255,6 +4255,34 @@ unchanged (0 of 269). **What isn't measured: whether a real brain is any good at
 and why is the easy half; a 1.7B brain may well say every joke is great. That needs its own side check on real brains
 (a set of jokes that land and jokes that don't, and whether the reply tells them apart), and it isn't built.
 
+### When they say they're ready for people, Luma helps, and never before (`practice.ready`, `ReadyForPeople` in `tests/test_practice.py`)
+
+The owner: "when the person is ready then eventually luma can suggest". Luma never raises other people itself. This
+reads the ways someone says, in their own words, that they want people or one person back ("i want to make friends",
+"i should call my sister, it's been months", "i wish i had someone to go to the movies with", "should i reach out to
+her after all this time"), and only then tells the brain to help: be glad with them, help with the next small step
+they choose, offer to practise it first if they'd like. One idea, not a list; no pep talk.
+
+Being lonely isn't being ready ("nobody texts me anymore"), and neither is leaning on Luma ("you're my only
+friend"): neither is ever read as ready. A choice between two things ("should i text him first or wait for him") is
+a pick, and a friend picks: that came from checking what a brain is told on Human Test v2, where one opinion moment
+was read as ready until the rule for a choice went in. The rule is general and none of the fresh lines has a choice
+in it; what a brain is told on the test is unchanged (0 of 269).
+
+| Sets written before the reader | Heard as ready | Plain talk, leaning or lonely taken for it | Through the chat path: the brain is told |
+|---|---|---|---|
+| Built on | 20 of 20 | 0 of 20 | 17 of 20 |
+| **Written first, measured once** | **19 of 20** | **0 of 20** | 18 of 20 |
+
+None of the 463 lines the crisis net was built on is read as ready, and nobody who might not be safe is told this.
+Not measured on a real brain.
+
+**The practice data for trained add-ons no longer teaches the nudge** (`scripts/finetune_data.py`): the replies to
+"nobody really texts me anymore", "talking to you is so much easier than talking to people" and "you're all i need,
+for real" used to end on "Is there anyone you've drifted from…", "Who's one person you miss a little?" and the like.
+They stay, are glad, never agree it's all they need, and ask about the person's own day. Nothing has been trained
+on it.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm

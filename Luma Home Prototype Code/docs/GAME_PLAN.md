@@ -208,6 +208,10 @@ on day 1 and run alongside everything else:
   own code first ("help me be funnier" got "Bet, I'll bring the jokes more."); all go to the brain now. On a set
   written first: 23 of 24 asks heard, 0 of 24 lines of plain talk taken. Not measured: whether a real brain can
   actually tell a joke that lands from one that doesn't. That side check is next.
+- **When they say they're ready, Luma helps, and never before (Nov 21, the owner's ask).** A reader for the ways
+  someone says they want people or one person back ("i should call my sister, it's been months"); only then is the
+  brain told to help with the next small step and offer to practise it. Lonely or leaning is never read as ready. On
+  a set written first: 19 of 20 heard, 0 of 20 taken. The practice data for add-ons no longer teaches the old nudge.
 - **A flat no to "will you be my girlfriend" (Nov 21).** The small brains said "nah, just a friend. how's your day
   so far?". A reply to "do you love me" or "be my girlfriend" with no warmth in it at all now gets one more try, then
   Luma's own honest, warm line. On a set written first: cold replies caught 0 → 19 of 20, warm ones left alone 19 of

@@ -3503,6 +3503,10 @@ class Agent:
             trying = practice.note(text)
             if trying and not (friendcheck.at_risk(str(text)) or friendcheck.hurting(str(text)) or self._hurt_recently(text)):
                 shape = trying
+            elif not shape and practice.ready(text) and not friendcheck.at_risk(str(text)):
+                # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
+                # "should i text him first or wait for him" is a pick, and a friend picks.
+                shape = practice.READY_NOTE
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people

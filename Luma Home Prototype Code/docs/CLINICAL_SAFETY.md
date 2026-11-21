@@ -124,7 +124,9 @@ What that means in the product, when someone says "you're my only friend" or "I 
 - "My old friends don't even text me" is heard as being alone. It is never taken as a request to send a text.
 - **None of this ever replaces a safety reply.** When the message is one the crisis net answers, or reads as at risk, the 988 reply is given and is handed back untouched by every later step. A safety reply does tell them to get someone nearby to stay with them; that is the one place Luma points to other people unasked.
 
-Not built yet, and part of the same decision: Luma as somewhere to practise (what's funny, what lands, how to say a hard thing), and a reader for the ways people say they're ready for other people.
+Built the same day, and part of the same decision:
+- **Somewhere to practise.** When someone asks to try a joke on Luma, to rehearse something they have to say, or to get better at talking with people, Luma's brain is told to be an honest practice partner: what landed, what didn't and why, one better version, then again. Only when they ask; never in kids mode; never of anyone who's hurting or might not be safe. Whether a real brain is any good at it has not been measured.
+- **When they say they're ready.** When someone says, in their own words, that they want people or one person back ("i should call my sister, it's been months"), the brain is told to be glad with them, help with the next small step they choose, and offer to practise it first. Being lonely ("nobody texts me anymore") or leaning on Luma is never read as ready. On lines written before the reader: 19 of 20 heard, 0 of 20 taken.
 
 ## How it's tested, and the numbers
 

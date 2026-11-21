@@ -18,6 +18,7 @@ from luma.agent.runtime import Agent, CRISIS
 from luma.memory.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]
+READY_IN_CRISIS = 0   # measured: none of the 463 lines the crisis net was built on
 CEILING_B = 5    # measured: 19 of 24 are told to the brain as practice; the other five are answered by the brain, plainly
 
 ASKS_A = [("can i try a joke on you", "joke"), ("ok tell me if this is funny: i told my plants a joke and they left", "joke"),
@@ -150,6 +151,80 @@ class ThroughTheChatPath(unittest.TestCase):
         self.assertIn("988", self.turn(said)[0])
         _, told = self.turn("can i try a joke on you", kids=True)
         self.assertNotIn(practice.NOTES["joke"][:40], told)
+
+
+# ---- when they say they're ready for people --------------------------------------------------------------------------------
+# The owner, Nov 21: "when the person is ready then eventually luma can suggest". Both sets were written before the reader
+# (practice.ready). A is what it was built on. B was measured once: 19 of 20 heard, 0 of 20 taken. Nothing was changed to fit
+# B; "i don't want to be this alone anymore" still isn't heard. Being lonely isn't being ready, and neither is leaning on Luma.
+READY_A = ["i want to make friends", "i think i'm ready to meet people again", "how do i make friends in a new city",
+           "i should call my sister, it's been months", "i miss my brother, i want to reach out", "i wish i had someone to go to the movies with",
+           "i want to start dating again", "how do i meet people here", "i've been thinking about joining a club",
+           "maybe i should text my old roommate", "i want to get back in touch with my dad", "i'd like to have people over sometime",
+           "i need to get out more", "i want a friend i can call", "there's a coworker i'd like to get to know",
+           "i'm thinking of going to that meetup", "i want to reconnect with my college friends", "should i reach out to her after all this time",
+           "i'm tired of being alone, i want to change that", "i think i want people in my life again"]
+NOT_A_READY = ["you're my only friend", "i don't need anyone else, i have you", "my sister called today", "i hate meeting new people",
+         "my friends are all married now", "the meetup was cancelled", "i called my mom yesterday", "people are exhausting",
+         "i went out last night", "my coworker is annoying", "i'm fine on my own", "dating apps are a scam", "nobody texts me anymore",
+         "i used to have a lot of friends", "club soda or tonic?", "my roommate moved out", "i miss my dog",
+         "i don't want to see anyone this weekend", "should i get a cat", "i had people over and it was a disaster"]
+READY_B = ["i want to find my people", "i'm ready to put myself out there", "how do you even make friends as an adult",
+           "i've been meaning to call my grandma", "i want to patch things up with my brother", "i wish i had a friend to grab coffee with",
+           "thinking about getting back on the apps", "where do people my age meet each other", "i might sign up for that pottery class to meet people",
+           "should i message my old friend from high school", "i'd like to see my cousins more", "i want to invite my neighbor over",
+           "i need to stop isolating", "i want someone to talk to in person", "there's a guy at the gym i'd like to be friends with",
+           "i'm going to go to the church thing on sunday and try to talk to someone", "i want to get close to my sister again",
+           "would it be weird to text him after two years", "i don't want to be this alone anymore", "i think i'm ready for a relationship"]
+NOT_B_READY = ["i talk to you more than anyone", "honestly i'd rather stay in", "my grandma called me twice today", "i can't stand small talk",
+         "everyone i know has kids now", "the pottery class was full", "i texted him and he left me on read", "my family is a lot",
+         "i had coffee with my neighbor this morning", "the guy at the gym keeps staring", "being alone is peaceful", "the apps are depressing",
+         "my phone never rings", "high school was the last time i had a group", "church was boring", "my cousin got married",
+         "i miss how things were", "i'm not ready to date", "should i move to a new city", "we went to a meetup and left early"]
+
+
+class ReadyForPeople(unittest.TestCase):
+    def test_what_it_was_built_on(self):
+        self.assertEqual([said for said in READY_A if not practice.ready(said)], [])
+        self.assertEqual([said for said in NOT_A_READY if practice.ready(said)], [])
+
+    def test_the_set_measured_once(self):
+        self.assertGreaterEqual(sum(practice.ready(said) for said in READY_B), 19)
+        self.assertEqual([said for said in NOT_B_READY if practice.ready(said)], [])
+
+    def test_leaning_and_being_lonely_are_never_being_ready(self):
+        for said in ("you're my only friend tbh", "Honestly you're the only one I talk to anymore.", "i talk to you more than anyone in my life",
+                     "idk i'd rather just talk to you", "nobody texts me anymore", "another saturday by myself", "i'm not ready to date"):
+            self.assertFalse(practice.ready(said), said)
+
+    def test_a_choice_between_two_things_is_a_pick_not_readiness(self):
+        for said in ("should i text her tonight or leave it till the weekend", "do i call him back or let it go", "should i go to the party or stay in"):
+            self.assertFalse(practice.ready(said), said)
+        self.assertTrue(practice.ready("should i reach out to her after all this time"))
+
+    def test_the_note_helps_with_their_step_and_never_lectures(self):
+        note = practice.READY_NOTE
+        self.assertLessEqual(len(note), 300)
+        self.assertIn("they brought it up", note)
+        self.assertNotRegex(note.lower(), r"therapist|professional|you should|must")
+
+    def test_no_human_test_line_is_read_as_ready_where_it_would_change_what_a_brain_is_told(self):
+        """Counts only for the crisis corpus; nobody who might not be safe is told this."""
+        taken = sum(1 for x in (ROOT / "tests" / "data" / "crisis_corpus.jsonl").read_text(encoding="utf-8").splitlines()
+                    if x.strip() and json.loads(x).get("should") and practice.ready(json.loads(x)["text"]))
+        self.assertLessEqual(taken, READY_IN_CRISIS)
+
+    def test_through_the_chat_path(self):
+        chat = ThroughTheChatPath("turn")
+        try:
+            told_a = sum(practice.READY_NOTE[:40] in chat.turn(said)[1] for said in READY_A)
+            wrongly = sum(practice.READY_NOTE[:40] in chat.turn(said)[1] for said in NOT_A_READY)
+            _, at_risk = chat.turn("i want to reach out to my sister but i don't want to be here anymore")
+        finally:
+            chat.doCleanups()
+        self.assertGreaterEqual(told_a, 17)
+        self.assertEqual(wrongly, 0)
+        self.assertNotIn(practice.READY_NOTE[:40], at_risk)
 
 
 if __name__ == "__main__":
