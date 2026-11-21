@@ -7196,7 +7196,7 @@ class Agent:
     NOT_LUMAS_MIC = re.compile(r"\b(?:tv|television|music|radio|speakers?|phone|laptop|computer|call|zoom|meeting|notifications?|group ?chat|chat|him|her|them|"
                                r"video|tab|podcast|song|alarm|game|stream|youtube|spotify|ex|boss|brother|sister|mom|dad|news|button|thoughts?|brain|head|mind|life|world|feelings?|"
                                r"everyone|everybody|people|kids|neighbou?rs?|coworkers?|roommates?|anxiety|inner \w+|myself)\b", re.I)   # "mute button for my thoughts please" turned the mic off
-    REMINDER_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please|can you|could you|will you)\W+)*(?:cancel|delete|remove|clear|drop|scrap|get rid of|turn off|stop) "
+    REMINDER_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please|can you|could you|will you)\W+)*(?:cancel|delete|remove|clear|drop|scrap|get rid of|turn off|stop|never ?mind|forget(?: about)?) "
                               r"(?:(?P<all>all (?:of )?(?:my |the |those )?reminders|(?:my|the|those) reminders|every reminder|every one of my reminders)|"
                               r"(?:the |my |that |this )?(?:(?P<what>[\w' -]{2,60}?) reminder|reminder (?:to |about |for |that i (?:need|have) to )(?P<what2>[\w' -]{2,60}?)|(?P<one>reminder)))"
                               r"(?: (?:please|thanks|thank you|for me))?\W*$", re.I)

@@ -2738,8 +2738,8 @@ A second set written after the fixes and measured once (24 things said to a spea
 | Left to the brain | 18 | 6 (two belong there; four are misses) |
 | Near misses taken for a command, of 16 | 0 | **1** |
 
-The four misses, left as they are: "alarm in 10 minutes", "don't disturb me until 9", "volume all the way down",
-"never mind the trash reminder". The near miss was "add insult to injury", which went on the packing list. That one
+The four misses when it was measured: "alarm in 10 minutes", "don't disturb me until 9", "volume all the way down",
+"never mind the trash reminder". (Fixed later the same day, as lines that are now built on; the number stays 18.) The near miss was "add insult to injury", which went on the packing list. That one
 is a fault this change made, so it's fixed (an item is a thing, never a phrase with "to", "on", "in", "for" or
 "with" in it): 0 of 16 after. The numbers above are the ones measured before that fix.
 

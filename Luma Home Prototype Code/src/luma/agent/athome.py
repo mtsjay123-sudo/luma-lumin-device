@@ -91,7 +91,7 @@ ALARM_SET = re.compile(LEAD + r"(?:set|make|create|add|put|get) (?:me )?(?:an? |
 ALARM_SET2 = re.compile(LEAD + r"(?:wake me(?: up)?|get me up) (?:at |by |around )?" + CLOCK + r"(?:,? " + DAYS + r")?" + END, re.I)
 ALARM_SET3 = re.compile(LEAD + r"(?:set |make )?(?:an? |my )?" + CLOCK + r" alarm(?:,? " + DAYS + r")?" + END, re.I)
 ALARM_SET4 = re.compile(LEAD + r"(?:set|make|add) (?:an? |my )?(?:new )?alarm (?:for |on )?" + DAYS + r" (?:at |for )?" + CLOCK + END, re.I)
-ALARM_IN = re.compile(LEAD + r"(?:(?:wake me(?: up)?|get me up)|(?:set|make|add) (?:me )?(?:an? |my |the |another )?(?:new )?alarm(?: for)?) (?:in |for )?"
+ALARM_IN = re.compile(LEAD + r"(?:(?:wake me(?: up)?|get me up)|(?:(?:set|make|add) (?:me )?)?(?:an? |my |the |another )?(?:new )?alarm(?: for)?) (?:in |for )?"
                       r"(?P<n>\d{1,3}|an?|one|two|three|four|five|six|seven|eight|nine|ten|half an|a couple of) (?P<unit>min(?:ute)?s?|hours?|hrs?)"
                       r"(?: and (?P<n2>\d{1,2}|a half|thirty|fifteen|forty[- ]five)(?: min(?:ute)?s?)?)?(?: from now)?" + END, re.I)
 ALARM_LIST = re.compile(LEAD + r"(?:what(?:'s| is| are)? (?:my |the )?alarms?(?: set(?: for)?| for)?(?: tomorrow)?|what alarms? (?:do i have|have i (?:got|set)|are (?:set|on))(?: set| on)?(?: for tomorrow| tomorrow)?|(?:show|list|read|tell) (?:me )?(?:all )?(?:my |the )?alarms?"
@@ -133,11 +133,11 @@ VOLUME = re.compile(LEAD + r"(?:(?P<up>volume up|turn (?:it|the volume|yourself|
                     r"|(?P<down>volume down|turn (?:it|the volume|yourself|you) down|quieter|softer|be quieter|a (?:little|bit) quieter|lower the volume|lower your voice)"
                     r"|(?:set |change |put )?(?:the |your )?volume (?:to |at )?(?:level )?(?P<to>\d{1,2}|ten|max(?:imum)?|min(?:imum)?|half)(?: percent)?"
                     r"|(?P<max>(?:turn|crank|put) (?:it|the volume|yourself|you) (?:all the way |way |right )up(?: to (?:the )?max)?|(?:turn|crank) (?:it|the volume) (?:up )?to (?:the )?max|(?:full|max(?:imum)?|top) volume"
-                    r"|as loud as (?:you can(?: go)?|you go|it goes|possible)|all the way up)"
-                    r"|(?P<min>(?:turn|put) (?:it|the volume|yourself|you) (?:all the way |way |right )down|as quiet as (?:you can(?: go)?|you go|it goes|possible)|all the way down)"
+                    r"|as loud as (?:you can(?: go)?|you go|it goes|possible)|(?:volume )?all the way up)"
+                    r"|(?P<min>(?:turn|put) (?:it|the volume|yourself|you) (?:all the way |way |right )down|as quiet as (?:you can(?: go)?|you go|it goes|possible)|(?:volume )?all the way down)"
                     r"|(?P<ask>what(?:'s| is) (?:the |your |my )?volume(?: at| set (?:to|at)| level)?|what volume (?:are you|is it|am i)(?: on| at| set (?:to|at))?|how loud (?:are you|is it)(?: set)?"
                     r"|what(?:'s| is) (?:the |your )?volume level))(?: a (?:little|bit))?(?: right now| now)?" + END, re.I)
-DND = re.compile(LEAD + r"(?:(?P<off>turn off|stop|end|disable|cancel) do not disturb|do not disturb off|(?:turn on |start |enable |go into |put on )?do not disturb(?: mode)?(?: on)?"
+DND = re.compile(LEAD + r"(?:(?P<off>turn off|stop|end|disable|cancel) do not disturb|do not disturb off|(?:turn on |start |enable |go into |put on )?(?:do not disturb|don'?t disturb me|do not disturb me)(?: mode)?(?: on)?"
                  r"(?: for (?P<n>\d{1,3}|an?|one|two|three) (?P<unit>minutes?|hours?)| (?:until|till|til|'til) (?:(?P<morning>(?:the |tomorrow )?morning|i (?:wake|get) up|tomorrow)|" + CLOCK + r"))?"
                  r"|(?:turn on |start )?(?:quiet|silent) mode)" + END, re.I)
 

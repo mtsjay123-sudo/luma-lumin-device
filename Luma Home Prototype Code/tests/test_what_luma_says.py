@@ -326,6 +326,17 @@ class SpeakerCommands(Home):
         now = self.s.clock["t"]
         self.assertTrue(all(now < r["next"] < now + 2 * 3600 for r in rows))
 
+    def test_the_four_the_second_set_missed(self):
+        """Left as misses when the second set was measured (18 of 24), fixed afterwards: they're built on now."""
+        self.assertRegex(self.say("alarm in 10 minutes"), r"^Alarm set for .*, 10 minutes from now\.$")
+        self.s.at({"day": 3, "time": "22:15"})
+        self.assertEqual(self.say("don't disturb me until 9"), "Do not disturb until 9 AM. Alarms and timers still go off.")
+        self.assertEqual(self.say("volume all the way down"), "Quieter: 1.")
+        self.say("remind me to take the trash out tomorrow at 7pm")
+        self.assertEqual(self.say("never mind the trash reminder"), "Done. I won't remind you to take the trash out.")
+        for said in ("never mind, I figured it out", "forget about it", "the alarm in my building went off for 20 minutes", "don't disturb the cat"):
+            self.assertEqual(self.say(said), self.BRAIN, said)
+
     def test_an_alarm_in_a_while_never_rings_early(self):
         before = self.s.clock["t"]
         self.say("wake me up in 5 minutes")
