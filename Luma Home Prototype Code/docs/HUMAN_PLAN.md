@@ -4119,6 +4119,15 @@ leave room for other people in their life?") and believed only when the two answ
 1.7B became usable on hard evenings (run 63). `human_eval.py leans` now reports it for every brain, so the next run
 says whether a small brain can be asked after all.
 
+**"I know how that feels" is a swap now** (`style.own_words`, `tests/test_know_how_that_feels.py`). Run 74, the
+stock 4B, to "i feel like evry1 hates me at school": "ugh, that's a lot. I know how that feels like the world is
+closing in. But wait, no one actually *hates* you". The cheap fixes knew it for a made-up life and kept it, because
+the next sentence leaned on it, and the second try didn't fix it. Now "I know how that feels" before a pause is "I
+get it", and "I know how that feels like the world is closing in" is "That feels like the world is closing in": what
+it feels like is theirs to say. A set written first, measured once: 9 of 10 swapped, 10 of 10 near misses left alone
+("I don't know how that feels, but I'm here"). The tenth is the whole reply and stays the second look's. A capital in
+mid-sentence was seen on that set and fixed; nothing else was.
+
 **Run 76 is running:** the same ten moments, five times each, on 67da4db and on 56bd464 (everything in this
 section and the one above), on all four brains. It says what the leaning work did, and whether the question a 4B is
 now asked about its own reply costs anything. `only: leans` follows it.

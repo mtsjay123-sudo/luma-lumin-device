@@ -342,17 +342,26 @@ RELATING = re.compile(
     r"\bi (?:can )?(?:totally |really |definitely |completely |so |honestly )?relate(?: to (?:that|this|it|you))?(?=\s*(?:[.!,;:]|$))|"
     r"\bi(?:'ve|’ve| have) (?:definitely |totally |so |all )?been there(?: too| before| myself)?(?=\s*(?:[.!,;:]|$))|"
     r"\bi know (?:that|the) feeling(?: well| all too well| too)?(?=\s*(?:[.!,;:]|$))|"
-    r"\bi know what (?:that'?s|it'?s|that is|it is|that’s|it’s) like(?=\s*(?:[.!,;:]|$))", re.I)
+    r"\bi know what (?:that'?s|it'?s|that is|it is|that’s|it’s) like(?=\s*(?:[.!,;:]|$))|"
+    r"\bi know how (?:that|it|this) feels(?: too)?(?=\s*(?:[.!,;:]|$))", re.I)
 GET_IT = "I get it"
+# "I know how that feels like the world is closing in" (the stock 4B, run 74, to "i feel like evry1 hates me at school"): the
+# sentence was kept because the next one leaned on it, and went out. What it feels like is theirs: "That feels like the world
+# is closing in."
+FEELS_LIKE = re.compile(r"\bi know how (that|it|this) feels like\b", re.I)
 
 
 def own_words(text):
     """The reply with borrowed experience swapped for "I get it" where it stands. None when there's none to swap, or when
     it's all the reply says: "I get it." alone isn't an answer, so the second look asks the brain again."""
     text = str(text or "")
-    if not RELATING.search(text):
-        return None
-    swapped = RELATING.sub(GET_IT, text)
+    def theirs_to_say(m):   # a capital only where a sentence starts: "That's rough, and this feels like a punch to the gut."
+        starts = not text[:m.start()].strip() or text[:m.start()].rstrip()[-1:] in ".!?…"
+        return (m.group(1).capitalize() if starts else m.group(1).lower()) + " feels like"
+    theirs = FEELS_LIKE.sub(theirs_to_say, text)
+    if not RELATING.search(theirs):
+        return theirs if theirs != text else None
+    swapped = RELATING.sub(GET_IT, theirs)
     swapped = re.sub(rf"\b{GET_IT}\b([.!,;:]*\s+)(?:{GET_IT}\b[.!,;:]*\s*)+", GET_IT + r"\1", swapped)  # said twice, it's said once
     rest = swapped.replace(GET_IT, " ")
     return swapped if len(WORD.findall(rest)) >= 3 else None
