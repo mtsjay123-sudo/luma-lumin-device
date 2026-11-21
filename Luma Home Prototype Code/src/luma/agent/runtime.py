@@ -5082,16 +5082,19 @@ class Agent:
 
     def _how_they_asked(self, said, cancel_event=None):
         """Luma's fourth plain question, never heard, YES or NO only: said as how they are in words Luma doesn't know, which
-        way are they asking to be met? One question for each way; believed only when exactly one is a YES. Asked only on a
-        sentence with the plain shape of a wish (rapport.might_be_a_wish). A small brain isn't asked: it says YES to
-        nearly anything (run 59). With no brain to ask, or no clear answer, nothing is learned."""
+        way are they asking to be met? First whether anything is asked of Luma at all, then one question for each way;
+        believed only when the first is a YES and exactly one of the others is. Asked only on a sentence with the plain
+        shape of a wish (rapport.might_be_a_wish). A small brain isn't asked: it says YES to nearly anything (run 59).
+        With no brain to ask, or no clear answer, nothing is learned. Off unless the setting "ask_wishes" is on."""
         from luma.agent import friendcheck, rapport
+        if not self.store.setting("ask_wishes", False):
+            return None   # off until it measures clean: run 61 heard 4 more wishes of 24 on a stock 4B and took 6 near misses of 55 for one
         yes = []
         try:
             with self._silent():
                 stop = cancel_event or threading.Event()
-                for style in rapport.STYLES:
-                    question = rapport.wish_prompt(said, style)
+                for style in (None,) + tuple(rapport.STYLES):   # first: is anything asked of Luma at all? Then each way.
+                    question = rapport.wish_prompt(said, style) if style else rapport.asks_of_you_prompt(said)
                     if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
                         if not getattr(self.planner, "answers_plain_questions", False):
                             return None
@@ -5104,6 +5107,10 @@ class Agent:
                         answer = brain.yes_or_no(question, cancel_event=stop, mode=self.mode) == "YES"
                     else:
                         return None
+                    if style is None:
+                        if not answer:
+                            return None   # nothing is asked of Luma: no wish, and no more questions
+                        continue
                     if answer:
                         yes.append(style)
                         if len(yes) > 1:

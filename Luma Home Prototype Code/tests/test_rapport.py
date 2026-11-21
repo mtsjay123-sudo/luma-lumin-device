@@ -674,6 +674,7 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
     the rules around it. The lines here are fresh."""
 
     WISH = "when life gets heavy for me, I want your silliest stories"
+    ON = True
 
     def ask(self, yes_to, small=False, said=None):
         import contextlib
@@ -685,10 +686,19 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
 
         def yes_or_no(question, **kwargs):
             asked.append(question)
-            return "YES" if any(question == rapport.wish_prompt(said or self.WISH, style) for style in yes_to) else "NO"
+            if question == rapport.asks_of_you_prompt(said or self.WISH):
+                return "YES" if "nothing asked" not in yes_to else "NO"
+            return "YES" if any(question == rapport.wish_prompt(said or self.WISH, style) for style in yes_to if style != "nothing asked") else "NO"
+
+        on = self.ON
+
+        class Settings:
+            @staticmethod
+            def setting(name, default=None):
+                return on if name == "ask_wishes" else default
 
         class Stub:
-            planner, use_model, mode = None, True, "friend"
+            planner, use_model, mode, store = None, True, "friend", Settings
             _silent = staticmethod(contextlib.nullcontext)
 
         with mock.patch.object(brain, "yes_or_no", yes_or_no), mock.patch.object(brain, "small_here", lambda: small):
@@ -706,10 +716,23 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
                      "let's not talk about my ex anymore"):                      # a closed subject, already kept as one
             self.assertFalse(rapport.might_be_a_wish(said), said)
 
+    def test_off_until_it_measures_clean(self):
+        """Run 61 (Nov 21, 2026): a stock 4B heard 4 more of the third set's 24 with none heard the wrong way, and took 6
+        of 55 near misses for a wish; Luma's own 4B heard nothing more and took 5. So it's off, and a stricter first
+        question was added. `human_eval.py wishes` turns it on for itself."""
+        self.ON = False
+        self.assertEqual(self.ask(["laugh"]), (None, []))
+        self.ON = True
+
+    def test_first_whether_anything_is_asked_of_luma_at_all(self):
+        heard, asked = self.ask(["laugh", "nothing asked"])
+        self.assertEqual((heard, len(asked)), (None, 1))             # a NO to the first question ends it
+        self.assertEqual(asked[0], rapport.asks_of_you_prompt(self.WISH))
+
     def test_believed_only_on_exactly_one_yes(self):
         heard, asked = self.ask(["laugh"])
         self.assertEqual(heard, "laugh")
-        self.assertEqual(len(asked), len(rapport.STYLES))            # every way is asked: a YES to two is no clear wish
+        self.assertEqual(len(asked), 1 + len(rapport.STYLES))        # the first question, then every way: a YES to two is no clear wish
         self.assertIsNone(self.ask([])[0])
         self.assertIsNone(self.ask(["listen", "laugh"])[0])
         self.assertIsNone(self.ask(list(rapport.STYLES))[0])         # a brain that says YES to everything teaches nothing
@@ -742,8 +765,9 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
             for seed in month_eval.SEEDS[half]:
                 for _, _, turns in month_eval.Life(seed, half).days():
                     taken.update(plain(t["say"]) for t in turns)
-        mine = [line for lines in rapport.WISH_YES.values() for line in lines] + rapport.WISH_NO
+        mine = [line for lines in rapport.WISH_YES.values() for line in lines] + rapport.WISH_NO + rapport.ASKS_NOTHING
         self.assertEqual(sum(1 for line in mine if plain(line) in taken), 0)
+        self.assertEqual([line for line in rapport.ASKS_NOTHING if rapport.said_how(line)], [])
         for style in rapport.STYLES:
             prompt = rapport.wish_prompt(self.WISH, style)
             self.assertIn(f'They said: "{self.WISH}"', prompt)
@@ -768,17 +792,21 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
             last = messages[-1]["content"]
             if last.startswith("Someone is telling you something about themselves."):
                 asked.append(last)
+                if last == rapport.asks_of_you_prompt(self.WISH):
+                    return {"type": "reply", "text": "YES"}
                 return {"type": "reply", "text": "YES" if any(last == rapport.wish_prompt(self.WISH, style) for style in yes_to) else "NO"}
             return {"type": "reply", "text": "Okay. I'll remember that."}
 
         planner.answers_plain_questions = plain_questions
-        return human_eval.Session(planner), asked
+        session = human_eval.Session(planner)
+        session.store.set_setting("ask_wishes", True)
+        return session, asked
 
     def test_in_luma_its_learned_and_shown_like_any_other(self):
         s, asked = self.in_luma(["laugh"])
         try:
             s.say(self.WISH)
-            self.assertEqual(len(asked), 4)
+            self.assertEqual(len(asked), 5)
             self.assertEqual(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]), ("laugh", self.WISH))
             asked.clear()
             s.say("I made a really good soup tonight")                # nothing with the shape of a wish: nothing is asked

@@ -240,6 +240,21 @@ def wish_prompt(said, style):
             f'They said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
 
 
+def asks_of_you_prompt(said):
+    """Asked before any of the four (run 61: without it a stock 4B took 6 of 55 near misses for a wish, and Luma's own 4B
+    took 5 and heard nothing): is anything being asked of you at all? YES or NO only."""
+    shown = lambda lines: " / ".join(f'"{line}"' for line in lines)  # noqa: E731
+    return ("Someone is telling you something about themselves. Are they telling you what they would like YOU to do for them whenever "
+            "they're having a hard time? It's a NO if they're describing what they do themselves, what someone else does or wants, "
+            "how they feel, or one particular day; it's a NO if nothing is asked of you.\n"
+            f"YES: {shown([WISH_YES[style][1] for style in STYLES])}\nNO: {shown(WISH_NO + ASKS_NOTHING)}\n"
+            f'They said: "{str(said)[:300]}"\nAnswer with one word: YES or NO.')
+
+
+ASKS_NOTHING = ["when I'm having a rough week I barely sleep", "if I'm low my mom can always tell", "whenever I get sad I just want to be alone",
+                "on bad days everything feels like too much"]
+
+
 def might_be_a_wish(text):
     """Worth asking a bigger brain: the sentence has the plain shape of a wish, and nothing Luma has heard which."""
     said = " ".join(str(text or "").split())

@@ -2567,3 +2567,24 @@ reads the list back instead), and "remind me to call my mom" with no time.
 
 The method is cheap and it keeps finding things, so it's worth repeating on what hasn't been read yet: the calendar
 and email lines, what Luma says when something fails, and every line in kids mode.
+
+## Run 61 (Nov 21): asked which way a wish was meant, a 4B hears more and makes some up. It's off.
+
+`only: wishes` on four real brains: every hand-written set, Luma alone → with the brain asked. Numbers only.
+
+| Brain | Built on, of 40 | Second set, of 24 | Third set (the honest number), of 24 | Heard the wrong way | Near misses taken for a wish, of 55 |
+|---|---|---|---|---|---|
+| Stock Qwen3 4B | 39 → 39 | 18 → 22 | **4 → 8** | 0 | **0 → 6** |
+| Luma's own 4B (luma-brain-22) | 39 → 39 | 18 → 18 | 4 → 4 | 0 | **0 → 5** |
+| Stock 1.7B, Luma's own small | not asked | | | | |
+
+- On the stock 4B it doubles the honest number and never hears a wish the wrong way. That part works.
+- It also takes 6 near misses for a wish (of the 22 it was asked about). A wish that was never made means Luma
+  changes the subject, or jokes, when someone who never asked for that is hurting. That's worse than not hearing one.
+- Luma's own 4B hears nothing more and still takes 5. For that brain it's all cost.
+
+So as built it doesn't ship: **it's off** (`ask_wishes`, default off; the measuring command turns it on for itself).
+What was added before measuring again: a first question, asked before any of the four, about whether anything is
+being asked of Luma at all (`rapport.asks_of_you_prompt`: not what they do themselves, what someone else does, how
+they feel, or one day). Only a YES there goes on to the four, and exactly one of those still has to be a YES. If
+near misses taken aren't at or near zero on the next run, it stays off.

@@ -977,6 +977,7 @@ def wishes(label="Luma", planner=None, progress=print):
     wanted = {"built_on": built, "second": sets.HONEST, "third": sets.THIRD}
     near = {"near_misses": sets.NOT, "second_near_misses": sets.HONEST_NOT, "third_near_misses": sets.THIRD_NOT}
     session = Session(planner)
+    session.store.set_setting("ask_wishes", True)   # off in Luma until this says it's clean
     out = {"kind": "wishes", "label": label, "asked": 0}
     try:
         def ask(line):
