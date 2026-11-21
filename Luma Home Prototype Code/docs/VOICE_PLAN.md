@@ -110,3 +110,34 @@ about 12 GB (8.3 GB of files; there are 4-bit builds), so it's for a Mac with 24
 Not done, on purpose: it is not Luma's voice yet. A voice is judged by ear on a real Mac, and none of that can be
 done from the cloud. Next: add it to `scripts/voice_contest_mac.sh` beside VoxCPM2 and Chatterbox-Turbo, check its
 license file and its Apple Silicon path on the Mac, listen, and only then change the first choice.
+
+## "The words are amazing, but this voice isn't that human" (November 21, 2026)
+
+The owner heard eight lines in the classic voice (Kokoro, 82M, the one a $250 lamp can run), through Luma's own
+speaking pipeline, and said that: the words are right and the voice isn't a person's. The owner's call: Luma will
+probably need a voice of its own.
+
+What that means, plainly:
+
+- **A voice model isn't something we write; it's something a model learns from a person speaking.** "Our own voice"
+  is our own recordings plus a fine-tune of an open model the license rule allows. The recordings are the part nobody
+  else has.
+- **Whose voice.** A voice actor with a signed release for this use, or the owner's own voice with the same release.
+  Never anyone's without consent, and never a copy of a real person (the lines Luma doesn't cross, `docs/DREAM.md`).
+- **How much.** One to two hours of natural talk is enough to fine-tune Chatterbox (MIT) or Qwen3-TTS (Apache-2.0):
+  the sample script above, grown to about 400 lines, said the way a friend says them, laughs and restarts left in.
+- **Where it runs.** The fine-tuned voice needs a Mac or the Home's board. The Mini keeps a small voice; a distilled
+  small voice in the same person's voice is a second step, after the big one sounds right.
+
+Before anyone is recorded, the cheaper question: is the best voice the license rule already allows human enough, when
+it says Luma's words with Luma's pauses? In two earlier contests a number (UTMOSv2) preferred the classic voice. A
+number isn't an ear. So the same eight lines are now rendered in each voice on GitHub's machines, which can fetch the
+models this session can't (`scripts/voice_audition.py`, `.github/workflows/voice-audition.yml`), and committed to
+`demo/voices/` to be listened to: the classic voice, Chatterbox, and Chatterbox-Turbo (which can laugh and sigh).
+Each uses its own stock voice; nobody is cloned.
+
+What the owner decides after listening:
+
+1. One of them is close enough: it becomes the voice on the Mac and the Home, and the recordings can wait.
+2. None is: cast a voice (or record their own), sign the release, and read the script. The fine-tune, the data
+   checks and a blind A/B page for ten listeners are ours to build while that happens.

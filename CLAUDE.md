@@ -65,6 +65,7 @@ All commands run from `Luma Home Prototype Code/`.
 | Draw the logo, the app icons and the start-up screen's copy of the orb again (needs node with Playwright) | `node scripts/orb_logo.cjs` |
 | Training | `scripts/train_luma.py` (GitHub: `train-luma.yml`), or `bash scripts/train_on_mac.sh` |
 | Voice contest (Mac) | `bash scripts/voice_contest_mac.sh` |
+| The same eight lines in one voice, through Luma's own speaking pipeline, to be judged by ear | `python scripts/voice_audition.py --engine kokoro --out out/voices` (`chatterbox`, `chatterbox-turbo`: they need their models, which GitHub's machines can fetch) |
 | The timing test: does Luma start talking when a person would, without cutting in (needs recorded conversations written down as timelines; none yet) | `python scripts/timing_eval.py score recordings/*.json --latency 0.9` |
 | The human test and the safety net on the biggest brain a Mac has (the Mac Studio's) | `bash scripts/mac_day_one.sh --test` |
 | Make the printed case's parts again after changing a size (needs OpenSCAD), then measure them | `python scripts/case_parts.py` (`--pictures` draws the four pictures too), then `PYTHONPATH=src:tests python3 -m pytest -q -p no:cacheprovider tests/test_hardware_case.py` |
@@ -73,6 +74,7 @@ In the cloud, the suite has 14 failures: 12 that are only the environment (`test
 
 GitHub workflows:
 - `human-eval.yml`: four brains in parallel, then the judge. Input `only: safety` runs just the safety net on each brain (minutes, not hours). `only: think` runs just the think set on each brain. `only: month` runs the month test on each brain, first on the lives it was built on and then on the held-out lives, numbers only (`times`: how many lives of each; 6 if left at 1). `only: sets` runs the safety net plus the newer safety sets. Any other word runs just the moments whose id or kind contains it, with no judge (`only: pet_loss`: minutes). With `times: 20` each is run 20 times, and with `before: <full commit id>` the same moments are also run on the code at that commit and laid side by side. `rescore: <an earlier run's id>` runs no brain: it scores that run's saved replies again with today's checks (two minutes). `candidate_small: <a training run's id>` or `candidate_4b: <a training run's id>` uses that training's add-on as Luma's own brain, labelled "not published", so a new brain is tested beside the others before anyone publishes it.
+- `voice-audition.yml`: the same eight lines in each voice the license rule allows (the classic voice, Chatterbox, Chatterbox-Turbo), one job per voice, committed to `demo/voices/` to be judged by ear. It runs when `scripts/voice_audition.py` or the workflow changes on the working branch.
 - `device-lab.yml`: the $250 device stand-in.
 - `train-luma.yml`
 - `si-lab.yml`: the license check (rule 7), the memory test, the router, the red team, the news test, the cloud lab, and the relay's tests with the Plus lab. No key needed. Run by hand with `real: true` it uses the real API, which is billed.
