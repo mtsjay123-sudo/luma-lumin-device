@@ -3298,3 +3298,23 @@ never does (6 of 6). It's six better than the add-on that's published. It is sti
 sits on, both in comfort, so by the rule it isn't published, and the stock brains with Luma's layer stay the ones
 to ship. Whether it should replace the published small add-on in the meantime is the owner's call: it's better
 than that one on every count here, and worse than no add-on at all.
+
+## A plainer venting line for the small brain, being measured (Nov 21)
+
+Run 69 showed the stock 1.7B doesn't take their side when someone vents even when it's told to: 1, 0 and 1 of 5 on
+the moments where the line was already there. The line it does follow is the sarcasm one, which is an order with
+a groan in it ("Groan with them first"). So a small brain now gets a venting line built the same way: "They're
+venting: something went wrong and they're annoyed. Groan with them first ("ugh, that's so unfair"), on their side,
+then ask what happened. No jokes, no advice." It no longer says they may join in a joke. The 4B keeps the line it
+scored 49 of 50 with.
+
+This is a guess until run 71 says otherwise (the ten venting moments five times on each brain, before and after).
+It stays only if the 1.7B is clearly up; if not it comes out, like the "if" line of run 58.
+
+One repair to this morning's fix: narrowing "stop" so a bus stop isn't a laugh had also lost three real ones ("i
+can't stop laughing", "ok stop that's too funny", "no bc stop"). They're laughs again; "ok stop by after work" and
+"no stop sign on that corner" aren't.
+
+Tests: `test_a_small_brain_gets_the_plainer_venting_line` and more lines in `test_a_bus_stop_isnt_a_laugh`
+(`tests/test_gripes.py`). Full suite: 1,961 passed, the known 14 failed. What a brain is told on both human
+tests: 0 of 269 turns differ (the harness's stand-in isn't a small brain).

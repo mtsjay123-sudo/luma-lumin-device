@@ -126,6 +126,27 @@ class TheBrainIsAskedFirst(unittest.TestCase):
         finally:
             s.close()
 
+    def test_a_small_brain_gets_the_plainer_venting_line(self):
+        s, _, _ = session()
+        try:
+            from luma.llm import brain
+            line = "ugh i'm so annoyed, the pharmacy lost my prescription again"
+            notes = lambda: " ".join(n["text"] for n in s.agent._mind_context(line) if n.get("humor"))  # noqa: E731
+            self.assertIn(humor.VENTING, notes())
+            planner, model, small = s.agent.planner, s.agent.use_model, brain.small_here
+            try:
+                s.agent.planner, s.agent.use_model, brain.small_here = None, True, lambda: True
+                self.assertIn(humor.VENTING_SMALL, notes())
+                self.assertNotIn("join in", notes())
+                brain.small_here = lambda: False
+                self.assertIn(humor.VENTING, notes())
+            finally:
+                s.agent.planner, s.agent.use_model, brain.small_here = planner, model, small
+        finally:
+            s.close()
+        self.assertLessEqual(len(humor.VENTING_SMALL), 200)
+        self.assertLessEqual(len(humor.VENTING), 200)
+
     def test_only_where_the_brain_would_have_been_told_humor_is_welcome(self):
         s, _, _ = session()
         try:
@@ -239,8 +260,11 @@ class WhatTheLinesFound(unittest.TestCase):
         for line in ("the bus drove right past me this morning. i was standing at the stop", "i'm gonna stop by the pharmacy after work",
                      "the train doesn't stop at my station anymore"):
             self.assertNotEqual(humor.read_tone(line)["mood"], "laughing", line)
-        for line in ("stop it 😂", "omg stop", "STOPPP", "stop lol", "stop"):
+        for line in ("stop it 😂", "omg stop", "STOPPP", "stop lol", "stop", "i can't stop laughing", "ok stop that's too funny", "no bc stop",
+                     "he really said that and i can't stop laughing", "girl stop"):
             self.assertEqual(humor.read_tone(line)["mood"], "laughing", line)
+        for line in ("i need to stop eating out so much", "they told me to stop by tomorrow", "ok stop by after work", "no stop sign on that corner"):
+            self.assertNotEqual(humor.read_tone(line)["mood"], "laughing", line)
 
     def test_my_one_day_off_isnt_a_what_if(self):
         self.assertFalse(feelings.NOT_REAL.search("they scheduled me for a double on my one day off"))

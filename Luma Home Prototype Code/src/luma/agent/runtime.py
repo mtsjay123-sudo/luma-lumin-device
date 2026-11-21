@@ -3360,6 +3360,8 @@ class Agent:
                 # a gripe told as what happened, no feeling word in it: their side first, not a joke. Said with a laugh
                 # ("lol i totaled my car"), it's bad news laughed off: never "be funny back".
                 funny = humor.LAUGHED_OFF if humor.read_tone(str(text))["mood"] == "laughing" else humor.WENT_WRONG
+            if funny == humor.VENTING and self._small_brain_here():
+                funny = humor.VENTING_SMALL  # the 1.7B doesn't follow the longer line (run 69)
             if funny: out.append({"humor": True, "text": funny})
             known = lexicon.meanings_note(text)
             if known: out.append({"slang": True, "text": known})
@@ -5119,6 +5121,16 @@ class Agent:
     ASKED_INSIDE = re.compile(r"[,:;.!]\s*(?:so\s+|and\s+|but\s+)?(?:should|what|how|why|where|when|which|who|do|does|did|is|are|am|can|could|would|will)\s+"
                               r"(?:i|we|you|it|he|she|they|this|that|the|my|there)\b|\b(?:think hard|help me (?:decide|think|figure)|i need advice|"
                               r"what do you think|any (?:ideas|advice|thoughts|tips))\b", re.I)
+
+    def _small_brain_here(self):
+        """The 1.7B is the brain that answers (never a stand-in, the cloud or a paired computer's)."""
+        if self.planner is not None or not self.use_model:
+            return False
+        try:
+            from luma.llm import brain
+            return bool(brain.small_here())
+        except Exception:
+            return False
 
     def _told_plainly(self, text, funny, shape):
         """They're telling Luma about their day in plain words, nothing was read in it (no feeling, no laugh, nothing asked),

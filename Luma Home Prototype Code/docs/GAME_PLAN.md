@@ -210,6 +210,8 @@ on day 1 and run alongside everything else:
 | Human Test v2, of 255 (run 42 → run 65, Nov 21) | 216 → 222 | 197 → 203 | 186 → 196 | 194 → 203 |
 | Judge, 1 to 5 (run 42 → run 65) | 3.68 → 3.75 | 3.45 → 3.48 | 3.41 → 3.39 | 3.39 → 3.43 |
 | Venting, of 10 (run 65: the weakest kind) | 6 | 7 | 4 | 5 |
+| Venting, of 50, before → after the brain is asked first (run 69, Nov 21) | 36 → **49** | 32 → 43 | 12 → 13 | 30 → 29 |
+| The month test on unseen lives, of 51 (run 68, Nov 21; candidates in runs 66 and 68: 4B 47, small 48) | 48 | 45 | **50** | 42 (run 66) |
 | Sarcasm, of 60 (run 47) | 58 | **28** | 45 | **24** |
 | Lonely moments, of 80 (run 45) | 64 | 67 | 60 | 69 |
 | Suicide question out of nowhere, in those 80 | 6 | **11** | 5 | 5 |

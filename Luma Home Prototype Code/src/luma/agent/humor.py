@@ -18,7 +18,8 @@ import re
 from luma.agent import humor_bank as bank
 
 LAUGH = re.compile(r"\b(?:l+o+l+|l+m+f*a+o+|rofl|ha(?:ha)+h*|he(?:he)+|i'?m (?:dead|weak|crying|screaming|wheezing)|ded|bro what|ain'?t no way|"
-                   r"stopp+|stop (?:it|lol|😭)|(?:omg|no|bro|girl|bestie|pls|please|oh my god) stop|^\W*stop\W*$|nah+ (?:you|that'?s) (?:wild|crazy|funny|tweakin)|you'?re (?:wild|funny|hilarious|crazy|tweakin)|jk|just kidding|"
+                   r"stopp+|stop (?:it|lol|😭)|(?:omg|ok|okay|no|no bc|nah|bro|girl|bestie|pls|please|oh my god) stop\b(?=\W*$|\s*[,.!?]|\s+(?:that'?s|it\b|lol|i'?m|im\b|you|u\b|pls|please|😭))|"
+                   r"^\W*stop\W*$|can'?t stop laughing|(?:i'?m|im|we'?re|we were|i was|been) (?:laughing|cracking up|howling)|(?:too|so) funny|nah+ (?:you|that'?s) (?:wild|crazy|funny|tweakin)|you'?re (?:wild|funny|hilarious|crazy|tweakin)|jk|just kidding|"
                    r"that'?s (?:funny|hilarious|wild|crazy)|crying)\b|[😂🤣💀😹🙃😜😝🤪]", re.I)
 PLAYFUL = re.compile(r"\b(?:lowkey|highkey|bruh|bro|sis|deadass|on god|no cap|fr fr|be so for real|the way|not the|why (?:is|are) (?:you|u) like this|"
                      r"roast me|talk your (?:shit|stuff)|say less|bet|ayo|you'?re a mess|i can'?t with you|clown(?:ing)?|petty|chaos|unhinged|"
@@ -166,6 +167,16 @@ DRY = ("That's sarcasm: something went wrong and they're annoyed. Never cheer or
        "(\"ugh, of course it did\"), dry like them if you want, then ask what happened.")
 
 
+VENTING = ("They're venting: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened or help. "
+           "No jokes at them; if they start joking about it, you can join in.")
+# For a small brain. Told the line above, the stock 1.7B took their side 13 times in 50 (run 69): it opened "Nah," or "uh," and
+# riffed on the thing ("that's like a 300 dollar increase in your allowance"). The sarcasm line it does follow is an order with
+# a groan in it, so this one is too, and it doesn't say they may join in a joke. Being measured (run 71); it stays only if the
+# 1.7B is clearly up.
+VENTING_SMALL = ("They're venting: something went wrong and they're annoyed. Groan with them first (\"ugh, that's so unfair\"), "
+                 "on their side, then ask what happened. No jokes, no advice.")
+
+
 # Told as what happened, with no feeling word ("the pharmacy lost my prescription and made me come back three times"), and the
 # brain said something went wrong for them (Agent._told_plainly). The venting line's own words, which every run was measured with.
 WENT_WRONG = ("Something went wrong for them: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened "
@@ -220,8 +231,7 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
         if tone["mood"] == "serious":
             return "They're being serious: answer straight, no jokes this turn."
         if tone["mood"] == "venting":
-            return ("They're venting: be on their side first, like a friend would (\"ugh, that's a lot\"), then ask what happened or help. "
-                    "No jokes at them; if they start joking about it, you can join in.")
+            return VENTING
         return ""
     liked = favorite_styles(taste)
     technique = bank.TECHNIQUES.get({"act": "act", "story": "story", "self": "self", "roast": "punch_up", "obs": "observe", "dead": "dry",
