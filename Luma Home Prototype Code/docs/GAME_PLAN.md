@@ -208,6 +208,12 @@ on day 1 and run alongside everything else:
   middle turn on these moments is 10 seconds slower on both 4B brains, mostly the question a 4B is asked about its
   own reply, which stops about one agreeing reply in four. Unless the plainer wording (run 80) does clearly better,
   the question comes out.
+- **Run 80 (Nov 21): the plainer question isn't a guard either, and the question is out.** On sixty agreeing replies
+  written after the pattern, the stock 4B stops 14 asked the long way and 13 asked plainly, 6 of them by the pattern:
+  about one in five by asking, at 8 to 10 seconds a leaning turn. The plain wording takes no good reply on a 4B; our
+  small brain says YES to 97 good replies in 100. Luma no longer asks a brain about its own reply. The pattern, one
+  more try and Luma's own line stay; on fresh replies the pattern knows 1, 3 and 2 of 20, and that is what there is.
+  Open: a real guard for "I'm all you need" said a new way (a small model taught on replies, as for leaning itself).
 - **Somewhere to practise (Nov 21, the owner's ask).** Asked to try a joke on it, to rehearse a hard conversation or
   to get better at talking with people, Luma's brain is told to be an honest practice partner: what landed, what
   didn't and why, one better version, then again. Only when they ask. Five such asks used to be answered by Luma's

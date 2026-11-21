@@ -1074,10 +1074,11 @@ def wishes_summary(rows):
 
 def leans(label="Luma", planner=None, progress=print):
     """A reply to someone leaning on Luma that agrees it's all they need, in words no pattern knows: what a brain says when
-    it's asked Luma's plain question about the reply (friendcheck.keeps_prompt, Agent._keeps_them). The lines are the four
-    hand-written sets in tests/leans_replies.py; D was written after the question and is the honest number. Every brain is
-    asked here, the small ones too, so the table says what each would answer; on a device a small brain isn't asked.
-    Numbers only, never a line."""
+    it's asked a plain question about the reply, in two wordings (friendcheck.keeps_prompt, keeps_plain_prompt). The lines
+    are the five hand-written sets in tests/leans_replies.py; D was written after the long question and E before the plain
+    one ran, so those are the honest numbers. A side check only: on a device no brain is asked this (run 80: about one
+    more agreeing reply in five stopped, either way, for 8 to 10 seconds a turn), and this is where a better question
+    would be measured. Numbers only, never a line."""
     sys.path[:0] = [str(ROOT / "tests")]
     import threading
     import leans_replies
