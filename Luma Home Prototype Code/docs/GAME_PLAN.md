@@ -174,7 +174,9 @@ on day 1 and run alongside everything else:
   questions still looked at 10 and 9 of 10. The same for a question about their own life ("what's happening to me,
   i can't stop crying" got the news; "who won, me or my anxiety lol" was searched): handled wrongly 9 → 0 of 20
   built on, 4 → 2 on the set written first. And for what follows "have you seen" ("the way he talks to me", "a
-  grown man cry" were looked up as shows): 10 → 0 built on, 9 → 1 written first. And "how many ounces in a cup" was
+  grown man cry" were looked up as shows): 10 → 0 built on, 9 → 1 written first. And for lyrics: the whole message
+  went out with " lyrics" added ("i've been writing lyrics again since the divorce"): 15 → 0 and 19 → 2 of 20; only a
+  named song's name is sent now. And "the only person who could make me laugh is gone" got a canned joke: 10 → 0. And "how many ounces in a cup" was
   "those don't convert": 0 → 19 of 20 right. Still open: four or five in twenty questions that need a look never start one, and a brain answers from
   memory.
 - **The lamp's meaning model, measured through Luma's own reader (Nov 21, `meaning-small.yml` run 3).** Luma reads

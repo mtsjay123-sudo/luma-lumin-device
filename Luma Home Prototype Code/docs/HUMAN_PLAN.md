@@ -3871,3 +3871,31 @@ The cost, on titles I tried: 12 of 16 are still read up on; "everything everywhe
 quiet place", "her" and "the room" aren't, and get plain talk. Keep-up's 18 tests from before pass untouched.
 
 Full suite: 2,026 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.
+
+## Their sentence with " lyrics" on the end, and a joke for a story (Nov 21) (`tests/test_talk_about_a_song.py`)
+
+Two more, from one more round of fresh lines (statements about songs, shows and the world: most were fine).
+
+**The whole message was sent to a web search with " lyrics" added.** Luma reads a song's lyrics before it quotes
+them. Any message with "lyrics", "a line in", "the chorus of" or "verse" in it counted: "i've been writing lyrics
+again since the divorce lyrics", "there's a line in my vows i keep rewriting lyrics", "the lines on my face are
+getting deeper lol lyrics". Now only the name is sent, and only when a song or an artist is named: "kendrick's verse
+on control is still insane" searches "kendrick control lyrics" (`lyrics_query` in `runtime.py`).
+
+**"Make me laugh", anywhere in a message, got one of Luma's jokes.** "the only person who could make me laugh is
+gone" got a joke about gas prices. It's a request when it opens a clause ("bad day. make me laugh", "can you make me
+laugh"); said about someone, it's their story (`humor.asks_for_a_joke`). And "this song always makes me think of my
+dad" got "Hold on, which song though? I need to know before I pick a side lol": a line about them goes to the brain.
+
+| | Built on, before → after | Written first, before → after |
+|---|---|---|
+| Talk with "lyrics", "a line in", "verse", of 20: the whole message sent to a search | 15 → 0 | 19 → **2** (taken for naming a song) |
+| A song or artist named, of 6: searched, and by name alone | 6 → 6 | 6 → **4** |
+| "… make me laugh" said about someone, of 10: got a joke | 10 → 0 | 10 → **0** |
+| "make me laugh" asked of Luma, of 8: got a joke | 8 → 8 | 8 → 8 |
+| Statements about songs, shows, the world, of 20: their sentence sent / not a friend's reply | 2 / 3 → 1 / 1 | 1 / 2 → 1 / 2 |
+
+The 1 left on the built-on statements is reading up on "new taylor swift album" by name, which is meant. Two named
+songs of the second six aren't searched now (the brain answers, and never quotes lyrics it didn't read).
+
+Full suite: 2,032 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.

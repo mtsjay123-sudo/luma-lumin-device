@@ -320,6 +320,45 @@ CRISIS = re.compile(CRISIS.pattern + "|" + JAPANESE_CRISIS.pattern, re.I)
 JAPAN_LINES = "119, or the health ministry's line, 0570-064-556"
 # "What you think of Kendrick's verse on Like That?": songs are written out, so Luma reads the lyrics before it talks about them,
 # instead of a small brain quoting bars from memory (it made one up). Quoting only what it actually found.
+# Which song, whose verse: that name is what's searched, and nothing else they said. Their whole message used to go out with
+# " lyrics" on the end: "i've been writing lyrics again since the divorce lyrics", "there's a line in my vows i keep rewriting
+# lyrics", "the lines on my face are getting deeper lol lyrics" (15 of 20 fresh lines; 19 of 20 on a second set).
+LYRICS_OF = re.compile(
+    r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of|to|for)\s+(?P<name>[^,.!?]{2,70})|"
+    r"\b(?P<who>[\w.&-]{2,30})'s\s+(?:verse|bars|lyrics|hook|feature)\b(?:\s+(?:on|in|from)\s+(?P<name2>[^,.!?]{2,70}))?", re.I)
+_NAME_ENDS = re.compile(r"\s+(?:is|was|are|were|hits?|goes|went|got|gets|always|still|never|really|lol|lmao|tho|though|when|where|because|cause|cuz|and|but|"
+                        r"about|rn|fr|ngl|tbh|stuck|slaps?|makes?|made|keeps?|every|again|lately|yet|this week|last night|today)\b.*$", re.I)
+_NOT_A_SONG = re.compile(r"^(?:everything|anything|something|nothing|it|that|this|these|those|them|front|between|here|there|"
+                         r"(?:the |a |an )?(?:story|letter|lease|card|text|vows|paper|speech|toast|eulogy|will|email|message|note|poem|script|contract|report|"
+                         r"diagnosis|book|article|post|caption|bio|profile|chat|thread|voicemail|sand|road|store|bank|line|list|bible|psalm|hymn|prayer))\b", re.I)
+
+
+def lyrics_query(text):
+    """"kendrick's verse on control is still insane" -> "kendrick control lyrics". None when no song or artist is named, or when
+    what follows is theirs ("a line in my vows", "that line from her text", "the lyrics to make me laugh")."""
+    from luma.agent import keepup
+    found = LYRICS_OF.search(" ".join(str(text or "").split()))
+    if not found:
+        return None
+    who = (found["who"] or "").strip()
+    if who and (keepup.private(who) or _FIRST_PERSON.search(who) or keepup.PEOPLE_IN.search(who) or who.lower() in keepup.NOT_A_NAME):
+        return None   # "my dad's verse", "her lyrics", "that one's hook"
+    parts = [who] if who else []
+    raw = found["name"] or found["name2"]
+    if raw:
+        name = _NAME_ENDS.sub("", raw.strip())
+        name = re.sub(r"^(?:(?:that|this|the|a|an)\s+)(?=(?:new|newest|latest|last|first)\b)", "", name, flags=re.I).strip(" '\"")
+        words = name.lower().split()
+        if not words or len(words) > 6 or keepup.private(name) or _FIRST_PERSON.search(name):
+            return None
+        # with the artist named ("kendrick's verse on like that"), what follows is the song; without one it has to look like a name
+        if not who and (keepup.PEOPLE_IN.search(name) or _NOT_A_SONG.match(name)
+                        or all(w in keepup.NOT_A_NAME or re.fullmatch(keepup.WORK, w) for w in words)):
+            return None
+        parts.append(name)
+    return (" ".join(parts) + " lyrics")[:120] if parts else None
+
+
 LYRICS_TALK = re.compile(r"\b(?:verse|verses|bars|lyrics?|hook|chorus|line|lines|feature)\s+(?:on|in|from|of)\s+\S+|\b\w+'s\s+(?:verse|bars|lyrics|hook|feature)\b|\blyrics\b", re.I)
 # "Quote me some SZA lyrics", "sing me the chorus", "what's the first line of...": words only a lookup can get right.
 LYRICS_ASK = re.compile(r"\blyrics?\b|\b(?:quote|sing|rap|recite|spit)\s+(?:me\s+)?(?:some|the|a|that|his|her|their)?\s*(?:lines?|bars|verse|hook|chorus|song)\b|"
@@ -3716,7 +3755,7 @@ class Agent:
     def _talk_lyrics(self, text, cancel_event=None):
         """Read the song's lyrics on the web, then talk about them like a friend who knows the song, quoting only what was found."""
         try:
-            found = self.propose("web.search", {"query": f"{text} lyrics"[:300]})
+            found = self.propose("web.search", {"query": lyrics_query(text) or ""})   # the song's name, never their sentence
         except (ValueError, ProviderError):
             return None
         if not found.get("results"):
@@ -6529,7 +6568,7 @@ class Agent:
         if humor.NEWS_JOKE.search(lowered):
             return self._news_joke(text, cancel_event)
         again = jokes.MORE.match(text or "") and getattr(self, "last_joke_at", 0) and self.clock() - self.last_joke_at < 600
-        if not (jokes.asked(text, getattr(self, "last_joke_at", 0), self.clock()) or humor.JOKE_ASK.search(text)):
+        if not (jokes.asked(text, getattr(self, "last_joke_at", 0), self.clock()) or humor.asks_for_a_joke(text)):
             return None
         if self.use_model and re.search(r"\broast (?:my|the|this|me)\b", lowered) and len(lowered.split()) > 3:
             return None  # "roast my outfit, I'm wearing crocs with socks": the brain roasts the detail they gave, with the humor note
@@ -6686,6 +6725,8 @@ class Agent:
         m = self.UNNAMED.match(lowered.strip())
         if not m or re.search(r"\bby\b|[\"“”‘’']\w", m["rest"]):
             return None
+        if self.use_model and _FIRST_PERSON.search(m["rest"]):
+            return None  # "this song always makes me think of my dad" is about them: a friend answers that, not "which song though? lol"
         if any(m["what"] in str(turn.get("content", "")).lower() for turn in earlier):
             return None  # they've been talking about one: "that album" is that one, the brain takes it
         what = m["what"]
@@ -7802,8 +7843,8 @@ class Agent:
             # thought: thinking harder about something you haven't read only makes the guess sound surer.
             # "how much is a PS5 right now": a store check, never a remembered price
             priced = any(m and not self.NOT_FOR_SALE.match(m["q"].strip(" ,")) for m in (p.fullmatch(text.strip()) for p in self.SHOP_PATTERNS))
-            checkable = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or asks_news(lowered) or asks_live(text) or (friendtalk.fresh(text) and not about_them(text)) or self.use_markets(text) or priced)
-            looked_up = bool(GROUND.search(lowered) or LYRICS_TALK.search(lowered) or self.use_markets(text) or self.use_weather(text) or priced)  # the news still gets "quick or deep?"
+            checkable = bool(GROUND.search(lowered) or lyrics_query(text) or asks_news(lowered) or asks_live(text) or (friendtalk.fresh(text) and not about_them(text)) or self.use_markets(text) or priced)
+            looked_up = bool(GROUND.search(lowered) or lyrics_query(text) or self.use_markets(text) or self.use_weather(text) or priced)  # the news still gets "quick or deep?"
             checked = None if looked_up else self._depth_check(text, lowered, cancel_event)  # "quick answer or deep dive?" when it could go either way
             if checked is not None: return checked
             from luma.agent import mind
@@ -7847,7 +7888,7 @@ class Agent:
                     and self.integration_on("web_search") and self.rules.for_tool("web.search")[1] != "block":
                 caught_up = self.news_reply(text, cancel_event)
                 if caught_up is not None: return caught_up
-            if (self.mode != "kids" and LYRICS_TALK.search(lowered) and self.use_model and self.integration_on("web_search")
+            if (self.mode != "kids" and lyrics_query(text) and self.use_model and self.integration_on("web_search")
                     and self.rules.for_tool("web.search")[1] != "block" and not wants_message(text)):
                 talked = self._talk_lyrics(text, cancel_event)
                 if talked is not None: return talked

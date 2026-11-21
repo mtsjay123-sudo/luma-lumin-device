@@ -171,6 +171,12 @@ with the news, and "who won, me or my anxiety" sent to a search. A question abou
 question about the world: on twenty such questions used to make the fix, 9 were handled wrongly before and 0 after;
 on twenty more that nothing was fitted to, 4 before and 2 after. Those two are still open.
 
+Two more of the same kind, same day. A message with the word "lyrics" or "a line in" used to be sent whole to a
+search with " lyrics" added ("I've been writing lyrics again since the divorce"); now only a named song's name is
+(19 of 20 unseen lines went out before, 2 after). And a message with "make me laugh" anywhere in it used to get one
+of Luma's jokes, including "the only person who could make me laugh is gone"; said about someone, it's their story,
+and the brain answers (10 of 10 unseen lines got a joke before, 0 after).
+
 ### Reading up on what they bring up
 
 When someone names a new album, show, game or book ("have you heard the new Kendrick album"), Luma looks it up so it can

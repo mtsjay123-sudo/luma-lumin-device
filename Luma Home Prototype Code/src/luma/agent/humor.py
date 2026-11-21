@@ -54,6 +54,24 @@ FEWER_JOKES = re.compile(r"\b(?:less jokes|fewer jokes|stop (?:joking|with the j
 JOKE_ASK = re.compile(r"\b(?:(?:tell|give|hit|say)\s+(?:me|us)\s+(?:a|another|one more|some|something)\s+(?:good\s+|funny\s+|quick\s+|new\s+)?(?:jokes?|bit|one|funny)"
                       r"|make me laugh|say something funny|got any jokes|know any jokes|joke time|roast (?:my|the|this) \w+|"
                       r"(?:joke|something funny|roast) about (?P<about>[\w '-]{2,40}))", re.I)
+# "make me laugh" asked of Luma opens a clause ("bad day. make me laugh", "can you make me laugh"). Said about someone, it's
+# their story: "the only person who could make me laugh is gone" and "my dad used to change the lyrics to make me laugh" each
+# got a canned joke (10 of 10 fresh lines, and 10 of 10 on a second set).
+LAUGH_ASKED = re.compile(r"(?:^|[.,!?;:]\s*)\W*(?:(?:hey|hi|yo|ok(?:ay)?|luma|please|pls|just|now|so|come on|c'?mon|go on|can you|could you|would you|will you|"
+                         r"try to|try and|i need you to|i want you to|you gotta|you have to|you need to)[\s,]+)*make me laugh\b", re.I)
+
+
+def asks_for_a_joke(text):
+    """JOKE_ASK, with "make me laugh" counted only where it's asked of Luma."""
+    said = str(text or "")
+    found = JOKE_ASK.search(said)
+    if not found:
+        return False
+    if found.group(0).lower() != "make me laugh":
+        return True
+    return bool(LAUGH_ASKED.search(said)) or bool(JOKE_ASK.search(said.replace(found.group(0), " ", 1)))
+
+
 NEWS_JOKE = re.compile(r"\b(?:(?:what'?s|anything|something) (?:funny|hilarious|wild|crazy) (?:in|on) the (?:news|internet|timeline)|"
                        r"(?:joke|jokes|roast) about (?:the |today'?s )?(?:news|headlines)|make (?:fun of|a joke about) (?:the |today'?s )?(?:news|headlines)|"
                        r"funniest (?:news|headline)|news but make it funny)\b", re.I)
