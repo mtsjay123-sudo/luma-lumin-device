@@ -160,6 +160,12 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 68 (Nov 21): the new small add-on fixes what it was trained for and still doesn't beat its base.** Unseen
+  lives, of 51: stock 1.7B 50, stock 4B 48, the candidate from training 35 48 (what they said since: 6 of 6; the
+  published small add-on 0 of 6 and 42 overall). Not published.
+- **A small worry said casually (Nov 21).** "lowkey nervous tho" was handed to the brain as "be funny back". A
+  small feeling gets its own gentle line now: 5 → 20 of 20 built on, 4 → 20 of 20 on a second set measured once,
+  none of 40 playful lines taken.
 - **Run 69 (Nov 21): asking the brain first works on the 4B and not on the 1.7B.** Venting, 50 takes: stock 4B
   36 → 49, Luma's own 4B 32 → 43; stock 1.7B 12 → 13, Luma's own small 30 → 29. It costs the stock 4B about four
   seconds a turn. A small brain isn't asked any more. The 1.7B doesn't follow "be on their side first" even when

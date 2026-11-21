@@ -5126,8 +5126,8 @@ class Agent:
         three times" is told this way, and what it needs first is someone on their side. Rules for it heard 40 of the 40
         gripes they were built on and 2 of 40 written afterwards (Nov 21, 2026): what people complain about doesn't fit in a
         list, so the brain is asked (_went_wrong_for_them). It's one more trip through the brain before the first word, so:
-        never when the cloud brain answers in one trip, never when something in the message is asked, and off when the
-        owner turns off "side_first"."""
+        never when the cloud brain answers in one trip, never of a small brain, never when something in the message is
+        asked, and off when the owner turns off "side_first"."""
         from luma.agent import feelings, friendcheck, humor, rapport
         said = str(text or "")
         if self.mode == "kids" or shape or (funny and "sense of humor" not in funny) or not rapport.telling(said, theirs=False, laughing=True):
@@ -5138,6 +5138,16 @@ class Agent:
             return False   # "laughing": bad news gets laughed off ("lol my dog has cancer apparently"), and the brain can tell which it is
         if friendcheck.at_risk(said) or friendcheck.worth_asking(said) or friendcheck.leaning(said):
             return False   # the safety question's, or the leaning note's: never a line about a gripe
+        if self.planner is None and self.use_model:
+            try:
+                from luma.llm import brain
+                # A small brain isn't asked. Run 69: asked first, the stock 4B went from 36 to 49 of 50 on venting and Luma's
+                # own 4B from 32 to 43; the stock 1.7B from 12 to 13 and Luma's own small from 30 to 29, for a turn that took
+                # up to twice as long. The 1.7B doesn't do what "be on their side first" says even when it's told.
+                if brain.small_here():
+                    return False
+            except Exception:
+                return False
         return True
 
     def _went_wrong_for_them(self, said, cancel_event=None):

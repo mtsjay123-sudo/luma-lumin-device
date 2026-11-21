@@ -109,6 +109,23 @@ class TheBrainIsAskedFirst(unittest.TestCase):
         finally:
             s.close()
 
+    def test_a_small_brain_isnt_asked(self):
+        """Run 69: asked first, the stock 4B went from 36 to 49 of 50 on venting; the stock 1.7B from 12 to 13 and Luma's
+        own small from 30 to 29, for a turn up to twice as long."""
+        s, _, _ = session()
+        try:
+            from luma.llm import brain
+            planner, model, small = s.agent.planner, s.agent.use_model, brain.small_here
+            try:
+                s.agent.planner, s.agent.use_model, brain.small_here = None, True, lambda: True
+                self.assertFalse(s.agent._told_plainly(GRIPE, "", ""))
+                brain.small_here = lambda: False
+                self.assertTrue(s.agent._told_plainly(GRIPE, "", ""))
+            finally:
+                s.agent.planner, s.agent.use_model, brain.small_here = planner, model, small
+        finally:
+            s.close()
+
     def test_only_where_the_brain_would_have_been_told_humor_is_welcome(self):
         s, _, _ = session()
         try:

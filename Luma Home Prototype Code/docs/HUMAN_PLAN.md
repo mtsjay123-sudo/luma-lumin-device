@@ -3247,3 +3247,54 @@ change doesn't close: the 4B is at 49 of 50 on these, the 1.7B at 13.
 
 What this run doesn't show: the gripes side check (39 + 50 fresh lines) and bad news said with a laugh, on a real
 brain. That's the next run, on the 4B brains.
+
+## A small worry said the way people say it (Nov 21)
+
+Reading what a brain is told on the conversations of Human Test v2: "lowkey nervous tho" and "lowkey scared of the
+dentist" were handed to it as "They're joking around: be funny back", and "kinda nervous ngl" with "a little humor
+is welcome". Two things were wrong. Words like "lowkey", "bro" and "deadass" say how someone talks, not that
+they're joking, and any sentence with one was read as play. And a feeling that isn't heavy had no line at all.
+
+Twenty fresh feelings said casually ("bro i'm kinda sad today", "deadass stressed rn", "a little worried about my
+mom tbh") and twenty lines of real play or plain talk in the same words ("lowkey obsessed with this song", "bro
+roast me"):
+
+| | Got a gentle line | Play taken for a feeling |
+|---|---|---|
+| The lines it was built on, before → after | 5 → 20 of 20 | 0 of 20 |
+| A second twenty and twenty, written before the change, measured once | **4 → 20 of 20** | 0 of 20 |
+
+What changed: the feeling is read with the subject left off ("lowkey scared about tomorrow" is "I'm lowkey scared
+about tomorrow"); plain "worried" and "bummed" are read, as small ones; and a small feeling gets a line of its own
+("They're a little nervous: be warm and easy about it in a line, then ask about it. Keep it light, with no jokes
+about it and no speech."), also when it's said with a laugh. A big one is as it was: "I'm so worried about my
+mom" is still "Read the room".
+
+On the other sets, six everyday lines are now read ("I'm worried about my grades", as a small worry) and nothing
+else; three turns of Human Test v2 are told this instead of a cue for a joke.
+
+And from run 69: a small brain is no longer asked whether something went wrong before it replies.
+
+Tests: `tests/test_small_feelings.py` (6), `test_a_small_brain_isnt_asked` in `tests/test_gripes.py`. Full suite:
+1,960 passed, the known 14 failed. What a brain is told on both human tests: 5 of 269 turns differ (three small
+worries, and the two pieces of good news said with a laugh now say "laugh with them").
+
+## Run 68: the small add-on from training 35 on the month test (Nov 21)
+
+Six made-up lives nothing was built on, real brains answering, of 51:
+
+| Held-out lives | Day 28 | What they said since ("update"), of 6 | Comfort, of 9 |
+|---|---|---|---|
+| Stock 1.7B | **50** | 6 | 8 |
+| Stock 4B | 48 | 6 | 6 |
+| **Luma's own small, training 35 (not published)** | **48** | **6** | 6 |
+| Luma's own 4B (the published one) | 45 | 3 | 6 |
+| Luma's own small (the published one), run 66 | 42 | 0 | 6 |
+
+On the lives it was built on, all of them score 51 of 51.
+
+The gate did what it was built for: the published small add-on says the old city every time (0 of 6) and this one
+never does (6 of 6). It's six better than the add-on that's published. It is still two behind the stock 1.7B it
+sits on, both in comfort, so by the rule it isn't published, and the stock brains with Luma's layer stay the ones
+to ship. Whether it should replace the published small add-on in the meantime is the owner's call: it's better
+than that one on every count here, and worse than no add-on at all.

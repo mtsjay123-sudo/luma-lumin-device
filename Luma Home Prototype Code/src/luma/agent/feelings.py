@@ -172,6 +172,7 @@ HEARTBREAK = re.compile(
     r"\b(?:caught|found out)\s+(?:him|her|them|he|she|my \w+)(?:\s+was|\s+is|\s+has been|'s)?\s+cheating\b|\bunfaithful\b|\b(?:having|had|been having) an affair\b", re.I)
 FEAR = re.compile(
     rf"\b{I}\s+{VERY}(?:scared|terrified|afraid|frightened|petrified|nervous|anxious|panicking|freaking out|worried sick|on edge|dreading)\b|"
+    rf"\b{I}\s+{VERY}worried\b(?!\s+(?:about (?:the (?:weather|traffic|time)|what to wear)|it (?:will|might|'ll) rain))|"   # plain "worried" is a small one (read())
     r"\bpanic attacks?\b|\bcan'?t stop (?:worrying|shaking|thinking about what)\b|"
     r"\bmy anxiety\s+(?:is|has been|'s|’s)\s+(?:so |really |been )?(?:bad|through the roof|terrible|awful|out of control|acting up|high|killing me)\b|"
     r"\bi'?m\s+(?:so|really|very|super|extremely)\s+worried\b|\bsick to my stomach\b|\bwhat if\s+(?:the|my)\s+(?:cancer|tumou?r|test|results?|scan|biopsy)\b|\bcan'?t breathe\b|\bi'?m dreading\b|\bscared (?:i|that|of|to)\b|"
@@ -211,7 +212,8 @@ HURT = re.compile(
     re.I)
 LOW = re.compile(
     rf"\b{I}\s+{VERY}(?:down|sad|low|blue|empty|numb|hollow|miserable|depressed|hopeless|heartsick|not (?:okay|ok|myself|doing (?:well|good|great))|"
-    rf"struggling|lost\b(?! (?:my|the|a|an|it|in thought|track))|off\b(?=\s*(?:lately|today|all day|this week|\.|$)))\b|"
+    rf"struggling|lost\b(?! (?:my|the|a|an|it|in thought|track))|off\b(?=\s*(?:lately|today|all day|all week|this week|for days|\.|$)))\b|"
+    r"\bfeel(?:ing|s)? like (?:crap|garbage|shit|trash|hell|death|a mess)\b|"
     r"\b(?:i )?(?:cried|been crying|keep crying|can'?t stop crying|was crying)\b|\bcan'?t get out of bed\b|\b(?:everything|nothing|it all) feels? "
     r"(?:pointless|gray|grey|heavy|empty|hard|wrong|numb)\b|\bnothing (?:feels good|makes me happy|matters lately)\b|\bmy heart hurts\b|\bi hate my life\b|"
     r"\bhaven'?t\s+(?:left|been out of|gotten out of|got out of)\s+(?:my|the)\s+(?:apartment|house|room|bed|place|flat)\s+(?:in|for)\s+(?:days|weeks|months|a week|a few days|[a-z]+ days)\b|"
@@ -272,6 +274,7 @@ OVERWHELMED = re.compile(
     r"\b(?:everything|it all|things)\s+(?:is|are|keeps?)\s+piling up\b|\bend of my (?:rope|tether)\b|\bat my wit'?s end\b|\baren'?t enough hours in the day\b|\beverything (?:at once|is falling apart)\b|\bcan'?t (?:do|handle|take) "
     r"(?:this|it|any more|anymore)\b(?=.*\b(?:work|deadline|kids?|school|bills|job|week|exams?)\b)", re.I)
 DISAPPOINTED = re.compile(
+    rf"\b{I}\s+{VERY}bummed(?: out)?\b|"   # a small one (read()): "kinda bummed i didn't get invited"
     r"\b(?:didn'?t|did not) get (?:the|that|my|in\b|it\b|into|accepted|picked|chosen|hired|a callback|an offer)\b|\b(?:went|going|gone) with someone else\b|"
     r"\b(?:picked|chose|hired) someone else\b|\bi (?:failed|flunked|bombed|blew)\b(?! (?:to\b|at being))|\bgot (?:rejected|turned down|passed over|cut from|"
     r"laid off|let go|fired|denied|waitlisted)\b|\b(?:fell|falling) through\b|\b(?:didn'?t|did not) make (?:the (?:team|cut|list)|it (?:onto|into) the)\b|"
@@ -547,10 +550,18 @@ def read(text):
     low = said.lower()
     found = _families(low)
     if not found:
-        return None
+        full = _said_in_full(low)
+        found = _families(full) if full else []
+        if not found:
+            return None
+        said, low = full, full
     family = found[0]
     need, heavy, why = FAMILIES[family]
     strength = 1 if SMALL.search(low) else 3 if (BIG.search(said) or (family == "grief" and TODAY.search(low))) else 2
+    if family == "fear" and strength == 2 and re.search(r"\bworried\b", low) and not ONLY_WORRIED.search(low):
+        strength = 1   # "i'm worried about my dad": a worry, not a fright. A small one, unless something else in it says more
+    if family == "disappointed" and strength == 2 and re.search(r"\bbummed\b", low) and not MORE_THAN_BUMMED.search(low):
+        strength = 1   # bummed is a small word
     if family not in ALWAYS_HEAVY:
         heavy = heavy and strength >= 2 and not (family != "grief" and LAUGHING.search(said))
     elif family == "shame" and LAUGHING.search(said):
@@ -585,6 +596,32 @@ GLAD = {
 }
 
 
+# A small worry or a low mood, said the way people say it: "kinda nervous about the interview", "bro i'm lowkey sad today".
+# Not heavy, so there was no line for it, and the brain was told humor was welcome; with a "lowkey" or a "bro" in it, it was
+# told "They're joking around: be funny back" (of twenty fresh lines: 9 that, 6 humor, 5 gentle; Nov 21, 2026).
+A_LITTLE = {"fear": "nervous", "low": "down", "lonely": "lonely", "overwhelmed": "stressed", "disappointed": "let down"}
+SMALL_FIRST = "They're a little {word}: be warm and easy about it in a line, then ask about it. Keep it light, with no jokes about it and no speech."
+MORE_THAN_BUMMED = re.compile(r"\b(?:failed|flunked|bombed|rejected|fired|laid off|let go|turned down|passed over|didn'?t get|lost my job|"
+                              r"fell through|said no|so disappointed|really disappointed)\b", re.I)
+ONLY_WORRIED = re.compile(r"\b(?:scared|terrified|afraid|frightened|petrified|anxious|panick\w+|freaking out|worried sick|on edge|dreading|"
+                          r"(?:so|really|very|super|extremely) worried|can'?t (?:sleep|eat|breathe|stop)|sick to my stomach|what if)\b", re.I)
+# The feeling with the subject left off, after the words people open with: "lowkey scared about tomorrow", "deadass stressed rn".
+_OPENERS = r"(?:bro|bruh|sis|girl|man|dude|ngl|tbh|honestly|deadass|highkey|fr fr|fr|no cap|on god|low ?key|kinda|kind of|sorta|slightly|a little|a bit|just|still|so|really|pretty|super)"
+LEFT_OFF = re.compile(rf"^\W*((?:{_OPENERS}\W+)+)(?=(?:scared|terrified|nervous|anxious|worried|sad|down\b(?! (?:to|for|the|a|with)\b)|lonely|stressed|"
+                      r"overwhelmed|bummed|homesick|dreading|not (?:okay|ok)\b))", re.I)
+_KEEP = re.compile(r"\b(?:low ?key|kinda|kind of|sorta|slightly|a little|a bit|so|really|pretty|super)\b", re.I)
+
+
+def _said_in_full(said):
+    """ "lowkey scared about tomorrow" as "i'm lowkey scared about tomorrow": the subject put back, the words that only set
+    the register dropped, the ones that say how much kept."""
+    m = LEFT_OFF.match(said)
+    if not m:
+        return ""
+    how = " ".join(w.group(0).replace("low key", "lowkey") for w in _KEEP.finditer(m.group(1)))
+    return ("i'm " + (how + " " if how else "") + said[m.end():]).strip()
+
+
 def note(felt, asked=False):
     """The line for the brain, or "" when there's nothing to say. asked: they also asked for something ("can you quiz me"),
     so the line stays plain and nothing in it argues with doing what they asked."""
@@ -597,4 +634,8 @@ def note(felt, asked=False):
                 "Hold both: be glad with them, and gentle about the part that hurts.")
     if felt["heavy"]:
         return f"Read the room: {felt['why']}. {NO_JOKES} {PLAIN if asked else FIRST.get(family, PLAIN)}"
-    return "" if asked else GLAD.get(family, "")
+    if asked:
+        return ""
+    if family in A_LITTLE:
+        return SMALL_FIRST.format(word=A_LITTLE[family])   # a small one is still a feeling, and never a cue for a bit
+    return GLAD.get(family, "")
