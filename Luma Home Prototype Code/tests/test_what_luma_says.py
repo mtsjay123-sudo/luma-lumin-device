@@ -130,5 +130,41 @@ class Reminders(Home):
             self.assertIsNone(standing.parse(said.lower()), said)
 
 
+class KidsMode(Home):
+    """In kids mode "tell me a joke" got an office joke ("trust falls with Kevin from accounting"); "text my mom" was asked
+    to be finished ("What should I tell them?") and the next thing the child said was taken for the text; "search for
+    dinosaurs" came out as the error itself."""
+
+    def setUp(self):
+        super().setUp()
+        self.s.agent.set_mode("kids")
+
+    def test_a_joke_is_one_of_the_classic_clean_ones(self):
+        from luma.agent import jokes
+        for said in ("tell me a joke", "another one", "tell me a joke about work", "make me laugh"):
+            reply = self.say(said)
+            if reply != "Okay.":      # "make me laugh" may be the brain's
+                self.assertIn(reply, jokes.JOKES, said)
+        self.assertIn(self.say("tell me a joke"), jokes.JOKES)
+
+    def test_a_text_is_refused_straight_away(self):
+        for said in ("text my mom", "email my teacher", "can you text my dad I love him"):
+            reply = self.say(said)
+            self.assertRegex(reply, r"grown-up", said)
+            self.assertNotRegex(reply, r"(?i)cut off|what should i tell", said)
+        self.assertNotRegex(self.say("buy me a toy"), r"(?i)text people")      # the next thing they say is its own thing
+
+    def test_a_tool_a_child_cant_use_is_a_plain_sentence(self):
+        for said in ("search for dinosaurs", "search the web for volcanoes"):
+            reply = self.say(said)
+            self.assertNotRegex(reply, r"(?i)error|tool|unavailable|ValueError", said)
+            self.assertEqual(reply, "That's a grown-up thing. Ask one to help you with it.", said)
+
+    def test_the_everyday_things_still_work(self):
+        self.assertEqual(self.say("set a timer for 10 minutes"), "Timer set for 10 minutes.")
+        self.assertEqual(self.say("what's 7 times 8"), "7 times 8 is 56.")
+        self.assertEqual(self.say("are you a robot?"), "I'm Luma. Not a person: a presence. I'm really here, and I'm listening.")
+
+
 if __name__ == "__main__":
     unittest.main()

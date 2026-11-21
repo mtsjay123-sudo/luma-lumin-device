@@ -2533,7 +2533,7 @@ something's coming up are noticed, and what's noticed is now asked about the way
 ## What Luma says itself, read line by line (Nov 21)
 
 A brain's replies are sampled and judged; the lines Luma's own code says had never been read against fresh things
-people say. Doing that for an afternoon found nineteen that no person would say. Each is fixed, with a test
+people say. Doing that for an afternoon found twenty-two that no person would say. Each is fixed, with a test
 (`tests/test_what_luma_says.py`, and the classes named below).
 
 | They said | Luma said | Now |
@@ -2557,6 +2557,9 @@ people say. Doing that for an afternoon found nineteen that no person would say.
 | "remind me tomorrow" (and nothing else) | "Got it. I'll remind you at 9 AM tomorrow." (a reminder called "What you told me") | "Sure. What should I remind you about?" |
 | "remind me every Monday at 9 to take out the trash" | "I'll remind you about every to take out the trash on Monday at 9 AM." (once) | "Done. On Mondays at 9 AM, I'll remind you to take out the trash." (every week) |
 | "what reminders do I have?" | "You've got 2 things: Take my meds at 9:00 PM; …" | "You've got 2 things: take your meds at 9:00 PM; …" |
+| (kids mode) "tell me a joke" | "I love a team-building exercise. Nothing brings people together like being forced to do trust falls with Kevin from accounting." | one of the forty classic clean ones |
+| (kids mode) "text my mom", then "buy me a toy" | "You got cut off after 'text my mom'. What should I tell them?", then "I can't text people in kids mode." | "That's a grown-up thing. Ask one to help you with it.", and the toy is its own sentence |
+| (kids mode) "search for dinosaurs" | the error itself: "This tool is unavailable in kids mode." | "That's a grown-up thing. Ask one to help you with it." |
 
 Two of these are more than wording. "The list" is now the list that has the thing, else the one they used last
 (`AtHome._the_list`); it used to make a list called "the". And a timer nobody named is "the 12-minute timer", so
@@ -2566,7 +2569,7 @@ Still handed to the brain, and not checked on one: "cancel the meds reminder", "
 reads the list back instead), and "remind me to call my mom" with no time.
 
 The method is cheap and it keeps finding things, so it's worth repeating on what hasn't been read yet: the calendar
-and email lines, what Luma says when something fails, and every line in kids mode.
+and email lines, and what Luma says when something fails.
 
 ## Run 61 (Nov 21): asked which way a wish was meant, a 4B hears more and makes some up. It's off.
 

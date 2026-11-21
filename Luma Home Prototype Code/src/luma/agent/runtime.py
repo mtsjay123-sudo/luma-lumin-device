@@ -4824,6 +4824,11 @@ class Agent:
                 if isinstance(error, GenerationCancelled):
                     self.history.append({"role":"assistant", "content":"Response interrupted by the user; no next action was assumed."})
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
+                if self.mode == "kids" and isinstance(error, ValueError) and "kids mode" in str(error):
+                    # "search for dinosaurs" in kids mode came out as the error itself: "This tool is unavailable in kids mode."
+                    reply = "That's a grown-up thing. Ask one to help you with it."
+                    self.history.append({"role": "assistant", "content": reply})
+                    return {"text": reply}
                 if self.mode != "kids" and not agent_mode:
                     try:
                         self._notice(text)  # the brain failed, but what they told me is still kept: memory never depends on the brain
@@ -5789,6 +5794,9 @@ class Agent:
         ask = understanding.cut_off(text)
         if not ask:
             return None
+        if self.mode == "kids" and re.match(r"\W*(?:(?:can|could|will|would) you\s+|please\s+)?(?:text|message|msg|email|e-mail|call|dm|send)\b", text, re.I):
+            # A child isn't asked what the text should say and then told no. (And the next thing they said was taken for the text.)
+            return {"text": "That's a grown-up thing. Ask one to help you with it."}
         if self._asks_their_own_life(text) and self._memory_answers(text):
             return None  # "my sister's name, remind me" isn't cut off: it's a whole question, and a saved fact answers it
         self.unfinished = {"text": text.strip(), "at": self.clock()}
@@ -6204,7 +6212,9 @@ class Agent:
                 self.store.set_setting("bits_told", (told + [line])[-400:])
                 self.last_joke_kind, self.last_bit = "roast", None
                 return {"text": line}
-        corny = re.search(r"\b(?:dad|corny|pun|puns|cheesy|clean)\b", lowered) or (again and getattr(self, "last_joke_kind", "") == "pun")
+        # In kids mode it's always one of the classic clean ones. (A child asking for a joke got "trust falls with Kevin from accounting".)
+        corny = (self.mode == "kids" or re.search(r"\b(?:dad|corny|pun|puns|cheesy|clean)\b", lowered)
+                 or (again and getattr(self, "last_joke_kind", "") == "pun"))
         self.last_joke_at = self.clock()
         if corny:
             told = list(self.store.setting("jokes_told") or [])
