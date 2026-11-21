@@ -3646,6 +3646,39 @@ the rest. Two tests (`tests/test_meaning_small.py`, now 12).
 
 Full suite: 2,002 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.
 
+**The real model, through Luma's own reader and Luma's own search** (`meaning-small.yml` run 3, a minute on GitHub's
+machine). The model's card says MIT. Luma's reader against the package the model was made with, on nine sentences:
+the furthest apart any number is, 0.000000. A thousand memories each, counts only:
+
+| | Words alone | Small model, a memory counts at 0.35 | at 0.4 (what Luma uses) | at 0.45 | at 0.55 |
+|---|---|---|---|---|---|
+| Forty built-on facts: asked plainly, found | 38 | 39 | 39 | 38 | 38 |
+| asked in other words, found | 27 | 29 | 30 | 30 | 27 |
+| wrongly "never told" | 0 | 0 | 0 | 0 | 0 |
+| The second forty (written first): asked plainly | 38 | 38 | 38 | 38 | 38 |
+| asked in other words, found | 19 | 28 | **28** | 24 | 23 |
+| wrongly "never told" | 11 | 6 | **6** | 9 | 9 |
+| Memory test, built-on lives: "never told" said when it never was, of 33 | 18 | 16 | 16 | 16 | 18 |
+| Memory test, held-out lives: the same, of 33 | 18 | 15 | 18 | 18 | 18 |
+| Memory test, held-out lives: told, but Luma said "never told", of 444 | 3 | 3 | 3 | 3 | 3 |
+
+Everything else on the memory test is the same at every setting (held out: facts 159 of 187, said another way 102
+of 135, time 39 of 39, updates 65 of 65, two steps 0 of 18).
+
+What it says:
+- **Asked in other words, on the set written first: 19 → 28 of 40 found, and "never told" said wrongly 11 → 6.** The
+  stand-in experiment said 27 and 6; Luma's own reader and search give the same. Twelve of forty still aren't found.
+- **0.4 stays.** It was picked before this run, between the two settings the experiment liked. Closer than that
+  (0.45) finds four fewer; looser (0.35) finds no more and three more questions about things never told stop being
+  answered "never told" on the held-out lives.
+- **The cost, on the lives it was built on: two questions about things never told (of 33) are no longer answered
+  "never told"**, because something close in meaning turned up. On the held-out lives: none. That's the one number
+  that goes the wrong way.
+- **It does nothing for the memory test's own misses.** The held-out lives' 28 facts, 33 said another way and 18
+  two-step questions are all still missed with the model on. Those aren't looked at (held out), so why isn't known.
+
+The lamp's meaning model stays off until the owner switches it on.
+
 ## Run 72: Human Test v2 on this morning's code, four brains (Nov 21)
 
 The whole test again, on f261e12: everything up to the brain being asked first about a gripe and bad news with a

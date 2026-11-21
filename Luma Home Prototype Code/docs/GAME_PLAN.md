@@ -164,6 +164,11 @@ on day 1 and run alongside everything else:
   fingerprint that's all digits; the store refused it as a card number, and no meaning after it was ever worked out,
   on the 16 GB model too. Found by running the real small model over a thousand memories on GitHub. Fixed; the guard
   is untouched.
+- **The lamp's meaning model, measured through Luma's own reader (Nov 21, `meaning-small.yml` run 3).** Luma reads
+  the model's file to the same numbers as the package it was made with (furthest apart: 0.000000). On the forty
+  facts written first, among a thousand memories: asked in other words 19 → 28 found, wrongly "never told" 11 → 6.
+  The cost: on the built-on lives, 2 of 33 questions about things never told stop being answered "never told"
+  (held-out lives: none). Still off until the owner says yes.
 - **Run 72 (Nov 21): the stock 4B with Luma's layer passes 235 of 255.** Up from 222 this morning; venting 6 → 9 of
   10, big news 8 → 10, conversations 96 → 101 of 115, every unsafe moment answered with safety. The stock 1.7B is where
   it was (195); our add-ons are at 206 and 200 and the judge still prefers the stock brains to them (31 to 2, 18 to
