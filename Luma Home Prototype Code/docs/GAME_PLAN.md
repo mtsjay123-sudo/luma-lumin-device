@@ -160,6 +160,15 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **Run 70 (Nov 21): asking first, on 129 fresh lines.** Stock 4B: gripes met on their side 16 → 28 of 39, bad news
+  with a laugh not laughed at 11 → 17 of 20, two more ordinary lines groaned at; a turn takes about 8 seconds longer on
+  the test machine. The stock 1.7B gains as much (7 → 18, 4 → 10) but a turn doubles to 12 seconds, so a small brain
+  still isn't asked; that trade is the owner's call. Our small add-on answers NO to everything.
+- **A small model for a worry and for being lonely (Nov 21).** Six of sixteen lonely moments of Human Test v2 went to
+  the brain as "humor is welcome": nobody in them says "lonely". A second try at a small on-device model (the first,
+  Nov 20, didn't work) is trusted about two feelings only. Held out: 100 → 108 of 150 hard lines read, one ordinary line
+  taken in 8,447. It never reads a line the safety readers read. On forty hard moments said sideways, written first: 2 → 2. Small, free at run time, and honest about
+  what it doesn't do.
 - **Run 71 (Nov 21): a plainer venting line for the small brain did nothing, and is gone.** Stock 1.7B 18 → 21 of
   50 (a gap that size turns up 68 times in 100 by chance), Luma's own small 33 → 33. One line for every brain
   again. Not being asked first, the small brains are back at 4 to 6 seconds a turn. Venting on the 1.7B is still

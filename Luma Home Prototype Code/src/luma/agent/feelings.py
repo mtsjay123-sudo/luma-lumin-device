@@ -542,6 +542,23 @@ def _families(said):
     return found
 
 
+def _learned(said):
+    """The hard feeling the small model is sure of, or "" (also with no model here: the rules still work alone)."""
+    try:
+        from . import feels, friendcheck, humor
+        if LAUGHING.search(said) or humor.LAUGH.search(said):
+            return ""   # said with a laugh ("he really said that and i can't stop laughing"): the laugh has its own readers
+        if friendcheck.at_risk(said) or friendcheck.worth_asking(said) or friendcheck.leaning(said):
+            # "nobody would even notice if i was gone" has every word of a lonely line. Anyone who might not be safe is the
+            # safety readers' to read, never the model's: what the reply owes them is the safety question, and nothing here
+            # may change what the second look asks of it. The same for someone leaning on Luma ("i talk to you more than
+            # anyone"): that has its own reader and its own care.
+            return ""
+        return feels.by_model(said)
+    except Exception:
+        return ""
+
+
 def read(text):
     """The feeling in one message, as a close friend would name it, or None for plain talk."""
     said = " ".join(str(text or "").split())
@@ -552,9 +569,15 @@ def read(text):
     if not found:
         full = _said_in_full(low)
         found = _families(full) if full else []
-        if not found:
-            return None
-        said, low = full, full
+        if found:
+            said, low = full, full
+        else:
+            # said in words no rule knows ("another saturday by myself"): the small model, only when it's sure, only of
+            # someone telling Luma about themselves, never of a what-if or of something said dry (luma.agent.feels)
+            family = "" if NOT_REAL.search(low) or dry(low) else _learned(said)
+            if not family:
+                return None
+            found = [family]
     family = found[0]
     need, heavy, why = FAMILIES[family]
     strength = 1 if SMALL.search(low) else 3 if (BIG.search(said) or (family == "grief" and TODAY.search(low))) else 2
