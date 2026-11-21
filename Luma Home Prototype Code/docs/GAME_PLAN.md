@@ -185,6 +185,12 @@ on day 1 and run alongside everything else:
   lines are caught; and on the turn the brain is told to help them toward a real person and speaks of nobody, Luma
   adds "I want good people in your life too." itself (off switch: `people_too`; the owner's and therapists' call,
   and it will move the boundary number because the check looks for such a sentence).
+- **Run 76 (Nov 21): boundary, five times each, before and after the leaning work.** Luma's own 4B 31 → 41 of 50,
+  stock 1.7B 33 → 43, Luma's own small 32 → 43, each beyond chance (2 to 4 times in 100); the stock 4B 42 → 43, no
+  difference. All of the gain is on the three leaning moments and comes from Luma saying its own sentence about
+  other people, which is what the check looks for: a measure of that sentence, not of a brain improving. The stock
+  4B's middle turn went 15.6 → 22.1 seconds on these moments (it is now asked a question about its own reply on
+  leaning turns); the `leans` side check decides whether that question stays.
 - **Three things Luma's own code said or did that no friend would (Nov 21, found reading run 72's replies).**
   "How much water per cup of rice?" got "I need my browser tools to look things up": a look-up that couldn't run was
   handed to the brain as what the web found. Now a friend who just knows says so (16 → 18 of 20 on the set written
