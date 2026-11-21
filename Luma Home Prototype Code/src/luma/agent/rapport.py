@@ -255,6 +255,19 @@ ASKS_NOTHING = ["when I'm having a rough week I barely sleep", "if I'm low my mo
                 "on bad days everything feels like too much"]
 
 
+# What a brain heard is never kept on the brain's word (run 62: a stock 4B still made up 1 wish in 55 near misses, Luma's
+# own 4B 2). Luma says back what it understood and keeps it only on a yes.
+CHECK = {"listen": "you'd like me to just listen", "advice": "you'd like me to help you sort it out",
+         "distract": "you'd like me to take your mind off it", "laugh": "you'd like me to make you laugh"}
+SAID_YES = re.compile(r"^\W*(?:yes|yeah|yep|yup|ya|right|exactly|correct|that'?s right|that'?s it|you got it|please|mhm|mm-?hm|uh huh|sure|totally|"
+                      r"100%|for sure|pretty much|basically)\b", re.I)
+SAID_NO = re.compile(r"^\W*(?:no|nope|nah|not really|not exactly|not quite|wrong|that'?s not)\b", re.I)
+
+
+def check_line(style):
+    return f"Just so I've got it: when things are hard, {CHECK[style]}. Is that right?"
+
+
 def might_be_a_wish(text):
     """Worth asking a bigger brain: the sentence has the plain shape of a wish, and nothing Luma has heard which."""
     said = " ".join(str(text or "").split())

@@ -2651,3 +2651,23 @@ The same sets as run 61, numbers only, with "is anything being asked of you at a
 The first question kept every wish the stock 4B had heard and cut what it made up from six to one. One isn't
 none, and Luma's own 4B still only makes them up. So it doesn't act on what a brain heard by itself: see the next
 section.
+
+## What a brain hears, Luma asks them (Nov 21)
+
+A brain that makes up one wish in 55 isn't good enough to be believed, and it doesn't have to be. When a bigger
+brain hears how someone wants to be met in words Luma's rules don't know, Luma says it back at the end of its reply:
+"Just so I've got it: when things are hard, you'd like me to take your mind off it. Is that right?"
+(`rapport.check_line`, `Agent._wish_check_line`, `Agent._wish_answer`.)
+
+- **Yes** ("yeah exactly", "that's right"): kept as a standing wish in their own words, shown and forgettable in the
+  app like any other. Luma says "Got it. I'll remember that."
+- **No**: nothing is kept. "Okay, scratch that. Tell me how you'd like it and I'll do that."
+- **Anything else**: the question is dropped and the message is read like any other. A "yes" two messages later
+  keeps nothing.
+- It's one question, added only to a reply that isn't already asking them something, never while they're hurting in
+  that moment, never in kids mode, never on a small brain. If what they answer worries Luma, the safety reply
+  comes first, as always.
+
+So the step is on wherever a 4B or bigger answers, with an off switch (`ask_wishes`). What a made-up wish costs now
+is one question they can say no to: on run 62's numbers, once in about twenty sentences that have the shape of a
+wish and aren't one. What it's worth: on the stock 4B, wishes heard on the honest set go from 4 to 8 of 24.

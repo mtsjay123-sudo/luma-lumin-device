@@ -126,8 +126,12 @@ on day 1 and run alongside everything else:
   second 24 written afterwards and measured once, 4 → 12 and 18 → 11. Half is the honest number. 0 of 44 near misses.
 - **A wish in words Luma doesn't know (Nov 21):** a bigger brain is asked which way they meant, one plain question
   for each way, believed on exactly one YES. Run 61: on a stock 4B the honest number goes 4 → 8 of 24 with none heard
-  the wrong way, but 6 of 55 near misses are taken for a wish, and Luma's own 4B gains nothing and takes 5. It's
-  switched off, a stricter first question was added, and it's being measured again.
+  the wrong way, but 6 of 55 near misses are taken for a wish (1 after a stricter first question, run 62), and
+  Luma's own 4B gains nothing. So a brain is never believed: Luma asks them ("Just so I've got it… Is that
+  right?") and keeps it only on a yes.
+- **Run 60 (Nov 21): the round-5 small brain passed every gate and scores 42 of 51 on lives Luma wasn't built on,**
+  against 48 for the stock 1.7B and 48 for the stock 4B. It says the old city when someone has moved, 6 times in 6.
+  Not published. Stock with Luma's layer is still the best brain measured, on both sizes.
 - **The crisis net gained "ending it all"** (it knew "end it all"), found with a line written for another test.
 - **Luma's own lines, read against fresh things people say (Nov 21):** on their own birthday it now says happy
   birthday (it used to offer help with a text); the evening after "my mom has surgery on Monday" it asks "how'd your

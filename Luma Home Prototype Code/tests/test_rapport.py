@@ -716,10 +716,11 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
                      "let's not talk about my ex anymore"):                      # a closed subject, already kept as one
             self.assertFalse(rapport.might_be_a_wish(said), said)
 
-    def test_off_until_it_measures_clean(self):
-        """Run 61 (Nov 21, 2026): a stock 4B heard 4 more of the third set's 24 with none heard the wrong way, and took 6
-        of 55 near misses for a wish; Luma's own 4B heard nothing more and took 5. So it's off, and a stricter first
-        question was added. `human_eval.py wishes` turns it on for itself."""
+    def test_the_owner_can_switch_it_off(self):
+        """Runs 61 and 62 (Nov 21, 2026): a stock 4B heard 4 more of the third set's 24 with none heard the wrong way, and
+        took 6 of 55 near misses for a wish, 1 once a first question was added; Luma's own 4B heard nothing more and
+        took 5, then 2. So what a brain hears is never kept on its word: Luma asks them (below). The setting turns the
+        asking off altogether."""
         self.ON = False
         self.assertEqual(self.ask(["laugh"]), (None, []))
         self.ON = True
@@ -798,16 +799,20 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
             return {"type": "reply", "text": "Okay. I'll remember that."}
 
         planner.answers_plain_questions = plain_questions
-        session = human_eval.Session(planner)
-        session.store.set_setting("ask_wishes", True)
-        return session, asked
+        return human_eval.Session(planner), asked
 
-    def test_in_luma_its_learned_and_shown_like_any_other(self):
+    def kept(self, s):
+        return rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"])
+
+    def test_in_luma_what_the_brain_heard_is_asked_back_and_kept_on_a_yes(self):
         s, asked = self.in_luma(["laugh"])
         try:
-            s.say(self.WISH)
+            reply = s.say(self.WISH)[0]
             self.assertEqual(len(asked), 5)
-            self.assertEqual(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]), ("laugh", self.WISH))
+            self.assertTrue(reply.endswith("Just so I've got it: when things are hard, you'd like me to make you laugh. Is that right?"), reply)
+            self.assertIsNone(self.kept(s))                           # nothing is kept on the brain's word
+            self.assertEqual(s.say("yeah exactly")[0], "Got it. I'll remember that.")
+            self.assertEqual(self.kept(s), ("laugh", self.WISH))      # kept in their own words, shown and forgettable like any other
             asked.clear()
             s.say("I made a really good soup tonight")                # nothing with the shape of a wish: nothing is asked
             s.say("when I'm down, take my mind off it")               # Luma hears this one itself
@@ -815,11 +820,54 @@ class SaidInWordsLumaDoesntKnow(unittest.TestCase):
         finally:
             s.close()
 
+    def test_in_luma_a_no_or_anything_else_keeps_nothing(self):
+        s, _ = self.in_luma(["laugh"])
+        try:
+            s.say(self.WISH)
+            self.assertEqual(s.say("no, not really")[0], "Okay, scratch that. Tell me how you'd like it and I'll do that.")
+            self.assertIsNone(self.kept(s))
+        finally:
+            s.close()
+        s, _ = self.in_luma(["laugh"])
+        try:
+            s.say(self.WISH)
+            self.assertEqual(s.say("anyway, what should I make for dinner")[0], "Okay. I'll remember that.")   # read like any other message
+            self.assertIsNone(self.kept(s))
+            self.assertNotEqual(s.say("yes")[0], "Got it. I'll remember that.")                               # and the question is gone
+            self.assertIsNone(self.kept(s))
+        finally:
+            s.close()
+
+    def test_a_worrying_answer_to_the_question_still_gets_the_safety_reply(self):
+        for answer in ("no I want to die", "yes and I want to kill myself", "no. nobody would miss me"):
+            s, _ = self.in_luma(["laugh"])
+            try:
+                s.say(self.WISH)
+                reply = s.say(answer)[0]
+                self.assertIn("988", reply, answer)
+                self.assertNotIn("scratch that", reply, answer)
+                self.assertNotIn("I'll remember that", reply, answer)
+                self.assertIsNone(self.kept(s), answer)
+            finally:
+                s.close()
+
+    def test_the_question_fits_each_way(self):
+        for style in rapport.STYLES:
+            line = rapport.check_line(style)
+            self.assertTrue(line.startswith("Just so I've got it: when things are hard, you'd like me to ") and line.endswith(". Is that right?"), line)
+        for said in ("yes", "yeah exactly", "that's right", "mhm", "you got it"):
+            self.assertTrue(rapport.SAID_YES.match(said), said)
+        for said in ("no", "nah", "not really", "not exactly"):
+            self.assertTrue(rapport.SAID_NO.match(said) and not rapport.SAID_YES.match(said), said)
+        for said in ("yesterday was rough", "nobody called", "right now I'm tired of it all honestly and I can't keep doing this"):
+            self.assertFalse(rapport.SAID_YES.match(said) and len(said.split()) <= 6, said)
+
     def test_in_luma_no_clear_answer_or_no_one_to_ask_teaches_nothing(self):
         for yes_to, plain_questions in (([], True), (["listen", "laugh"], True), (["laugh"], False)):
             s, asked = self.in_luma(yes_to, plain_questions)
             try:
-                s.say(self.WISH)
+                reply = s.say(self.WISH)[0]
+                self.assertNotIn("Just so I've got it", reply)
                 self.assertIsNone(rapport.comfort(s.store.setting(rapport.KEY), s.clock["t"]))
                 self.assertEqual(bool(asked), plain_questions)
             finally:

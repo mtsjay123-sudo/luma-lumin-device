@@ -4817,6 +4817,16 @@ class Agent:
                     if self.memory_was_full: result["memory_full"] = True  # something they said couldn't be kept: the app shows Make room
                     self._learn_style(text)
                     self._learn_rapport(text)
+                    check = self._wish_check_line()
+                    if check and isinstance(result.get("text"), str) and not result.get("asked") and "?" not in result["text"][-3:]:
+                        # one question at a time: it's only added to a reply that isn't already asking them something
+                        result["text"] = reply = result["text"].rstrip() + " " + check
+                        self.last_reply = reply
+                        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
+                            try: self._on_text(" " + check)   # they've heard the reply already: only the question is said, after it
+                            except Exception: pass
+                    elif check:
+                        self._wish_check = None   # no room to ask: nothing is kept
                     self._write_diary(text, reply, channel)
                 from luma.agent.workflows import observation
                 self.history.append({"role":"assistant", "content":observation(result)})
@@ -5099,10 +5109,11 @@ class Agent:
         way are they asking to be met? First whether anything is asked of Luma at all, then one question for each way;
         believed only when the first is a YES and exactly one of the others is. Asked only on a sentence with the plain
         shape of a wish (rapport.might_be_a_wish). A small brain isn't asked: it says YES to nearly anything (run 59).
-        With no brain to ask, or no clear answer, nothing is learned. Off unless the setting "ask_wishes" is on."""
+        With no brain to ask, or no clear answer, nothing is learned; and what is heard is only ever a question back
+        to them. Off when the setting "ask_wishes" is off."""
         from luma.agent import friendcheck, rapport
-        if not self.store.setting("ask_wishes", False):
-            return None   # off until it measures clean: run 61 heard 4 more wishes of 24 on a stock 4B and took 6 near misses of 55 for one
+        if self.store.setting("ask_wishes", True) is False:
+            return None   # the owner's off switch. What's heard is never kept without their yes (_wish_check_line, _wish_answer).
         yes = []
         try:
             with self._silent():
@@ -5132,6 +5143,31 @@ class Agent:
         except Exception:
             return None
         return yes[0] if len(yes) == 1 else None
+
+    def _wish_check_line(self):
+        """The question Luma asks when a brain heard how they want to be met, once; or None."""
+        from luma.agent import rapport
+        check = getattr(self, "_wish_check", None)
+        if not check or check["asked"]:
+            return None
+        check["asked"] = True
+        return rapport.check_line(check["style"])
+
+    def _wish_answer(self, lowered):
+        """Their answer to that question. Yes: it's kept as a standing wish, in their own words. No: dropped, and said
+        so. Anything else: dropped quietly, and the message is read like any other."""
+        from luma.agent import rapport
+        check, self._wish_check = getattr(self, "_wish_check", None), None
+        if not check or not check["asked"] or self.clock() - check["at"] > 300 or self.mode == "kids":
+            return None
+        if rapport.SAID_YES.match(lowered) and len(lowered.split()) <= 6:
+            learned = rapport.learn(self.store.setting(rapport.KEY), check["said"], now=self.clock(), heard=check["style"])
+            if learned is not None:
+                self.store.set_setting(rapport.KEY, learned)
+            return {"text": "Got it. I'll remember that."}
+        if rapport.SAID_NO.match(lowered) and len(lowered.split()) <= 6:
+            return {"text": "Okay, scratch that. Tell me how you'd like it and I'll do that."}
+        return None
 
     def _as_they_asked(self, said, reply):
         """They said how they want to be met when they're hurting, the brain was told, and the reply didn't do it: Luma adds the
@@ -6936,11 +6972,13 @@ class Agent:
             told = [h["content"] for h in self.history if h.get("role") == "user" and isinstance(h.get("content"), str)][-4:]
             hurting = any(rapport.hard(feelings.read(t)) for t in told + [text])
             before = [h["content"] for h in self.history if h.get("role") == "assistant" and isinstance(h.get("content"), str)]
-            heard = self._how_they_asked(text) if rapport.might_be_a_wish(text) else None
-            learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock(),
-                                    heard=heard)
+            learned = rapport.learn(self.store.setting(rapport.KEY), text, hurting=hurting, last_reply=before[-1] if before else "", now=self.clock())
             if learned is not None:
                 self.store.set_setting(rapport.KEY, learned)
+            elif not hurting and rapport.might_be_a_wish(text):
+                heard = self._how_they_asked(text)
+                if heard:   # never kept on the brain's word: Luma says back what it understood (_wish_check_line) and keeps it on a yes
+                    self._wish_check = {"style": heard, "said": text, "at": self.clock(), "asked": False}
         except Exception:
             pass  # a reply never fails over this
 
@@ -7138,6 +7176,8 @@ class Agent:
             if self.LISTENING_Q.match(lowered):   # asked whether it's listening, the answer is the mic's real state, never a brain's guess
                 if self.muted: return {"text": "No. My mic is off, so I only get what you type."}
                 return {"text": "Yes. My mic is on, so I can hear you. Say “stop listening” and it's off."}
+            wished = self._wish_answer(lowered) if getattr(self, "_wish_check", None) else None
+            if wished is not None: return wished
             asked_to_forget, self._forget_all_asked = getattr(self, "_forget_all_asked", 0), 0   # anything but the yes lets it drop
             if asked_to_forget and self.clock() - asked_to_forget < 120 and self.FORGET_YES.match(lowered):
                 return self.forget_everything()
