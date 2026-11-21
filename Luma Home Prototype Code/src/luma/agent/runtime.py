@@ -4824,11 +4824,6 @@ class Agent:
                 if isinstance(error, GenerationCancelled):
                     self.history.append({"role":"assistant", "content":"Response interrupted by the user; no next action was assumed."})
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
-                if self.mode == "kids" and isinstance(error, ValueError) and "kids mode" in str(error):
-                    # "search for dinosaurs" in kids mode came out as the error itself: "This tool is unavailable in kids mode."
-                    reply = "That's a grown-up thing. Ask one to help you with it."
-                    self.history.append({"role": "assistant", "content": reply})
-                    return {"text": reply}
                 if self.mode != "kids" and not agent_mode:
                     try:
                         self._notice(text)  # the brain failed, but what they told me is still kept: memory never depends on the brain
@@ -4862,6 +4857,18 @@ class Agent:
             finally:
                 self.busy = False
                 self._on_text = None
+
+    def said_instead(self, error):
+        """The sentence Luma says when a rule refused the turn, or None for any other error. The refusal stands and chat()
+        still raises; this is only how it's said, where it's shown and spoken (the app's chat, the voice loop). Before, a
+        child who said "search for dinosaurs" was shown "This tool is unavailable in kids mode.", and a password said out
+        loud got silence and "Voice turn paused: Do not save payment credentials or passwords in LUMA memory."."""
+        from luma.memory.store import KeptOut
+        if isinstance(error, KeptOut):
+            return str(error)
+        if self.mode == "kids" and isinstance(error, ValueError) and "kids mode" in str(error):
+            return "That's a grown-up thing. Ask one to help you with it."
+        return None
 
     def _chat_steady(self, text, cancel_event):
         """The brain came back with symbols or nothing: think once more before answering. A friend who blanks starts the
@@ -6709,8 +6716,11 @@ class Agent:
                 return None  # "where's my brother living these days": a whole question, not a thing with a name. ("I don't know your brother living these days yet.")
             if self._kept_might_say(text):
                 return None  # something they said about that person may hold it ("meet my sister, Priya"): the brain is handed it; Luma doesn't say it was never told
+            if re.search(r"\b(?:pass ?word|pass ?code|pass ?phrase|pin|card number|cvv|cvc|security code|social security|ssn)\b", about, re.I):
+                # "what's my wifi password" was answered "I don't know your wifi password yet. Tell me and I'll remember it."
+                return {"text": "I don't keep passwords, PINs or card numbers, so that's not something I have. A password manager is the right home for it."}
             guess = understanding.guess(text, 1)
-            personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|password|code|blood type|middle name)\b", about, re.I)
+            personal = re.search(r"\b(?:birthday|bday|anniversary|name|number|address|favou?rite|size|allerg\w*|code|blood type|middle name)\b", about, re.I)
             if personal or (guess and (guess[0][0] in ("chat", "recall_me", "remember") or guess[0][1] < 0.6)):
                 about = re.sub(r"\s+(?:again|now|these days)\s*$", "", m["about"], flags=re.I)   # "when's my birthday again": never "your birthday again yet"
                 self.asked_about = {"about": " ".join(about.split()), "at": self.clock()}  # their next answer gets saved

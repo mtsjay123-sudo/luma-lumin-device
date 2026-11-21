@@ -168,7 +168,12 @@ def ask_typed(text, agent=None, voice=False, cancel_event=None):
     agent = agent or get_agent()
     event = cancel_event or agent.new_turn()
     stream = SpeechStream(agent, event).think_out_loud(text) if voice else None
-    result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None)
+    try:
+        result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None)
+    except ValueError as refused:   # a password said out loud, a grown-up thing in kids mode: refused, and Luma says so instead of going quiet
+        said = agent.said_instead(refused) if hasattr(agent, 'said_instead') else None
+        if said is None: raise
+        result = {'text': said, 'refused': True}
     # Do not write private conversations to service logs.
     if getattr(agent, 'on_result', None): agent.on_result(result)
     else: display(result)

@@ -22,7 +22,17 @@ class Home(unittest.TestCase):
         self.s.close()
 
     def say(self, text):
-        return self.s.say(text)[0]
+        """The reply as the app and the voice loop give it: a turn a rule refused is said as a sentence (Agent.said_instead)."""
+        try:
+            result = self.s.agent.chat(text)
+        except ValueError as refused:
+            said = self.s.agent.said_instead(refused)
+            if said is None:
+                raise
+            return said
+        finally:
+            self.s.clock["t"] += 45
+        return str(result.get("text") or result.get("summary") or "")
 
 
 class Timers(Home):
@@ -160,10 +170,56 @@ class KidsMode(Home):
             self.assertNotRegex(reply, r"(?i)error|tool|unavailable|ValueError", said)
             self.assertEqual(reply, "That's a grown-up thing. Ask one to help you with it.", said)
 
+    def test_the_refusal_itself_is_unchanged_and_the_voice_loop_says_it(self):
+        with self.assertRaises(ValueError):                   # the rule still refuses the turn; only how it's said changed
+            self.s.agent.chat("search for dinosaurs")
+        from luma import orchestrator
+        shown = []
+        self.s.agent.on_result = shown.append
+        try:
+            result = orchestrator.ask_typed("search for dinosaurs", agent=self.s.agent)
+        finally:
+            self.s.agent.on_result = None
+        self.assertEqual(result["text"], "That's a grown-up thing. Ask one to help you with it.")
+        self.assertEqual(shown, [result])
+
     def test_the_everyday_things_still_work(self):
         self.assertEqual(self.say("set a timer for 10 minutes"), "Timer set for 10 minutes.")
         self.assertEqual(self.say("what's 7 times 8"), "7 times 8 is 56.")
         self.assertEqual(self.say("are you a robot?"), "I'm Luma. Not a person: a presence. I'm really here, and I'm listening.")
+
+
+class Secrets(Home):
+    """Rule 5: never type or store passwords or cards. The rule held, and what Luma said didn't: "what's my wifi
+    password" got "I don't know your wifi password yet. Tell me and I'll remember it."; a password said out loud got
+    silence and an error on the screen; and "remember my pin is 8812" was kept as a memory."""
+
+    def kept(self):
+        import json
+        return json.dumps([self.s.store.all(kind, 50) for kind in ("memory", "chat", "task")], default=str) + str(self.s.agent.history)
+
+    def test_luma_never_invites_a_password(self):
+        for said in ("what's my wifi password", "what's my pin again?", "what's my card number"):
+            reply = self.say(said)
+            self.assertNotRegex(reply, r"(?i)tell me and i'll remember", said)
+            self.assertIn("I don't keep passwords, PINs or card numbers", reply, said)
+
+    def test_a_secret_is_refused_in_a_sentence_and_nothing_is_kept(self):
+        for said, secret in (("my wifi password is tacocat99", "tacocat99"), ("remember my pin is 8812", "8812"), ("my ssn is 123-45-6789", "123-45"),
+                             ("my passcode is 0000", "0000"), ("save my card number 4242 4242 4242 4242", "4242 4242"),
+                             ("my password is the name of my first dog", "first dog")):
+            with self.assertRaises(ValueError):
+                self.s.agent.chat(said)
+            reply = self.say(said)
+            self.assertRegex(reply, r"I (?:don't keep|haven't kept)", said)
+            self.assertNotRegex(reply, r"(?i)LUMA memory|payment-like|credentials|accepted", said)
+            self.assertNotIn(secret, self.kept(), said)
+
+    def test_where_a_secret_is_kept_is_just_a_fact(self):
+        from luma.memory.store import reject_payment_secrets
+        for said in ("the wifi password is on the router", "my social security number is in the safe", "the security code is on the back of the card",
+                     "my pin is on the map", "the pin is loose", "I forgot my password again", "call me at 919 555 0123"):
+            reject_payment_secrets(said)       # doesn't raise
 
 
 if __name__ == "__main__":

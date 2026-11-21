@@ -33,6 +33,19 @@ SEALED = b"L2"
 HOT = 4000                                           # memories kept opened, the ones read most recently
 
 
+class KeptOut(ValueError):
+    """A password, a PIN or a card number, refused before anything is kept. Its message is the sentence Luma says."""
+
+
+SECRET_SAID = "I don't keep passwords, PINs or card numbers, so I haven't kept that. It's safer staying with you."
+LONG_NUMBER_SAID = "That long number looks like a card number, so I haven't kept it. I don't keep those."
+# What follows has to be the secret or a way to work it out ("my password is the name of my first dog"), never where it is
+# ("the wifi password is on the router"). A pin can be a pin on a map, so for that word a number or "my/the ..." has to follow.
+SECRET = re.compile(r"\b(?:cvv|cvc|card number|pass ?word|pass ?code|pass ?phrase)\b\s*(?:is|was|:|=)\s*"
+                    r"(?!(?:on|in|at|under|by|behind|inside|taped|written|saved|stored|kept)\b)\S+|"
+                    r"\b(?:pin(?: number| code)?|security code|social security(?: number)?|ssn)\b\s*(?:is|was|:|=)\s*(?:\S*\d|(?:my|our|the|your)\b)", re.I)
+
+
 def reject_payment_secrets(value):
     """Do not persist raw card/CVC/password material, even inside a memory."""
     if isinstance(value, dict):
@@ -43,11 +56,13 @@ def reject_payment_secrets(value):
     elif isinstance(value, list):
         for v in value: reject_payment_secrets(v)
     elif isinstance(value, str):
-        if re.search(r"\b(?:cvv|cvc|card number|password)\b\s*(?:is|:|=)\s*\S+", value, re.I):
-            raise ValueError("Do not save payment credentials or passwords in LUMA memory.")
+        # "my pin is 8812" was kept as a memory (found Nov 21, 2026): a PIN, a passcode and a social security number are
+        # refused like a password. A value has to follow: "my PIN is my birthday backwards" is talk, and "my pin is on the map".
+        if SECRET.search(value):
+            raise KeptOut(SECRET_SAID)
         # Broadly reject plausible PANs (including formatted numbers), not phone numbers.
         if re.search(r"(?<![A-Za-z0-9+])(?:\d[ -]?){12,18}\d(?![A-Za-z0-9])", value):
-            raise ValueError("Long payment-like numbers are not accepted. Use merchant-saved payment details.")
+            raise KeptOut(LONG_NUMBER_SAID)
 
 
 def mask_long_numbers(value):

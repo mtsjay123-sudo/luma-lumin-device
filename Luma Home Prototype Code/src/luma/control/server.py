@@ -784,7 +784,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     stream=SpeechStream(agent,event,allow_muted=True).think_out_loud(data.get('text')) if data.get('voice') is True and not companion else None
                     thread=data.get('thread') or 'main'
                     if not isinstance(thread,str): raise ValueError('Choose a chat.')
-                    result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None,thread=thread)
+                    try: result=agent.chat(data.get('text'),cancel_event=event,on_text=stream.feed if stream else None,thread=thread)
+                    except ValueError as refused:  # a secret it won't keep, a grown-up thing in kids mode: said as a reply, never shown as an error
+                        said=agent.said_instead(refused)
+                        if said is None: raise
+                        result={'text':said,'refused':True}
                     if thread!='main': result['thread']=thread
                     ctx.publish(result)
                     if stream and not event.is_set() and not stream.finish(wait=False):

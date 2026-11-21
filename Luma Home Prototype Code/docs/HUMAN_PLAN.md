@@ -2533,7 +2533,7 @@ something's coming up are noticed, and what's noticed is now asked about the way
 ## What Luma says itself, read line by line (Nov 21)
 
 A brain's replies are sampled and judged; the lines Luma's own code says had never been read against fresh things
-people say. Doing that for an afternoon found twenty-two that no person would say. Each is fixed, with a test
+people say. Doing that for an afternoon found twenty-six that no person would say, one of them a real gap in rule 5. Each is fixed, with a test
 (`tests/test_what_luma_says.py`, and the classes named below).
 
 | They said | Luma said | Now |
@@ -2560,8 +2560,18 @@ people say. Doing that for an afternoon found twenty-two that no person would sa
 | (kids mode) "tell me a joke" | "I love a team-building exercise. Nothing brings people together like being forced to do trust falls with Kevin from accounting." | one of the forty classic clean ones |
 | (kids mode) "text my mom", then "buy me a toy" | "You got cut off after 'text my mom'. What should I tell them?", then "I can't text people in kids mode." | "That's a grown-up thing. Ask one to help you with it.", and the toy is its own sentence |
 | (kids mode) "search for dinosaurs" | the error itself: "This tool is unavailable in kids mode." | "That's a grown-up thing. Ask one to help you with it." |
+| "what's my wifi password" | "I don't know your wifi password yet. Tell me and I'll remember it." | "I don't keep passwords, PINs or card numbers, so that's not something I have. A password manager is the right home for it." |
+| "my wifi password is tacocat99" (typed) | an error: "Do not save payment credentials or passwords in LUMA memory." | "I don't keep passwords, PINs or card numbers, so I haven't kept that. It's safer staying with you." |
+| the same, said out loud | silence, and "Voice turn paused: Do not save payment credentials…" on the screen | the same sentence, spoken |
+| "remember my pin is 8812" | "Got it, I'll remember that." (and it was kept) | refused like a password; nothing kept |
 
-Two of these are more than wording. "The list" is now the list that has the thing, else the one they used last
+**The rule-5 gap.** A password or a card number was always refused before anything was kept, and still is. But a PIN,
+a passcode and a social security number weren't on the list, so "remember my pin is 8812" became a memory. They're
+refused now (`store.SECRET`), including a way to work one out ("my PIN is my birthday backwards"); where a secret is
+kept ("the wifi password is on the router") is just a fact, and used to be refused by mistake. `chat()` still raises on
+a secret, as its tests require; the app's chat and the voice loop say the sentence (`Agent.said_instead`).
+
+Two more are more than wording. "The list" is now the list that has the thing, else the one they used last
 (`AtHome._the_list`); it used to make a list called "the". And a timer nobody named is "the 12-minute timer", so
 two of them can run at once.
 
