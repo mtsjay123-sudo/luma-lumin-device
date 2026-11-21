@@ -183,7 +183,12 @@ class PhoneApp:
             self._poller.start()
 
     def stop(self):
+        """Stopped means stopped: the poller is given a moment to finish the poll it's in. Left running, it could still take
+        a message off the cloud after stop() returned (a test that polled by hand now and then found its messages gone)."""
         self._stop.set()
+        poller = self._poller
+        if poller and poller.is_alive() and poller is not threading.current_thread():
+            poller.join(3)
 
     def _run(self):
         backoff = 0

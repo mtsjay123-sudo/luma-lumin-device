@@ -119,6 +119,13 @@ class PhoneAppTests(unittest.TestCase):
         self.assertNotIn(key.encode(), self.store.db_path.read_bytes(), "the key is encrypted at rest")
         self.assertEqual(self.app.status()["phones"][0]["id"], link_id)
 
+    def test_stopped_means_the_poller_has_finished(self):
+        """stop() used to only raise a flag. A poller still inside its poll could take a message off the cloud after stop()
+        had returned, and a test that then polled by hand found nothing there (one run in six)."""
+        self.app.start_pairing("Luma")
+        self.app.stop()
+        self.assertFalse(self.app._poller is not None and self.app._poller.is_alive())
+
     def test_hello_gets_a_greeting_and_a_reminder_works_from_the_phone(self):
         link = self.pair()
         hello = self.cloud.phone_says(link, {"t": "hello", "name": "iPhone"})

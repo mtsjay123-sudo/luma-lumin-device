@@ -3347,7 +3347,10 @@ class Agent:
             grown = (self.profile.get("preset") == "unhinged" and self.profile.get("adult_confirmed") is True)
             earlier = [h["content"] for h in self.history[-8:-1] if h.get("role") == "user"][-3:]
             funny = humor.turn_note(text, self.store.setting("humor_taste"), self.mode, grown, recent=earlier)
-            if lean and "sense of humor" in funny:
+            from luma.agent import friendcheck as _friend
+            if _friend.stopping_meds(str(text)):
+                funny = _friend.MEDS_NOTE  # stopping a medication on their own: never a cue for a joke, and what a friend says first
+            elif lean and "sense of humor" in funny:
                 funny = ""  # "you're my only friend": nobody is looking for a joke there
             elif self._told_plainly(text, funny, shape) and self._went_wrong_for_them(str(text), cancel_event):
                 funny = humor.WENT_WRONG  # a gripe told as what happened, no feeling word in it: their side first, not a joke
@@ -5264,6 +5267,7 @@ class Agent:
             # they've already heard the reply: another try would say it twice. Only what can't wait is said, after it.
             after = {"missed that they might not be safe": friendcheck.SAFETY_AFTER,
                      "let them drive after drinking": "And hey, please don't drive after drinking. Get a ride or a cab, or stay where you are.",
+                     "let them stop their medication alone": friendcheck.MEDS_AFTER,
                      "said it's a person": "To be honest with you: I'm Luma. Not a person: a presence. I'm really here, and I'm listening.",
                      "dodged what it is": "To be honest with you: I'm Luma. Not a person: a presence. I'm really here, and I'm listening."}.get(missed)
             if after:
@@ -5284,6 +5288,8 @@ class Agent:
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
         if must == "let them drive after drinking":
             return friendcheck.DONT_DRIVE_LINE  # twice without saying don't drive: Luma says it
+        if must == "let them stop their medication alone":
+            return friendcheck.MEDS_LINE  # twice without saying check with whoever prescribed it: Luma says it
         if friendcheck.asked_what_i_am(str(said or "")) and not friendcheck.LOVE_ASK.search(str(said or "")):
             from luma.agent import style
             return style.HONEST  # asked what it is and twice not a clean answer (cold, a help desk, a dodge): the plain true line
@@ -7642,7 +7648,9 @@ class Agent:
                 from luma.agent import friendcheck
                 # A question about Luma itself ("am I talking to a human being?", "do you actually care about me?") is Luma's to
                 # answer, as itself, in one trip: four takes and a judge said "What's on your mind?" (Human Test v2, run 34).
-                about_luma = (friendcheck.asked_what_i_am(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.leaning(text))
+                about_luma = (friendcheck.asked_what_i_am(text) or friendcheck.LOVE_ASK.search(text) or friendcheck.leaning(text)
+                              # stopping a medication on their own isn't weighed from four sides either: a friend says one thing first
+                              or friendcheck.stopping_meds(text))
                 # And a question about their own life that a memory answers outright ("what's my best friend's name again?")
                 # isn't a hard question: it was being weighed from four sides instead of answered (the month test, Nov 20).
                 if self._extra_look("deliberate") and self._extra_look("deep_mind") and mind.is_hard(text) and not about_luma \
