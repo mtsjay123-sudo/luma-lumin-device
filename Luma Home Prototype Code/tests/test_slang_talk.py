@@ -46,7 +46,7 @@ class SlangTalkTests(unittest.TestCase):
     def test_a_new_request_after_a_question_starts_fresh(self):
         self.assertIn("What should I remind you about", self.agent.chat("remind me at 6")["text"])
         reply = self.agent.chat("play some drake fr")["text"]
-        self.assertIn("Playing drake on", reply)
+        self.assertIn("Opening drake on", reply)
         self.assertEqual(self.titles(), [])
         self.agent.chat("remind me at 6")
         self.assertRegex(self.agent.chat("call mom")["text"], r"call mom (?:tomorrow )?at 6")  # an answer is still an answer

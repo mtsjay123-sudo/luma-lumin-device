@@ -4795,7 +4795,9 @@ class Agent:
                         if self.use_model:
                             from luma.llm import inference
                             inference.garbled_seen()  # and think on the processor from here on
-                if event.is_set() and not result.get("action") and not result.get("workflow"):
+                # Turning the mic off stops whatever Luma was in the middle of, this turn included: the answer is still "Mic's off",
+                # never "Okay. Tell me what you want to change." (which is what "mute" got).
+                if event.is_set() and not result.get("action") and not result.get("workflow") and not result.get("mic_off"):
                     return {"state":"interrupted", "text":"Okay. Tell me what you want to change."}
                 if result.get("task"): self.last_task = result["task"]["id"]
                 if result.get("state") == "pending" and result.get("confirm_token"):
@@ -5906,6 +5908,8 @@ class Agent:
             # just above or left it to the brain on purpose. Either way it's a question, never a command.
             return None
         intent, p = top[0]
+        if intent == "mute" and self.NOT_LUMAS_MIC.search(lowered):
+            return None  # "mute the tv" was read as "mute" and turned Luma's own mic off
         if intent in self.PAGES and self.use_model and not re.search(r"\b(?:open|page|tab|go to|take me|pull up|bring up|switch to)\b", lowered):
             return None  # "what should we do on saturday?", "got any ideas?" are talk: the brain answers; a page opens when they ask for one
         from luma.agent.scenarios import INTENTS
@@ -7040,6 +7044,46 @@ class Agent:
         n = sum(bool(g) for g in gone)
         return {"forgotten": True, "text": "Done, it's forgotten." if n else "I didn't have anything saved about that."}
 
+    # Said to a speaker in the home, these are obeyed by code. Never "mute the TV" or "stop listening to that podcast".
+    MIC_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please)\W+)*(?:mute (?:yourself|your ?self|(?:your|the) (?:mic|microphone)s?)|"
+                         r"(?:turn|switch|shut) (?:off (?:your|the) (?:mic|microphone|ears)s?|(?:your|the) (?:mic|microphone|ears)s? off)|"
+                         r"(?:mic|microphone) off|stop listening(?: to (?:me|us|the room|everything))?|don'?t listen(?: to (?:me|us|this))?|"
+                         r"go deaf|close your ears|cover your ears)(?: (?:please|now|for now|for a (?:bit|while|minute|sec|second)|right now))?\W*$", re.I)
+    NOT_LUMAS_MIC = re.compile(r"\b(?:tv|television|music|radio|speakers?|phone|laptop|computer|call|zoom|meeting|notifications?|group ?chat|chat|him|her|them|"
+                               r"video|tab|podcast|song|alarm|game|stream|youtube|spotify|ex|boss|brother|sister|mom|dad|news)\b", re.I)
+    LISTENING_Q = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|wait)\W+)*(?:(?:are|r) (?:you|u) (?:still |always |even )?listening(?: to (?:me|us|everything|the room))?|"
+                             r"is (?:your|the) (?:mic|microphone) (?:on|off|muted)|are (?:you|u) (?:muted|on mute))"
+                             r"(?: (?:right now|rn|now|all the time|at the moment))?\W*$", re.I)
+    # Only said outright. "forget about me" and "just forget me" are someone putting themselves down, never a request to delete.
+    FORGET_ALL = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|please|and)\W+)*(?:forget|erase|delete|wipe|clear)(?: out)? "
+                            r"(?:everything|all of it|it all|all (?:of )?(?:my|your|the) (?:memories|data)|every(?: single)? (?:thing|memory))"
+                            r"(?: (?:(?:that |which )?(?:you|u)(?:'ve| have)? (?:know|remember|have|got|saved|kept|learned|stored)(?: (?:about|on|of) me)?|about me|"
+                            r"i(?:'ve| have)? (?:ever )?(?:told|said to) (?:you|u)))?(?: (?:please|now|for good|forever))?\W*$", re.I)
+    FORGET_YES = re.compile(r"^\W*yes,? (?:forget|erase|delete|wipe) (?:everything|it all|all of it)\W*$", re.I)
+    LEARNED = ("their_style", "style_stats", "taught_words", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
+               "rapport_offered_at", "about")
+
+    def forget_everything(self):
+        """"Forget everything about me", after a spoken yes: every memory (and what each one meant), every check-in, the
+        diary, how to be with them, and what Luma learned of their style and taste. Gone for good. What they asked Luma to
+        do (reminders, lists, alarms) and what they named it stay. A brain is never the one to answer this: it would say
+        it had forgotten, and nothing would be gone."""
+        from luma.agent import rapport
+        from luma.memory import storage
+        gone = sum(bool(self.store.delete("memory", m["id"])) for m in self.store.all("memory", 10 ** 9))
+        for kind in ("checkin", "diary"):
+            for row in self.store.all(kind, 10 ** 6):
+                self.store.delete(kind, row["id"])
+        for key in (rapport.KEY,) + self.LEARNED:
+            if self.store.setting(key) is not None:
+                self.store.set_setting(key, None)
+        self.last_noticed, self.last_planned, self.asked_about = [], [], None
+        self.history.clear()   # this conversation too
+        try: storage.tidy(self)
+        except Exception: pass
+        what = "There was nothing kept yet, and now" if not gone else f"All of it is forgotten ({'1 memory' if gone == 1 else f'{gone} memories'}), and"
+        return {"forgotten": True, "text": f"Done. {what} I'm starting fresh with you. Your reminders, lists and alarms are still here."}
+
     def forget_last(self):
         removed = [self.store.delete("memory", ident) for ident in self.last_noticed]
         removed += [self.store.delete("checkin", ident) for ident in getattr(self, "last_planned", [])]  # and not asking about it later
@@ -7088,8 +7132,22 @@ class Agent:
             if stopped is not None: return stopped
             if lowered in {"hush", "not now", "stop"} and not ((self.store.setting("grilling") or self.walking) and lowered == "stop"):
                 self.hush(); return {"text": "Okay, I'll keep quiet for half an hour."}
-            if lowered in {"mute", "privacy on"}:
-                self.set_muted(True); return {"text": "Mic's off. You can still type to me."}
+            if lowered in {"mute", "privacy on"} or self.MIC_OFF.match(lowered):
+                # "stop listening" and "turn off your microphone" are obeyed by code, at once. (Only the word "mute" was; the rest went to the brain.)
+                self.set_muted(True); return {"text": "Mic's off. You can still type to me.", "mic_off": True}
+            if self.LISTENING_Q.match(lowered):   # asked whether it's listening, the answer is the mic's real state, never a brain's guess
+                if self.muted: return {"text": "No. My mic is off, so I only get what you type."}
+                return {"text": "Yes. My mic is on, so I can hear you. Say “stop listening” and it's off."}
+            asked_to_forget, self._forget_all_asked = getattr(self, "_forget_all_asked", 0), 0   # anything but the yes lets it drop
+            if asked_to_forget and self.clock() - asked_to_forget < 120 and self.FORGET_YES.match(lowered):
+                return self.forget_everything()
+            if self.FORGET_ALL.match(lowered.rstrip(".!")):
+                if self.mode == "kids": return {"text": "That's a grown-up thing. Ask one to help you with it."}
+                n = len(self.store.all("memory", 10 ** 9))
+                self._forget_all_asked = self.clock()
+                kept = "nothing yet" if not n else "1 memory" if n == 1 else f"{n} memories"
+                return {"text": f"That would forget everything I've kept about you ({kept}), what I've learned about how to be with you, and anything I'd planned "
+                                "to ask you about. It can't be undone. If you're sure, say “yes, forget everything”.", "asked": True}
             # A modest deterministic safety fallback, not a clinical classifier.
             if not self.use_model and not CRISIS.search(lowered):
                 from luma.agent import friendcheck

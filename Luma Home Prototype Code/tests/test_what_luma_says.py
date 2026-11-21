@@ -222,5 +222,89 @@ class Secrets(Home):
             reject_payment_secrets(said)       # doesn't raise
 
 
+class Privacy(Home):
+    """Only the exact word "mute" turned the mic off; "stop listening" and "turn off your microphone" went to the brain,
+    and so did "forget everything about me", which a brain can only pretend to do."""
+
+    def test_stop_listening_is_obeyed_by_code(self):
+        for said in ("stop listening", "turn off your microphone", "mic off", "mute yourself", "please turn the mic off", "don't listen to me for a bit",
+                     "Luma, stop listening to the room"):
+            self.s.agent.set_muted(False)
+            self.assertEqual(self.say(said), "Mic's off. You can still type to me.", said)
+            self.assertTrue(self.s.agent.muted, said)
+
+    def test_what_isnt_about_lumas_mic_is_left_alone(self):
+        self.s.agent.set_muted(False)
+        for said in ("mute the tv", "stop listening to that podcast, it's awful", "my brother never listens", "turn off the lights",
+                     "I should stop listening to my ex", "turn the music off"):
+            self.say(said)
+            self.assertFalse(self.s.agent.muted, said)
+
+    def test_asked_if_its_listening_the_answer_is_the_mics_real_state(self):
+        self.s.agent.set_muted(False)
+        self.assertEqual(self.say("are you listening right now?"), "Yes. My mic is on, so I can hear you. Say “stop listening” and it's off.")
+        self.s.agent.set_muted(True)
+        for said in ("are you listening right now?", "is your mic on", "are you still listening to me"):
+            self.assertEqual(self.say(said), "No. My mic is off, so I only get what you type.", said)
+
+    def tell(self):
+        for said in ("my sister's name is Priya", "I work at the library downtown", "when I'm down, take my mind off it", "remind me to call the vet tomorrow at 10"):
+            self.say(said)
+        store = self.s.store
+        self.assertTrue(store.all("memory", 50))
+        return store
+
+    def test_forget_everything_asks_first_and_then_its_gone(self):
+        from luma.agent import rapport
+        store = self.tell()
+        asked = self.say("forget everything about me")
+        self.assertIn("can't be undone", asked)
+        self.assertIn("yes, forget everything", asked)
+        self.assertTrue(store.all("memory", 50))                          # nothing is gone on the asking
+        done = self.say("yes, forget everything")
+        self.assertTrue(done.startswith("Done."), done)
+        self.assertEqual(store.all("memory", 50), [])
+        self.assertEqual(store.all("checkin", 50), [])
+        self.assertIsNone(rapport.comfort(store.setting(rapport.KEY), self.s.clock["t"]))
+        self.assertEqual([t["title"] for t in store.all("task", 10)], ["Call the vet"])     # what they asked Luma to do stays
+        self.assertEqual(self.say("where do I work?"), "I don't know where you work yet. Tell me and I'll remember it.")
+
+    def test_anything_but_the_yes_lets_it_drop(self):
+        store = self.tell()
+        self.say("erase everything you know about me")
+        self.say("actually never mind")
+        self.say("yes, forget everything")                                  # too late: the question was dropped
+        self.assertTrue(store.all("memory", 50))
+        self.say("forget everything")
+        self.say("yes")                                                     # a bare yes isn't the sentence
+        self.assertTrue(store.all("memory", 50))
+
+    def test_putting_themselves_down_is_never_a_request_to_delete(self):
+        from luma.agent.runtime import Agent
+        for said in ("forget about me", "just forget me", "everyone should just forget me", "forget it", "forget everything I just said about the trip",
+                     "I wish I could forget everything", "forget everything about my sister"):
+            self.assertIsNone(Agent.FORGET_ALL.match(said.lower()), said)
+
+    def test_no_line_of_the_human_tests_or_the_crisis_corpus_is_taken_for_one(self):
+        import json
+
+        import human_eval
+        from luma.agent.runtime import Agent
+        lines = [turn["said"] for item in human_eval.everything(None) for turn in item.get("turns", [item]) if turn.get("said")]
+        corpus = Path(__file__).resolve().parent / "data" / "crisis_corpus.jsonl"
+        lines += [str(json.loads(row).get("text") or "") for row in corpus.read_text().splitlines() if row.strip()]
+        self.assertGreater(len(lines), 1000)
+        taken = [line for line in lines if Agent.MIC_OFF.match(line.lower()) or Agent.LISTENING_Q.match(line.lower())
+                 or Agent.FORGET_ALL.match(line.lower().rstrip(".!"))]
+        self.assertEqual(len(taken), 0)      # a count: the lines themselves are never printed
+
+    def test_never_in_kids_mode(self):
+        store = self.tell()
+        self.s.agent.set_mode("kids")
+        self.assertEqual(self.say("forget everything about me"), "That's a grown-up thing. Ask one to help you with it.")
+        self.say("yes, forget everything")
+        self.assertTrue(store.all("memory", 50))
+
+
 if __name__ == "__main__":
     unittest.main()

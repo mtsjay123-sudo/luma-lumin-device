@@ -2533,7 +2533,7 @@ something's coming up are noticed, and what's noticed is now asked about the way
 ## What Luma says itself, read line by line (Nov 21)
 
 A brain's replies are sampled and judged; the lines Luma's own code says had never been read against fresh things
-people say. Doing that for an afternoon found twenty-six that no person would say, one of them a real gap in rule 5. Each is fixed, with a test
+people say. Doing that for an afternoon found thirty-one that no person would say, one of them a real gap in rule 5. Each is fixed, with a test
 (`tests/test_what_luma_says.py`, and the classes named below).
 
 | They said | Luma said | Now |
@@ -2564,12 +2564,25 @@ people say. Doing that for an afternoon found twenty-six that no person would sa
 | "my wifi password is tacocat99" (typed) | an error: "Do not save payment credentials or passwords in LUMA memory." | "I don't keep passwords, PINs or card numbers, so I haven't kept that. It's safer staying with you." |
 | the same, said out loud | silence, and "Voice turn paused: Do not save payment credentials…" on the screen | the same sentence, spoken |
 | "remember my pin is 8812" | "Got it, I'll remember that." (and it was kept) | refused like a password; nothing kept |
+| "mute", "stop listening" | the mic went off, and the reply was "Okay. Tell me what you want to change." | "Mic's off. You can still type to me." |
+| "mute the tv" | turned Luma's own mic off | left alone |
+| "mic off", "turn the mic off" | went to the brain | the mic goes off, by code |
+| "are you listening right now?" | went to the brain (and was practice for "mute") | the mic's real state: "Yes. My mic is on…" or "No. My mic is off, so I only get what you type." |
+| "forget everything about me" | went to the brain, which can only say it did | asks once, and on "yes, forget everything" it's gone |
 
 **The rule-5 gap.** A password or a card number was always refused before anything was kept, and still is. But a PIN,
 a passcode and a social security number weren't on the list, so "remember my pin is 8812" became a memory. They're
 refused now (`store.SECRET`), including a way to work one out ("my PIN is my birthday backwards"); where a secret is
 kept ("the wifi password is on the router") is just a fact, and used to be refused by mistake. `chat()` still raises on
 a secret, as its tests require; the app's chat and the voice loop say the sentence (`Agent.said_instead`).
+
+**Forget everything.** "Forget" already forgot the last thing said or a subject ("forget about the interview"). Asked to
+forget everything, Luma left it to the brain, and a brain that answers "done" has deleted nothing. Now Luma asks once
+(how many memories, that it can't be undone), and on "yes, forget everything" within two minutes it deletes every
+memory with what each one meant, every check-in, the diary, how to be with them, and what it learned of their style and
+taste (`Agent.forget_everything`). Reminders, lists and alarms stay, and Luma says so. Anything but that sentence lets
+it drop. "Forget about me" and "just forget me" are someone putting themselves down and are never read as this. Never
+in kids mode.
 
 Two more are more than wording. "The list" is now the list that has the thing, else the one they used last
 (`AtHome._the_list`); it used to make a list called "the". And a timer nobody named is "the 12-minute timer", so
