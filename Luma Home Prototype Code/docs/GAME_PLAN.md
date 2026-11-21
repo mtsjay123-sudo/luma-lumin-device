@@ -154,6 +154,15 @@ on day 1 and run alongside everything else:
   the feature list, "mute button for my thoughts please" turned the mic off. Four sets of 60 ordinary lines, each
   written after the fixes before it: wrongly answered by code 4 → 0, 14 → 8, 11 → 11, 10 → 6. The third set showed
   that fixing line by line doesn't carry over; guards on each path do.
+- **Memory, honestly (Nov 21):** on lives Luma never saw, a plainly asked fact is found 159 of 187 times, a reworded
+  one 102 of 135, a two-step one 0 of 18 (built-on lives: all but none missed). That gap is the next memory work.
+- **Run 63 (Nov 21): asked both ways, a small brain leaves ordinary evenings alone again.** Stock 1.7B: ordinary 15 →
+  22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
+  own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
+  behind the stock brain it's built on.
+- **"Never told" only when it never was (Nov 21):** told "my brother's a welder" and asked "what does my brother do",
+  the brain was handed the memory and told to say it hadn't been told. Fixed in the look-up. Thirty fresh facts
+  asked back in other words: found 17 → 27 built on, 14 → 26 on a second set measured once.
 
 ## 1. Where Luma stands (measured)
 

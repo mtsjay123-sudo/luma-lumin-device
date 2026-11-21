@@ -50,6 +50,20 @@ CUES = {what: segments.words(text) for what, text in {
 }.items()}
 # little words the word-finder lets through in another shape ("does" as "doe", "this" as "thi"): never what was asked about
 NOISE = set().union(*(segments.words(w) for w in segments.STOP))
+# The same thing by another word. "where's my job" was answered "never told" with "I work nights at the bakery on 5th"
+# saved, because no memory has the word "job". Before Luma says it was never told, it looks for the thing under its
+# other everyday words; what it finds is handed over, and the word nobody said is still named to the brain.
+_SAME = ["job work works working worked career employed employer shift", "car drive drives driving truck vehicle", "sleep asleep bed bedtime",
+         "from grew raised hometown born", "eat eats food ate eating meal", "drink drinks drinking drank", "kid kids children child son daughter",
+         "home house apartment place live lives living", "doctor dr physician", "pet pets dog cat", "married wife husband wedding spouse anniversary",
+         "school class grade college university", "birthday born bday", "cook cooks cooking makes bake bakes recipe", "hurt broke injured injury sprained",
+         "travel trip flew visited vacation went", "hobby hobbies into enjoy love loves", "allergic allergy intolerant can't cannot",
+         "study studying major degree", "boss manager supervisor", "money pay paid salary rent", "phone number cell", "team play plays sport"]
+SAME = {}
+for _line in _SAME:
+    _words = set().union(*(segments.words(w) for w in _line.split()))
+    for _w in _words:
+        SAME.setdefault(_w, set()).update(_words - {_w})
 TIME_WORDS = segments.words("last this past ago during spring summer fall autumn winter year month week weekend yesterday today tonight night morning "
                             + " ".join(when.MONTHS) + " " + " ".join(when.DAYS))
 OWNER = re.compile(r"\b(?:i|i'm|i've|i'd|my|me|mine|we|our)\b", re.I)
@@ -451,8 +465,14 @@ class LifeIndex:
         people_named = [m for m in mentioned if m[1] != {"you"}]
         subject = max(before, key=lambda m: m[0]) if before else (people_named[-1] if people_named else (mentioned[-1] if mentioned else None))
         whos = []
+        spoken_of = False
         if subject is not None and subject[1] is None:
-            unknown = subject[2]
+            # No fact names them, but something they said does ("my brother's a welder", "mom's birthday is the 9th of April":
+            # neither is read as a fact). "Nobody saved as my brother" would be false, and Luma said "never told" to
+            # "what does my brother do". What mentions them is handed over, by its words, and never as the owner's own.
+            spoken_of = any(self.df.get(t) for t in segments.words(subject[2]))
+            if not spoken_of:
+                unknown = subject[2]
         elif subject is not None:
             whos = [subject[1]]
         if ask["hop"] and whos and whos[0] != {"you"}:  # "my sister's husband": whoever she's married to
@@ -463,7 +483,7 @@ class LifeIndex:
             whos = [self.same("name:" + partners[0])] if partners else []
             if not partners:
                 known, why = False, f"nothing saved about who my {subject[2]} is married to"
-        if not whos and not unknown and known and OWNER.search(q):
+        if not whos and not unknown and not spoken_of and known and OWNER.search(q):
             whos = [{"you"}]
 
         # 1. the fact itself, then whatever else is kept about them
@@ -533,8 +553,20 @@ class LifeIndex:
         # says which words it has never seen ("middle"): whether that answers the question is for the brain to say.
         rest = terms - used - GENERIC - NOISE
         unseen = sorted(t for t in rest if not self.df.get(t))
-        if known and not person and rest and len(unseen) == len(rest) and not close and not window_rows and not fact_rows:
-            known, why = False, "nothing saved mentions " + ", ".join(unseen)
+        if known and not person and not spoken_of and rest and len(unseen) == len(rest) and not close and not window_rows and not fact_rows:
+            other = set().union(*(SAME.get(t, set()) for t in unseen)) if unseen else set()
+            # never one a newer fact replaced: "Work is fine I guess" was handed "(Used to be true, not anymore) I moved to Denver
+            # last month for a new job", the line the Denver fact itself was read from
+            under_other_words = [r for _, r in self.words(q, limit, terms={t for t in other if self.df.get(t)}) if not self.ended[r]] if other else []
+            if under_other_words:
+                picked = under_other_words + [r for r in picked if r not in under_other_words]
+            else:
+                known, why = False, "nothing saved mentions " + ", ".join(unseen)
+        if not picked and known and cue and not person:
+            # asked for a kind of thing no fact holds ("what's my job"), and something they said has it under another word
+            # ("I'm a nurse at the children's hospital" isn't read as a fact here; "I work nights at the bakery" is one more)
+            wider = cue | set().union(*(SAME.get(t, set()) for t in cue))
+            picked = [r for _, r in self.words(q, limit, terms={t for t in wider if self.df.get(t)}) if not self.ended[r]]
         if not picked and known:
             known, why = False, "nothing saved about that"
 

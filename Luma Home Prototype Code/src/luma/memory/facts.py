@@ -100,7 +100,13 @@ ASKS = [
     ("birthday", re.compile(r"\bbirthday\b|\bb-?day\b|\bborn\b", re.I)),
     ("favorite", re.compile(r"\bfavou?rite\s+(?P<thing>[a-z][a-z ]{1,30}?)(?=\s+(?:these days|now|lately|again|is|are)\b|[?.!]|$)|"
                             r"\bwhich (?P<thing2>[a-z]+) do i (?:like|love) (?:best|most|the most)\b", re.I)),
-    ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b|\bcan(?:'t|not) (?:i|we|she|he|they|(?:my|our) [a-z]+) eat\b", re.I)),
+    ("allergy", re.compile(r"\ballerg(?:y|ic|ies)\b|\bcan(?:'t|not) (?:eat|have)\b|\bcan(?:'t|not) (?:i|we|she|he|they|(?:my|our) [a-z]+) eat\b|"
+                           # asked without the word: "which foods or medicines are dangerous for me" was answered "never told" with the allergy saved.
+                           # Only with a food or a medicine in the question: "is it dangerous for me to walk home alone" is no allergy.
+                           r"\b(?:foods?|medicines?|meds|medications?|drugs?|ingredients?)\b.{0,40}\b(?:dangerous|unsafe|deadly|harmful|off[- ]limits|avoid|stay away from|"
+                           r"careful (?:with|about)|watch out for|react to|bad for)\b|"
+                           r"\b(?:dangerous|unsafe|deadly|harmful|avoid|stay away from|react(?:s|ed)? (?:badly )?to|have a reaction to)\b.{0,30}\b(?:foods?|medicines?|meds|"
+                           r"medications?|ingredients?|eat(?:ing)?)\b", re.I)),
     ("work", re.compile(r"\bworks? (?:as|at|for)\b|\bwhere (?:do|does|did) .{1,30}\bwork\b|\bwhere(?:'s|'re|’s| is| are)\b.{1,30}\bworking\b|\bjobs?\b|\bfor a living\b|\bfor work\b|\bprofession\b|\bcareer\b|"
                         r"\bemployer\b|\bwhat (?:do|does) .{1,30}\bdo\b\s*(?:[?.!]|$)", re.I)),
     ("home", re.compile(r"\b(?:do|does|did) .{1,30}\blive\b|\blives?\b|\bliving\b|\b(?:what|which) (?:city|town|state|country)\b|\bbased\b|\bmoved?\b|\brelocated?\b|"

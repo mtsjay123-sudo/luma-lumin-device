@@ -568,5 +568,41 @@ class SaidSince(unittest.TestCase):
             self.assertIsNone(Agent.BARE_KIN.search(line), line)
 
 
+class AnAllergyAskedAboutWithoutTheWord(unittest.TestCase):
+    """The memory test's dev lives (Nov 21): "which foods or medicines are dangerous for me" was answered "never told"
+    with the allergy saved, 3 times of 440 told things. Only a question with a food or a medicine in it counts."""
+
+    def test_its_a_question_about_the_allergy(self):
+        from luma.memory import facts
+        for said in ("which foods or medicines are dangerous for me", "is there any food I should avoid", "what medications do I react to",
+                     "are there foods that are unsafe for my sister", "what am I allergic to"):
+            self.assertEqual(facts.asked(said)["what"], "allergy", said)
+        for said in ("is it dangerous for me to walk home alone", "what should I avoid saying to her", "is this bad for me", "should I avoid him",
+                     "is my job dangerous", "what's the deadliest animal"):
+            self.assertNotEqual(facts.asked(said)["what"], "allergy", said)
+
+    def test_luma_has_it_when_asked_that_way(self):
+        import human_eval
+        from luma.llm import prompts
+        calls = []
+
+        def planner(messages, context, allowed, *args, **kwargs):
+            calls.append(list(context))
+            return {"type": "reply", "text": f"Okay, {len(calls)}."}
+
+        s = human_eval.Session(planner)
+        try:
+            s.say("I'm allergic to penicillin")
+            s.at({"day": 12, "time": "19:00"})
+            s.new_conversation()
+            start = len(calls)
+            reply = s.say("which foods or medicines are dangerous for me")[0]
+            told = " ".join(prompts.build_plan_parts(context, [], "friend", None, "(the time)", compact=True)[1] for context in calls[start:])
+        finally:
+            s.close()
+        self.assertIn("penicillin", (reply + " " + told).lower())
+        self.assertNotIn("haven't told", reply.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
