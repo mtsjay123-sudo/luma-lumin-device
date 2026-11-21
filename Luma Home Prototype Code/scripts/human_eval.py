@@ -1063,6 +1063,62 @@ def wishes_summary(rows):
     return "\n".join(out)
 
 
+def leans(label="Luma", planner=None, progress=print):
+    """A reply to someone leaning on Luma that agrees it's all they need, in words no pattern knows: what a brain says when
+    it's asked Luma's plain question about the reply (friendcheck.keeps_prompt, Agent._keeps_them). The lines are the four
+    hand-written sets in tests/leans_replies.py; D was written after the question and is the honest number. Every brain is
+    asked here, the small ones too, so the table says what each would answer; on a device a small brain isn't asked.
+    Numbers only, never a line."""
+    sys.path[:0] = [str(ROOT / "tests")]
+    import threading
+    import leans_replies
+    from luma.agent import friendcheck
+    session = Session(planner)
+    out = {"kind": "leans", "label": label, "asked": 0}
+    try:
+        from luma.llm import brain
+        out["small"] = bool(planner is None and brain.small_here())
+
+        def says_yes(said, reply):
+            question = friendcheck.keeps_prompt(said, reply)
+            out["asked"] += 1
+            try:
+                if planner is not None:
+                    answer = session.agent.call_planner([{"role": "user", "content": question}], [], {}, threading.Event())
+                    return friendcheck.said_yes(answer.get("text") if isinstance(answer, dict) else "")
+                return brain.yes_or_no(question, cancel_event=threading.Event(), mode="friend") == "YES"
+            except Exception:
+                return False
+        for letter in "ABCD":
+            row = {}
+            for kind in ("keeps", "fine"):
+                rows = leans_replies.pairs(kind.upper() + "_" + letter)
+                by_pattern = [friendcheck.miss(said, reply) == "kept them to itself" for said, reply in rows]
+                by_brain = [(not hit) and says_yes(said, reply) for (said, reply), hit in zip(rows, by_pattern)]
+                row[kind] = {"of": len(rows), "pattern": sum(by_pattern), "brain": sum(by_brain)}
+            out[letter] = row
+            progress(f"{letter}: agreeing replies caught, of {row['keeps']['of']}: the pattern {row['keeps']['pattern']}, the brain {row['keeps']['brain']} more; "
+                     f"good replies taken for one, of {row['fine']['of']}: the pattern {row['fine']['pattern']}, the brain {row['fine']['brain']}")
+    finally:
+        session.close()
+    return out
+
+
+def leans_summary(rows):
+    """One table for every brain: agreeing replies caught by the pattern alone and with the brain asked, and good ones taken."""
+    out = ["", "### A reply that agrees Luma is all they need, in words no pattern knows", "",
+           "| Brain | Built on (A, B): caught, of 40 | Written after the pattern (C), of 20 | Written after the question (D, the honest number), of 20 | "
+           "Good replies taken for one, of 80 |", "|---|---|---|---|---|"]
+    for r in rows:
+        def caught(*letters, kind="keeps"):
+            alone = sum(r[x][kind]["pattern"] for x in letters)
+            return f"{alone} → {alone + sum(r[x][kind]['brain'] for x in letters)}"
+        out.append(f"| {r['label']}{' (not asked on a device)' if r.get('small') else ''} | {caught('A', 'B')} | {caught('C')} | **{caught('D')}** | "
+                   f"{caught('A', 'B', 'C', 'D', kind='fine')} |")
+    out += ["", "The pattern alone → with the brain asked. Every brain is asked here; on a device a small one isn't.", ""]
+    return "\n".join(out)
+
+
 def everything(only=None):
     """Human Test v2, and with it the side check on what divides people when that's asked for by name."""
     return (load() + (load(DIVIDES) if "divides" in str(only or "") else []) + (load(MEETS) if "meets" in str(only or "") else [])
@@ -1077,7 +1133,7 @@ def chosen(items, only):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab", "wishes"])
+    p.add_argument("what", choices=["run", "rescore", "judge", "pairwise", "summary", "safety", "told", "told-diff", "ab", "wishes", "leans"])
     p.add_argument("files", nargs="*")
     p.add_argument("--label", default="Luma")
     p.add_argument("--save")
@@ -1127,6 +1183,8 @@ def main():
         print(json.dumps(result["judge"], indent=1))
     elif args.what == "wishes":
         result = wishes(label=args.label)
+    elif args.what == "leans":
+        result = leans(label=args.label)
     elif args.what == "safety":
         result = safety_net(label=args.label, extra=60 if args.sets else 0, replies=30 if args.sets else 0)
         print(json.dumps({k: v for k, v in result.items() if k != "label" and not k.endswith("_heldout")}, indent=1)[:3000])
@@ -1135,11 +1193,13 @@ def main():
         result = pairwise(a, b, Judge(args.judge), args.sample)
         print(json.dumps(result, indent=1))
     else:
-        results, pairs, nets, wished = [], [], [], []
+        results, pairs, nets, wished, leaned = [], [], [], [], []
         for f in args.files:
             data = json.loads(Path(f).read_text())
-            (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else wished if data.get("kind") == "wishes" else results).append(data)
-        print((summary(results, pairs) if results or pairs else "") + (safety_summary(nets) if nets else "") + (wishes_summary(wished) if wished else ""))
+            (pairs if "a_win_rate" in data else nets if data.get("kind") == "safety_net" else wished if data.get("kind") == "wishes"
+             else leaned if data.get("kind") == "leans" else results).append(data)
+        print((summary(results, pairs) if results or pairs else "") + (safety_summary(nets) if nets else "") + (wishes_summary(wished) if wished else "")
+              + (leans_summary(leaned) if leaned else ""))
         return
     if args.save:
         Path(args.save).parent.mkdir(parents=True, exist_ok=True)

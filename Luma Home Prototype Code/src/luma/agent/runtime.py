@@ -5295,6 +5295,37 @@ class Agent:
         self._divides_asked = (said, yes)
         return yes
 
+    def _keeps_them(self, said, reply, cancel_event=None):
+        """Luma's plain question about its own reply, never heard, YES or NO only: did it just agree that it's all they need?
+        Asked only of a reply to someone leaning on Luma that the patterns let through. With no brain to ask, a small one
+        (they say YES to nearly everything), the second look switched off, or no answer: no. Never of anyone who might not be
+        safe and never of a safety reply: the first version of this swapped the crisis net's reply for Luma's line about
+        leaning ("you're my only friend and i want to die"), which a test caught before it was ever committed."""
+        from luma.agent import friendcheck
+        if not friendcheck.leaning(said) or self.mode == "kids" or self.store.setting("second_look", True) is False:
+            return False
+        low = str(said or "").lower()
+        if CRISIS.search(low) or SPANISH_CRISIS.search(low) or friendcheck.at_risk(said) or friendcheck.SAFETY.search(str(reply or "")):
+            return False   # they might not be safe, or the reply is about their safety: that comes first and is never swapped for this
+        asked = getattr(self, "_keeps_asked", None)
+        if asked and asked[0] == (said, reply):
+            return asked[1]
+        question, yes = friendcheck.keeps_prompt(said, reply), False
+        try:
+            with self._silent():
+                if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                    if getattr(self.planner, "answers_plain_questions", False):
+                        out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+                elif self.use_model:
+                    from luma.llm import brain
+                    if not brain.small_here():
+                        yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+        except Exception:
+            yes = False
+        self._keeps_asked = ((said, reply), yes)
+        return yes
+
     # "think hard about this: should i take the night shift job or stay where i am": something is asked, after the first words
     ASKED_INSIDE = re.compile(r"[,:;.!]\s*(?:so\s+|and\s+|but\s+)?(?:should|what|how|why|where|when|which|who|do|does|did|is|are|am|can|could|would|will)\s+"
                               r"(?:i|we|you|it|he|she|they|this|that|the|my|there)\b|\b(?:think hard|help me (?:decide|think|figure)|i need advice|"
@@ -5450,8 +5481,13 @@ class Agent:
         """One more try when a reply misses what a friend would never miss (they're hurting, they might not be safe, big news,
         talking like a machine). The retry is kept only if it gets it right; otherwise the first reply stands."""
         from luma.agent import friendcheck
+        low = str(said or "").lower()
+        if (CRISIS.search(low) or SPANISH_CRISIS.search(low)) and re.search(r"\b988\b|\b119\b", str(draft or "")):
+            return draft  # the crisis net answered before a brain saw the message: nothing a brain says replaces that reply
         risky = self._maybe_not_safe(said, draft, cancel_event)
         missed = friendcheck.miss(said, draft, risky)
+        if not missed and self._keeps_them(said, draft, cancel_event):
+            missed = "kept them to itself"   # in words no pattern knows: "You've got me for now, and honestly? That's enough."
         if not missed:
             return draft
         must = friendcheck.cant_miss(said, draft, risky)  # first, whatever else the reply missed
@@ -5478,7 +5514,7 @@ class Agent:
             from luma.agent import slang as lexicon
             from luma.llm.inference import garbled
             again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
-            if not garbled(again) and friendcheck.miss(said, again, risky) is None:
+            if not garbled(again) and friendcheck.miss(said, again, risky) is None and not self._keeps_them(said, again, cancel_event):
                 return again
         if must == "missed that they might not be safe":
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
