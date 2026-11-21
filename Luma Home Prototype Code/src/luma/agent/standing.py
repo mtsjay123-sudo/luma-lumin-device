@@ -37,6 +37,7 @@ DROP2 = re.compile(LEAD + r"(?:stop|quit|don'?t keep) (?P<what>(?:telling|remind
 # Kept by the helpers they already have, so they're never doubled up.
 ELSEWHERE = re.compile(r"\b(?:inbox|e-?mails?|gmail|mail|calendar|agenda|instagram|insta|tiktok|twitter|facebook|reddit|linkedin|youtube|"
                        r"price of|watch the price|send|post|buy|order|pay)\b", re.I)
+IN_THEIR_HEAD = re.compile(r"\bin my (?:head|mind|heart|dreams|sleep|thoughts)\b|\bto myself\b|\bover and over\b", re.I)
 TIMES = {"morning": "08:00", "day": "09:00", "weekday": "08:00", "weekend": "10:00", "week": "09:00", "afternoon": "13:00",
          "evening": "18:00", "night": "21:00"}
 
@@ -69,6 +70,7 @@ def parse(low):
     if not m: return None
     ask = " ".join(m["ask"].split()).strip(" ,.")
     if ELSEWHERE.search(ask): return None
+    if IN_THEIR_HEAD.search(ask): return None   # "play it again in my head every night" was set as a task for 9 PM
     when = m["when"].lower()
     g = m.groupdict()
     clock = {k[len(prefix):]: v for k, v in g.items() if k.startswith(prefix) and k[len(prefix):] in {"clock", "h", "m", "ap", "part"}}

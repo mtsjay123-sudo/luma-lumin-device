@@ -118,7 +118,8 @@ TIME_ASK = re.compile(LEAD + r"(?:what(?:'s| is)(?: the)? time|what time is it|w
 DATE_ASK = re.compile(LEAD + r"(?:what(?:'s| is) (?:the date|today'?s date|the date today)|what day is (?:it|today)(?: today)?|what(?:'s| is) today|what's the day today"
                       r"|what (?:date|day of the week) is (?:it|today))" + END, re.I)
 UNTIL = re.compile(LEAD + r"how (?:many|much) (?P<unit>days|sleeps|weeks|time)(?: are there| is (?:it|there)| do (?:i|we) have| left)? (?:left )?(?:until|till|til|'til|before|to) (?P<what>.+?)" + END, re.I)
-COIN = re.compile(LEAD + r"(?:flip|toss) (?:a |the )?coin|heads or tails" + END, re.I)
+# grouped, so the whole message has to be the ask: "flip a coin, that's how i make decisions now" got "Tails."
+COIN = re.compile(LEAD + r"(?:(?:flip|toss) (?:a |the )?coin(?: for (?:me|us))?|heads or tails)" + END, re.I)
 # Luma's own sounds (luma.audio.chirps): hear them, turn them on, turn them off.
 HEAR_SOUNDS = re.compile(LEAD + r"(?:(?:let me|let's) hear|play(?: me)?|show me|do|make) (?:all (?:of )?)?(?:your|ur) (?:own )?(?:sounds?|chirps?|noises|beeps)"
                          r"|what do (?:you|u) sound like|what sounds (?:do|can) you make" + END, re.I)

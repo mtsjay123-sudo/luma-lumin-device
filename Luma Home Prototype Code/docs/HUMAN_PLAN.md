@@ -3899,3 +3899,28 @@ The 1 left on the built-on statements is reading up on "new taylor swift album" 
 songs of the second six aren't searched now (the brain answers, and never quotes lyrics it didn't read).
 
 Full suite: 2,032 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.
+
+## Narration with a command word in it (Nov 21) (`NarrationIsntACommand` in `tests/test_talk_about_a_song.py`)
+
+Thirty fresh lines of someone telling their day with a word in it that Luma acts on ("you remind me of my sister",
+"add that to the list of reasons i'm single lol", "my boss roasted me in front of everyone"). Twenty-six were left
+to a friend already. The four that weren't:
+
+- "give me a minute, i'm crying" got "Okay, I'll keep quiet for half an hour." It now gets what "give me a minute"
+  alone gets: "Take your time. I'm here."
+- "play it again in my head every night" was set as a task ("Done. Every day at 9 PM, I'll play it again in your
+  head."), and with that fixed, opened "it again in my head every night" on YouTube Music.
+- "flip a coin, that's how i make decisions now" got "Tails." (The pattern wasn't grouped, so anything after "flip a
+  coin" counted.)
+- "remember when dad used to sing in the car" got "I don't have anything saved about that yet." Someone else, in
+  the past, after "remember when" is the start of a story.
+
+| Narration with a command word, of 30: not left to a friend | Built on | Written first, measured once |
+|---|---|---|
+| Before → after | 4 → 0 | 2 → 2 |
+
+Nothing moved on the second thirty: the fixes are these four lines' and not their kind's. The real requests still
+work ("flip a coin for me", "give me a minute", "every night at 9, play rain sounds", "remember when my appointment
+is").
+
+Full suite: 2,035 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.

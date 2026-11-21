@@ -130,6 +130,10 @@ READ_TOOLS = {"memory.recall", "web.search", "household.find", "tasks.list", "ti
 # Questions about the live world go straight to a web search, so a small model never answers them from memory.
 from luma.agent import friendtalk  # noqa: E402  (what a best friend does, and what needs a fresh look)
 LIVE_INFO = re.compile(r"\b(?:weather|forecast|rain(?:ing|y)?|snow(?:ing)?|temperature|how (?:hot|cold|warm) (?:is it|will it be)|news|knews|newz|nws|headlines|latest (?:on|about|news)|(?<!credit )(?<!fico )(?<!test )(?<!sat )(?<!act )(?<!vantage)(?<!high )scores?(?! (?:higher|up|better|range))|who won|did .{2,40} win|game (?:tonight|today)|stock price|share price|exchange rate|bitcoin|traffic|flight status|opening hours|what time does .{2,40} (?:open|close)|(?:is|are) .{2,40} open (?:now|today|tonight))\b", re.I)
+# Someone else, in the past, after "remember when": the start of a story, never a look-up. "remember when dad used to sing in
+# the car" got "I don't have anything saved about that yet."
+REMINISCING = re.compile(r"(?:do you )?remember (?:when|that time|the time|how) (?!(?:i|we|you)\b)(?:[\w'-]+ ){1,4}?(?:used to|would|\w+ed|was|were|had|did|went|"
+                         r"drove|got|made|took|came|saw|met|ran|sat|ate|sang|said|told|could)\b", re.I)
 # A weather word alone is talk: "do you like rain?", "my kid has a temperature of 101", "she left me standing in the rain" and
 # "rain always reminds me of my grandmother" were each sent, word for word, to a web search nobody asked for (18 of 20 fresh
 # lines with web search on; Human Test v2's "do you like rain?" was one). It's live only when the weather out there is asked.
@@ -6257,6 +6261,8 @@ class Agent:
             return None  # "search me, I have no idea why she left": it went looking
         if intent in ("news", "news_topic") and (told_not_asked(text) or about_them(text)):
             return None  # "what's happening to me, i can't stop crying" was read as asking for the news
+        if intent == "remember" and REMINISCING.match(lowered):
+            return None  # "remember when dad used to sing in the car" was read as "look it up": "I don't have anything saved about that yet."
         if intent == "weather":
             from luma.skills import weather
             out_there = re.search(r"\b(?:storm\w*|degrees|hot|cold|warm|sunny|cloudy|humid|windy|umbrella|jacket|coat|outside)\b", lowered)
@@ -7507,7 +7513,8 @@ class Agent:
 
     ONE_MOMENT = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|wait|um|uh|sorry)\W+)*(?:(?:give me|gimme|i need|just) (?:a|one|just a|like a) (?:minute|min|sec|second|moment|bit)|"
                             r"(?:hold|hang) on(?: (?:a|one) (?:sec|second|minute|moment))?|(?:one|just a|just one) (?:sec|second|minute|moment)|brb|be right back)"
-                            r"(?: (?:please|luma|ok|okay))?\W*$", re.I)
+                            # ... and what comes after can be why: "give me a minute, i'm crying" got "Okay, I'll keep quiet for half an hour."
+                            r"(?: (?:please|luma|ok|okay))?(?:\W*$|\s*[,.;!]\s*(?:i'?m|i am|i just|i need|i can'?t|i have to|sorry|this is|that was|that|it'?s)\b.{0,80}$)", re.I)
     TURN_OFF = re.compile(r"^\W*(?:(?:hey|ok|okay|luma|so|and|wait)\W+)*(?:how (?:do|can|would|could|should) (?:i|we|you|one) (?:turn|switch|shut|power) (?:you|u|luma|this(?: thing)?|the lamp|it) "
                           r"(?:off|down)|how (?:do|can|would|could) (?:i|we) (?:turn|switch|shut|power) (?:off|down) (?:you|luma|this(?: thing)?|the lamp)|"
                           r"(?:can|could|may) (?:i|we) (?:turn|switch|shut|power) (?:you|u|luma) (?:off|down)|(?:do|have) you (?:have |got )?an? off (?:switch|button)|"
@@ -7742,6 +7749,7 @@ class Agent:
                            or re.match(r"(?:do you )?remember (?:the|that|those|our|my|all the|how) (?:[\w'-]+ ){1,5}(?:we|i|you|she|he|they) (?:\w+ed|was|were|had|did|went|drove|got|"
                                        r"made|took|came|saw|met|ran|sat|ate|sang|said|told|used to|would|could)\b", lowered)
                            or re.match(r"do you remember how \w+ (?:i|we|you|she|he|they|it) (?:was|were|felt|got|looked)\b", lowered)) and not self.MEMORY_Q_TOLD.match(text.strip())
+            reminiscing = reminiscing or bool(REMINISCING.match(lowered))   # someone else, in the past: the start of a story
             # "remember when we talked about my brother" got "I don't have anything saved about that yet.": it's the start of a story, and the brain's
             if lowered.startswith(("remember ", "recall ", "do you remember ")) and not reminiscing:
                 rest = re.sub(r"^(?:do you remember|remember|recall)\s+", "", text, flags=re.I).strip()
@@ -7812,6 +7820,8 @@ class Agent:
             ability = self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
             music = re.match(r"^\W*(?:(?:can you|could you|can u|please|yo|hey|aye|ayo|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
+            if music and re.search(r"\bin my (?:head|mind|heart|dreams|sleep|thoughts)\b", lowered):
+                music = None   # "play it again in my head every night" opened "it again in my head every night" on YouTube Music
             if music and self.mode != "kids" and not said_in_passing(text) and not PLAY_SAYING.match(music["what"]):   # "play along with me here" opened "along with me here" on YouTube Music
                 what = re.sub(r"\b(?:music|songs?|tunes|something|on (?:youtube|spotify))\b", "", self.TAGS.sub("", music["what"])).strip(" ,.") or "music for right now"
                 from urllib.parse import quote_plus

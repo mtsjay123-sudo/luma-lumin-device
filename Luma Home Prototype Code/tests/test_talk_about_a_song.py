@@ -114,5 +114,61 @@ class AStoryWithMakeMeLaughInItIsntAskingForAJoke(unittest.TestCase):
         self.assertEqual(sum(humor.asks_for_a_joke(said) for said in ASKED_OF_LUMA_2), 8)
 
 
+# Written Nov 21 before the fix: narration with a command word in it. Four of the first thirty weren't left to a friend:
+# "give me a minute, i'm crying" got "Okay, I'll keep quiet for half an hour."; "play it again in my head every night" was set
+# as a task for 9 PM; "flip a coin, that's how i make decisions now" got "Tails."; "remember when dad used to sing in the car"
+# got "I don't have anything saved about that yet." The second thirty were measured once, afterwards: 2 before, 2 after.
+NARRATED = ["you remind me of my sister sometimes", "don't remind me lol", "remind me why i married him", "that smell reminds me of my grandma's kitchen",
+            "add that to the list of reasons i'm single lol", "he's on my list of people i'll never forgive", "give me a minute, i'm crying",
+            "wake me up when this year is over", "my boss roasted me in front of everyone", "they roast my cooking every thanksgiving",
+            "he told me to be serious for once", "she said i need to turn it down a notch", "i set an alarm and still missed her call",
+            "the timer on my marriage ran out a while ago", "i keep a mental list of everything i did wrong", "play it again in my head every night",
+            "flip a coin, that's how i make decisions now", "i wish i could mute my own thoughts", "turn off the lights and the house feels so empty",
+            "remember when dad used to sing in the car", "forget everything i said, i was being dramatic", "he never texts me back anymore",
+            "stop, you're going to make me cry", "i can't spell out how much that hurt", "what time is it even, i've lost track of the days",
+            "count me out of the family reunion", "i'd roll the dice on him again honestly", "volume up on the sad songs tonight i guess",
+            "note to self: never date a drummer", "save me from this group chat"]
+NARRATED_2 = ["you always remind me to breathe", "nobody needs to remind me what day it is", "remind me never to trust him again",
+              "this weather reminds me of the day we met", "put that on the list of things i'll deal with never",
+              "she's at the top of my list right now, not in a good way", "give me a second, that hit hard", "wake me up when he grows up",
+              "my friends roasted me for crying at the movie", "we roast each other, it's how we show love", "my mom said to be serious about someone already",
+              "the doctor told me to turn down the stress", "i snoozed the alarm on my whole life", "the clock is ticking on this relationship",
+              "i made a list of pros and cons and cried", "it plays on a loop in my mind", "heads or tails, either way i lose",
+              "i put my feelings on mute for years", "lights out by nine, that's my wild life now", "remember how mom used to hum in the kitchen",
+              "forget what i said about being fine", "she left me on read again", "stop it, i'm already emotional", "i can't put into words how tired i am",
+              "what day is it, they all blur together", "count on me to ruin a good thing", "it's a roll of the dice whether he calls",
+              "turn up for my birthday or don't, i guess", "reminder that i am not okay lol", "delete this year from the record"]
+STAY = "Take your time. I'm here."
+
+
+class NarrationIsntACommand(unittest.TestCase):
+    def reply(self, said):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
+        self.addCleanup(store.close)
+        agent = Agent(store=store, use_model=False)
+        agent.use_model = True
+        agent.planner = lambda messages, context, allowed, mode: {"type": "reply", "text": "Just talking."}
+        out = agent.chat(said)
+        return str(out.get("text") or out.get("summary") or "")
+
+    def test_a_friend_talks_back(self):
+        for said in NARRATED:
+            self.assertIn(self.reply(said), {"Just talking.", STAY}, said)
+        self.assertEqual(self.reply("give me a minute, i'm crying"), STAY, "it stays, for five minutes of quiet, not half an hour")
+
+    def test_the_real_requests_still_work(self):
+        for said in ["flip a coin", "flip a coin for me", "heads or tails", "toss a coin please"]:
+            self.assertIn(self.reply(said), {"Heads.", "Tails."}, said)
+        self.assertEqual(self.reply("give me a minute"), STAY)
+        self.assertIn("Every day at 9 PM", self.reply("every night at 9, play rain sounds"))
+        self.assertIn("anything saved", self.reply("remember when my appointment is"))
+
+    def test_the_second_thirty_written_before_the_fix(self):
+        """Measured once: 2 of 30 not left to a friend before, 2 after (one more now gets "Take your time. I'm here.")."""
+        self.assertLessEqual(sum(self.reply(said) not in {"Just talking.", STAY} for said in NARRATED_2), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
