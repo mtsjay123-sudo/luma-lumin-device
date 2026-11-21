@@ -151,10 +151,42 @@ class OnALamp(unittest.TestCase):
         memory = self.store.memories()[0]
         wrong = np.zeros(meaning.DIMS, dtype=np.float32)
         wrong[0] = 1.0
-        self.store.put("vector", {"model": meaning.FILE, "for": meaning._fingerprint(memory["text"]), "h": meaning.pack(wrong)}, "vector:" + memory["id"])
+        self.store.put("vector", {"model": meaning.FILE, "for": meaning.marked(meaning._fingerprint(memory["text"])), "h": meaning.pack(wrong)}, "vector:" + memory["id"])
         self.assertIsNone(meaning._vector(self.store, memory))
         self.found("who do i see about my glasses")
         self.assertEqual(self.store.get("vector", "vector:" + memory["id"])["model"], meaning.SMALL_TAG)
+
+    def test_a_fingerprint_thats_all_digits_never_looks_like_a_card_number(self):
+        """Found the first time the real model worked out a thousand meanings in one go: a memory's fingerprint is sixteen
+        characters of 0-9 and a-f, all digits about once in two thousand, and the store refused it as a card number. That
+        one refusal stopped every meaning after it. The same was true with the bigger model."""
+        from luma.memory.store import KeptOut, reject_payment_secrets
+        with self.assertRaises(KeptOut):
+            reject_payment_secrets({"for": "4539578763621486"})                 # the guard itself is untouched
+        stand_in(meaning.small_folder())
+        self.store.set_setting("memory_by_meaning_small", True)
+        one, real = self.store.memories()[0]["text"], meaning._fingerprint
+        with mock.patch.object(meaning, "_fingerprint", lambda text: "4539578763621486" if text == one else real(text)):
+            meaning.catch_up(self.store, self.store.memories(), wait=True)
+        kept = self.store.all("vector", 100)
+        self.assertEqual(len(kept), 6)                                           # every one, the all-digits one too
+        self.assertIn("m4539578763621486", {v["for"] for v in kept})
+        self.assertEqual(meaning.unmarked("m4539578763621486"), "4539578763621486")
+        self.assertEqual(meaning.unmarked("0123456789abcdef"), "0123456789abcdef")   # one kept the old way still reads
+
+    def test_one_meaning_that_cant_be_kept_never_stops_the_rest(self):
+        stand_in(meaning.small_folder())
+        self.store.set_setting("memory_by_meaning_small", True)
+        real, calls = self.store.put, []
+
+        def put(kind, value, id=None):
+            calls.append(kind)
+            if kind == "vector" and len([c for c in calls if c == "vector"]) == 2:
+                raise ValueError("refused")
+            return real(kind, value, id)
+        with mock.patch.object(self.store, "put", put):
+            meaning.catch_up(self.store, self.store.memories(), wait=True)
+        self.assertEqual(len(self.store.all("vector", 100)), 5)
 
     def test_switched_off_again_it_stops(self):
         stand_in(meaning.small_folder())

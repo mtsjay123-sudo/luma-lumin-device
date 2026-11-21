@@ -126,6 +126,22 @@ class GoodNewsSaidPlainly(unittest.TestCase):
         self.assertNotIn("good news", humor.turn_note("no me aceptaron en la universidad"))
 
 
+class GuessWho(unittest.TestCase):
+    """ "lol guess who got left out of the group trip again" was read as good news ("be happy with them right away"): found
+    on Nov 21 reading what a brain is told when being lonely is said with a laugh. Six lines each way, all seen."""
+
+    def test_guess_who_got_something_bad_isnt_good_news(self):
+        for line in ("lol guess who got left out of the group trip again", "guess who got dumped", "guess who got a parking ticket lol",
+                     "guess who got fired today", "guess who got stood up again", "guess who got another rejection"):
+            self.assertFalse(good(line), line)
+            self.assertNotIn("good news", humor.turn_note(line), line)
+
+    def test_guess_who_got_something_good_still_is(self):
+        for line in ("guess who got the job", "guess who's a homeowner", "guess who got promoted", "guess who just got engaged", "guess who got a raise",
+                     "guess who got an A"):
+            self.assertTrue(good(line), line)
+
+
 class ADayWorthMarking(unittest.TestCase):
     def test_a_good_day_said_as_ago_today_isnt_a_loss(self):
         self.assertEqual([line for line in DAY_BUILT + DAY_SECOND if loss(line)], [])

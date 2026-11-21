@@ -461,7 +461,11 @@ JOY = re.compile(
     r"recipe|poem|film|script)\b|\b(?:we|i)\s+(?:just\s+)?brought home\s+(?:a|an|our|two|three|another)\s+(?:\w+\s+)?(?:puppy|puppies|kitten|kittens|dog|dogs|cat|cats|"
     r"rabbit|rabbits|bunny|bunnies|hamster|rescue)\b|"
     r"\bmoving into\s+(?:our|my)\s+(?:new|first|own)\s+(?:house|home|place|apartment|condo)\b|\basked me to marry\s+(?:him|her|them)\b|"
-    r"\bguess who(?:'s|\s+is)?\s+(?:just\s+)?(?:got|a|an|officially|finally|going)\b(?!\s+(?:at|on|in)\b)|\b(?:can'?t stop smiling|happy tears|dream come true|on top of the world)\b|"
+    r"\bguess who(?:'s|\s+is)?\s+(?:just\s+)?(?:got|a|an|officially|finally|going)\b(?!\s+(?:at|on|in)\b)"
+    r"(?!\s+(?:left out|left behind|dumped|fired|laid off|let go|ghosted|stood up|rejected|cut|sick|covid|the flu|locked out|lost|robbed|scammed|"
+    r"cancel+ed on|passed over|blocked|in trouble|yelled at|written up|towed|stuck|food poisoning|(?:a|another)\s+(?:\w+\s+)?(?:ticket|fine|flat|cold|"
+    r"migraine|bill|warning|rejection))\b)"   # "guess who got left out of the group trip again" is the opposite of good news
+    r"|\b(?:can'?t stop smiling|happy tears|dream come true|on top of the world)\b|"
     r"\b(?:i'?m|we'?re)\s+(?:so|really|super)\s+proud of\s+(?:my|him|her|them|our)\b|^\W*it'?s official\b|"
     r"\b(?:promotion|raise|offer|transfer|adoption|visa|loan|approval|scholarship|acceptance)\s+(?:came through|is official|got approved|was approved)\b|"
     r"\b(?:we'?re|i'?m|we are|i am)\s+(?:finally\s+|officially\s+|actually\s+)?(?:having a baby|pregnant|engaged|expecting\b(?! (?:a|an|the|to|it|him|her|them|some|you))|getting married|cancer[- ]free|in remission|"

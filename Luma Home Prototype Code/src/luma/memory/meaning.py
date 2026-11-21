@@ -156,6 +156,20 @@ def _fingerprint(text):
     return hashlib.sha256(str(text or "").encode()).hexdigest()[:16]
 
 
+def marked(mark):
+    """A memory's fingerprint as it's kept beside its meaning. Sixteen characters of 0-9 and a-f are all digits about once
+    in two thousand memories, and the store refuses anything that looks like a card number: that one refusal used to stop
+    every meaning after it from being worked out (found Nov 21, 2026, the first time a thousand were worked out in one
+    go). A letter in front and it's never a number."""
+    return "m" + str(mark)
+
+
+def unmarked(kept):
+    """The fingerprint itself, from either way it's been kept."""
+    kept = str(kept or "")
+    return kept[1:] if len(kept) == 17 and kept[0] == "m" else kept
+
+
 def pack(vector):
     """A meaning, small enough to keep a million of: half-size numbers, as text."""
     import base64
@@ -244,7 +258,7 @@ def _vector(store, memory):
     if hit and hit[0] == mark:
         return hit[1]
     kept = store.get("vector", "vector:" + mid)
-    if kept and kept.get("for") == mark and kept.get("model") == tag():
+    if kept and unmarked(kept.get("for")) == mark and kept.get("model") == tag():
         v = _unit(unpack(kept) if unpack(kept) is not None else [])
         if v is not None:
             if len(_cache) > CACHE:
@@ -265,7 +279,10 @@ def _work_out(store, memories):
                 if v is None:
                     continue
                 mark = _fingerprint(memory.get("text", ""))
-                store.put("vector", {"model": tag(), "for": mark, "h": pack(v)}, "vector:" + memory["id"])
+                try:
+                    store.put("vector", {"model": tag(), "for": marked(mark), "h": pack(v)}, "vector:" + memory["id"])
+                except Exception:
+                    continue   # one meaning that can't be kept never stops the rest
                 if len(_cache) > CACHE:
                     _cache.clear()
                 _cache[memory["id"]] = (mark, v)

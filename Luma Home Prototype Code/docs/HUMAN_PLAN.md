@@ -3437,6 +3437,27 @@ second time after this change; one more worry is read and nothing else moved.
 just eat lunch alone" is read as lonely (the brain is told to be fully there instead of that humor is welcome). A
 real-brain run on the lonely moments follows.
 
+**Run 73: the sixteen lonely moments, five times each, before and after (of 80).**
+
+| Brain | Before → after | The one turn told differently (of 5) | A gap this size between two runs of the same code |
+|---|---|---|---|
+| Stock Qwen3 4B | 75 → 76 | 5 → 5 | 100 times in 100 |
+| Luma's own 4B | 70 → 68 | 4 → 4 | 82 times in 100 |
+| Stock Qwen3 1.7B | 65 → 62 | 5 → 5 | 70 times in 100 |
+| Luma's own small | 68 → 72 | **2 → 5** | 47 times in 100 |
+
+No difference on any brain, which is what one turn in sixteen can show. On that turn nothing got worse and our
+small add-on went from 2 of 5 to 5. The lonely moment every brain still misses most is the one said with a laugh
+(1 or 2 of 5 on all four).
+
+**Lonely said with a laugh, read on ten fresh lines** ("spent my birthday alone lmao", "friday night and it's me and
+the cat again 😂"). What the brain is told: three get the gentle line for a small lonely, one is read as hurt, five
+are "They're laughing: be funny back", and one was read as good news: "lol guess who got left out of the group trip
+again". That last one is fixed ("guess who got" something bad isn't good news; six lines each way, all seen). The
+five are left: a 4B is asked whether something went wrong and told not to joke back; a small brain isn't asked, and
+a rule for "a laugh beside nobody, alone or by myself" would also take "haha i ate the whole pizza by myself". It's
+an open gap on the $250 lamp, and it's the same one as the gripes: what's said sideways needs the brain.
+
 Tests: `tests/test_feels.py` (14): the two honest sets with their measured numbers, the held-out floors (counts
 only), no practice sentence is a test line, the practice words aren't the test's own lists, the rules still work
 with no model, the safety and leaning readers come first, no practice sentence is a safety line, nothing said with
@@ -3613,9 +3634,17 @@ yes, checked and used on a yes, a tampered file thrown away and not tried again 
 
 Full suite: 1,998 passed, the known 14 failed. What leaves the home, settings as they come: 0 hosts.
 
-What's not known until it runs on GitHub with the real model (the workflow runs when this is pushed): that Luma's
-own reader gives the same numbers as the package the model was made with, and the recall numbers through Luma's own
-search rather than a stand-in for it.
+**What the real model found that the stand-in couldn't** (`meaning-small.yml` run 2, which stopped with an error).
+Beside each meaning Luma keeps a fingerprint of the memory it belongs to: sixteen characters of 0-9 and a-f. About
+once in two thousand memories all sixteen are digits, and the store refuses to keep anything that looks like a card
+number (rule 5, as it should). So that one meaning was refused, and the refusal stopped every meaning after it from
+being worked out. A thousand memories worked out in one go is what it took to see it. **The same was true of the
+16 GB model's path**, since the day memory by meaning was built: on the committed code, a stand-in model and one
+all-digit fingerprint kept 0 of 3 meanings. Fixed without touching the guard: the fingerprint is kept with a letter
+in front, so it's never a number (one kept the old way still reads), and one meaning that can't be kept never stops
+the rest. Two tests (`tests/test_meaning_small.py`, now 12).
+
+Full suite: 2,002 passed, the known 14 failed. What a brain is told on both human tests: 0 of 269 turns differ.
 
 ## Run 72: Human Test v2 on this morning's code, four brains (Nov 21)
 

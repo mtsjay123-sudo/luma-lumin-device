@@ -465,7 +465,7 @@ class Store:
         if vector is None or record.get("model") != meaning.tag():
             return
         try:
-            mark = bytes.fromhex(str(record.get("for") or ""))
+            mark = bytes.fromhex(meaning.unmarked(record.get("for")))
         except ValueError:
             return
         self._index.set_meaning(str(record.get("id", ""))[7:], vector, mark)

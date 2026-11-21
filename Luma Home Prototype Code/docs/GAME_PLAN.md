@@ -160,6 +160,10 @@ on day 1 and run alongside everything else:
   22 of 24, hard evenings met the way they asked 17 → 22. The 4B brains: 21 and 22 of 24, ordinary 24 of 24. Luma's
   own small add-on says yes to both questions, so nothing is added (safe, and no gain): one more row where it's
   behind the stock brain it's built on.
+- **A bug in memory by meaning, there since it was built (Nov 21).** About one memory in two thousand has a
+  fingerprint that's all digits; the store refused it as a card number, and no meaning after it was ever worked out,
+  on the 16 GB model too. Found by running the real small model over a thousand memories on GitHub. Fixed; the guard
+  is untouched.
 - **Run 72 (Nov 21): the stock 4B with Luma's layer passes 235 of 255.** Up from 222 this morning; venting 6 → 9 of
   10, big news 8 → 10, conversations 96 → 101 of 115, every unsafe moment answered with safety. The stock 1.7B is where
   it was (195); our add-ons are at 206 and 200 and the judge still prefers the stock brains to them (31 to 2, 18 to
