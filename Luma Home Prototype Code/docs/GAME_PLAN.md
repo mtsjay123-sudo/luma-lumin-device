@@ -214,6 +214,11 @@ on day 1 and run alongside everything else:
   small brain says YES to 97 good replies in 100. Luma no longer asks a brain about its own reply. The pattern, one
   more try and Luma's own line stay; on fresh replies the pattern knows 1, 3 and 2 of 20, and that is what there is.
   Open: a real guard for "I'm all you need" said a new way (a small model taught on replies, as for leaning itself).
+- **That small model, built the same day: 6 → 23 of 60 (Nov 21).** `agrees.py` reads the reply itself on the device:
+  practice replies written fresh, sets A and B, Luma's own practice replies as "fine"; never C, D or E. Measured once
+  on those three: agreeing replies read 6 → 23 of 60, good replies read wrongly 0 of 60 (asking a 4B got 14 and cost
+  8 to 10 seconds). Still under half, and said so to the therapists. Not measured: what it costs real brains in
+  second tries.
 - **Somewhere to practise (Nov 21, the owner's ask).** Asked to try a joke on it, to rehearse a hard conversation or
   to get better at talking with people, Luma's brain is told to be an honest practice partner: what landed, what
   didn't and why, one better version, then again. Only when they ask. Five such asks used to be answered by Luma's
@@ -229,6 +234,11 @@ on day 1 and run alongside everything else:
 - **The practice partner's side check is written (`--only practice`, 58 moments).** Jokes that work, jokes broken on
   purpose, jokes on sensitive ground, rehearsed lines with a weak spot. The number to watch is the gap between the
   first two. Run 81 is its first run on the four brains.
+- **Run 81's first finding: Luma set a reminder nobody asked for (Nov 22).** A joke with "call me. stop." in it was
+  sent to our small brain to be rewritten into a request, the brain handed back the prompt's own example ("Text Mom:
+  I'm on my way", "Remind me at 5pm to call Sam"), and Luma did it. Now every name and number in a rewritten request
+  has to be in what they said, or it's talk (written first: 12 of 12 made-up requests dropped, 11 of 12 real ones
+  kept), and a practice turn is never rewritten into a job.
 - **When they say they're ready, Luma helps, and never before (Nov 21, the owner's ask).** A reader for the ways
   someone says they want people or one person back ("i should call my sister, it's been months"); only then is the
   brain told to help with the next small step and offer to practise it. Lonely or leaning is never read as ready. On

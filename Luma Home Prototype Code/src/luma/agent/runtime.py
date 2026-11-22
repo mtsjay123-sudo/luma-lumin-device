@@ -2908,6 +2908,42 @@ class Agent:
                 return True
         return False
 
+    NUMBER_WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+                    "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20", "thirty": "30", "forty": "40", "forty-five": "45", "fifty": "50",
+                    "sixty": "60", "ninety": "90", "hundred": "100", "noon": "12", "midnight": "12", "half": "30", "quarter": "15", "couple": "2",
+                    "dozen": "12", "first": "1", "second": "2", "third": "3", "an": "1", "a": "1"}
+    # Capitalised in a rewrite without being anyone's name: how a sentence or a message starts, and words the rewrite tidies up.
+    NOT_A_NAME = {"i", "i'm", "i'll", "i've", "i'd", "ok", "okay", "am", "pm", "mr", "mrs", "ms", "dr", "tv", "wi-fi", "wifi", "luma", "the", "a", "an", "my", "your"}
+
+    def _adds_details(self, clear, text):
+        """The rewrite has a name or a number that isn't in what they said (or in the last few lines, where "her" and "it" come
+        from). Run 81: asked to try a joke, Luma's own small brain handed back the rewrite prompt's example ("1. Text Mom: I'm on
+        my way. 2. Remind me at 5pm to call Sam.") and Luma set the reminder. A request Luma acts on is made of what they said;
+        anything else is talk and goes to the brain as talk. "CHAT" and a clarifying question aren't requests and aren't read."""
+        steps = clear if isinstance(clear, list) else [clear] if isinstance(clear, str) else []
+        steps = [st for st in steps if isinstance(st, str) and st.strip().upper() != "CHAT" and not st.strip().upper().startswith("ASK:")]
+        if not steps:
+            return False
+        recent = [str(m.get("content") or "") for m in self.history[-5:] if isinstance(m.get("content"), str)]
+        said = " ".join([str(text)] + recent).lower().replace("’", "'")
+        letters = re.sub(r"[^a-z0-9 ]", "", said)                       # "marios" for "Mario's", "fathers" for "Father's"
+        numbers = set(re.findall(r"\d+", said)) | {self.NUMBER_WORDS[w] for w in re.findall(r"[a-z-]+", said) if w in self.NUMBER_WORDS}
+        joined = re.sub(r"\D", "", said)
+        for step in steps:
+            digits = re.findall(r"\d+", step)
+            if any(d not in numbers for d in digits) and not (len(digits) > 1 and "".join(digits) in joined):   # "815" is "8:15"
+                return True
+            first = True
+            for word in re.findall(r"[A-Za-z][A-Za-z'’.-]*", step):
+                starts = first
+                first = word.endswith((".", ":")) and not word.lower().rstrip(".") in self.NOT_A_NAME   # the next word starts a sentence or a message
+                bare = word.strip(".'’-").replace("’", "'")
+                if starts or not bare[:1].isupper() or bare.lower() in self.NOT_A_NAME or len(bare) < 2:
+                    continue
+                if re.sub(r"[^a-z0-9]", "", bare.lower()) not in letters.replace(" ", "") and bare.lower() not in said:
+                    return True
+        return False
+
     def understand(self, text, cancel_event=None):
         """What they really mean, in one clear line. People type fast, misspell, ramble and talk to speech-to-text;
         the small model turns any of it into a plain instruction Luma's actions understand. 'CHAT' for conversation,
@@ -8030,8 +8066,11 @@ class Agent:
             # (A stand-in planner, as in tests, only takes part when it says it understands these.)
             if self.use_model and self.mode != "kids" and not getattr(self, "_in_steps", False) and (self.planner is None or getattr(self.planner, "understands", False)) \
                     and len(lowered.split()) >= 2 and not GREETING.fullmatch(lowered.strip(" !?.")) and self._worth_understanding(lowered) and not just_talking(text) \
-                    and not (wants_a_take(text) or just_telling(text) or their_own_plan(text)):  # "should i text him first" isn't "text him first"
+                    and not (wants_a_take(text) or just_telling(text) or their_own_plan(text)) \
+                    and not self._practising(text):  # "should i text him first" isn't "text him first"; a joke they're trying on Luma isn't a job
                 clear = self.understand(text, cancel_event)  # a story isn't rewritten into a job ("lmao my boss scheduled a meeting" became a stock check)
+                if self._adds_details(clear, text):
+                    clear = None  # a name or a number nobody said: the prompt's own example handed back, or made up (run 81)
                 if isinstance(clear, str) and _garbled(clear): clear = None
                 if isinstance(clear, str) and clear.upper().startswith("ASK:") and _words(clear[4:]).split()[:3] == _words(text).split()[:3]:
                     clear = None  # their own question handed back ("what should i cook tonight?") isn't asking what they meant
