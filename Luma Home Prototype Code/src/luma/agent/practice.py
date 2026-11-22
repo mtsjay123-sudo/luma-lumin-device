@@ -34,10 +34,17 @@ SAY = re.compile(
     r"\bmock interview\b|"
     r"\brun (?:my|this|the) [^.?!]{0,25}\b(?:by|past) (?:you|u)\b|\brun through (?:my|the|this) [^.?!]{0,30}\bwith (?:you|u)\b|"
     r"\bsay it to (?:you|u) first\b|\bask me (?:some |the )?(?:interview )?questions\b", re.I)
+SOCIAL = (r"(?:making friends|meeting (?:people|new people|someone|strangers|[a-z']+ (?:parents|family|friends))|phone calls?|talking|calling|small talk|"
+          r"conversations?|chatting|flirting|dating|dates?|socializ\w+|networking|mingling|how to talk|introductions?)")
 TALK = re.compile(
     rf"\b(?:{ASK})\b[^.?!]{{0,45}}\b(?:small talk|talking (?:to|with) (?:people|strangers|girls|guys|women|men|anyone)|chatting|flirting|"
     r"introducing myself|(?:keep|start|hold|have) a conversation|conversations?|less awkward|comfortable (?:talking|around people))\b|"
-    rf"\b(?:freeze|clam|lock) up\b[^.?!]{{0,40}}\b(?:{PRACTISE})\b|\bget better at talking\b", re.I)
+    rf"\b(?:freeze|clam|lock) up\b[^.?!]{{0,40}}\b(?:{PRACTISE})\b|\bget better at talking\b|"
+    # "help me practice making friends at the gym", "can you help me practice phone calls", "i need practice talking to my coworkers"
+    rf"\b(?:{ASK}|i need)\b[^.?!]{{0,30}}\b(?:{PRACTISE}|practice)\b[^.?!]{{0,12}}\b{SOCIAL}\b|"
+    # "i want to be better at talking on dates", "teach me to be less awkward on the phone"
+    rf"\b(?:{ASK})\b[^.?!]{{0,20}}\b(?:be|get|being|getting|feel) (?:better|good|less awkward|less shy|less nervous|more comfortable|more confident|braver) "
+    rf"(?:at|with|on|about|around|when|in)\b[^.?!]{{0,25}}\b(?:{SOCIAL}|people|friends|strangers|parties|the phone)\b", re.I)
 
 # Playing a part. "pretend you're the interviewer and ask me questions" is practice; "pretend you're a real person" and "pretend
 # you're my girlfriend" are not (rules 1 and 3 answer those). It counts only with a part from everyday errands and work, or with
@@ -80,6 +87,15 @@ EXPENSE_LINE = "Honest take: that one's at their expense, and it would sting if 
 def room_prompt(joke):
     return ("Someone wants to say this in front of people:\n\"" + " ".join(str(joke or "").split())[:400] + "\"\n"
             "Would it insult, embarrass or hurt someone who will be in that room, or the people the occasion is for? Answer YES or NO only.")
+
+
+# A side count only (scripts/human_eval.py, the practice side check): can a brain tell a joke that works from one that doesn't
+# when it's asked plainly? In its replies the stock 4B said what was wrong with 7 of 12 broken jokes and flattered 4 (runs 81
+# and 83). If the plain question separates the two kinds better than that, it's worth asking before the reply, the way the room
+# is asked about; if it doesn't, it isn't. Nothing in the chat path asks this.
+def works_prompt(joke):
+    return ("Someone is trying out a joke:\n\"" + " ".join(str(joke or "").split())[:400] + "\"\n"
+            "Does the joke work as written: is there a real punchline that would get a laugh? Answer YES or NO only.")
 
 
 ROOM_HURTS = ("They're trying a joke on you that they'll say in front of people, and it would land on someone in that room. Say so first, "
@@ -153,9 +169,12 @@ def says_its_risky(reply):
 # mom's dementia. It's theirs to tell and they asked for an honest ear; kind first, then what they asked for, gently. (Until
 # this, someone hurting got no practice note at all, so a eulogy joke got condolences and nothing about the joke.) Never when
 # they might not be safe.
-GENTLE = ("They asked to try this on you, and it's close to something that hurts. Be kind first, in a few words. Then do what they asked: say "
-          "honestly and gently how it would land, and with whom, and offer one better way to put it if there is one. No lecture, and don't make "
-          "it heavier than they did.")
+# Runs 81 and 83: asked to workshop "mom met me for the first time again today. apparently i make a great first impression", the
+# 4B answered it as news ("Aww, that's sweet"), and once made up something the mother said. So the note says what it is: a joke
+# they wrote, to be answered as one, with nothing added that they didn't say.
+GENTLE = ("They asked to try this on you, and it's close to something that hurts. It's a joke or a line they wrote, not news: add nothing "
+          "about their life they didn't say. Be kind first, in a few words. Then say honestly and gently how it would land and with whom, "
+          "and one better way to put it. No lecture.")
 
 
 # A joke about something that is hard whatever words it's told in. "it's about my mom's dementia: mom met me for the first time

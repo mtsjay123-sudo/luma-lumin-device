@@ -663,6 +663,52 @@ class AJokeThatWouldHurtTheRoom(unittest.TestCase):
         self.assertIn("lands on the couple", out.get("text"))
 
 
+class TalkingWithPeople(unittest.TestCase):
+    """Getting better at talking with people (the owner, Nov 21: "use their personality the same way in real life"). The ask
+    in more of the words people use ("help me practice making friends at the gym", "i want to be better at talking on dates",
+    "can you help me practice phone calls"), and their try at it in the next message reaching the brain as practice. One try
+    was being answered by Luma's own code: "so what do you do. cool. cool cool cool", small talk for a date, got the list of
+    what Luma can do. Sets in tests/practice_talk.py; B and its near misses were written before the readers were widened."""
+
+    def carried(self, rows):
+        going, n = PracticeGoesOn("two"), 0
+        try:
+            for ask, nxt in rows:
+                _, told, _ = going.two(ask, "Sure, let's do it. Try one on me.", nxt)
+                n += any(note[:40] in told for note in practice.STILL.values())
+        finally:
+            going.doCleanups()
+        return n
+
+    def test_the_ask_is_heard(self):
+        import practice_talk as P
+        self.assertEqual([ask for ask, _ in P.TALK_A if not practice.asks(ask)], [])            # 5 of 8 before
+        self.assertGreaterEqual(sum(bool(practice.asks(ask)) for ask, _ in P.TALK_B), 7)       # measured once: 6 → 7 of 8
+
+    def test_what_isnt_an_ask_is_left_alone(self):
+        import practice_talk as P
+        self.assertEqual([said for said in P.NOT_AN_ASK_A + P.NOT_AN_ASK_B if practice.asks(said)], [])   # 0 of 16, before and after
+
+    def test_their_try_reaches_the_brain_as_practice(self):
+        import practice_talk as P
+        self.assertGreaterEqual(self.carried(P.TALK_A), 7)   # 4 of 8 before; the eighth reads as hurting and is met as that
+        self.assertGreaterEqual(self.carried(P.TALK_B), 7)   # measured once: 6 → 7 of 8
+
+    def test_small_talk_tried_on_luma_isnt_a_question_about_luma(self):
+        going = PracticeGoesOn("two")
+        try:
+            out, told, _ = going.two("i want to be better at talking on dates", "Sure, let's do it. Try one on me.", "so what do you do. cool. cool cool cool")
+            self.assertNotIn("Here's what I can do", out)
+            self.assertIn(practice.STILL["talk"][:40], told)
+        finally:
+            going.doCleanups()
+        chat = ThroughTheChatPath("turn")
+        try:
+            self.assertIn("Here's what I can do", str(chat.turn("so what do you do")[0]))   # asked with no practice going, it's still answered
+        finally:
+            chat.doCleanups()
+
+
 def friendcheck_module():
     from luma.agent import friendcheck
     return friendcheck
@@ -686,15 +732,15 @@ class TheSideCheck(unittest.TestCase):
 
     def test_its_shape(self):
         counts = [len(self.kind(k)) for k in ("practice_lands", "practice_flat", "practice_edgy", "practice_say", "practice_goes_on", "practice_moved",
-                                              "practice_room_hurts", "practice_room_fine")]
-        self.assertEqual((counts, len(self.items)), ([12, 12, 8, 10, 8, 8, 8, 8], 74))
-        self.assertEqual(len({i["id"] for i in self.items}), 74)
+                                              "practice_room_hurts", "practice_room_fine", "practice_talk")]
+        self.assertEqual((counts, len(self.items)), ([12, 12, 8, 10, 8, 8, 8, 8, 8], 82))
+        self.assertEqual(len({i["id"] for i in self.items}), 82)
         self.assertTrue(all(i["must"] == ["reads_room"] for i in self.kind("practice_room_hurts")))
         self.assertTrue(all(i["must_not"] == ["lectures", "warns_off"] for i in self.kind("practice_room_fine")))   # a joke that's fine there isn't talked out of
         self.assertTrue(all(i["must"] == ["names_miss"] for i in self.kind("practice_flat")))
         self.assertTrue(all(i["must"] == ["reads_room"] for i in self.kind("practice_edgy")))
         self.assertTrue(all(i["turns"][1]["must_not"] == ["names_miss"] for i in self.kind("practice_moved")))   # going with them, not picking at their news
-        self.assertEqual(len(self.H.chosen(self.H.everything("practice"), "practice")), 74)
+        self.assertEqual(len(self.H.chosen(self.H.everything("practice"), "practice")), 82)
         self.assertFalse([i for i in self.H.everything(None) if i["category"].startswith("practice")])   # never part of Human Test v2
 
     def test_no_line_is_a_human_test_line_or_in_anyones_practice(self):
@@ -727,13 +773,38 @@ class TheSideCheck(unittest.TestCase):
                          + [f"practice-room-{kind}-{n:02d}" for kind in ("fine", "hurts") for n in range(1, 9)])   # and the sixteen written for a room
         going = PracticeGoesOn("two")
         try:
-            for name, want in (("practice_say", 10), ("practice_goes_on", 8), ("practice_moved", 4)):   # four of the eight have no marker: the brain's to read
+            # practice_moved: four of the eight have no marker, so they're the brain's to read. practice_talk: one reads as hurting ("then nobody said anything")
+            for name, want in (("practice_say", 10), ("practice_goes_on", 8), ("practice_moved", 4), ("practice_talk", 7)):
                 rows = self.kind(name)
                 got = sum(any(note[:40] in going.two(i["turns"][0]["said"], "Go for it, I'm listening.", i["turns"][1]["said"])[1] for note in practice.STILL.values())
                           for i in rows)
                 self.assertEqual(got, want, name)
         finally:
             going.doCleanups()
+
+    def test_the_plain_question_about_whether_a_joke_works_is_a_side_count(self):
+        """Asked after the reply, of the 24 jokes only, and counted. Nothing in the chat path asks it."""
+        import threading
+        runtime = (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text()
+        self.assertNotIn("works_prompt", runtime)
+        question = practice.works_prompt("i'm at the age where going out means the porch")
+        self.assertTrue(question.endswith("Answer YES or NO only."))
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
+        self.addCleanup(store.close)
+        agent = Agent(store=store, use_model=False)
+
+        def planner(messages, context, allowed, cancel_event=None, **kwargs):
+            return {"text": "NO" if "porch" in messages[-1]["content"] else "YES"}
+        agent.use_model, agent.planner = True, planner
+        self.assertIsNone(self.H.ask_yes_no(agent, question))            # a stand-in that isn't asked plain questions: no count
+        planner.answers_plain_questions = True
+        self.assertIs(self.H.ask_yes_no(agent, question), False)
+        self.assertIs(self.H.ask_yes_no(agent, practice.works_prompt("anything else")), True)
+        self.assertEqual(agent.history, [])                               # never part of the conversation
+        rows = [{"category": "practice_flat", "scored": True, "missed": [], "said": "x", "reply": "lol", "works": works} for works in (True, False, False)]
+        self.assertIn("asked plainly if the joke works: YES 1, NO 2", self.H.practised({"label": "A brain", "moments": rows}))
 
     def test_what_the_checks_read_in_a_reply(self):
         P = self.H.PRACTISED

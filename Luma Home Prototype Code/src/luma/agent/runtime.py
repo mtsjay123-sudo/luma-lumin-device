@@ -8026,7 +8026,8 @@ class Agent:
                 return {**got, "text": got.get("summary") or "I couldn't look on your computer just now."}
             saved = self._save_contact_request(text)
             if saved is not None: return saved
-            ability = self.capabilities_reply(text, lowered, cancel_event)
+            # "so what do you do. cool. cool cool cool" is their small talk for a date, tried on Luma: not a question about Luma
+            ability = None if self._practising(text) else self.capabilities_reply(text, lowered, cancel_event)
             if ability is not None: return ability
             music = re.match(r"^\W*(?:(?:can you|could you|can u|please|yo|hey|aye|ayo|luma)\W+)*(?:play|put on|throw on|queue up|bump)\s+(?:me\s+)?(?:some\s+)?(?P<what>.+?)\W*$", lowered)
             if music and re.search(r"\bin my (?:head|mind|heart|dreams|sleep|thoughts)\b", lowered):

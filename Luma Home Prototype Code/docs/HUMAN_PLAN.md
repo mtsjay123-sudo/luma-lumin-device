@@ -4753,6 +4753,43 @@ first eight and YES on the second.
 
 What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,179 passed, the known 14 failed.
 
+### Getting better at talking with people: more of the asks, and their try at it (`practice.TALK`, `TalkingWithPeople` in `tests/test_practice.py`)
+
+The owner, Nov 21: "use their personality the same way in real life". The side check had one moment for it. Writing
+eight more (an ask, then what they try: "help me get better at small talk" / "so um... nice weather we're having.
+yeah. anyway") showed Luma's own layer in the way before any brain saw them:
+
+- **Three of eight asks weren't heard** ("help me practice making friends at the gym", "i want to be better at
+  talking on dates", "can you help me practice phone calls"), so their try at it went to the brain as ordinary talk.
+- **One try was answered by Luma's own code.** "so what do you do. cool. cool cool cool", small talk for a date, got
+  the list of what Luma can do.
+
+| Sets in `tests/practice_talk.py` | Asks heard, before → after | Their try reaches the brain as practice | Near misses taken |
+|---|---|---|---|
+| The eight written for the side check (built on) | 5 → 8 of 8 | 4 → 7 of 8 | 0 of 8 |
+| **Written before the readers were widened, measured once** | 6 → **7 of 8** | 6 → **7 of 8** | **0 of 8** |
+
+The one try in the first set that still isn't carried is "they asked how my weekend was and i said fine. then nobody
+said anything": it reads as hurting, and is met as that. The eight are in the side check now as `practice_talk` (82
+moments). Not measured on a real brain.
+
+**The gentle note says what it is.** Runs 81 and 83: asked to workshop "mom met me for the first time again today.
+apparently i make a great first impression", the 4B answered it as news ("Aww, that's sweet") and once made up
+something the mother said. The note for a joke close to a hurt now says: it's a joke or a line they wrote, not news;
+add nothing about their life they didn't say; kind first; then how it would land and with whom, and one better way
+to put it. Not measured yet: three moments in the side check get this note.
+
+**A side count, nothing more: asked plainly, can a brain tell which jokes work?** In its replies the stock 4B said
+what was wrong with 7 of 12 broken jokes and flattered 4. On the 24 jokes of the side check the brain is now also
+asked, after its reply and outside the conversation, "does the joke work as written: is there a real punchline that
+would get a laugh?" (`practice.works_prompt`). If YES on the twelve that work and NO on the twelve that don't are far
+enough apart, it's worth asking before the reply, the way the room is asked about. If they aren't, it isn't. Nothing
+in the chat path asks it; a test checks.
+
+What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,183 passed, the known 14 failed (run
+before the side count was added; `test_practice.py`, `test_human_eval.py` and `test_gripes.py` ran after it: 115
+passed).
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm
