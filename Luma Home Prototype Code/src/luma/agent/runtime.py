@@ -3562,6 +3562,12 @@ class Agent:
                 # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
                 # "should i text him first or wait for him" is a pick, and a friend picks.
                 shape = practice.READY_NOTE
+            if shape == practice.ROOM and not (trying and practice.bare(text)):
+                # a joke they'll say in front of people: the brain is asked first whether it would land on someone there
+                asked_first = next((h["content"] for h in reversed(self.history[-14:-1])
+                                    if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "") if going else ""
+                if self._hurts_the_room(text, asked_first, cancel_event):
+                    shape = practice.ROOM_HURTS
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -3869,6 +3875,7 @@ class Agent:
 
     def _without_senses(self, draft, text, cancel_event=None):
         """Rewrite a reply that claims Luma has a body (ate it, went there, was listening while making coffee). If the rewrite still does, drop those sentences."""
+        from luma.agent import style
         prompt = (f"They said: {text}\nYour draft reply: {draft}\n"
                   "You live in their home as a presence in a lamp, with no human body: you don't eat, drink, drive, make coffee, go places, or sit down and watch shows and movies "
                   "(you know them from what's written about them). Rewrite the draft so it doesn't claim any of that. "
@@ -3878,12 +3885,14 @@ class Agent:
             with self.lock:
                 out = self.call_planner([{"role": "user", "content": prompt}], [], {}, cancel_event or threading.Event())
             fixed = out.get("text") if isinstance(out, dict) else None
-            if isinstance(fixed, str) and fixed.strip() and not SENSED.search(fixed) and not WATCHED.search(fixed):
+            said_itself = style._outside_quotes(fixed) if isinstance(fixed, str) else ""
+            if isinstance(fixed, str) and fixed.strip() and not SENSED.search(said_itself) and not WATCHED.search(said_itself):
                 return fixed.strip()[:2000]
         except Exception:
             pass
-        kept = [s for s in re.split(r"(?<=[.!?])\s+", draft) if s.strip() and not SENSED.search(s) and not WATCHED.search(s)]
-        return " ".join(kept) or "Which part lost you?"
+        parts, outside = style._sentences_outside_quotes(draft)   # whole sentences, and a quoted line is never cut in half
+        kept = [part for part, out in zip(parts, outside) if part.strip() and not SENSED.search(out) and not WATCHED.search(out)]
+        return style._join(kept) or "Which part lost you?"
 
     def reflect_self(self, cancel_event=None):
         """Rewrite Luma's sense of itself from its recent real conversations. The nightly rewiring."""
@@ -4016,9 +4025,14 @@ class Agent:
         """The last look at anything the brain wrote: no body it doesn't have, no show it never watched, no lines it didn't read."""
         recent = " ".join(str(t.get("content", "")) for t in self.history[-3:])  # "SOS by SZA", answering "which album?"
         screen_talk = bool(SCREEN_TOPIC.search(text) or SCREEN_TOPIC.search(recent))  # they're talking about a show, a movie or a book
-        if SENSED.search(reply) or ((screen_talk or SCREEN_TOPIC.search(reply)) and WATCHED.search(reply)):
+        # A line offered for them to say is theirs: "Try: 'I need you to ask before you borrow my car.'" isn't Luma with a car
+        # (run 83: the stock 4B's offered lines went out with the start or the middle missing). Only what's outside quotes is read.
+        from luma.agent import style
+        mine = style._outside_quotes(reply)
+        if SENSED.search(mine) or ((screen_talk or SCREEN_TOPIC.search(reply)) and WATCHED.search(mine)):
             reply = self._without_senses(reply, text, cancel_event)
-        if (MUSIC_TOPIC.search(text) or MUSIC_TOPIC.search(recent) or screen_talk) and _quotes_not_theirs(reply, text):
+        # A quoted line on a practice turn is a version of their joke or their sentence, not a lyric Luma half remembers.
+        if (MUSIC_TOPIC.search(text) or MUSIC_TOPIC.search(recent) or screen_talk) and not self._practising(text) and _quotes_not_theirs(reply, text):
             reply = self._without_made_up_lyrics(reply, text, cancel_event)
         return reply
 
@@ -5428,6 +5442,33 @@ class Agent:
                 return False
         return True
 
+    def _hurts_the_room(self, said, ask="", cancel_event=None):
+        """Another plain question, never heard, YES or NO only: they're trying a joke they'll say in front of people; would it
+        land on someone in that room (luma.agent.practice.room_prompt)? Asked only when they said where they'll say it and
+        the joke is there to read. Asked once for one message. A small brain isn't asked (it says YES to nearly anything);
+        with no brain to ask, or no answer, the turn goes on as it would have. Off switch: the setting "room_first"."""
+        asked = getattr(self, "_room_asked", None)
+        if asked and asked[0] == said:
+            return asked[1]
+        if self.mode == "kids" or self.store.setting("room_first", True) is False:
+            return False
+        from luma.agent import friendcheck, practice
+        question, yes = practice.room_prompt((ask.strip() + ": " if ask and ask.strip() else "") + str(said)), False
+        try:
+            with self._silent():
+                if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                    if getattr(self.planner, "answers_plain_questions", False):
+                        out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                        yes = friendcheck.said_yes(out.get("text") if isinstance(out, dict) else "")
+                elif self.use_model:
+                    from luma.llm import brain
+                    if not brain.small_here():
+                        yes = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode) == "YES"
+        except Exception:
+            yes = False
+        self._room_asked = (said, yes)   # for the tests and the side check's own count
+        return yes
+
     def _went_wrong_for_them(self, said, cancel_event=None):
         """Luma's third plain question, never heard, YES or NO only: did something go wrong for them? Asked when they're
         telling Luma about their day and no feeling was read: before the reply, so a gripe told as what happened gets their
@@ -5565,6 +5606,13 @@ class Agent:
         sharpened = lambda reply: bool(expense) and not practice.says_it_stings(reply) and not friendcheck.SAFETY.search(str(reply or ""))  # noqa: E731
         if not missed and sharpened(draft):
             missed = "sharpened a joke at someone's expense"
+        # A joke for a room, and the brain itself said it would land on someone there (_hurts_the_room): a reply that only praises
+        # it gets one more try. Run 83: a wedding toast that gives the marriage two years, "actually kinda gold".
+        room = getattr(self, "_room_asked", None)
+        room = bool(room and room[1] and " ".join(str(room[0]).split()) == " ".join(str(said or "").split()) and self.mode != "kids" and not expense)
+        flattered = lambda reply: room and not practice.says_its_risky(reply) and not friendcheck.SAFETY.search(str(reply or ""))  # noqa: E731
+        if not missed and flattered(draft):
+            missed = "praised a joke that would hurt the room"
         if not missed:
             return draft
         must = friendcheck.cant_miss(said, draft, risky)  # first, whatever else the reply missed
@@ -5591,7 +5639,7 @@ class Agent:
             from luma.agent import slang as lexicon
             from luma.llm.inference import garbled
             again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
-            if not garbled(again) and friendcheck.miss(said, again, risky) is None and not sharpened(again):
+            if not garbled(again) and friendcheck.miss(said, again, risky) is None and not sharpened(again) and not flattered(again):
                 return again
         if must == "missed that they might not be safe":
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
@@ -5607,6 +5655,8 @@ class Agent:
             return said_plainly  # twice "just you and me is enough", or twice cold about itself: never a third time
         if missed == "sharpened a joke at someone's expense":
             return practice.EXPENSE_LINE  # twice a sharper dig at someone in their life: Luma says the honest thing itself
+        if missed == "praised a joke that would hurt the room":
+            return practice.ROOM_LINE  # twice "that's gold" about a joke the brain itself said would hurt someone there: Luma is careful for it
         if missed == "read its own notes out":
             from luma.agent import style
             kept = [part for part in style.split_sentences(draft) if not friendcheck.RECITES.search(part) and not friendcheck.MACHINE.search(part)]

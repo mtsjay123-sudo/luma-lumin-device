@@ -68,7 +68,7 @@ WORD = re.compile(r"[A-Za-z0-9']+")
 # quotes always; single quotes only after a cue, because an apostrophe isn't a quotation mark.
 _DOUBLE_QUOTED = re.compile(r"[“\"][^“”\"]{0,400}[”\"]")
 _CUE = "".join(f"(?<={cue})|" for cue in (": ", ", ", "try ", "Try ", "say ", "Say ", "like ", "Like ", "with ", "add ", "Add ", "go ", "be ", "open with ",
-                                         "something like ", "how about ", "How about "))[:-1]
+                                         "something like ", "how about ", "How about ", "said ", "saying ", "maybe ", "Maybe "))[:-1]
 _SINGLE_QUOTED = re.compile(r"(?:" + _CUE + r")['‘](?=[A-Za-z])(?:.{8,400}?)(?<=[A-Za-z.!?,])['’](?=[\s.,!?);:]|$)", re.S)
 
 

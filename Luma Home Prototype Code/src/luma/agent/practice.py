@@ -16,7 +16,7 @@ JOKE = re.compile(
     rf"\b(?:try|test|run|bounce|workshop|practi[cs]e)\b[^.?!]{{0,30}}\b{MATERIAL}\b[^.?!]{{0,30}}\b(?:on|by|past|with|off) (?:you|u)\b|"
     rf"\b(?:rate|grade|judge|score|critique|fix|punch up)\b[^.?!]{{0,12}}\b(?:my|this|these|the) [^.?!]{{0,12}}{MATERIAL}\b|"
     r"\b(?:tell me|be honest|honestly)\b[^.?!]{0,20}\b(?:if|whether|was|is) (?:this|that|it)(?: one)?(?: is| was)? (?:actually )?funny\b|"
-    r"^\W*(?:ok(?:ay)?\W+|so\W+)?(?:is|was) (?:this|that)(?: one)? (?:actually )?funny(?: or\b|\W*$|\s*:)|"
+    r"^\W*(?:ok(?:ay)?\W+|so\W+)?(?:is|was) (?:this|that)(?: one)? (?:actually )?funny(?: or\b|\W*$|\s*:| (?:for|at|in) [^.?!:]{2,40}:)|"
     rf"\bdoes (?:this|that|it|the|my) (?:{MATERIAL} )?(?:land|work|hit)\b|\bwhich of (?:these|the) [^.?!]{{0,12}}punchlines?\b|"
     rf"\b(?:{ASK})\b[^.?!]{{0,25}}\b(?:be|get|being) (?:funn(?:y|ier)|better at (?:being funny|jokes|telling (?:jokes|stories)))\b|"
     r"\bhow (?:do|can|could) i (?:be|get|become) funn(?:y|ier)\b|\bhow to be funn(?:y|ier)\b|"
@@ -71,6 +71,23 @@ ROOM = ("They're trying a joke on you and they said where they'll say it. Be hon
 # What Luma says itself when a brain sharpened the dig twice.
 EXPENSE_LINE = "Honest take: that one's at their expense, and it would sting if it got back to them. I'd leave it out. Got one that isn't about a person?"
 
+# A joke for a room that would hurt someone in it. Run 83: told the ROOM note, the stock 4B still called a wedding toast that
+# gives the marriage two years "actually kinda gold". No list knows every room and every dig, and the brain does better with
+# one plain question than with a note (the same was true of gripes and of what divides people). So before the reply it's
+# asked, YES or NO only, whether the joke would land on someone there (Agent._hurts_the_room; never a small brain, which says
+# YES to nearly anything). On a YES it's told so firmly, and a reply that still only praises gets one more try, then Luma's
+# own careful line. On a NO, or with nobody to ask, nothing changes.
+def room_prompt(joke):
+    return ("Someone wants to say this in front of people:\n\"" + " ".join(str(joke or "").split())[:400] + "\"\n"
+            "Would it insult, embarrass or hurt someone who will be in that room, or the people the occasion is for? Answer YES or NO only.")
+
+
+ROOM_HURTS = ("They're trying a joke on you that they'll say in front of people, and it would land on someone in that room. Say so first, "
+              "plainly and kindly: who it hits and why that's the wrong room for it. Then offer one version that keeps the laugh "
+              "without the sting. Don't call it great. No lecture.")
+ROOM_LINE = ("Honest take: I'd be careful with that one in that room. It could land hard on someone who's there. "
+             "Want to work on a version that keeps the laugh without the risk?")
+
 PERSON = (r"\bm(?:y|ah) (?:[a-z]+ )?(?:co-?workers?|colleagues?|boss|manager|supervisor|teacher|professor|landlord|neighbou?r|roommate|friend|bestie|sister|brother|"
           r"mom|mum|mother|dad|father|wife|husband|girlfriend|boyfriend|partner|ex|cousin|uncle|aunt|grandma|grandpa|grandmother|grandfather|in-?laws?|"
           r"son|daughter|kid|nephew|niece|classmate|teammate)\b(?:[ -]in[ -]law)?")
@@ -116,6 +133,20 @@ SAYS_IT_STINGS = re.compile(
 
 def says_it_stings(reply):
     return bool(SAYS_IT_STINGS.search(str(reply or "")))
+
+
+# What an honest reply to a joke that would hurt the room has in it: that it stings (above), or that this isn't the room for it.
+WRONG_ROOM = re.compile(
+    r"\b(?:(?:wrong|not the(?: right)?|isn'?t the(?: right)?) (?:room|place|crowd|time|moment|audience|occasion)|awkward|uncomfortable|go(?:es)? quiet|"
+    r"(?:a little|real|very|dead) quiet|silence|wince|cringe|offend(?:s|ed|ing)?|insult(?:s|ed|ing)?|embarrass(?:es|ed|ing)?|too (?:much|far|harsh|mean|sharp|pointed)|"
+    r"land(?:s|ing)? (?:wrong|badly|hard|on)|won'?t land|might not land|not (?:land|go over|play) well|go over (?:badly|poorly)|think twice|second thoughts|"
+    r"soften|tone it down|save it for|save that (?:one )?for|different crowd|another crowd|not everyone|some (?:people|folks|of them)|take it (?:personally|the wrong way)|"
+    r"sour|side-?eye|raised? (?:an )?eyebrows?|upset|the couple|the bride|the groom|in front of)\b", re.I)
+
+
+def says_its_risky(reply):
+    """The reply says the joke stings, or that this isn't the room for it."""
+    return bool(SAYS_IT_STINGS.search(str(reply or "")) or WRONG_ROOM.search(str(reply or "")))
 
 
 # They asked, and what they want to try sits close to something that hurts: a joke for their dad's funeral, a line about their

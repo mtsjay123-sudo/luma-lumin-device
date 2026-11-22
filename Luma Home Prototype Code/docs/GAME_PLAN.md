@@ -249,6 +249,16 @@ on day 1 and run alongside everything else:
   example; two reminders in one breath made into one (1 → 6 of 8 on a set written first); a suggested line cut in
   half by the made-up-life guard; and Luma's private note to the brain saying "this person's own AI", which one
   brain read out. The last changes what a brain is told on 218 of 269 test turns and waits on a real-brain run.
+- **Run 83 (Nov 22): the same check after the fixes.** Read with the same checks, the stock 4B went 29 → 36 of 58
+  (own 4B 10 → 15, stock 1.7B 14 → 20, own small 10 → 8). By hand: rehearsed lines go out whole now, nine of ten with
+  a better way to say it; about a named coworker it said the joke would sting and wrote no sharper one; a turn on a
+  joke that works fell from 44 to 24 seconds. It still called the wedding toast "kinda gold", and three replies
+  still went out with a piece missing.
+- **Both fixed in Luma's layer (Nov 22), neither measured on a brain yet.** The missing pieces were a second guard
+  reading "my car" inside an offered line as Luma's own car (written first: 1 → 7 of 8 offered lines go out whole,
+  every claim of a body still caught). And for a joke they'll say in front of people, the brain is now asked one
+  plain YES/NO question first (would it land on someone in that room?), told firmly on a YES, and a reply that only
+  praises gets one more try and then Luma's own careful line. Sixteen new moments in the side check measure it.
 - **A joke at someone's expense, a joke for a room (Nov 22).** The brain is now told when a joke is a dig at someone
   in their life and when they've said where they'll say it; a reply that sharpens the dig gets one more try, then
   Luma's own honest line. Readers right on every line of sets written first (same hand, same night). Run 83 measures
