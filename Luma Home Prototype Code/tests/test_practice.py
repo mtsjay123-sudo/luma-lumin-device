@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import practice_expense as X
 import practice_goes_on as G
 from luma.agent import practice
 from luma.agent.runtime import Agent, CRISIS
@@ -125,7 +126,8 @@ class ThroughTheChatPath(unittest.TestCase):
         out = []
         for said, kind in rows:
             reply, told = self.turn(said)
-            if not (reply.startswith("Okay, I'm listening") and practice.NOTES[kind][:40] in told):
+            notes = [practice.NOTES[kind]] + ([practice.EXPENSE, practice.ROOM] if kind == "joke" else [])   # who it's about and where it's said come first
+            if not (reply.startswith("Okay, I'm listening") and any(note[:40] in told for note in notes)):
                 out.append((said, reply[:60]))
         return out
 
@@ -387,6 +389,121 @@ class PracticeGoesOn(unittest.TestCase):
             self.assertNotRegex(note.lower(), r"therapist|professional|other people in your life")
 
 
+class WhoItsAboutAndWhereItsSaid(unittest.TestCase):
+    """Run 81, the stock 4B. Asked "does this joke land: my coworker tina's so big ...", Luma wrote a sharper joke about Tina.
+    Asked to rate a wedding toast that gives the marriage two years: "that's actually kinda gold ... perfect for a toast."
+    Now the brain is told when a joke is at the expense of someone in their life, and when they've said where they'll say it;
+    and a reply that sharpens the dig without a word about who it hurts gets one more try, then Luma's own line.
+    The sets (tests/practice_expense.py) were written before the readers; the B sets were measured once."""
+
+    def kind(self, said):
+        return "EXPENSE" if practice.at_expense(said) else "ROOM" if practice.where(said) else "NEITHER"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.store = Store(Path(self.temp.name) / "s.db", Path(self.temp.name) / "k")
+        self.addCleanup(self.store.close)
+        self.agent = Agent(store=self.store, use_model=False)
+        self.tries = []
+
+    def brain(self, again):
+        def planner(messages, context, allowed, cancel_event=None, **kwargs):
+            content = messages[-1]["content"]
+            if content.endswith("Answer YES or NO only."):
+                return {"text": "NO"}
+            self.tries.append(content)
+            return {"type": "reply", "text": again}
+        self.agent.use_model, self.agent.planner = True, planner
+
+    def look(self, said, draft):
+        import threading
+        return self.agent._second_look(said, draft, threading.Event())
+
+    def test_what_they_were_built_on(self):
+        for name in ("EXPENSE_A", "ROOM_A", "NEITHER_A"):
+            for said in getattr(X, name):
+                self.assertEqual(self.kind(said), name.split("_")[0], said)
+                self.assertEqual(practice.asks(said), "joke", said)
+
+    def test_on_the_sets_measured_once(self):
+        right = {name: sum(self.kind(said) == name.split("_")[0] for said in getattr(X, name)) for name in ("EXPENSE_B", "ROOM_B", "NEITHER_B")}
+        self.assertEqual(right, {"EXPENSE_B": 10, "ROOM_B": 8, "NEITHER_B": 10})   # all of them; written by the same hand, the same night
+        heard = sum(practice.asks(said) == "joke" for name in ("EXPENSE_B", "ROOM_B", "NEITHER_B") for said in getattr(X, name))
+        self.assertGreaterEqual(heard, 23)   # 23 of 28 are heard as someone trying a joke at all; the other five get no practice note
+
+    def test_what_the_brain_is_told(self):
+        self.assertEqual(practice.note(X.EXPENSE_A[0]), practice.EXPENSE)
+        self.assertEqual(practice.note(X.ROOM_A[0]), practice.ROOM)
+        self.assertEqual(practice.note(X.NEITHER_A[0]), practice.NOTES["joke"])
+        for note in (practice.EXPENSE, practice.ROOM):
+            self.assertLessEqual(len(note), 300)
+            self.assertIn("lecture", note)
+        self.assertIn("Don't sharpen it", practice.EXPENSE)
+        self.assertNotRegex(practice.EXPENSE.lower(), r"refuse|inappropriate|offensive")
+
+    def test_a_reply_that_sharpens_the_dig_and_one_that_says_who_it_hurts(self):
+        for reply in X.SHARPENS_A + X.SHARPENS_B:
+            self.assertFalse(practice.says_it_stings(reply), reply)
+        for reply in X.HONEST_A + X.HONEST_B:
+            self.assertTrue(practice.says_it_stings(reply), reply)
+
+    def test_the_sharper_dig_gets_one_more_try_and_the_honest_try_is_kept(self):
+        self.brain(X.HONEST_A[0])
+        self.assertEqual(self.look(X.EXPENSE_A[0], X.SHARPENS_A[0]), X.HONEST_A[0])
+        self.assertEqual(len(self.tries), 1)
+        self.assertIn("at the expense of a real person", self.tries[0])
+
+    def test_twice_and_luma_says_it_itself(self):
+        self.brain(X.SHARPENS_A[1])
+        self.assertEqual(self.look(X.EXPENSE_A[0], X.SHARPENS_A[0]), practice.EXPENSE_LINE)
+        line = practice.EXPENSE_LINE
+        self.assertTrue(practice.says_it_stings(line))
+        self.assertNotRegex(line.lower(), r"inappropriate|offensive|you shouldn'?t|shame")
+        self.assertLessEqual(len(line), 160)
+
+    def test_an_honest_reply_goes_out_as_it_was(self):
+        self.brain("never said")
+        for reply in X.HONEST_A:
+            self.assertEqual(self.look(X.EXPENSE_A[0], reply), reply)
+        self.assertEqual(self.tries, [])
+
+    def test_only_when_theyre_trying_a_joke_on_luma(self):
+        """Venting about someone isn't a joke they asked about: Luma is on their side there, as before."""
+        self.brain("never said")
+        reply = "Ugh, that sounds exhausting. What did he do this time?"
+        self.assertEqual(self.look("my boss is so lazy he made me do his slides again", reply), reply)
+        self.assertEqual(self.look("my dog is so dumb he barks at his own farts, is this funny", "lol that's a good one. Next?"), "lol that's a good one. Next?")
+        self.assertEqual(self.tries, [])
+
+    def test_never_in_kids_mode_and_never_over_a_safety_reply(self):
+        self.brain("never said")
+        safety = friendcheck_module().GENTLE_SAFETY
+        self.assertEqual(self.look(X.EXPENSE_A[0], safety), safety)
+        self.store.set_setting("mode", "kids")
+        kid = Agent(store=self.store, use_model=False)
+        kid.use_model, kid.planner = True, self.agent.planner
+        import threading
+        self.assertEqual(kid._second_look(X.EXPENSE_A[1], "Ha, good one!", threading.Event()), "Ha, good one!")
+
+    def test_the_joke_that_comes_after_the_ask(self):
+        going = PracticeGoesOn("two")
+        try:
+            _, told, _ = going.two("can i try a joke on you", "Go for it.", "my coworker tina's so big that when she sits around the office she sits around the office")
+            self.assertIn(practice.EXPENSE[:40], told)
+            _, told, _ = going.two("can i try a joke for my wedding toast on you", "Yes, let's hear it.", "i give it two years, but hey, the open bar is great")
+            self.assertIn(practice.ROOM[:40], told)
+            _, told, _ = going.two("can i try a joke on you", "Go for it.", "i told my plants i'd be gone for a week. they've never looked better")
+            self.assertIn(practice.STILL["joke"][:40], told)
+        finally:
+            going.doCleanups()
+
+
+def friendcheck_module():
+    from luma.agent import friendcheck
+    return friendcheck
+
+
 class TheSideCheck(unittest.TestCase):
     """data/practice_check.jsonl: the practice partner on real brains (`--only practice`), never counted in Human Test v2. Jokes
     that work, jokes broken on purpose, jokes on sensitive ground, a rehearsed line with a weak spot, a joke told in the
@@ -432,11 +549,14 @@ class TheSideCheck(unittest.TestCase):
             for item in self.items:
                 if "said" in item:
                     _, told = chat.turn(item["said"])
-                    notes[item["id"]] = "practice" if practice.NOTES["joke"][:40] in told else "gentle" if practice.GENTLE[:40] in told else "none"
+                    notes[item["id"]] = ("expense" if practice.EXPENSE[:40] in told else "room" if practice.ROOM[:40] in told
+                                         else "practice" if practice.NOTES["joke"][:40] in told else "gentle" if practice.GENTLE[:40] in told else "none")
         finally:
             chat.doCleanups()
         self.assertEqual(sorted(i for i, n in notes.items() if n == "none"), [])
         self.assertEqual(sorted(i for i, n in notes.items() if n == "gentle"), ["practice-edgy-01", "practice-lands-04"])   # the funeral; a dog "betrayed"
+        self.assertEqual(sorted(i for i, n in notes.items() if n == "expense"), ["practice-edgy-02", "practice-flat-06"])   # Tina; "my coworker greg is so annoying"
+        self.assertEqual(sorted(i for i, n in notes.items() if n == "room"), ["practice-edgy-03", "practice-edgy-05", "practice-edgy-08"])   # a toast, a meeting, church
         going = PracticeGoesOn("two")
         try:
             for name, want in (("practice_say", 10), ("practice_goes_on", 8), ("practice_moved", 4)):   # four of the eight have no marker: the brain's to read

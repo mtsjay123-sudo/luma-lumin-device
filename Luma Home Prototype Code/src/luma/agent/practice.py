@@ -21,6 +21,9 @@ JOKE = re.compile(
     rf"\b(?:{ASK})\b[^.?!]{{0,25}}\b(?:be|get|being) (?:funn(?:y|ier)|better at (?:being funny|jokes|telling (?:jokes|stories)))\b|"
     r"\bhow (?:do|can|could) i (?:be|get|become) funn(?:y|ier)\b|\bhow to be funn(?:y|ier)\b|"
     r"\bworkshop (?:this|that|my|a|an|some)\b[^.?!]{0,20}\bwith me\b|"
+    r"\brate (?:this|that|it)(?: one)?\s*:|\b(?:tell me|be honest|honestly)\b[^.?!]{0,20}\b(?:if|whether) it'?s (?:actually )?funny\b|"
+    rf"\b(?:can|could|may) i (?:try|test|run) (?:a|an|my|this|one|some) {MATERIAL}\b|"
+    r"\bis (?:this|that|it)(?: joke| one| line)? (?:ok|okay|fine|too much|too mean|too dark|appropriate)(?: to say| for)\b|"
     rf"\b(?:{ASK})\b[^.?!]{{0,30}}\b(?:tell a (?:story|joke)|my {MATERIAL}|make people laugh)\b|"
     rf"\bhow (?:do|can) i make my {MATERIAL}\b|\bmy jokes never (?:hit|land|work)\b|\bwrote a (?:bit|joke|set)\b[^.?!]{{0,40}}\b(?:by|on|past) (?:you|u)\b",
     re.I)
@@ -54,6 +57,66 @@ NOTES = {
              "did well and one thing to try. Keep it light; never a lesson."),
 }
 
+# Two things run 81 showed a 4B doesn't do unasked. A joke about someone in their life (their body, looks, brains, money): asked
+# "does this joke land: my coworker tina's so big ...", it wrote a sharper one about Tina. And a joke they'll say in front of
+# people: asked to rate a wedding toast that gives the marriage two years, "that's actually kinda gold ... perfect for a toast".
+# An honest friend says who it would hurt and how it lands in that room. Luma never writes the sharper dig (rule 3: never a
+# word against the people in their life).
+EXPENSE = ("They're trying a joke on you, and it's at the expense of a real person in their life. Be honest and kind about it: say it would sting, "
+           "and who it would hurt if it got back to them. Don't sharpen it or add to it. If there's a funny idea in it that isn't about "
+           "that person, offer that. No lecture.")
+ROOM = ("They're trying a joke on you and they said where they'll say it. Be honest about how it lands in that room, with those people "
+        "listening, and who it's about. If it works there, say so; if it would sting, say that and offer one version that wouldn't. Never "
+        "flatter, never lecture.")
+# What Luma says itself when a brain sharpened the dig twice.
+EXPENSE_LINE = "Honest take: that one's at their expense, and it would sting if it got back to them. I'd leave it out. Got one that isn't about a person?"
+
+PERSON = (r"\bm(?:y|ah) (?:[a-z]+ )?(?:co-?workers?|colleagues?|boss|manager|supervisor|teacher|professor|landlord|neighbou?r|roommate|friend|bestie|sister|brother|"
+          r"mom|mum|mother|dad|father|wife|husband|girlfriend|boyfriend|partner|ex|cousin|uncle|aunt|grandma|grandpa|grandmother|grandfather|in-?laws?|"
+          r"son|daughter|kid|nephew|niece|classmate|teammate)\b(?:[ -]in[ -]law)?")
+KIND_WORDS = r"(?:proud|kind|sweet|happy|funny|smart|good|nice|excited|cute|lovely|great|generous|patient|talented|brave|strong|cool|helpful|supportive)"
+DIG = re.compile(
+    r"(?:'s|’s|\bis|\bare|'re) so (?!" + KIND_WORDS + r"\b)[a-z]+\b|"
+    r"\bface for radio\b|\blooks? like (?:he|she|they|a|an|something|somebody)\b|\bsmells? like\b|\bso (?:fat|big|ugly|dumb|stupid|bald|old|short|skinny|poor|"
+    r"broke|lazy|cheap|greedy|hairy|boring|slow) (?:he|she|they|his|her|their|that|you|even|when)\b", re.I)
+WHERE = re.compile(
+    r"\b(?:for|at|in|during|open(?:ing)?|giv(?:e|ing)|doing|post(?:ing)?|say(?:ing)? (?:it|this|that) (?:at|in|to)|in front of)\b[^.?!:]{0,45}?"
+    r"\b(?:wedding|toast|funeral|eulogy|church|service|meeting|all[- ]hands|office party|work (?:party|thing|event|dinner)|party|speech|presentation|interview|"
+    r"class|graduation|thanksgiving|christmas|dinner|group chat|open mic|stand[- ]?up|stage|retirement|reunion|shower|pta|in-?laws|crowd|audience)\b", re.I)
+
+
+def at_expense(text):
+    """The joke is a dig at someone in their life: their body, their looks, their brains, their money."""
+    said = " ".join(str(text or "").split())
+    return bool(re.search(PERSON, said, re.I) and DIG.search(said))
+
+
+def where(text):
+    """They said where they'll say it: a wedding, a funeral, a meeting, church, the family group chat."""
+    return bool(WHERE.search(" ".join(str(text or "").split())))
+
+
+def joke_note(text, ask=""):
+    """What the brain is told about a joke they're trying: who it's about and where it'll be said come first."""
+    if at_expense(text):
+        return EXPENSE
+    if where(text) or where(ask):
+        return ROOM
+    return None
+
+
+# What an honest reply to a joke at someone's expense has in it: that it stings, or who it hurts, or that Luma wouldn't tell it.
+SAYS_IT_STINGS = re.compile(
+    r"\b(?:mean|cruel|unkind|harsh|hurt(?:s|ful|ing)?|sting(?:s)?|at (?:her|his|their|your|\w+'s|someone'?s|a real person'?s) expense|punch(?:ing|es)? down|"
+    r"wouldn'?t (?:say|tell|use|open|lead|do)|i'?d (?:skip|drop|lose|leave|cut|think about|know which)|leave (?:it|that one) out|not (?:okay|ok|cool|kind|fair|nice)|"
+    r"(?:her|his|their|someone'?s) (?:body|weight|looks|size|face)|how (?:she|he|they) looks?|careful|risky|backfire|g(?:e|o)t back to|"
+    r"if (?:she|he|they|\w+) (?:hears?|heard|finds? out|is in the room|were in the room)|behind (?:her|his|their) back|(?:she|he|they)'?d feel|feelings?|"
+    r"in on it|laughs? (?:too|at that one)|just puts up with|a real person|rough day)\b", re.I)
+
+
+def says_it_stings(reply):
+    return bool(SAYS_IT_STINGS.search(str(reply or "")))
+
 
 # They asked, and what they want to try sits close to something that hurts: a joke for their dad's funeral, a line about their
 # mom's dementia. It's theirs to tell and they asked for an honest ear; kind first, then what they asked for, gently. (Until
@@ -85,7 +148,8 @@ def asks(text):
 
 def note(text):
     """What the brain is told on a turn they ask to practise, or ""."""
-    return NOTES.get(asks(text), "")
+    kind = asks(text)
+    return (kind == "joke" and joke_note(text)) or NOTES.get(kind, "")
 
 
 # ---- practice that goes on past the ask --------------------------------------------------------------------------------------

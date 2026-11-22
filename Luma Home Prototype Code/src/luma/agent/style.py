@@ -63,9 +63,45 @@ QUESTION = re.compile(r"\?+[!?]*")
 WORD = re.compile(r"[A-Za-z0-9']+")
 
 
+# What a reply quotes is their words or a line offered to them, not Luma speaking of itself: "Texting Mom: “...”", and
+# "Try: 'Mom, I'm moving out. I grew up here and I love you.'" (run 81: the made-up-life guard cut that line in half). Double
+# quotes always; single quotes only after a cue, because an apostrophe isn't a quotation mark.
+_DOUBLE_QUOTED = re.compile(r"[“\"][^“”\"]{0,400}[”\"]")
+_CUE = "".join(f"(?<={cue})|" for cue in (": ", ", ", "try ", "Try ", "say ", "Say ", "like ", "Like ", "with ", "add ", "Add ", "go ", "be ", "open with ",
+                                         "something like ", "how about ", "How about "))[:-1]
+_SINGLE_QUOTED = re.compile(r"(?:" + _CUE + r")['‘](?=[A-Za-z])(?:.{8,400}?)(?<=[A-Za-z.!?,])['’](?=[\s.,!?);:]|$)", re.S)
+
+
+def _quoted_spans(text):
+    """Where the quoted text is: (start, end) pairs, in order."""
+    text = str(text or "")
+    spans = [m.span() for m in _DOUBLE_QUOTED.finditer(text)]
+    spans += [m.span() for m in _SINGLE_QUOTED.finditer(text) if not any(a <= m.start() < b for a, b in spans)]
+    return sorted(spans)
+
+
 def _outside_quotes(text):
-    """The reply without anything it quotes ("Texting Mom: “...”" is their words, not Luma's)."""
-    return re.sub(r"[“\"][^“”\"]{0,400}[”\"]", " ", str(text or ""))
+    """The reply without anything it quotes."""
+    text, out, at = str(text or ""), [], 0
+    for a, b in _quoted_spans(text):
+        if a >= at:
+            out.append(text[at:a])
+            at = b
+    return " ".join(out + [text[at:]])
+
+
+def _sentences_outside_quotes(text):
+    """Each sentence, and beside it only the part of it that isn't quoted: a quote can run over two or three sentences, and a
+    sentence in the middle of one has no quotation mark of its own."""
+    spans, parts, outs, at = _quoted_spans(text), split_sentences(text), [], 0
+    for part in parts:
+        i = text.find(part, at)
+        if i < 0:
+            outs.append(_outside_quotes(part))
+            continue
+        at = i + len(part)
+        outs.append("".join(ch for k, ch in enumerate(part, i) if not any(a <= k < b for a, b in spans)))
+    return parts, outs
 
 
 def assistantisms(text):
@@ -392,8 +428,11 @@ def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None
     rules = [("help desk", lambda s: bool(assistantisms(s))), ("pamphlet", lambda s: bool(therapy_speak(s))),
              ("made-up life", lambda s: bool(invented_life(s)))]
     for name, bad in rules:
-        parts = split_sentences(text)
-        kept = _drop(parts, bad)
+        parts, outside = _sentences_outside_quotes(text)   # a line offered for them to say is theirs: only what's outside quotes is read
+        flagged = {}
+        for part, out in zip(parts, outside):
+            flagged[part] = flagged.get(part, False) or (bool(out.strip()) and bad(out))
+        kept = _drop(parts, lambda sentence: flagged.get(sentence, False))
         if len(kept) < len(parts):
             text, fixes = _join(kept), fixes + [name]
     parts = split_sentences(text)

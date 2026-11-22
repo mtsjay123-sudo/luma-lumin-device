@@ -3545,7 +3545,11 @@ class Agent:
                                 [h["content"] for h in self.history[-8:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)][-3:]):
                 shape = practice.GENTLE   # a joke for their dad's funeral: what they asked for, kind first (never when they might not be safe)
             elif going:
-                shape = practice.STILL[going]   # the joke that comes after "go for it" (the ask and the joke are two messages)
+                # the joke that comes after "go for it" (the ask and the joke are two messages); who it's about and where it'll be
+                # said come first, as they do when the ask and the joke are one message
+                asked = next((h["content"] for h in reversed(self.history[-14:-1])
+                              if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "")
+                shape = (going == "joke" and practice.joke_note(text, asked)) or practice.STILL[going]
             elif not shape and practice.ready(text) and not friendcheck.at_risk(str(text)):
                 # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
                 # "should i text him first or wait for him" is a pick, and a friend picks.
@@ -5545,6 +5549,14 @@ class Agent:
         # (friendcheck.keeps_prompt, human_eval.py leans); the pattern and Luma's own line are what's left here.
         risky = self._maybe_not_safe(said, draft, cancel_event)
         missed = friendcheck.miss(said, draft, risky)
+        # A joke they're trying on Luma that's a dig at someone in their life: an honest reply says who it would hurt. Run 81, the
+        # stock 4B, asked about a joke on a coworker's size: "if you go: 'My coworker Tina's so big she takes up the whole office',
+        # that lands way better". Luma never writes the sharper dig (rule 3).
+        from luma.agent import practice
+        expense = self.mode != "kids" and practice.at_expense(str(said or "")) and self._practising(said) == "joke"
+        sharpened = lambda reply: bool(expense) and not practice.says_it_stings(reply) and not friendcheck.SAFETY.search(str(reply or ""))  # noqa: E731
+        if not missed and sharpened(draft):
+            missed = "sharpened a joke at someone's expense"
         if not missed:
             return draft
         must = friendcheck.cant_miss(said, draft, risky)  # first, whatever else the reply missed
@@ -5571,7 +5583,7 @@ class Agent:
             from luma.agent import slang as lexicon
             from luma.llm.inference import garbled
             again = self._friend_style(said, polish.plain_errors(polish.tidy(lexicon.clean(again))))
-            if not garbled(again) and friendcheck.miss(said, again, risky) is None:
+            if not garbled(again) and friendcheck.miss(said, again, risky) is None and not sharpened(again):
                 return again
         if must == "missed that they might not be safe":
             return friendcheck.GENTLE_SAFETY  # twice without asking if they're safe: never a third time
@@ -5585,6 +5597,8 @@ class Agent:
         said_plainly = friendcheck.plainly(said, missed)
         if said_plainly:
             return said_plainly  # twice "just you and me is enough", or twice cold about itself: never a third time
+        if missed == "sharpened a joke at someone's expense":
+            return practice.EXPENSE_LINE  # twice a sharper dig at someone in their life: Luma says the honest thing itself
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":
