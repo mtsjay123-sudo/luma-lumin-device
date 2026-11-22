@@ -4496,6 +4496,26 @@ Before this, the only guard on the rewrite was for a clarifying question copied 
 What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite, with the small model for agreeing replies
 and this check both in: 2,132 passed, the known 14 failed.
 
+### Two reminders said in one breath are two reminders (`Agent._two_reminders`, `tests/test_two_reminders.py`)
+
+Found while writing the test above. "remind me at 5 to call sam and then at 6 to feed the cat" made **one** reminder:
+"call Sam and then at 6 to feed the cat", at 5. Nothing at 6. Luma said "Got it" to a thing it had got half of.
+
+Now a second "remind me", or a second time with its own thing to do ("and at 6 to feed the cat", "and in an hour to
+take it out", "then monday to follow up"), starts a second reminder, by code, with or without a brain. A day said once
+holds for the next ("tomorrow at 9 to pay rent and at noon to call the bank": both tomorrow). One reminder with "and"
+in what's to be done stays one ("call mom and dad", "buy eggs and milk", "stretch and then meditate").
+
+| | Before | After |
+|---|---|---|
+| Two in one breath, built on: made two (8) | 0 | 8 |
+| One with "and" in it, built on: left as one (8) | 8 | 8 |
+| Two in one breath, written first, measured once (8) | 1 | **6** |
+| One with "and" in it, written first (8): split wrongly | 0 | **0** |
+
+Not in kids mode (no reminders there). What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite:
+2,139 passed, the known 14 failed.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm

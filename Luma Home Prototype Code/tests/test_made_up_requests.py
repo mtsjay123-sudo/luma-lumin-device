@@ -141,7 +141,14 @@ class ThroughTheChatPath(Luma):
         return out, asked, calls
 
     def reminders(self):
-        return [r for r in self.store.reminders()] if hasattr(self.store, "reminders") else []
+        return self.store.all("task", 1000)
+
+    def test_without_the_check_the_reminder_is_set(self):
+        """What run 81 saw, so the tests below are known to be counting something."""
+        self.agent._adds_details = lambda clear, text: False
+        out, _, _ = self.chat("the meeting got moved to tomorrow, text me when you can", "1. Text Mom: I'm on my way. 2. Remind me at 5pm to call Sam.")
+        self.assertEqual([r["title"] for r in self.reminders()], ["Call Sam"])
+        self.assertIn("2 things", str(out.get("text")))
 
     def test_the_prompts_own_example_is_never_carried_out(self):
         before = len(self.reminders())
@@ -161,10 +168,11 @@ class ThroughTheChatPath(Luma):
         self.assertEqual(len(self.reminders()), before)
 
     def test_what_they_really_asked_for_is_still_done(self):
-        out, asked, _ = self.chat("remnd me at 5 to call sam, also remnd me at 6 to feed the cat", "1. Remind me at 5pm to call Sam. 2. Remind me at 6pm to feed the cat.")
+        """Too messy for Luma's own reader, so the brain rewrites it; every name and number in the rewrite is theirs, so it's done."""
+        out, asked, _ = self.chat("remnd me 2 call sam @ 5 n feed the cat @ 6", "1. Remind me at 5pm to call Sam. 2. Remind me at 6pm to feed the cat.")
         self.assertTrue(asked)
         self.assertIn("2 things", str(out.get("text")))
-        self.assertEqual(len(out.get("steps") or []), 2)
+        self.assertEqual(sorted(r["title"] for r in self.reminders()), ["Call Sam", "Feed the cat"])
 
 
 if __name__ == "__main__":

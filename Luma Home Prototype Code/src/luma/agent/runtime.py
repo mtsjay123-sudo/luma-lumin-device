@@ -6120,6 +6120,31 @@ class Agent:
                   "upload", "text", "facetime", "dm", "hmu", "finish", "try", "learn", "watch", "listen", "stop", "quit", "feed", "clean", "shower", "cut", "trim"}
     THEN = re.compile(r",?\s+(?:and\s+)?(?:then|after that|also|plus)\s+(?=(?:put|play|text|email|call|open|set|remind|send|make|find|check|look|tell|turn|start|add|throw|bump)\b)", re.I)
 
+    # Two reminders in one breath: "remind me at 5 to call sam and then at 6 to feed the cat" was one reminder ("call Sam and then at 6
+    # to feed the cat", at 5). A second "remind me", or a second time with its own thing to do, starts a second reminder. "call mom
+    # and dad" and "buy eggs and milk" don't.
+    _JOIN = r",?\s+(?:and then|and also|and|then|also|plus)\s+"
+    _DAY = r"(?:tomorrow|tonight|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:morning|afternoon|evening|night))?"
+    SECOND_ASK = re.compile(_JOIN + r"(?=(?:remind me|don'?t let me forget|ping me|nudge me)\b)", re.I)
+    SECOND_WHEN = re.compile(_JOIN + r"(?=(?:(?:at|in|by|around|on)\s+(?:an?\s+)?[\w:.]+(?:\s*(?:am|pm|a\.m\.|p\.m\.|minutes?|mins?|hours?|hrs?))?|" + _DAY + r")\s+to\s+\w+)", re.I)
+
+    def _two_reminders(self, text):
+        """The reminders in one message, each as its own sentence, or None when there's one. A day said once holds for the next:
+        "tomorrow at 9 to pay rent and at noon to call the bank" is two reminders tomorrow."""
+        parts = [p.strip(" ,") for chunk in self.SECOND_ASK.split(text) for p in self.SECOND_WHEN.split(chunk) if p.strip(" ,")]
+        if len(parts) < 2 or not self.REMIND_ASK.match(parts[0]):
+            return None
+        out, day = [], None
+        for part in parts[:6]:
+            said_day = re.search(r"\b" + self._DAY + r"\b", part, re.I)
+            if not self.REMIND_ASK.match(part):
+                if not said_day and day and re.match(r"(?:at|by|around)\b", part, re.I):
+                    part = f"{day} {part}"   # "... and at noon to call the bank": the same day as the first
+                part = "remind me " + part
+            day = said_day.group(0) if said_day else day
+            out.append(part)
+        return out
+
     # "finna hit the gym remind me at 6", "call mom later dont let me forget": what comes first, then the ask
     REMIND_AFTER = re.compile(r"^\W*(?:(?:yo|ok(?:ay)?|so|ngl|lowkey|bro|aye|ayo)\W+)*(?:(?:i'?m |im )?(?:finna|tryna|boutta|bout to|about to|gonna|gotta|imma|i'?ma|i (?:need|have|gotta|got) to|i need to|need to)\s+)?"
                               r"(?P<what>[a-z].{2,80}?)[,.]?\s+(?:so\s+|and\s+)?(?:remind me|dont let me forget|don't let me forget|ping me|nudge me)(?P<when>(?:\s+.*)?)$", re.I)
@@ -6142,6 +6167,9 @@ class Agent:
         m = self.REMIND_ASK.match(text.strip())
         if not m or self.mode == "kids":
             return None
+        both = None if getattr(self, "_in_steps", False) else self._two_reminders(text.strip())
+        if both:
+            return self.run_steps(both, cancel_event)   # two reminders in one breath are two reminders, by code, with or without a brain
         parts = [p for p in self.THEN.split(text.strip()) if p.strip()]
         if len(parts) > 1:
             return None if self.use_model else self.run_steps(parts[:6], cancel_event)  # several things in one breath
@@ -7883,6 +7911,8 @@ class Agent:
                     return found
             if lowered in {"tasks", "my tasks", "my reminders"}: return self.propose("tasks.list", {})
             m = re.fullmatch(r"remind me in (\d+) (minute|minutes|hour|hours|day|days) to (.+)", text, re.I)
+            if m and not getattr(self, "_in_steps", False) and self._two_reminders(text.strip()):
+                m = None   # "... and in an hour to take it out": two reminders, read below
             if m:
                 delay = int(m[1]) * (60 if m[2].lower().startswith("minute") else 3600 if m[2].lower().startswith("hour") else 86400)
                 if not 60 <= delay <= 366*86400: raise ValueError("Choose a reminder between one minute and one year away.")
