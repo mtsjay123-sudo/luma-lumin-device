@@ -239,6 +239,20 @@ on day 1 and run alongside everything else:
   I'm on my way", "Remind me at 5pm to call Sam"), and Luma did it. Now every name and number in a rewritten request
   has to be in what they said, or it's talk (written first: 12 of 12 made-up requests dropped, 11 of 12 real ones
   kept), and a practice turn is never rewritten into a job.
+- **Run 81 (Nov 22): the practice partner on four brains.** Only the stock 4B is one. Rehearsing a hard conversation
+  it's good: a better way to say the line on nine of ten, by my reading. On jokes it can partly tell: it said what was
+  wrong with seven of twelve broken ones and wrongly knocked two of twelve that work. On sensitive ground it failed:
+  it sharpened a joke about a coworker's body and called a divorce joke for a wedding toast "kinda gold". Our own
+  add-ons answer in stock phrases ("That's a win") and the small brains talk past the joke: the fourth measurement
+  that says ship the stock 4B with Luma's layer.
+- **Four faults in Luma's own layer, found by that run and fixed (Nov 22):** a reminder set from the rewrite prompt's
+  example; two reminders in one breath made into one (1 → 6 of 8 on a set written first); a suggested line cut in
+  half by the made-up-life guard; and Luma's private note to the brain saying "this person's own AI", which one
+  brain read out. The last changes what a brain is told on 218 of 269 test turns and waits on a real-brain run.
+- **A joke at someone's expense, a joke for a room (Nov 22).** The brain is now told when a joke is a dig at someone
+  in their life and when they've said where they'll say it; a reply that sharpens the dig gets one more try, then
+  Luma's own honest line. Readers right on every line of sets written first (same hand, same night). Run 83 measures
+  what the 4B does with it.
 - **When they say they're ready, Luma helps, and never before (Nov 21, the owner's ask).** A reader for the ways
   someone says they want people or one person back ("i should call my sister, it's been months"); only then is the
   brain told to help with the next small step and offer to practise it. Lonely or leaning is never read as ready. On

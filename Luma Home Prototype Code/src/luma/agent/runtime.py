@@ -3895,7 +3895,7 @@ class Agent:
                     out = self.call_planner([{"role": "user", "content": mind.reflect_self_prompt(self.store.setting("self_model"), recent, "\n".join(notes), summary)}], [], {}, cancel_event or threading.Event())
             grown = out.get("text") if isinstance(out, dict) else None
             if isinstance(grown, str) and grown.strip():
-                self.store.set_setting("self_model", grown.strip()[:1200])
+                self.store.set_setting("self_model", mind.no_ai(grown.strip())[:1200])   # never kept with "AI" in it (rule 1)
         except Exception:
             pass
         return self.store.setting("self_model")
@@ -5599,6 +5599,10 @@ class Agent:
             return said_plainly  # twice "just you and me is enough", or twice cold about itself: never a third time
         if missed == "sharpened a joke at someone's expense":
             return practice.EXPENSE_LINE  # twice a sharper dig at someone in their life: Luma says the honest thing itself
+        if missed == "read its own notes out":
+            from luma.agent import style
+            kept = [part for part in style.split_sentences(draft) if not friendcheck.RECITES.search(part) and not friendcheck.MACHINE.search(part)]
+            return style._join(kept) if kept else "I lost my train of thought on that one. Say it again?"   # twice its private note: never said
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":

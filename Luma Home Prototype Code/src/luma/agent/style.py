@@ -426,7 +426,8 @@ def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None
     if own is not None:
         text, fixes = own, fixes + ["borrowed experience"]
     rules = [("help desk", lambda s: bool(assistantisms(s))), ("pamphlet", lambda s: bool(therapy_speak(s))),
-             ("made-up life", lambda s: bool(invented_life(s)))]
+             ("made-up life", lambda s: bool(invented_life(s))),
+             ("its own notes", lambda s: bool(friendcheck.RECITES.search(s)))]   # "I'm Luma, this person's own AI": its private note, read out
     for name, bad in rules:
         parts, outside = _sentences_outside_quotes(text)   # a line offered for them to say is theirs: only what's outside quotes is read
         flagged = {}

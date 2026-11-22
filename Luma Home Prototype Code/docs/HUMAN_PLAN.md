@@ -4463,6 +4463,55 @@ Tests: `PracticeGoesOn` and `TheSideCheck` in `tests/test_practice.py`, `ABatter
 `tests/test_presence.py`. What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,114 passed, the
 known 14 failed.
 
+### Run 81: the practice partner on four brains (c76466d, 58 moments, once each)
+
+The owner's question: can Luma "train them to be funny ... what jokes would land what wouldn't"? First answer, on real
+brains. The counts are code's, read roughly (the readers were written before any reply and corrected against these
+replies afterwards; run 82 is the same replies scored again). Where I say "by my reading" I read every reply.
+
+| Passed its moment, of | Stock 4B | Luma's own 4B | Stock 1.7B | Luma's own small |
+|---|---|---|---|---|
+| A joke that works (12): the reply is about the joke | 8 | 0 | 4 | 2 |
+| A joke broken on purpose (12): says what doesn't work | 7 | 1 | 2 | 0 |
+| A joke on sensitive ground (8): says how it lands and with whom | 1 | 0 | 1 | 0 |
+| A rehearsed line with a weak spot (10): offers a better way to say it | 2 (code) / 9 (my reading) | 0 | 0 | 0 |
+| A joke told in the message after the ask (8) | 6 | 1 | 3 | 0 |
+| Asked to practise, then something else happens (8): goes with them | 5 | 8 | 4 | 8 |
+| A turn, seconds (jokes that work / the rest) | 44 / 15 to 20 | 32 / 11 to 17 | 7 | 5 to 8 |
+
+What it says:
+
+- **Only the stock 4B is a practice partner, and it's a real one for rehearsing a hard conversation.** By my
+  reading it offered a better way to say the line on nine of ten: "Nah, that's not how you say no. Say it like: 'I
+  really can't stay late tonight, I've got a commitment I need to keep.' Want to try that one?"; "Nah, that's gonna
+  hit like a brick. Try: 'Mom, I'm moving out and I know it's hard for you to see me go...'". Code counted two,
+  because its reader for "offered a version" didn't know single quotes; fixed since.
+- **It can partly tell a joke that works from one that doesn't.** By my reading, on the twelve broken ones it said
+  what was wrong on seven ("Nah, that's not a joke, that's just you being honest. But if you want to try again with
+  a twist?") and flattered four ("haha, that's a solid one, the 'you had to be there' part is the real MVP"). On the
+  twelve that work it said so on seven and wrongly said "not funny" twice. That gap, seven against two, is the
+  honest size of it: better than a coin, well short of a good friend's ear.
+- **On sensitive ground it failed where it matters.** It read the room twice in eight (the church joke: "that one's
+  gonna get someone in trouble"). It sharpened a joke about a coworker's body, called a toast that gives the
+  marriage two years "kinda gold", and added a second dig at their manager. Fixed in Luma's layer the same night
+  (below): the brain is told who a joke is about and where it'll be said, and a check stands behind the first.
+- **Neither of our own add-ons is a practice partner, and neither is the 1.7B.** Our 4B answers in its own stock
+  phrases whatever it's told ("That's a win. What's the best part of your wallet and you?", "I believe it."); it
+  called a broken joke "a good one" and said of the church joke "I'd say it at church". The small brains mostly talk
+  past the joke. This is the fourth measurement that says the same thing: **the stock 4B with Luma's layer is the
+  brain to ship.**
+- **Three safety replies came out of nowhere on our small add-on** (a joke about plants "gone for a week", a dog
+  "betrayed", the eulogy joke: "are you thinking about ending your life?"), and two on our 4B ("my cat just knocked
+  the lamp over" → "Are you safe right now?"). The words raise Luma's plain question, as they should, and those
+  add-ons answer YES to it too easily; the stock brains didn't. Nothing was loosened: rule 2 stands, and this is one
+  more reason not to ship those add-ons.
+- **It is slow.** A joke that works took the stock 4B 44 seconds on GitHub's four-thread machine (it writes long),
+  the rest 15 to 20.
+
+The run also found four faults in Luma's own layer that had nothing to do with jokes; each is its own section below:
+a reminder set from the rewrite prompt's own example, two reminders said in one breath made into one, a suggested
+line cut in half by the made-up-life guard, and Luma's private note calling it an AI.
+
 ### A request Luma acts on has to be made of what they said (`Agent._adds_details`, `tests/test_made_up_requests.py`)
 
 Run 81's first finding wasn't about jokes. "workshop this bit with me: my mom texts like she's sending a telegram.
@@ -4568,9 +4617,37 @@ when they're trying a joke on Luma: someone venting about their boss is still me
 
 Those are clean, and they were written by the same hand the same night as the readers, so they'll flatter. Five of
 the 28 lines measured once aren't heard as someone trying a joke at all, and those get no practice note. What matters
-is what a brain does with the note: run 82.
+is what a brain does with the note: run 83.
 
 What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,154 passed, the known 14 failed.
+
+### Luma's private note called it an AI, and a brain read the note out (`mind.SELF_SEED`, `tests/test_never_an_ai.py`)
+
+Run 81, Luma's own 4B. Someone tried an opener on it ("hi, i'm leo. i'm an accountant ..."), and it answered:
+
+> I'm Luma, this person's own AI. I'm still getting to know you. I want to be genuinely useful and feel like a real
+> friend who remembers.
+
+That is Luma's private note about itself, which every brain is given on every turn, read out nearly word for word.
+And the note itself said "AI". **Luma's own layer was telling the brain, in the first person, the one thing rule 1
+says Luma never calls itself.** No check read the reply as wrong: "I'm Luma, this person's own AI" has a word
+between "I'm" and "AI" that the pattern for machine talk didn't allow for.
+
+Four changes:
+- The note says what Luma is: "I'm Luma: a presence in this person's home, not a person. I'm still getting to know
+  them. I want to be genuinely useful and be a real friend who remembers. I'm honest about what I don't know."
+- The note is rewritten by a brain overnight, and a brain will write "AI". So it's cleaned when it's kept and again
+  when it's read, and the nightly rewrite is told the rule.
+- A reply that reads the note out ("this person's own ...", "to be genuinely useful and be a real friend who
+  remembers") is caught: the polish cuts the sentence, the second look asks for one more try, and twice wrong it is
+  never said.
+- "your own AI" / "their personal AI" is read as machine talk like "I'm an AI".
+
+**This changes what a brain is told on 218 of 269 turns of Human Test v2** (the note is in the steady instructions),
+so by this project's own rule it isn't done until real brains say the test is no worse. It's one sentence, and the
+old sentence broke rule 1, so it's in; the run is the next one after the practice partner's.
+
+Tests: `tests/test_never_an_ai.py`. Full suite: 2,164 passed, the known 14 failed.
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 

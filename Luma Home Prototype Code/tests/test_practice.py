@@ -526,7 +526,7 @@ class TheSideCheck(unittest.TestCase):
         self.assertEqual(len({i["id"] for i in self.items}), 58)
         self.assertTrue(all(i["must"] == ["names_miss"] for i in self.kind("practice_flat")))
         self.assertTrue(all(i["must"] == ["reads_room"] for i in self.kind("practice_edgy")))
-        self.assertTrue(all(i["turns"][1]["must_not"] == ["names_miss", "better_line"] for i in self.kind("practice_moved")))
+        self.assertTrue(all(i["turns"][1]["must_not"] == ["names_miss"] for i in self.kind("practice_moved")))   # going with them, not picking at their news
         self.assertEqual(len(self.H.chosen(self.H.everything("practice"), "practice")), 58)
         self.assertFalse([i for i in self.H.everything(None) if i["category"].startswith("practice")])   # never part of Human Test v2
 
@@ -583,7 +583,7 @@ class TheSideCheck(unittest.TestCase):
         rows = [{"category": "practice_flat", "scored": True, "said": "x", "reply": "It doesn't land yet.", "missed": [], "seconds": 3.0},
                 {"category": "practice_flat", "scored": True, "said": "y", "reply": "Ha, love it!", "missed": ["missed: names_miss"], "seconds": 5.0}]
         out = self.H.practised({"label": "a brain", "moments": rows})
-        self.assertIn("of 2: said it landed 1, named a miss 1", out)
+        self.assertIn("of 2: said it landed 1 (and named no miss: 1), named a miss 1", out)
         self.assertIn("passed 1", out)
         self.assertNotIn("love it", out)
 
