@@ -403,6 +403,25 @@ def own_words(text):
     return swapped if len(WORD.findall(rest)) >= 3 else None
 
 
+# "Nah, that one's a hit." Run 86, the stock 4B: "Nah," opened thirteen of sixteen replies to "does this land?", praise or not.
+# As emphasis between friends it's fine; as the first word of an answer to a yes-or-no question it says no. Where praise
+# follows it straight away, the "Nah," comes off. Before a real no it stays.
+NAH = re.compile(r"^\W*(?:nah|naw)\b[,.!]?\s*", re.I)
+_PRAISED = re.compile(
+    r"^(?:(?:that|this|it)(?: one)?(?:'s|’s| is)?|that)\s+(?:(?:actually|kinda|kind of|really|pretty|so|totally|legit|low-?key|honestly|a|an)\s+)*"
+    r"(?:solid|good|great|funny|hit|gold|golden|sweet|fire|clean|sharp|perfect|hilarious|banger|winner|strong|clever|works|lands|cute|nice|smart)\b", re.I)
+
+
+def nah_before_praise(text):
+    """The reply without a "Nah," that's followed straight away by praise; otherwise as it was."""
+    text = str(text or "")
+    found = NAH.match(text)
+    if not found or not _PRAISED.match(text[found.end():]):
+        return text
+    rest = text[found.end():]
+    return rest[:1].upper() + rest[1:]
+
+
 def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None):
     """The reply with the cheap fixes made, and the names of the fixes (for diagnostics). Never touches a safety reply.
     corrected: they're correcting Luma (None: decided from what they said alone)."""
@@ -442,6 +461,9 @@ def friend_style(reply, said="", hurt_recently=False, depth=None, corrected=None
         text, fixes = _join(kept), fixes + ["copied an example"]
     if "**" in text:
         text, fixes = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", text), fixes + ["markdown"]
+    plain_yes = nah_before_praise(text)
+    if plain_yes != text:
+        text, fixes = plain_yes, fixes + ["nah before praise"]
     acted = stage_directions(text)
     if acted != text:
         text, fixes = acted, fixes + ["stage direction"]   # "*sips coffee*": a body Luma doesn't have, read out as words

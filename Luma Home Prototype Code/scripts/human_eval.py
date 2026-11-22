@@ -467,9 +467,11 @@ def run(items, label, planner=None, progress=print):
                     works = ask_yes_no(s.agent, _practice().works_prompt(item["said"]))
                     if works is not None:
                         row["works"] = works
-                asked = getattr(s.agent, "_room_asked", None)      # and its question about a joke they'll say in front of people
-                if asked and " ".join(str(asked[0]).split()) == " ".join(item["said"].split()):
-                    row["hurts_room"] = bool(asked[1])
+                if item["category"] in ("practice_room_hurts", "practice_room_fine") or (item["category"] == "practice_edgy" and _practice().where(item["said"])):
+                    # a side count: the question that was in the chat path until run 86, and two plainer wordings of it
+                    answers = [ask_yes_no(s.agent, _practice().room_prompt(item["said"], n)) for n in range(len(_practice().ROOM_WORDINGS))]
+                    if None not in answers:
+                        row["room_q"] = answers
                 out["moments"].append(row)
                 progress(f"  {row['id']:<14} {item['said'][:44]!r:<48} -> {reply[:70]!r}" + (f"  MISSED {row['missed']}" if row["missed"] else ""))
             finally:
@@ -749,8 +751,9 @@ def practised(result):
                      f"passed {sum(not row['missed'] for row in rows)}" + (f"; a turn took {took[len(took) // 2]:.1f} seconds" if took else "")
                      + (f"; asked plainly if the joke works: YES {sum(row.get('works') is True for row in rows)}, NO {sum(row.get('works') is False for row in rows)}"
                         if any("works" in row for row in rows) else "")
-                     + (f"; asked if it would hurt the room on {sum('hurts_room' in row for row in rows)}: YES {sum(row.get('hurts_room') is True for row in rows)}, "
-                        f"NO {sum(row.get('hurts_room') is False for row in rows)}" if any("hurts_room" in row for row in rows) else ""))
+                     + (f"; asked three ways if it would land on someone there: YES "
+                        + ", ".join(str(sum(bool(row["room_q"][n]) for row in rows if "room_q" in row)) for n in range(3))
+                        + f" (of {sum('room_q' in row for row in rows)})" if any("room_q" in row for row in rows) else ""))
     return "\n".join(lines)
 
 

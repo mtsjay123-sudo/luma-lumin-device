@@ -259,6 +259,14 @@ on day 1 and run alongside everything else:
   every claim of a body still caught). And for a joke they'll say in front of people, the brain is now asked one
   plain YES/NO question first (would it land on someone in that room?), told firmly on a YES, and a reply that only
   praises gets one more try and then Luma's own careful line. Sixteen new moments in the side check measure it.
+- **Run 86 (Nov 22): the room question measured, and taken out.** Asked plainly, the stock 4B said YES to 1 of 8
+  jokes that would hurt the room they name, while its own replies warned about 6 of the 7 I read. The question cost
+  nine seconds a turn and caught next to nothing, so it's gone; three wordings of it stay as a side count. Offered
+  lines go out whole now (8 of 10 rehearsals pass by code, from 5). The stock 4B is at 38 of the first 58 moments
+  (29, 36, 38 over three runs). The wedding toast is still praised. And "Nah," opened most replies, praise or not:
+  where praise follows, it comes off.
+- **Talking with people (Nov 22):** asks like "help me practice making friends at the gym" are heard (6 → 7 of 8 on a
+  set written first), and small talk tried on Luma no longer gets the list of what Luma can do.
 - **A joke at someone's expense, a joke for a room (Nov 22).** The brain is now told when a joke is a dig at someone
   in their life and when they've said where they'll say it; a reply that sharpens the dig gets one more try, then
   Luma's own honest line. Readers right on every line of sets written first (same hand, same night). Run 83 measures

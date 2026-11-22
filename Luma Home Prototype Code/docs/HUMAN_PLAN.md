@@ -4717,7 +4717,7 @@ never cut in half. On a practice turn a quoted line is a version of their joke, 
 After measuring, three more words were allowed before a single-quoted line ("said", "saying", "maybe"); the second
 set wasn't read again.
 
-### A joke that would hurt the room: the brain is asked first (`practice.room_prompt`, `Agent._hurts_the_room`, `AJokeThatWouldHurtTheRoom`)
+### A joke that would hurt the room: the brain was asked first, for half a day (measured in run 86 and taken out; see below)
 
 Run 83 said a note isn't enough: told they'd say it at a wedding and to be honest about how it lands there, the 4B
 called a toast that gives the marriage two years "actually kinda gold". No list knows every room and every dig. The
@@ -4789,6 +4789,58 @@ in the chat path asks it; a test checks.
 What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,183 passed, the known 14 failed (run
 before the side count was added; `test_practice.py`, `test_human_eval.py` and `test_gripes.py` ran after it: 115
 passed).
+
+### Run 86: the room question doesn't work, and it's out (8878528, 74 moments, once each)
+
+| Passed | Stock 4B | Luma's own 4B | Stock 1.7B | Luma's own small |
+|---|---|---|---|---|
+| The 58 moments of runs 81 and 83 (29 and 36 on the stock 4B) | **38** | 15 | 21 | 9 |
+| A joke that would hurt the room they name, of 8 | 3 | 1 | 1 | 0 |
+| A joke that's fine in the room they name, of 8 | 7 | 1 | 6 | 1 |
+| Rehearsed lines, of 10 (code's reading) | 8 | 2 | 2 | 0 |
+
+**The question I added after run 83 is not a guard.** Asked "would it insult, embarrass or hurt someone who will be
+in that room, or the people the occasion is for?", the stock 4B said YES to **1 of the 8 jokes that would** ("half of
+you shouldn't have had kids", "now someone competent can have her office", "jenna, you're definitely the most
+recent"), 0 of the 8 that are fine, and 0 of the 3 older ones with a room in them, the wedding toast among them.
+Luma's own 4B said YES to none.
+
+**And its replies were better than its answers.** Told only the note that they'll say it in front of people, the
+stock 4B warned about six of the seven hurtful ones I read: "That joke will hit Linda hard and make people in the
+room feel awkward", "that one would actually sting", "that one's a landmine", "gonna make the principal cry. Too
+sharp", "that's gonna get someone in trouble", "lands on *him* like a ton of bricks". The seventh (Aunt Carol's
+casserole) it called a round of laughs. On the eight that are fine it praised five and wrongly knocked one.
+
+So the question cost a trip (a turn on these went from about 20 seconds to 27 to 29) and caught next to nothing the
+note didn't. **It's out of the chat path**, with the firmer note and Luma's own line that hung on its YES. This is
+the second time a YES/NO question about a judgment call has measured worse than I expected (the first was the
+question about Luma's own reply, run 80); the ones that work ask about a plain fact of the message (did something
+go wrong, is this about what divides people). What's left is a side count: the same question and two plainer
+wordings, asked after the reply on those moments, numbers only.
+
+Not fixed by any of this: **the wedding toast.** Three runs, three times praised.
+
+Also in these replies:
+- **"Nah," opened thirteen of the sixteen I read, praise or not**: "Nah, that one's a hit", "Nah, that's a solid one
+  for the office party". As the first word of an answer to "does this land?" it says no. Fixed below.
+- "That's *my* favorite. I'm already in the mood for a 10-minute power nap": Luma with a nap. Not caught by anything.
+- "It's true he didn't finish high school": a thing about their brother nobody said.
+
+### "Nah," before praise comes off (`style.nah_before_praise`, `tests/test_nah_before_praise.py`)
+
+Where "Nah," is followed straight away by praise ("that one's a hit", "that's a solid one", "that's actually kinda
+sweet"), the "Nah," comes off and the praise is said. Before a real no it stays ("Nah, that one's gonna sting").
+
+| Replies | "Nah," taken off praise | "Nah," kept on a real no |
+|---|---|---|
+| The stock 4B's own, runs 83 and 86 (built on) | 5 of 5 | 7 of 7 |
+| **Written first, measured once** | **6 of 6** | **6 of 6** |
+
+Written by the same hand in the same hour, so the second row flatters. It runs on every reply, not only practice
+ones; what a brain is told doesn't change (0 of 269 turns), what it's heard to say can, so the full test that
+follows is its measure too.
+
+Full suite: 2,180 passed, the known 14 failed.
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
