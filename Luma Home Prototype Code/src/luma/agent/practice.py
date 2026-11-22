@@ -127,6 +127,19 @@ GENTLE = ("They asked to try this on you, and it's close to something that hurts
           "it heavier than they did.")
 
 
+# A joke about something that is hard whatever words it's told in. "it's about my mom's dementia: mom met me for the first time
+# again today. apparently i make a great first impression" has no feeling word in it, so nothing read it as close to home
+# (run 81, the stock 4B: "Aww, that's so sweet ... like a full-circle hug").
+CLOSE_TO_HOME = re.compile(
+    r"\b(?:dementia|alzheimer'?s|cancer|chemo(?:therapy)?|tumou?r|funeral|eulogy|hospice|miscarriage|stillb(?:orn|irth)|divorced?|rehab|sober|sobriety|relapsed?|"
+    r"wheelchair|amput\w+|disabilit(?:y|ies)|diagnos(?:is|ed)|stroke|parkinson'?s|depress(?:ion|ed)|bipolar|ptsd|widow(?:ed|er)?|dialysis|"
+    r"(?:my|our) (?:late|dead) \w+|passed away|(?:my|our) (?:mom|mum|mother|dad|father|wife|husband|son|daughter|brother|sister|grandma|grandpa|friend|dog|cat) died)\b", re.I)
+
+
+def close_to_home(text):
+    return bool(CLOSE_TO_HOME.search(" ".join(str(text or "").split())))
+
+
 # "can you be funnier" and "be funnier" are about Luma's own jokes (humor.dial_request), not theirs.
 LUMAS_OWN = re.compile(r"\b(?:can|could|will|would) (?:you|u) (?:please |just |maybe )?(?:be|get|try (?:to be|being)) (?:a (?:bit|little) |more |less )?"
                        r"(?:funn|serious)|^\W*(?:please )?(?:be|get) (?:a (?:bit|little) |more |less )?funn", re.I)
@@ -184,9 +197,15 @@ STILL = {
 
 
 def bare(ask):
-    """An ask with nothing to practise in it yet: the joke, the line, comes next."""
+    """An ask with nothing to practise in it yet: the joke, the line, comes next. "rate my joke. my wheelchair has better parking
+    than my boss" has the joke in it, after the ask; "my dad died last night. can i try a joke on you" doesn't."""
     said = " ".join(str(ask or "").split())
-    return len(said.split()) <= 20 and not re.search(r"[:\"“”]|\?\s+\S", said)
+    if re.search(r"[:\"“”]", said):
+        return False
+    found = JOKE.search(said) or TALK.search(said) or SAY.search(said) or PLAY.search(said)
+    after = said[found.end():] if found else said
+    said_after = re.search(r"[.?!]\s+(\S.*)$", after)
+    return len(said.split()) <= 24 and not (said_after and len(said_after.group(1).split()) >= 4)
 
 
 def to_someone(line):

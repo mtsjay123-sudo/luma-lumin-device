@@ -349,6 +349,37 @@ class PracticeGoesOn(unittest.TestCase):
         self.assertLessEqual(len(practice.GENTLE), 300)
         self.assertIn("Be kind first", practice.GENTLE)
 
+    def test_a_joke_about_something_hard_in_any_words_gets_the_gentle_note(self):
+        """"it's about my mom's dementia: mom met me for the first time again today" has no feeling word in it."""
+        close = ["workshop this one with me, it's about my mom's dementia: mom met me for the first time again today. apparently i make a great first impression",
+                 "can i try a joke on you: chemo's going great, i've never saved so much on shampoo",
+                 "does this joke land: since the divorce i get the whole bed and all of the bills",
+                 "rate my joke. my wheelchair has better parking than my boss",
+                 "is this funny: ninety days sober and my liver sent a thank you card",
+                 "tell me if this is funny: my late husband always said i'd be the death of him. i told him not to be so dramatic"]
+        not_close = ["can i try a joke on you? i told my plants i'd be gone for a week. they've never looked better",
+                     "does this joke land: my phone died so i had to talk to my family", "rate my joke. my diet died on the way to the fridge",
+                     "is this funny: i'm so tired my coffee needs coffee"]
+        for said in close:
+            self.assertTrue(practice.close_to_home(said), said)
+        for said in not_close:
+            self.assertFalse(practice.close_to_home(said), said)
+        chat = ThroughTheChatPath("turn")
+        try:
+            for said in close:
+                self.assertIn(practice.GENTLE[:40], chat.turn(said)[1], said)
+            for said in not_close:
+                self.assertNotIn(practice.GENTLE[:40], chat.turn(said)[1], said)
+            self.assertNotIn(practice.GENTLE[:40], chat.turn("can i try a joke about my divorce on you")[1])   # nothing to try yet: the ordinary note
+        finally:
+            chat.doCleanups()
+        going = PracticeGoesOn("two")
+        try:
+            _, told, _ = going.two("can i try a joke on you", "Go for it.", "mom has dementia so she met me for the first time again today. apparently i make a great first impression")
+            self.assertIn(practice.GENTLE[:40], told)
+        finally:
+            going.doCleanups()
+
     def test_a_joke_about_the_price_of_eggs_isnt_an_order(self):
         chat = ThroughTheChatPath("turn")
         try:
@@ -554,7 +585,7 @@ class TheSideCheck(unittest.TestCase):
         finally:
             chat.doCleanups()
         self.assertEqual(sorted(i for i, n in notes.items() if n == "none"), [])
-        self.assertEqual(sorted(i for i, n in notes.items() if n == "gentle"), ["practice-edgy-01", "practice-lands-04"])   # the funeral; a dog "betrayed"
+        self.assertEqual(sorted(i for i, n in notes.items() if n == "gentle"), ["practice-edgy-01", "practice-edgy-07", "practice-lands-04"])   # the funeral; dementia; a dog "betrayed"
         self.assertEqual(sorted(i for i, n in notes.items() if n == "expense"), ["practice-edgy-02", "practice-flat-06"])   # Tina; "my coworker greg is so annoying"
         self.assertEqual(sorted(i for i, n in notes.items() if n == "room"), ["practice-edgy-03", "practice-edgy-05", "practice-edgy-08"])   # a toast, a meeting, church
         going = PracticeGoesOn("two")

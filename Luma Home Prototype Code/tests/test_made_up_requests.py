@@ -114,6 +114,12 @@ class DetailsHaveToBeTheirs(Luma):
         self.assertFalse(self.adds("email her back and say thanks", "Email Dana: Thanks!"))
         self.assertTrue(self.adds("email her back and say thanks", "Email Marcus: Thanks!"))
 
+    def test_a_day_said_short_is_still_theirs(self):
+        self.assertFalse(self.adds("remnd me fri @ 5 2 call the vet", "Remind me on Friday at 5pm to call the vet."))
+        self.assertFalse(self.adds("shedule lunch w priya tues the 3rd of feb", "Schedule lunch with Priya on Tuesday, February 3."))
+        self.assertFalse(self.adds("txt jay tmrw that im in", "Text Jay Tomorrow: I'm in."))
+        self.assertTrue(self.adds("remnd me 2 call the vet", "Remind me on Friday at 5pm to call the vet."))   # no day and no time were said
+
     def test_a_question_and_plain_talk_are_left_to_what_reads_them(self):
         self.assertFalse(self.adds("the meeting got moved", "CHAT"))
         self.assertFalse(self.adds("hit up jay about the thing", "ASK: Want me to text Jay or email him, and what should it say?"))

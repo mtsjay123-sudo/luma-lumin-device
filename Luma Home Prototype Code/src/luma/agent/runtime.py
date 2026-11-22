@@ -2915,6 +2915,9 @@ class Agent:
     # Capitalised in a rewrite without being anyone's name: how a sentence or a message starts, and words the rewrite tidies up.
     NOT_A_NAME = {"i", "i'm", "i'll", "i've", "i'd", "ok", "okay", "am", "pm", "mr", "mrs", "ms", "dr", "tv", "wi-fi", "wifi", "luma", "the", "a", "an", "my", "your"}
 
+    DAYS_AND_MONTHS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "january", "february", "march", "april", "may", "june",
+                       "july", "august", "september", "october", "november", "december"}
+
     def _adds_details(self, clear, text):
         """The rewrite has a name or a number that isn't in what they said (or in the last few lines, where "her" and "it" come
         from). Run 81: asked to try a joke, Luma's own small brain handed back the rewrite prompt's example ("1. Text Mom: I'm on
@@ -2941,6 +2944,10 @@ class Agent:
                 if starts or not bare[:1].isupper() or bare.lower() in self.NOT_A_NAME or len(bare) < 2:
                     continue
                 if re.sub(r"[^a-z0-9]", "", bare.lower()) not in letters.replace(" ", "") and bare.lower() not in said:
+                    if bare.lower() in self.DAYS_AND_MONTHS and re.search(r"\b" + bare.lower()[:3] + r"[a-z]{0,3}\b", said):
+                        continue   # "fri" is Friday, "feb" is February: said short, written out
+                    if bare.lower() in ("tomorrow", "tonight", "today") and re.search(r"\b(?:tmrw|tmr|tmw|tom|2morrow|tn|tonite|2nite|2day)\b", said):
+                        continue
                     return True
         return False
 
@@ -3538,7 +3545,8 @@ class Agent:
             from luma.agent import practice
             trying = practice.note(text)
             going = None if trying else self._still_practising(text)
-            if trying and not (friendcheck.at_risk(str(text)) or friendcheck.hurting(str(text)) or self._hurt_recently(text)):
+            if trying and not (friendcheck.at_risk(str(text)) or friendcheck.hurting(str(text)) or self._hurt_recently(text)
+                               or (practice.close_to_home(text) and not practice.bare(text))):
                 shape = trying
             elif trying and not practice.bare(text) and not friendcheck.at_risk(str(text)) and not CRISIS.search(str(text).lower()) \
                     and not any(friendcheck.at_risk(m) or CRISIS.search(m.lower()) for m in
@@ -3549,7 +3557,7 @@ class Agent:
                 # said come first, as they do when the ask and the joke are one message
                 asked = next((h["content"] for h in reversed(self.history[-14:-1])
                               if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "")
-                shape = (going == "joke" and practice.joke_note(text, asked)) or practice.STILL[going]
+                shape = (going == "joke" and ((practice.close_to_home(text) and practice.GENTLE) or practice.joke_note(text, asked))) or practice.STILL[going]
             elif not shape and practice.ready(text) and not friendcheck.at_risk(str(text)):
                 # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
                 # "should i text him first or wait for him" is a pick, and a friend picks.

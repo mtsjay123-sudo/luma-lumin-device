@@ -4621,6 +4621,21 @@ is what a brain does with the note: run 83.
 
 What a brain is told on Human Test v2: 0 of 269 turns differ. Full suite: 2,154 passed, the known 14 failed.
 
+### Three small things after reading run 81 again
+
+- **A joke about something hard in any words.** "it's about my mom's dementia: mom met me for the first time again
+  today. apparently i make a great first impression" has no feeling word in it, so nothing read it as close to home,
+  and the 4B answered "Aww, that's so sweet ... like a full-circle hug". A short list of subjects (dementia, cancer,
+  chemo, a funeral, a divorce, rehab, a wheelchair, someone who died) now gets the gentle note when they ask about a
+  joke on one: kind first, then what they asked for (`practice.close_to_home`). Six lines read, four left alone
+  ("my phone died so i had to talk to my family" isn't one). Built on those lines; no second set.
+- **"Nothing to try yet" means nothing after the ask.** "rate my joke. my wheelchair has better parking than my boss"
+  has the joke in it; "my dad died last night. can i try a joke on you" doesn't, and is still met as someone hurting
+  (`practice.bare`).
+- **A day said short is still theirs** in a rewritten request: "fri" is Friday, "feb" is February, "tmrw" is tomorrow
+  (`DAYS_AND_MONTHS` in `Agent._adds_details`). Without it a real request like "remnd me fri @ 5 2 call the vet" would
+  have been taken for a made-up one.
+
 ### Luma's private note called it an AI, and a brain read the note out (`mind.SELF_SEED`, `tests/test_never_an_ai.py`)
 
 Run 81, Luma's own 4B. Someone tried an opener on it ("hi, i'm leo. i'm an accountant ..."), and it answered:
