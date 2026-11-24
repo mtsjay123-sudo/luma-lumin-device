@@ -301,6 +301,12 @@ on day 1 and run alongside everything else:
   measure flat (the room question, the kind-words note, this).
 - **A what-if worry (Nov 24, run 93).** Read right by the words (3 → 10 of 12 on a set written first); on real
   brains the turn it touches shows no difference (of 6: stock 4B 2 → 3, own 4B 3 → 2, stock 1.7B 0 → 2, own small 3 → 4).
+- **Music, tried for real (Nov 24, the owner asked if it works).** Their own songs play (a real file through real
+  ffmpeg into a stand-in speaker), sleep sounds and stop work. Fixed: with nothing playing, "what's playing" went to a
+  web look-up and "stop the music" got "What do you want to hear?"; "who is this" was opened on YouTube Music; an
+  unreachable radio said "try jazz" to someone who asked for jazz. **Not tried anywhere:** a real speaker, and the
+  radio from the real directory. No Spotify or Apple Music. First thing to try on the Mac: say "play some jazz"
+  after switching Music on, and "play" a song that's in the Music folder.
 - **The phone opens on Luma (Nov 24, the owner: "more cooler, better detail, look like presence").** Living water
   on its own dark stage, its reflection, its state in its own words, today round it as a ring of 48 dots lit where
   they talked (times only), and it leans in while they type. The tour is the same stage. Pictures: `demo/phone/`.

@@ -638,6 +638,11 @@ SAYINGS = re.compile(r"\b(?:connect(?:ing|ed)? the dots|read(?:ing)? the room|tu
 
 
 # "play along", "play it cool", "play dumb": things people say, not things to put on
+# A request for music has a word for playing or a word for music in it, and isn't telling Luma about music in their own
+# life. The reading "music" is acted on only then (tried for real on Nov 24, with nothing playing: "who is this" opened
+# "who is this" on YouTube Music).
+MUSIC_ASK = re.compile(r"\b(?:play|put on|throw on|queue up|bump|spin|listen to|hear|music|songs?|radio|station|playlist|album|tunes|beats|soundtrack|lo-?fi|jazz)\b", re.I)
+MUSIC_TOLD = re.compile(r"\bin my (?:head|mind|heart|dreams|sleep|thoughts)\b|\b(?:can't|cant|cannot|couldn't) stop\b|\b(?:stopped|used to|reminds? me|makes? me|made me)\b", re.I)
 PLAY_SAYING = re.compile(r"(?:a game|with|around|it cool|it safe|along|alone|dumb|nice|fair|the victim|hard to get|it by ear|by ear|devil'?s advocate|games|pretend|dead|house|"
                          r"catch|tag|the fool|favou?rites|god|the field|ball|it off|it down|it up|me for a fool|second fiddle|your cards|my cards|the game|the part|a part|a role)\b", re.I)
 
@@ -732,6 +737,7 @@ class Agent:
         self.athome = AtHome(self.store, clock=self.clock, zone=lambda: self.zone, player=player,
                              fetch=lambda *a, **k: self.providers.request(*a, **k), on=self.integration_on, env=self.providers.env,
                              mode=lambda: self.mode, memories=self.store.memories, audit=self._audit, hush=self.hush)
+        self.athome.playing_elsewhere = lambda: bool(getattr(self, "now_playing", None))
         loudness.set_level(self.store.setting("volume", 8))
         from luma.agent.standing import Tasks
         self.standing = Tasks(self)   # tasks they set by voice; Helpers runs them
@@ -6437,6 +6443,8 @@ class Agent:
                 return None   # nothing of the reading's own is in the words
         if intent == "music" and re.search(r"\bplay(?:ing|ed|s)? " + PLAY_SAYING.pattern, lowered):
             return None
+        if intent == "music" and (not MUSIC_ASK.search(lowered) or MUSIC_TOLD.search(lowered)):
+            return None   # "who is this" and "next time i'll say something" were opened on YouTube Music; "i can't stop the music in my head" got "What do you want to hear?"
         if intent == "mute" and self.NOT_LUMAS_MIC.search(lowered):
             return None  # "mute the tv" was read as "mute" and turned Luma's own mic off
         if intent == "photo" and not re.search(r"\b(?:photos?|pictures?|pics?|images?|screenshots?|camera|look|see|scan|show|read|receipt|describe|analy[sz]e|say)\b", lowered):

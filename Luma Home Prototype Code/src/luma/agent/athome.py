@@ -160,6 +160,15 @@ STOP_SOUND = re.compile(LEAD + r"(?:stop|pause|turn off|shut off|kill|end|cut)(?
 RESUME = re.compile(LEAD + r"(?:resume|unpause|keep playing|play it again|continue(?: the music| playing)?|start (?:it|the music) again)" + END, re.I)
 NEXT = re.compile(LEAD + r"(?:next|skip|skip (?:this|it|this song|this one|the song)|next (?:song|station|track|one)|change the station|another (?:one|station))" + END, re.I)
 NOW = re.compile(LEAD + r"(?:what(?:'s| is| song is) (?:this|playing|on)|what(?:'s| is) (?:this )?(?:song|station)|what am i listening to|who(?:'s| is) this|who sings this)" + END, re.I)
+# Asked about the music when nothing is playing. Each names the music (a bare "stop" is the quiet command, a bare "next" and
+# "who is this" are talk), so with nothing on Luma says so itself. Tried for real on Nov 24: "what's playing" went to a web
+# look-up, "stop the music" got "What do you want to hear?", and "pause the music" opened "pause the" on YouTube Music.
+ABOUT_PLAYING = re.compile(LEAD + r"(?:what(?:'s| is| song is) playing(?: right now| now| rn)?|what(?:'s| is) (?:this |that |the )?(?:song|station)(?: called)?|"
+                           r"what (?:song|station) is (?:this|that)|what am i listening to)" + END, re.I)
+STOP_NAMED = re.compile(LEAD + r"(?:stop|pause|turn off|shut off|kill|end|cut|mute)(?: the| that| this)? (?:music|song|radio|station|playback)" + END, re.I)
+NEXT_NAMED = re.compile(LEAD + r"(?:next (?:song|station|track)|skip (?:this |the |that )?(?:song|station|track)|change the station|another station)" + END, re.I)
+NOTHING_ON = "Nothing's playing right now."
+NOTHING_HERE = "I'm not playing anything myself right now. If I opened it in your browser, it's that tab's to pause."
 NOT_MUSIC = re.compile(r"\b(?:game|games|questions|trivia|truth|dare|would you rather|i spy|riddle|riddles|with me|joke|hide and seek|cards|chess|tag|catch|pretend|"
                        r"along|a role|the role|role|devil'?s advocate|it cool|it safe|nice|dumb|hard to get|favorites?|video|clip|the video|movie|show|episode|outside|"
                        r"a sound|sound|sounds|noise|rain|ocean|waves?|fire|white|brown|pink|it back|back|that again|music for (?:my|our) )\b", re.I)
@@ -354,22 +363,23 @@ RADIO_HOST = "https://de1.api.radio-browser.info"
 
 
 def radio_search(fetch, what, limit=6):
-    """Stations for what they asked (a genre, a station's name), most-listened first. Only `what` is sent."""
+    """Stations for what they asked (a genre, a station's name), most-listened first. Only `what` is sent. None when the
+    directory couldn't be reached at all: Luma used to say "I couldn't find a station for jazz. Try a genre, like jazz"."""
     from urllib.parse import quote
     what = re.sub(r"\b(?:music|radio|station|songs?|tunes)\b", "", what, flags=re.I).strip() or "hits"
     tag = what.lower().replace(" ", "")
     tag = {"lo-fi": "lofi", "jpop": "j-pop", "kpop": "k-pop", "hiphop": "hip hop", "rnb": "r&b", "thehits": "hits", "tophits": "hits", "theradio": "hits"}.get(tag, what.lower())
-    rows = []
+    rows, failed = [], 0
     for url in (f"{RADIO_HOST}/json/stations/bytag/{quote(tag)}?order=clickcount&reverse=true&hidebroken=true&limit={limit}",
                 f"{RADIO_HOST}/json/stations/byname/{quote(what)}?order=clickcount&reverse=true&hidebroken=true&limit={limit}"):
         try: found = fetch("GET", url, {"User-Agent": "Luma/1.0"})
-        except Exception: found = []
+        except Exception: found, failed = [], failed + 1
         for row in found if isinstance(found, list) else []:
             stream = str(row.get("url_resolved") or row.get("url") or "")
             if stream.startswith(("https://", "http://")) and row.get("name"):
                 rows.append({"name": " ".join(str(row["name"]).split())[:80], "url": stream})
         if rows: break
-    return rows
+    return None if failed == 2 else rows   # None: the directory couldn't be reached at all, which isn't "no such station"
 
 
 # -- the house ------------------------------------------------------------------------------------------------------
@@ -418,6 +428,7 @@ class AtHome:
         self.clock = clock or time.time
         self._zone = zone if callable(zone) else (zone if isinstance(zone, ZoneInfo) else ZoneInfo(str(zone)))
         self.player = player
+        self.playing_elsewhere = lambda: False   # the Agent says whether a tab it opened on their computer is playing
         self.fetch = fetch
         self.on = on or (lambda service: False)
         self.env = env if env is not None else {}
@@ -953,6 +964,14 @@ class AtHome:
                 return self.stop_playing(paused=True)
         if RESUME.match(low) and self.playing and self.player and not self.player.busy():
             return self._replay()
+        if ABOUT_PLAYING.match(low) or STOP_NAMED.match(low) or NEXT_NAMED.match(low):
+            # Nothing is playing (what's playing was answered above). Luma says so; it never looks "what's playing" up on the
+            # web or opens it as a song. On a computer with no speaker of Luma's own, music is a tab in their browser, and a
+            # tab Luma knows is playing is still the computer's to answer for.
+            if not self.player and self.playing_elsewhere(): return None
+            paused = self.playing if self.playing and self.playing.get("paused") else None
+            if paused and ABOUT_PLAYING.match(low): return {"text": f"Paused: {paused.get('name') or 'what you had on'}.", "section": "music"}
+            return {"text": NOTHING_ON if self.player else NOTHING_HERE, "section": "music"}
         m = PLAY.match(low)
         if not m: return None
         what = m["what"].strip()
@@ -972,8 +991,12 @@ class AtHome:
             return {"text": "I can put on the radio for that once you turn on Music in my settings. Only what you ask to play (like \"jazz\") goes to a free radio directory.",
                     "section": "music", "needs": "music"}
         if not self.fetch: return {"text": "The radio isn't reachable right now.", "section": "music"}
-        self.stations = radio_search(self.fetch, what)
-        if not self.stations: return {"text": f"I couldn't find a station for {what}. Try a genre, like jazz or city pop.", "section": "music"}
+        found = radio_search(self.fetch, what)
+        self.stations = found or []
+        if found is None: return {"text": "I can't reach the radio right now. Your own songs and sleep sounds still work.", "section": "music"}
+        if not self.stations:
+            others = [g for g in ("jazz", "city pop", "lo-fi") if g not in what.lower()][:2]
+            return {"text": f"I couldn't find a station for {what}. Try another kind, like {' or '.join(others)}.", "section": "music"}
         station = self.stations.pop(0)
         try: self.player.stream(station["url"])
         except RuntimeError as error: return {"text": str(error), "section": "music"}
