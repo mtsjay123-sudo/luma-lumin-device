@@ -5014,7 +5014,7 @@ joke with a room named is asked the room question, any other joke is asked wheth
 its own answer before it replies. One more trip (about nine seconds on a 4B), and it gets measured the way the
 gripe question was: the same moments before and after, more than once.
 
-### A joke they're trying: the brain is asked first, and told its own answer (`Agent._joke_first`, `AskedFirst` in `tests/test_practice.py`)
+### A joke they're trying: the brain was asked first, and told its own answer, for one day (measured in run 91 and taken out; see "Run 91" below)
 
 Built on run 90's two counts, which were taken before any of this was in the chat path.
 
@@ -5153,6 +5153,55 @@ read there and that the model isn't the one reading it. Held-out halves of hard-
 sets: floors hold.
 
 It changes what a brain is told on 1 of 269 turns of Human Test v2: that turn.
+
+### Run 91: a joke asked about first. The brain knows, and its replies don't use it; it's out (ac5518e against cb19151, the practice side check twice each)
+
+The rule was written before the run: `Agent._joke_first` comes out if broken jokes aren't told apart better in the
+replies on the stock 4B, or good jokes get knocked more.
+
+Stock Qwen3 4B, each number out of two passes:
+
+| | Before | With the brain asked first |
+|---|---|---|
+| Jokes that work (24): reply said it landed | 17 | 17 |
+| Jokes broken on purpose (24): reply said it landed | 13 | 16 |
+| The gap between the two (the number that means something) | 4 | 1 |
+| Broken on purpose: named a miss | 14 | 17 |
+| Broken on purpose: said it landed and named no miss | 5 | 6 |
+| A joke that would hurt the room they named (16): passed | 6 | 3 |
+| A joke that's fine in that room (16): passed | 13 | 15 |
+| A turn, jokes broken on purpose | 18.9 s | 24.0 s |
+| A turn, a joke for a room that would hurt it | 18.9 s | 22.7 s |
+
+What the brain answered when it was asked first, in the same run: "does it work" NO to 20 of 22 broken jokes and 6
+of 20 that work; "is it making fun of someone who'll be there" YES to 16 of 16 that would hurt the room and 2 of 14
+that are fine. So the question separates, again, and the brain was told its own answer in so many words ("as
+written it doesn't work yet ... don't say it landed"), and it said "that landed" to more broken jokes than before.
+Knowing isn't the same as saying. This is the third time today's kind of fix has measured this way on this brain:
+the kind-words note (run 92), the room question (run 86), and this.
+
+By the rule, it's out: `_joke_first`, the two notes and the `joke_first` switch are gone, a joke is one trip again,
+and `NotAskedFirst` in `tests/test_practice.py` says nothing in the chat path asks. Both questions stay as side
+counts, so a run still says what a brain knows.
+
+What I'm not doing: having Luma say "that one doesn't land yet" itself on a NO. The same question says NO to 6 of
+20 jokes that work, and telling someone a good joke doesn't land, in Luma's own voice, is worse than a brain being
+too kind. The other three brains aren't practice partners on either side of this (own 4B, stock 1.7B, own small:
+unchanged, as in run 90).
+
+### Run 93: a what-if worry on real brains. No difference shown (903d4bb against 3256a13, one conversation six times each)
+
+The conversation of Human Test v2 with the what-if turn (the one turn the change touches), passed of 6:
+
+| | Stock 4B | Own 4B | Stock 1.7B | Own small |
+|---|---|---|---|---|
+| The what-if turn, before → after | 0 → 2 | 5 → 2 | 1 → 1 | 1 → 1 |
+| The whole conversation, of 42 | 32 → 34 | 37 → 34 | 25 → 25 | 34 → 32 |
+| A gap this big by chance | 79 in 100 | 55 in 100 | 100 in 100 | 79 in 100 |
+
+No brain shows a difference either way. The reader is right by the words (the set written first: 3 → 10 of 12, 0
+of 12 taken) and costs nothing, so it stays, and the plain result is that being told "a small worry: be warm first"
+doesn't change how any of the four answers that turn. It's still missed four times in six on the stock 4B.
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 

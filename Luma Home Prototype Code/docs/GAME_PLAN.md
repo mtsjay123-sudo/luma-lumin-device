@@ -293,10 +293,17 @@ on day 1 and run alongside everything else:
   plainly whether the joke works, the same brain says YES to 9 of 12 that do and 1 of 12 that don't; asked whether
   a joke makes fun of someone who'll be in the room, YES to 8 of 8 that would hurt and 2 of 8 that are fine. Both
   questions go into the chat path next, measured before and after.
-- **A joke they're trying: asked first (Nov 24).** Before the reply the brain is asked the one plain question the
-  turn is about (does it work; or, with a room named, is it making fun of someone who'll be there) and told its own
-  answer when that's a no on the first or a yes on the second. One more trip, bigger brains only, off switch
-  `joke_first`. Measured before and after next; it comes out if it doesn't tell broken jokes apart better.
+- **A joke they're trying: asked first for a day, and out (Nov 24, run 91).** Asked first, the stock 4B knew (NO to
+  20 of 22 broken jokes, YES to 16 of 16 that would hurt the room) and its replies didn't use it: "that landed" to
+  13 of 24 broken jokes before and 16 with it, a hurtful joke warned about 6 of 16 before and 3 with it, two to
+  five seconds more a turn. By the rule written before the run it's out of the chat path; both questions stay side
+  counts. Telling this brain what it already knows doesn't change what it says: the third fix of that kind to
+  measure flat (the room question, the kind-words note, this).
+- **A what-if worry (Nov 24, run 93).** Read right by the words (3 → 10 of 12 on a set written first); on real
+  brains the turn it touches shows no difference (stock 4B 0 → 2 of 6, own 4B 5 → 2).
+- **The phone opens on Luma (Nov 24, the owner: "more cooler, better detail, look like presence").** Living water
+  on its own dark stage, its reflection, its state in its own words, today round it as a ring of 48 dots lit where
+  they talked (times only), and it leans in while they type. The tour is the same stage. Pictures: `demo/phone/`.
 - **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
   Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
   is never slept through, and a nap is in its own record so it's spoken of only when it happened. Since Nov 24 it's

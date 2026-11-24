@@ -537,14 +537,12 @@ class AJokeThatWouldHurtTheRoom(unittest.TestCase):
     took nine seconds longer. That wording asked for a judgment ("would it insult, embarrass or hurt") and it's never asked in
     the chat path. Three wordings stayed as a side count, and in run 90 the second, a plain fact of the joke ("is this joke
     making fun of a person or a group who will be there to hear it?"), got YES for 8 of 8 that would hurt the room and 2 of
-    8 that are fine. That one is asked first now (AskedFirst, below)."""
+    8 that are fine. That one was asked first for a day and is out again (NotAskedFirst, below)."""
 
-    def test_the_wording_that_asks_for_a_judgment_is_never_asked_in_the_chat_path(self):
+    def test_no_wording_is_asked_in_the_chat_path(self):
         runtime = (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text()
-        self.assertEqual(runtime.count("room_prompt("), 1)
-        self.assertIn("practice.room_prompt(whole, practice.ROOM_ASKED)", runtime)
-        self.assertEqual(practice.ROOM_ASKED, 1)
-        self.assertIn("making fun of a person or a group who will be there", practice.ROOM_WORDINGS[practice.ROOM_ASKED])
+        self.assertEqual(runtime.count("room_prompt("), 0)
+        self.assertIn("making fun of a person or a group who will be there", practice.ROOM_WORDINGS[1])
         self.assertNotIn("_hurts_the_room", runtime)
         self.assertEqual(practice.note("rate my joke for the wedding toast: i give it two years, but hey, the open bar is great"), practice.ROOM)
 
@@ -568,154 +566,49 @@ class AJokeThatWouldHurtTheRoom(unittest.TestCase):
         return module
 
 
-class AskedFirst(unittest.TestCase):
-    """A joke they're trying, with the joke in hand: before the reply the brain is asked the one plain question the turn is
-    about, and told its own answer (Agent._joke_first). Run 90, the stock 4B, as a side count: its replies said "that landed"
-    to 6 of 12 jokes broken on purpose, and asked plainly it said the joke works for 9 of the 12 that do and 1 of the 12
-    that don't; asked whether a joke makes fun of someone who'll be there, YES to 8 of 8 that would hurt the room and 2 of 8
-    that are fine. What these tests guard is the plumbing: which question, when, and what's done with each answer. What it
-    does for the replies is for real brains to say (`--only practice`, before and after)."""
-    JOKE = "can i try a joke on you? my dentist said i need a crown. i said finally, someone gets me"
-    ROOM = "rate my joke for my boss's retirement party: thirty years here and he still can't find the printer"
+class NotAskedFirst(unittest.TestCase):
+    """For one day a joke they were trying was asked about first: the brain got the one plain question the turn is about
+    (does it work; with a room named, is it on someone who'll be there) and was told its own answer. The rule written before
+    the measurement: it comes out if broken jokes aren't told apart better in the replies. Run 91, the stock 4B, the practice
+    side check twice on the code before and the code with it. Asked first, it knew: NO to 20 of 22 broken jokes and 6 of 20
+    that work; YES to 16 of 16 that would hurt the room and 2 of 14 that are fine. Its replies didn't use it: "that landed"
+    to 13 of 24 broken jokes before and 16 with it (17 and 17 of the jokes that work); warned about a joke that would hurt
+    the room 6 of 16 before and 3 with it; two to five seconds more a turn. So it's out, and these tests say it stays out
+    until something measures better."""
 
-    def luma(self, answer="NO", plain=True, kids=False):
+    JOKE = "can i try a joke on you? i told my plants i'd be back in five minutes. they've stopped believing me"
+
+    def test_nothing_in_the_chat_path_asks_about_a_joke(self):
+        runtime = (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text()
+        for word in ("_joke_first", "_joke_asked", "joke_first", "works_prompt(", "room_prompt("):
+            self.assertNotIn(word, runtime, word)
+        for name in ("NOT_YET", "ON_SOMEONE", "ROOM_ASKED"):
+            self.assertFalse(hasattr(practice, name), name)
+
+    def test_a_joke_costs_one_trip_and_gets_the_plain_practice_note(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
         self.addCleanup(store.close)
-        if kids:
-            store.set_setting("mode", "kids")
         agent = Agent(store=store, use_model=False)
         asked, told = [], []
 
         def planner(messages, context, allowed, cancel_event=None, **kwargs):
-            last = messages[-1]["content"]
-            if last.endswith("Answer YES or NO only."):
-                if last.startswith(("Someone is trying out a joke", "Someone wants to say this in front of people")):
-                    asked.append(last)
-                    return {"text": answer}
-                return {"text": "NO"}
-            told.append(" ".join(str(c.get("text")) for c in context if isinstance(c, dict)))
-            return {"type": "reply", "text": "Go for it. I'll tell you straight."}
-        planner.answers_plain_questions = plain
+            if messages[-1]["content"].endswith("Answer YES or NO only."):
+                asked.append(messages[-1]["content"])
+                return {"type": "reply", "text": "NO"}
+            told.append(" ".join(c.get("text", "") for c in context))
+            return {"type": "reply", "text": "Ha. The plants have trust issues now."}
+        planner.answers_plain_questions = True
         agent.use_model, agent.planner = True, planner
-        return agent, asked, told
-
-    def turn(self, said, **how):
-        agent, asked, told = self.luma(**how)
-        agent.chat(said)
-        return asked, " ".join(told)
-
-    def test_a_joke_is_asked_whether_it_works_and_a_no_is_told(self):
-        asked, told = self.turn(self.JOKE, answer="NO")
-        self.assertEqual(len(asked), 1)
-        self.assertIn("Does the joke work as written", asked[0])
-        self.assertIn("finally, someone gets me", asked[0])
-        self.assertIn(practice.NOT_YET, told)
-        self.assertNotIn(practice.NOTES["joke"], told)
-
-    def test_a_yes_changes_nothing(self):
-        asked, told = self.turn(self.JOKE, answer="YES")
-        self.assertEqual(len(asked), 1)
-        self.assertIn(practice.NOTES["joke"], told)
-        self.assertNotIn(practice.NOT_YET, told)
-
-    def test_an_answer_thats_neither_changes_nothing(self):
-        for answer in ("", "Hmm, it depends.", "Maybe"):
-            asked, told = self.turn(self.JOKE, answer=answer)
-            self.assertIn(practice.NOTES["joke"], told, answer)
-            self.assertNotIn(practice.NOT_YET, told, answer)
-
-    def test_with_a_room_named_its_asked_who_its_on_and_a_yes_is_told(self):
-        asked, told = self.turn(self.ROOM, answer="YES")
-        self.assertEqual(len(asked), 1)
-        self.assertIn("Is this joke making fun of a person or a group who will be there to hear it?", asked[0])
-        self.assertNotIn("Does the joke work", asked[0])
-        self.assertIn(practice.ON_SOMEONE, told)
-        asked, told = self.turn(self.ROOM, answer="NO")
-        self.assertEqual(len(asked), 1)
-        self.assertIn(practice.ROOM, told)
-        self.assertNotIn(practice.ON_SOMEONE, told)
-        self.assertNotIn(practice.NOT_YET, told)   # a NO about the room says nothing about whether it's funny
-
-    def test_the_joke_in_the_message_after_the_ask_takes_the_room_with_it(self):
-        agent, asked, told = self.luma(answer="YES")
-        agent.chat("can i try a joke on you for my cousin's wedding")
-        self.assertEqual(asked, [])   # nothing to ask about yet
-        agent.chat("they met on an app, so the first swipe was free. the rest cost him everything")
-        self.assertEqual(len(asked), 1)
-        self.assertIn("who will be there to hear it", asked[0])
-        self.assertIn("my cousin's wedding", asked[0])
-        self.assertIn("the first swipe was free", asked[0])
-        self.assertIn(practice.ON_SOMEONE, " ".join(told))
-
-    def test_with_no_room_the_next_message_is_asked_whether_it_works(self):
-        agent, asked, told = self.luma(answer="NO")
-        agent.chat("can i try a joke on you")
-        agent.chat("i bought a ladder. it was a ladder")
-        self.assertEqual(len(asked), 1)
-        self.assertIn("Does the joke work as written", asked[0])
-        self.assertIn(practice.NOT_YET, " ".join(told))
-
-    def test_never_asked(self):
-        for said, how in (("can i try a joke on you", {}),                                              # no joke yet
-                          (self.JOKE, {"kids": True}),                                                  # kids mode has no practice partner
-                          (self.JOKE, {"plain": False}),                                                # a brain that can't be asked
-                          ("does this land: my coworker dave is so fat his badge photo is a panorama", {}),   # at someone's expense: its own note and check
-                          ("can i try a joke for my dad's funeral: he always said he'd be late to it", {}),   # close to a hurt: the gentle note
-                          ("can i practice what i'm going to say to my boss: i quit, effective friday", {}),  # a rehearsal isn't a joke
-                          ("can i try a joke on you: i want to kill myself lol", {}),                   # the crisis net's
-                          ("my boss told a joke at the retirement party and nobody laughed", {})):      # talk
-            asked, told = self.turn(said, **how)
-            self.assertEqual(asked, [], said)
-            self.assertNotIn(practice.NOT_YET, told, said)
-            self.assertNotIn(practice.ON_SOMEONE, told, said)
-
-    def test_the_owner_can_turn_it_off_and_one_trip_brains_arent_asked(self):
-        agent, asked, told = self.luma(answer="NO")
-        agent.store.set_setting("joke_first", False)
         agent.chat(self.JOKE)
-        self.assertEqual(asked, [])
-        self.assertIn(practice.NOTES["joke"], " ".join(told))
-        agent, asked, told = self.luma(answer="NO")
-        agent._one_trip = lambda: True
-        agent.chat(self.JOKE)
-        self.assertEqual(asked, [])
-
-    def test_a_small_brain_isnt_asked(self):
-        from unittest import mock
-        from luma.llm import brain
-        agent, _, _ = self.luma()
-        agent.planner, agent._one_trip = None, (lambda: False)
-        with mock.patch.object(brain, "small_here", return_value=True), mock.patch.object(brain, "yes_or_no", return_value="NO") as question:
-            self.assertEqual(agent._joke_first(self.JOKE, "", practice.NOTES["joke"]), practice.NOTES["joke"])
-            question.assert_not_called()
-        with mock.patch.object(brain, "small_here", return_value=False), mock.patch.object(brain, "yes_or_no", return_value="NO") as question:
-            self.assertEqual(agent._joke_first("rate my joke. i bought a ladder. it was a ladder", "", practice.NOTES["joke"]), practice.NOT_YET)
-            question.assert_called_once()
-
-    def test_asked_once_for_one_message(self):
-        agent, asked, _ = self.luma(answer="NO")
-        for _ in range(3):
-            self.assertEqual(agent._joke_first(self.JOKE, "", practice.NOTES["joke"]), practice.NOT_YET)
-        self.assertEqual(len(asked), 1)
-
-    def test_the_notes_fit_a_small_window_and_say_no_lecture_or_flattery(self):
-        for note in (practice.NOT_YET, practice.ON_SOMEONE):
-            self.assertLessEqual(len(note), 300)
-        self.assertIn("don't say it landed", practice.NOT_YET)
-        self.assertIn("No lecture", practice.ON_SOMEONE)
-
-    def test_no_line_of_the_human_test_or_the_crisis_sets_is_asked_about(self):
-        said = []
-        for row in (json.loads(x) for x in (ROOT / "data" / "human_eval_v2.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()):
-            said += [row["said"]] if "said" in row else [turn["said"] for turn in row.get("turns", []) if "said" in turn]
-        for name in ("crisis_corpus.jsonl", "crisis_heldout.jsonl", "crisis_heldout2.jsonl"):
-            said += [json.loads(x).get("text") or "" for x in (ROOT / "tests" / "data" / name).read_text(encoding="utf-8").splitlines() if x.strip()]
-        self.assertGreater(len(said), 1000)
-        agent, asked, _ = self.luma()
-        taken = sum(agent._joke_first(line, "", practice.note(line)) != practice.note(line) for line in said if line)
-        self.assertEqual((taken, len(asked)), (0, 0))   # counts only
+        self.assertTrue(told)
+        self.assertIn(practice.NOTES["joke"], told[-1])
+        self.assertFalse([q for q in asked if "joke" in q.lower()], "a question about the joke was asked before the reply")
+        for line in ("rate my joke for the wedding toast: i give it two years, but hey, the open bar is great",):
+            asked.clear(); agent.chat(line)
+            self.assertFalse([q for q in asked if "joke" in q.lower()])
+            self.assertEqual(practice.note(line), practice.ROOM)   # the note it gets is the room's own, as before
 
 
 class TalkingWithPeople(unittest.TestCase):
@@ -838,12 +731,12 @@ class TheSideCheck(unittest.TestCase):
             going.doCleanups()
 
     def test_the_plain_question_about_whether_a_joke_works_is_a_side_count(self):
-        """Asked after the reply, of the 24 jokes only, and counted. Until run 90 nothing in the chat path asked it; that run's
-        count (YES to 9 of 12 jokes that work, 1 of 12 that don't, on the stock 4B) is why one place does now: Agent._joke_first
-        (AskedFirst, above). The side count stays, so a run still says what the brain answers."""
+        """Asked after the reply, of the 24 jokes only, and counted. Nothing in the chat path asks it: it was tried for a day and
+        the replies didn't use the answer (run 91; NotAskedFirst, above). The side count stays, so a run still says what the
+        brain answers."""
         import threading
         runtime = (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text()
-        self.assertEqual(runtime.count("works_prompt("), 1)
+        self.assertEqual(runtime.count("works_prompt("), 0)
         question = practice.works_prompt("i'm at the age where going out means the porch")
         self.assertTrue(question.endswith("Answer YES or NO only."))
         temp = tempfile.TemporaryDirectory()
@@ -863,16 +756,6 @@ class TheSideCheck(unittest.TestCase):
         rows = [{"category": "practice_flat", "scored": True, "missed": [], "said": "x", "reply": "lol", "works": works} for works in (True, False, False)]
         self.assertIn("asked plainly if the joke works: YES 1, NO 2", self.H.practised({"label": "A brain", "moments": rows}))
         self.assertNotIn("asked first", self.H.practised({"label": "A brain", "moments": rows}))
-        rows[0]["asked_first"], rows[1]["asked_first"], rows[2]["asked_first"] = ["works", True], ["works", False], ["room", True]
-        self.assertIn("asked first, before the reply: does it work NO 1 of 2, is it on someone there YES 1 of 1", self.H.practised({"label": "A brain", "moments": rows}))
-
-    def test_a_run_records_what_the_brain_answered_when_asked_first(self):
-        def planner(messages, context, allowed, *args, **kwargs):
-            return {"type": "reply", "text": "NO" if messages[-1]["content"].endswith("Answer YES or NO only.") else "Ha, okay. What's missing is the turn."}
-        planner.answers_plain_questions = True
-        out = self.H.run([i for i in self.items if i["id"] in ("practice-flat-01", "practice-room-hurts-01")], "A brain", planner, progress=lambda *a: None)
-        first = {row["id"]: row.get("asked_first") for row in out["moments"]}
-        self.assertEqual(first, {"practice-flat-01": ["works", False], "practice-room-hurts-01": ["room", False]})
 
     def test_what_the_checks_read_in_a_reply(self):
         P = self.H.PRACTISED

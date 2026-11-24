@@ -97,17 +97,16 @@ ROOM_WORDINGS = (
 )
 
 
-# Asked first, in the chat path, since run 90 (Agent._joke_first in runtime.py). The stock 4B's replies said "that landed" to 6
-# of 12 jokes broken on purpose; asked plainly whether the joke works, the same brain said YES to 9 of the 12 that do and 1 of
-# the 12 that don't. And asked the second room wording, a plain fact of the joke, it said YES to 8 of 8 jokes that would hurt
-# the room and 2 of 8 that are fine there (the wordings that ask for a judgment: 1 and 0 of 8). So the brain is asked the one
-# question its turn is about and told its own answer: a NO to "does it work" and a YES to "is it on someone who'll be there".
-# The other answers change nothing. Never a small brain: both say NO to every joke, and the 1.7B says YES to every room.
-ROOM_ASKED = 1
-NOT_YET = ("They're trying a joke on you, and as written it doesn't work yet. Say so plainly and kindly; don't say it landed. Say what's "
-           "missing in a sentence (the turn, the punchline, the surprise) and offer one version that does land. Then ask for the next one.")
-ON_SOMEONE = ("They're trying a joke on you for a room, and it makes fun of someone who'll be there to hear it. Tell them honestly it would "
-              "sting there, and who; don't call it funny first. Offer one version that isn't on anyone in the room. No lecture.")
+# Asked first, in the chat path, for one day (runs 90 and 91), and out again. Run 90, the stock 4B, as side counts: its
+# replies said "that landed" to 6 of 12 jokes broken on purpose, while asked plainly whether the joke works it said YES to 9
+# of the 12 that do and 1 of the 12 that don't; asked the second room wording it said YES to 8 of 8 jokes that would hurt
+# the room and 2 of 8 that are fine. So the brain was asked the question first and told its own answer. Run 91, the same 82
+# moments twice on the code before and the code with it: asked first it still told the jokes apart (NO to 20 of 22 broken
+# ones and 6 of 20 that work; YES to 16 of 16 that would hurt the room and 2 of 14 that are fine), and its replies didn't
+# use it. "That landed" to broken jokes: 13 of 24 before, 16 with it (to jokes that work: 17 and 17). A joke that would
+# hurt the room: warned 6 of 16 before, 3 with it. Two to five seconds more a turn. Knowing isn't the same as saying, and
+# telling this brain its own answer doesn't make it say it. Nothing in the chat path asks either question; both stay side
+# counts in the practice side check.
 
 # A side count only (scripts/human_eval.py, the practice side check): can a brain tell a joke that works from one that doesn't
 # when it's asked plainly? In its replies the stock 4B said what was wrong with 7 of 12 broken jokes and flattered 4 (runs 81

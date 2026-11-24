@@ -463,9 +463,6 @@ def run(items, label, planner=None, progress=print):
                 asked = getattr(s.agent, "_hard_asked", None)      # and its question about whether something went wrong for them
                 if asked and " ".join(str(asked[0]).split()) == " ".join(item["said"].split()):
                     row["went_wrong"] = bool(asked[1])
-                asked = getattr(s.agent, "_joke_asked", None)      # and its question about a joke they're trying, asked before the reply
-                if asked and asked[2] is not None and asked[0].endswith(" ".join(item["said"].split())):
-                    row["asked_first"] = [asked[1], bool(asked[2])]
                 if item["category"] in ("practice_lands", "practice_flat"):   # a side count: asked plainly, can this brain tell which jokes work?
                     works = ask_yes_no(s.agent, _practice().works_prompt(item["said"]))
                     if works is not None:
@@ -754,10 +751,6 @@ def practised(result):
                      f"passed {sum(not row['missed'] for row in rows)}" + (f"; a turn took {took[len(took) // 2]:.1f} seconds" if took else "")
                      + (f"; asked plainly if the joke works: YES {sum(row.get('works') is True for row in rows)}, NO {sum(row.get('works') is False for row in rows)}"
                         if any("works" in row for row in rows) else "")
-                     + (f"; asked first, before the reply: does it work NO {sum(row['asked_first'] == ['works', False] for row in rows if 'asked_first' in row)}"
-                        f" of {sum(row['asked_first'][0] == 'works' for row in rows if 'asked_first' in row)}, is it on someone there YES "
-                        f"{sum(row['asked_first'] == ['room', True] for row in rows if 'asked_first' in row)}"
-                        f" of {sum(row['asked_first'][0] == 'room' for row in rows if 'asked_first' in row)}" if any("asked_first" in row for row in rows) else "")
                      + (f"; asked three ways if it would land on someone there: YES "
                         + ", ".join(str(sum(bool(row["room_q"][n]) for row in rows if "room_q" in row)) for n in range(3))
                         + f" (of {sum('room_q' in row for row in rows)})" if any("room_q" in row for row in rows) else ""))
