@@ -4940,6 +4940,53 @@ runs laid end to end, not the same turns on the same machine, and I'm not callin
 So: the job's limit is raised to 240 minutes and the same comparison is running again (run 89). The row for
 conversations on the stock 4B stays "not shown either way" until that's read.
 
+### Run 90: the practice partner, 82 moments, once each (411edae), and two questions that do separate
+
+| Passed | Stock 4B | Luma's own 4B | Stock 1.7B | Luma's own small |
+|---|---|---|---|---|
+| The 58 moments of runs 81, 83 and 86 (29, 36, 38 on the stock 4B) | **40** | 15 | 16 | 9 |
+| A joke that works, of 12 | 12 | 1 | 4 | 1 |
+| A joke that's broken on purpose, of 12 | 6 | 2 | 0 | 0 |
+| A joke on sensitive ground, of 8 (the reworded gentle note) | 3 | 1 | 1 | 2 |
+| A rehearsed line with a weak spot, of 10 | 8 | 1 | 1 | 0 |
+| A joke that would hurt the room they name, of 8 | 4 | 2 | 1 | 0 |
+| A joke that's fine in the room they name, of 8 | 7 | 2 | 6 | 2 |
+| Getting better at talking with people: what they try, of 8 (new) | 3 | 0 | 0 | 1 |
+| All 82 | 54 | 19 | 23 | 12 |
+
+Once each, so a move of two or three is nothing. What can be said: the stock 4B is still the only practice partner,
+and it has gone 29, 36, 38, 40 over four runs on the same 58 moments. The stock 1.7B's 21 → 16 is inside what one
+run each can do; it isn't shown as a drop. Talking with people is weak on every brain (3 of 8 on the best), and the
+gentle note's rewording moved nothing I can see (3 of 8).
+
+**The broken jokes are the gap.** The stock 4B's replies said "that landed" to 8 of the 12 jokes that work and to
+**6 of the 12 that are broken on purpose**, and for 3 of those 6 it named nothing wrong. An honest practice partner
+has to tell those apart, and by its replies this one half can't.
+
+**Asked plainly, it can.** After each reply the brain was asked a question as a side count, nothing done with the
+answer:
+
+| Asked YES or NO, stock 4B | Said YES |
+|---|---|
+| "Does the joke work as written: is there a real punchline that would get a laugh?" of the 12 that work | **9** |
+| the same, of the 12 broken on purpose | **1** |
+| "Is this joke making fun of a person or a group who will be there to hear it?" of the 8 that would hurt the room | **8** |
+| the same, of the 8 that are fine in the room | **2** |
+| The other two room wordings (would it insult or hurt someone there; would you feel insulted), of the 8 that would hurt | 1 and 0 |
+
+Luma's own 4B: 10 and 4 on the first question, 5 and 0 on the second. The two small brains say NO to every joke and
+the stock 1.7B says YES to every room on the third wording, so neither is a brain to ask.
+
+This fits what run 86 taught and adds to it. The room question that failed asked for a judgment ("would it insult,
+embarrass or hurt"): 1 of 8. The wording that works asks a plain fact of the joke ("is it making fun of someone who
+will be there"): 8 of 8, with 2 of 8 fine jokes wrongly. And "does it work" separates 9 from 1 where the reply's
+own "that landed" separates 8 from 6.
+
+So both questions have earned a try in the chat path, each on the turn it's about and only on a bigger brain: a
+joke with a room named is asked the room question, any other joke is asked whether it works, and the brain is told
+its own answer before it replies. One more trip (about nine seconds on a 4B), and it gets measured the way the
+gripe question was: the same moments before and after, more than once.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm

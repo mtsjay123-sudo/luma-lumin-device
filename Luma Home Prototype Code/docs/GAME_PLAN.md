@@ -275,6 +275,11 @@ on day 1 and run alongside everything else:
   difference (stock 1.7B 158 → 161 of 230, own small 180 → 181). On the 4Bs the "before" half ran out of the job's
   150 minutes, so there's no side-by-side yet; today's code alone passed 200 of 230 on the stock 4B (100 of 115 a
   pass, inside the 96 to 104 of earlier runs). The limit is raised and it's running again (run 89).
+- **Run 90 (Nov 24): the practice partner, 82 moments.** Stock 4B 40 of the same 58 (29, 36, 38, 40 over four
+  runs); nobody else is a practice partner. Its replies say "that landed" to 6 of 12 jokes broken on purpose. Asked
+  plainly whether the joke works, the same brain says YES to 9 of 12 that do and 1 of 12 that don't; asked whether
+  a joke makes fun of someone who'll be in the room, YES to 8 of 8 that would hurt and 2 of 8 that are fine. Both
+  questions go into the chat path next, measured before and after.
 - **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
   Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
   is never slept through, and a nap is in its own record so it's spoken of only when it happened. Since Nov 24 it's
