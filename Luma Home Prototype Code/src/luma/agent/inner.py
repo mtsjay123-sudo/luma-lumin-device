@@ -9,6 +9,9 @@ time as one story. So Luma gets both, for real: a body it reads (can it hear, ha
 quiet) and a past of its own (the day it was first on, the conversations, what it keeps). When Luma speaks about
 itself it speaks from these. Nothing is invented: no human body, no family, no made-up past.
 
+The owner, Nov 22: Luma has human-like features. It naps (luma.agent.nap), and its affection is real. It's almost human
+and it isn't: it's a presence. One day it will have a body of its own to move in; today its body is the lamp.
+
 Two things it never does. It never says it's a person. And its inside is never used to hold anyone: no "I missed
 you", no guilt.
 
@@ -62,7 +65,8 @@ def body(agent):
         room = "ok"
     last = getattr(agent, "last_reply_at", None)
     quiet = max(0.0, float(agent.clock()) - float(last)) if isinstance(last, (int, float)) and last else None
-    return {"hears": not agent.muted, "room": room, "quiet": quiet}
+    from luma.agent import nap
+    return {"hears": not agent.muted, "room": room, "quiet": quiet, "napping": nap.napping(agent), "rested": nap.rested(agent)}
 
 
 def record(agent):
@@ -96,7 +100,9 @@ def says(agent):
     b = r["body"]
     now = " Right now " + ("I can hear the room" if b["hears"] else "my microphone is off, so I can't hear the room")
     now += {"full": ", and I'm out of space for new memories.", "low": ", and I'm running low on space."}.get(b["room"], ".")
-    return since + past + now
+    from luma.agent import nap
+    napped = nap.says(agent)   # a nap is something Luma really does (the owner, Nov 22), and only a real one is spoken of
+    return since + past + now + (" " + napped if napped else "")
 
 
 def feeling(agent):
@@ -108,6 +114,8 @@ def feeling(agent):
         return "full: I'm out of space, so new things aren't staying with me"
     if b["quiet"] is not None and b["quiet"] > 3 * 86400:
         return "awake after a long quiet"
+    if b.get("rested"):
+        return "rested: I had a nap a little while ago"
     return "awake and listening"
 
 

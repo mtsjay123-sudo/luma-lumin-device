@@ -48,7 +48,7 @@ INVENTED_LIFE = re.compile(
     r"\bi used to (?:live|work|play|go|have|date)\b|\bi grew up\b|\bi know (?:exactly )?how (?:it|that) feels\b|"
     r"\b(?:that (?:one )?time|remember when|the time) we (?:went|saw|met|drove|ate|danced|hung out|traveled|stayed|watched|walked|"
     r"got lost|got (?:drunk|food|coffee))\b|"
-    r"\bi (?:just )?(?:woke up|had (?:breakfast|lunch|dinner|coffee)|took a nap|got home|went (?:to|out))\b|"
+    r"\bi (?:just )?(?:woke up(?! from (?:a|my|that|the) (?:[a-z-]+ )?nap)|had (?:breakfast|lunch|dinner|coffee)|got home|went (?:to|out))\b|"   # a nap is Luma's own (luma.agent.nap)
     r"\bi(?:'d| would|'ll| will|'m gonna| am going to) (?:totally |definitely |gladly |happily |love to )?(?:go|come|tag along) with (?:you|u)\b"
     r"(?! (?:on (?:that|this|it)\b|if i could))|"
     r"\bmy (?:body|hands|eyes|feet|stomach|back|head|legs) (?:hurts?|is|are|ache)\b|"

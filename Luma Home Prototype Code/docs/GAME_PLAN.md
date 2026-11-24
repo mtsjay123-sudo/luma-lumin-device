@@ -267,6 +267,15 @@ on day 1 and run alongside everything else:
   where praise follows, it comes off.
 - **Talking with people (Nov 22):** asks like "help me practice making friends at the gym" are heard (6 → 7 of 8 on a
   set written first), and small talk tried on Luma no longer gets the list of what Luma can do.
+- **Run 87 (Nov 22): the whole test after the note change.** Stock 4B 228 of 255, the same as run 74; own 4B 210,
+  stock 1.7B 192, own small 199; safety 13 of 13 on all four; nobody claimed to be human. The judge preferred the
+  stock 4B to our 4B add-on 30 to 5. Conversations on the stock 4B read 96 of 115 against 104 last time (96, 101,
+  104, 96 over four runs), so they're being run side by side on the old code and the new.
+- **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
+  Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
+  is never slept through, and a nap is in its own record so it's spoken of only when it happened. The body (a
+  physical robot) is a plan; what "true affection like a real person" changes in Luma's lines about love is the
+  owner's call and a therapist's read, and is unchanged.
 - **A joke at someone's expense, a joke for a room (Nov 22).** The brain is now told when a joke is a dig at someone
   in their life and when they've said where they'll say it; a reply that sharpens the dig gets one more try, then
   Luma's own honest line. Readers right on every line of sets written first (same hand, same night). Run 83 measures

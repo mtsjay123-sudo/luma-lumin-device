@@ -1351,6 +1351,10 @@ class Agent:
             return service in self.DEFAULT_ON and self.mode != "kids" and (service != "browser" or self._browser_available())
         return bool(value)
 
+    def _napping_until(self):
+        from luma.agent import nap
+        return nap.until(self)   # for the apps and the lamp's light: when the nap is due to end, or 0
+
     def hush(self, minutes=30):
         if not 1 <= minutes <= 1440: raise ValueError("Hush must be 1–1440 minutes.")
         self.store.set_setting("hush_until", self.clock() + minutes * 60)
@@ -1379,7 +1383,7 @@ class Agent:
         mac=MacMessages(env=env).readiness()
         sms_ready=all(env.get(k) for k in ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"]) if self.message_route=="twilio" else mac["available"] if self.message_route.startswith("mac_") else self.cloud.signed_in() if self.message_route=="luma_number" else False
         from luma.config import LLAMA_MODEL_PATH
-        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":bool(env.get("HOME_ASSISTANT_URL") and env.get("HOME_ASSISTANT_TOKEN") and (env.get("LUMA_ALLOWED_LIGHTS") or env.get("LUMA_ALLOWED_DEVICES"))), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available(), "music":True}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors","music"]}, "volume":self.store.setting("volume",8), "alarms":len([r for r in self.store.all("alarm", 200) if r.get("on")]), "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "brain_use_computer":self.store.setting("brain_use_computer",True), "thinks_on_computer":self._thinks_on_computer(), "is_device":self.link_host is not None, "lend_brain":self.store.setting("lend_brain",True), "has_device":self._has_device(), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
+        return {"voice_preferences":self.voice_preferences, "physical_privacy":self.device.privacy_state(), "daily_briefing_enabled":self.store.setting("daily_briefing_enabled",False), "daily_briefing_hour":self.store.setting("daily_briefing_hour",8), "busy":self.busy,"speaking":self.speaking,"barge_in":self.store.setting("barge_in",False),"model_name":LLAMA_MODEL_PATH.name, "message_route":self.message_route, "mac_messages_available":mac["available"], "texting":self.texting_status(), "profile": self.profile if self.mode!='kids' else {}, "time_zone":str(self.zone), "provider_ready":{"booking":bool(env.get("CAL_COM_API_KEY") and env.get("LUMA_CAL_EVENT_TYPES_JSON","{}")!='{}'), "web_search":bool(env.get("BRAVE_SEARCH_API_KEY")), "sms":sms_ready, "home_assistant":bool(env.get("HOME_ASSISTANT_URL") and env.get("HOME_ASSISTANT_TOKEN") and (env.get("LUMA_ALLOWED_LIGHTS") or env.get("LUMA_ALLOWED_DEVICES"))), "shopping":bool(env.get("INSTACART_API_KEY") or env.get("LUMA_MERCHANTS_JSON","{}")!='{}'), "groceries":bool(env.get("INSTACART_API_KEY")), "browser":self._browser_available(), "music":True}, "mode":self.mode, "microphone_muted":self.muted, "camera":"not connected", "memory":"encrypted local payloads; lexical retrieval", "conversation_storage":"RAM only", "integrations":{s:self.integration_on(s) for s in ["web_search","sms","home_assistant","shopping","booking","browser","mail","calendar","connectors","music"]}, "volume":self.store.setting("volume",8), "alarms":len([r for r in self.store.all("alarm", 200) if r.get("on")]), "quiet_hours":self.store.setting("quiet_hours",[23,7]), "hush_until":self.store.setting("hush_until",0), "napping_until":self._napping_until(), "model_enabled":self.use_model, "presence":self.presence_settings if self.mode != "kids" else {}, "think_first":self._extra_look("think_first"), "deep_mind":self._extra_look("deep_mind"), "deliberate":self._extra_look("deliberate"), "show_thoughts":self.store.setting("show_thoughts",False), "language":self.store.setting("language","en"), "thinking_out_loud":self.store.setting("thinking_out_loud",True), "brain_use_computer":self.store.setting("brain_use_computer",True), "thinks_on_computer":self._thinks_on_computer(), "is_device":self.link_host is not None, "lend_brain":self.store.setting("lend_brain",True), "has_device":self._has_device(), "tasks":len(self.store.all("task")), "routines":len(self.store.all("routine"))}
 
     def _check(self, name):
         spec = TOOLS[name]
@@ -3533,6 +3537,10 @@ class Agent:
             except Exception:
                 inside = ""
             if inside: out.append({"inside": True, "text": inside})
+        elif self.mode != "kids":
+            from luma.agent import nap
+            if nap.ASKED.search(str(text)):   # "did you nap?", "do you sleep?": it can, and its record says when it last did
+                out.append({"inside": True, "text": nap.note(self)})
         if not shape and self.mode != "kids":
             from luma.agent import friendtalk, loves
             told = [h["content"] for h in self.history[-48:-1] if h.get("role") == "user" and isinstance(h.get("content"), str)]
@@ -4811,6 +4819,8 @@ class Agent:
         It delivers text even with the microphone muted; caller gates audio.
         """
         self._poll_replies()
+        from luma.agent import nap
+        nap.napping(self)   # a nap that has run its time is over, and goes into Luma's record
         self._prune_diary()
         self._sleep_if_night()
         if self.mode != "kids":
@@ -7759,6 +7769,10 @@ class Agent:
         with self.lock:
             from luma.agent.later_mail import fix_typos
             lowered = fix_typos(text).lower()  # "shceydke me an emial tmrw" decides like "schedule me an email tomorrow"
+            from luma.agent import nap
+            # Anything they say wakes Luma from a nap, before it's read: what they said is then heard as it always is, so the
+            # safety net is never slept through. A task running by itself doesn't wake it.
+            woke = None if getattr(self, "_turn_channel", None) == "task" else nap.wake(self)
             stopped = self.athome.stopping(lowered)   # "stop" to a ringing alarm or the music stops that, before it means "hush"
             if stopped is not None: return stopped
             if self.ONE_MOMENT.match(lowered):   # it said "Okay, I'll keep quiet for half an hour."
@@ -7810,6 +7824,10 @@ class Agent:
                                 "(US and Canada) or call emergency services" + (f" (in Japan: {JAPAN_LINES})" if in_japan else "") + ", and get someone nearby "
                                 "to stay with you. You don't have to carry this by yourself. I haven't contacted anyone. Can you tell me where you are right now?"}
             running_a_task = getattr(self, "_turn_channel", None) == "task"   # a task running never makes another task
+            if woke is not None and nap.WAKE.match(self._said_raw or text):   # called out of a nap with nothing else said: "luma?", "wake up"
+                return {"text": nap.woke_line(woke), "section": "nap", "handy": True}
+            napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
+            if napping_for: return {**nap.start(self, napping_for), "handy": True}
             standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"
             if standing is not None: return {**standing, "handy": True}
             off = None if running_a_task else self._reminder_off(lowered)   # "cancel the meds reminder" went to the brain, which can only say it did
