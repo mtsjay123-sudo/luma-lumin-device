@@ -170,13 +170,20 @@ class Served(unittest.TestCase):
         desktop = (ROOT / "desktop" / "desktop.js").read_text()
         self.assertIn('LumaOrb.mount($("ts-orb"), { mood: moodNow, look: "water" })', desktop, "the talk screen should ask for the water")
         self.assertEqual(desktop.count('look: "water"'), 1, "only the talk screen's dark stage asks for water")
-        self.assertNotIn('look: "water"', (ROOT / "phone" / "phone.js").read_text())
+        # The phone has a dark stage of its own since Nov 24 (the top of the app, and its tour, dark in either theme),
+        # so it asks for the water in those two places and nowhere else; the little orb by its state stays marble.
+        phone_js, phone_css = (ROOT / "phone" / "phone.js").read_text(), (ROOT / "phone" / "phone.css").read_text()
+        self.assertEqual(phone_js.count('look: "water"'), 2)
+        self.assertIn('luma($("luma-body"), stage.mood, { look: "water"', phone_js)
+        self.assertIn('luma($("state").querySelector("i"), "idle", { small: true', phone_js)
+        for block in (phone_css[phone_css.index(".stage {"):phone_css.index("body.thinking .stage")], phone_css[phone_css.index(".tour {"):phone_css.index("[hidden]")]):
+            self.assertIn("--ground: #050608", block, "water needs a dark stage in either theme")
         self.assertEqual(seen["desktop"]["orb"], True)
         self.assertEqual(seen["desktop"]["signup"], 1)
         self.assertTrue(seen["desktop"]["talkPlace"])
         self.assertEqual(seen["desktop"]["logo"], "image/png")
         self.assertEqual(seen["desktop"]["refused"], [])
-        self.assertEqual(seen["phone"], {"orb": True, "tour": 1, "afterTour": 0, "state": 1, "wide": False, "refused": []})
+        self.assertEqual(seen["phone"], {"orb": True, "tour": 1, "afterTour": 0, "state": 1, "stage": 1, "ring": 48, "wide": False, "refused": []})
 
 
 class TheFile(unittest.TestCase):

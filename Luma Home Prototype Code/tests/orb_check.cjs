@@ -198,6 +198,8 @@ async function apps(browser) {
     tour: n,
     afterTour: document.querySelectorAll("#tour canvas").length,
     state: document.querySelectorAll("#state i canvas").length,
+    stage: document.querySelectorAll("#luma-body canvas").length,   // Luma on its own stage, there once the tour is out of the way
+    ring: document.querySelectorAll("#day circle").length,
     wide: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     refused: window.__refused,
   }), tour);

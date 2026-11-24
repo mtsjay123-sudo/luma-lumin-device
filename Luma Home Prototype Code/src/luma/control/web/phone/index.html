@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#0b0a0c" />
+  <meta name="theme-color" content="#050608" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Luma</title>
@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="/phone/icon.png" />
   <link rel="stylesheet" href="/phone/phone.css" />
 </head>
-<body>
+<body class="on-stage">
   <!-- The moving blur: your home's light, slowly drifting, with Luma's own glow on top. -->
   <div class="bg" aria-hidden="true"><div class="photo"></div><div class="glow"></div><div class="veil"></div></div>
 
@@ -26,14 +26,23 @@
   </header>
 
   <main id="main">
+    <!-- Luma itself, first: a body of water on its own dark stage, with today going round it as a ring of dots. -->
     <section class="hello" id="today">
-      <h1 id="hello">Hey.</h1>
-      <p id="sub">Pulling up your day.</p>
-      <form class="ask" id="ask" autocomplete="off">
-        <label class="sr" for="ask-text">Ask Luma</label>
-        <input id="ask-text" name="text" maxlength="4000" placeholder="Ask Luma anything" enterkeyhint="send" />
-        <button type="submit" aria-label="Send" class="send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
-      </form>
+      <div class="stage" id="stage">
+        <div class="presence" id="presence">
+          <svg class="day" id="day" viewBox="0 0 200 200" role="img" aria-label="Today"></svg>
+          <div class="floor" aria-hidden="true"></div>
+          <div class="body" id="luma-body" aria-hidden="true"></div>
+        </div>
+        <p class="here" id="here" aria-hidden="true">Here.</p>
+        <h1 id="hello">Hey.</h1>
+        <p id="sub">Pulling up your day.</p>
+        <form class="ask" id="ask" autocomplete="off">
+          <label class="sr" for="ask-text">Ask Luma</label>
+          <input id="ask-text" name="text" maxlength="4000" placeholder="Ask Luma anything" enterkeyhint="send" />
+          <button type="submit" aria-label="Send" class="send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </form>
+      </div>
     </section>
 
     <section class="panel chats" id="chats" aria-labelledby="chats-h">

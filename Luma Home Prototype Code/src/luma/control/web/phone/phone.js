@@ -87,11 +87,64 @@
   // spiral while it thinks, warm while it talks.
   const stateOrb = luma($("state").querySelector("i"), "idle", { small: true, size: 0.47 });
 
+  // Luma itself, at the top of the page: the same orb as a body of water on its dark stage. It shows what Luma is
+  // doing at home, and it answers the phone too: it leans in while you type, turns while your message is on its way,
+  // and warms when the reply lands. Those last a moment, then it's back to what's true at home. It's put there once
+  // the tour (which has an orb of its own) is out of the way, so a phone never draws two big ones at once.
+  const stage = { orb: null, mood: "idle", level: 0, over: null, until: 0, timer: 0 };
+  function stageShow() {
+    if (!stage.orb) return;
+    const live = stage.over && performance.now() < stage.until;
+    if (!live) stage.over = null;
+    stage.orb.set(live ? stage.over.mood : stage.mood, live ? stage.over.level() : stage.level);
+  }
+  function stageMount() {
+    if (stage.orb || !$("luma-body")) return;
+    stage.orb = luma($("luma-body"), stage.mood, { look: "water", size: 0.4 });
+    stageShow();
+  }
+  // For a moment, the orb does something of its own; `level` says how loud it is as the moment goes by (0 to 1).
+  function stageFor(mood, ms, level) {
+    const began = performance.now();
+    stage.over = { mood, level: () => (level ? level((performance.now() - began) / 1000) : 0) };
+    stage.until = began + ms;
+    clearInterval(stage.timer);
+    stage.timer = setInterval(() => { stageShow(); if (!stage.over) clearInterval(stage.timer); }, 90);
+    stageShow();
+  }
+  // Today, going round Luma: 48 dots, one a half hour, midnight at the top. `talked` is the half hours they talked in.
+  function renderDay(talked, zone) {
+    const svg = $("day");
+    if (!svg) return;
+    const lit = new Set(talked || []);
+    let h = hourNow(), m = new Date().getMinutes();
+    try { if (zone) m = Number(new Intl.DateTimeFormat("en-US", { minute: "numeric", timeZone: zone }).format(new Date())); } catch (_) { /* the phone's own minute */ }
+    const now = Math.min(47, h * 2 + (m >= 30 ? 1 : 0));
+    if (svg.childElementCount !== 48) {
+      svg.replaceChildren();
+      for (let i = 0; i < 48; i++) {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle"), a = (i / 48) * 2 * Math.PI;
+        c.setAttribute("cx", (100 + 97 * Math.sin(a)).toFixed(2)); c.setAttribute("cy", (100 - 97 * Math.cos(a)).toFixed(2));
+        c.setAttribute("r", i % 12 === 0 ? 2.1 : 1.4);
+        svg.append(c);
+      }
+    }
+    [...svg.children].forEach((c, i) => c.setAttribute("class", i === now ? (lit.has(i) ? "now talk" : "now") : lit.has(i) ? "talk" : i < now ? "gone" : ""));
+    const said = [...lit].sort((a, b) => a - b).map((i) => `${((i >> 1) % 12) || 12}${i % 2 ? ":30" : ""} ${i < 24 ? "AM" : "PM"}`);
+    svg.setAttribute("aria-label", said.length ? `Today. You and Luma talked around ${said.join(", ")}.` : "Today. You and Luma haven't talked yet.");
+  }
+
   function setState(dev) {
     const body = document.body, label = $("state").querySelector("span");
     body.classList.remove("listening", "thinking", "quiet");
     const napping = !!dev && !dev.busy && !dev.speaking && Number(dev.napping_until || 0) * 1000 > Date.now();
-    stateOrb?.set(!dev ? "idle" : dev.busy ? "thinking" : dev.speaking ? "speaking" : napping ? "napping" : dev.mic === "on" ? "listening" : "idle", dev && dev.speaking && !dev.busy ? 0.35 : 0);
+    const mood = !dev ? "idle" : dev.busy ? "thinking" : dev.speaking ? "speaking" : napping ? "napping" : dev.mic === "on" ? "listening" : "idle";
+    stateOrb?.set(mood, dev && dev.speaking && !dev.busy ? 0.35 : 0);
+    stage.mood = mood; stage.level = dev && dev.speaking && !dev.busy ? 0.35 : 0;
+    stageShow();
+    // The same thing in Luma's own words, on its stage. A nap never says it can't hear: anything said wakes it.
+    $("here").textContent = !dev ? "I can't be reached right now." : dev.busy ? "Thinking." : dev.speaking ? "Talking, at home."
+      : napping ? "Napping. Say anything and I'm up." : dev.mic === "on" ? "Here, and listening." : "Here. My mic is off, so I can't hear the room.";
     if (!dev) { label.textContent = "Can't reach your Luma"; body.classList.add("quiet"); return; }
     if (dev.busy) { body.classList.add("thinking"); label.textContent = "Thinking"; }
     else if (dev.speaking) { body.classList.add("listening"); label.textContent = "Talking"; }
@@ -310,6 +363,7 @@
       $("sub").textContent = (todays ? `${todays} chat${todays === 1 ? "" : "s"} today` : "A quiet day so far") +
         (today.approvals ? `, and ${today.approvals} thing${today.approvals === 1 ? "" : "s"} waiting for your OK.` : ".");
       setState(today.device);
+      renderDay(today.talked, today.zone);
       renderChats(today.chats);
       renderDeck(today.memory);
       renderHow(today.kids ? null : today.rapport);
@@ -523,13 +577,22 @@
     list.append(bubble({ role: "you", text, at: Date.now() / 1000 }), bubble({ role: "luma", text: "…" }));
     wrap.append(list);
     openSheet("Luma", wrap);
+    stageFor("thinking", 120000);
     try {
       const r = await api("/api/chat", { text });
+      stageFor("speaking", 3200, (t) => 0.2 + 0.55 * Math.abs(Math.sin(t * 6.1) * Math.sin(t * 2.3)) * Math.max(0, 1 - t / 3.2));
       list.lastChild.replaceWith(bubble({ role: "luma", text: r.text || r.summary || "Done.", at: Date.now() / 1000 }));
       wrap.append(replyForm("main", list));
-    } catch (err) { list.lastChild.replaceWith(bubble({ role: "luma", text: err.message })); }
+    } catch (err) { stageFor("idle", 1); list.lastChild.replaceWith(bubble({ role: "luma", text: err.message })); }
     refresh();
   });
+  // It leans in while you type to it, and a tap on Luma is a tap on the ask bar.
+  $("ask-text").addEventListener("input", () => stageFor("listening", 1600, (t) => 0.42 * Math.max(0, 1 - t / 0.5)));
+  $("presence").addEventListener("click", () => $("ask-text").focus());
+  // The bar over the stage is clear while the stage is on screen (see phone.css).
+  try {
+    new IntersectionObserver((seen) => document.body.classList.toggle("on-stage", seen.some((s) => s.isIntersecting)), { rootMargin: "-84px 0px 0px 0px" }).observe($("stage"));
+  } catch (_) { document.body.classList.remove("on-stage"); }
 
   $("mic").addEventListener("click", async () => {
     const on = $("mic").getAttribute("aria-checked") === "true";
@@ -561,7 +624,7 @@
   const TOUR = [
     { color: "var(--warm)", title: "Hi. I'm <em>Luma.</em>", say: "Talk to me out loud at home, or type to me here from anywhere. Same me, same memory.",
       art: () => { const a = el("div", "t-luma"); tourOrb(a); return a; } },
-    { color: "var(--chat)", title: "Every talk, <em>kept as a chain.</em>", say: "Today's chats has each conversation from today. Tap one to read it back and keep going.",
+    { color: "var(--chat)", title: "Every talk, <em>kept as a chain.</em>", say: "Today's chats has each conversation from today. The lit dots around me are when we talked.",
       art: () => { const a = el("div", "t-chat"); a.append(el("p", "me", "what's on today?"), el("p", "lu", "Dentist at 3, then dinner with Sam at 7."), el("p", "me", "remind me at 2:30")); return a; } },
     { color: "var(--mem)", title: "I remember <em>what matters.</em>", say: "Swipe through what I know about you. Tap a card to fix it or forget it. It's all yours.",
       art: () => { const a = el("div", "t-deck"); const c1 = el("div", "c c1"); c1.append(el("span", null, "🎂"), el("b", null, "Your mom's birthday is June 3")); a.append(el("div", "c c3"), el("div", "c c2"), c1); return a; } },
@@ -575,7 +638,7 @@
   // The first slide is Luma itself: its liquid orb, moving through what it does (rest, listen, think, speak) so you
   // see it pour from one into the next. If this phone can't draw it, the warm ball and rings stand in.
   function tourOrb(host) {
-    const orb = luma(host, "idle", { size: 0.33 });
+    const orb = luma(host, "idle", { look: "water", size: 0.38 });
     if (!orb) { host.className = ""; host.innerHTML = '<div class="t-orb"><i></i><i></i><i></i><b></b></div><div class="t-wave"><i></i><i></i><i></i><i></i><i></i></div>'; return; }
     let calm = false;
     try { calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) { /* it moves */ }
@@ -637,7 +700,7 @@
     try { localStorage.setItem(tour.seenKey, "1"); } catch (_) { /* this phone forgets; it shows again next time */ }
     $("tour").classList.add("leaving");
     document.body.style.overflow = "";
-    setTimeout(() => { $("tour").hidden = true; $("tour-stage").replaceChildren(); $("ask-text").focus({ preventScroll: true }); }, 550);
+    setTimeout(() => { $("tour").hidden = true; $("tour-stage").replaceChildren(); stageMount(); $("ask-text").focus({ preventScroll: true }); }, 550);
   }
   $("tour-next").addEventListener("click", () => (TOUR[tour.at].last ? tourClose() : tourGo(tour.at + 1)));
   $("tour-skip").addEventListener("click", tourClose);
@@ -655,7 +718,7 @@
     tourX = null;
     if (Math.abs(dx) > 40) tourGo(tour.at + (dx < 0 ? 1 : -1));
   });
-  if (!tourSeen()) tourOpen();
+  if (!tourSeen()) tourOpen(); else stageMount();
 
   refresh();
   const tick = () => { clearInterval(timer); timer = setInterval(() => { if (!document.hidden && !sheet.open) refresh(); }, 15000); };

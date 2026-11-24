@@ -69,10 +69,55 @@ body.quiet .state i.liquid { filter: grayscale(.85) opacity(.6); }
 
 main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
 
-/* hello */
-.hello { padding: 28px 4px 6px; }
-.hello h1 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: clamp(40px, 12vw, 56px); line-height: 1; letter-spacing: -.02em; margin: 0 0 10px; }
-.hello p { margin: 0 0 22px; color: var(--ink-2); font-size: 17px; }
+/* The stage: Luma itself, first. A body of clear water (orb.js, look "water") hangs in its own dark, whatever the
+   phone's theme: water has nothing to shine against on a light page. Under it, its reflection on a wet floor; round
+   it, today as a ring of 48 dots, one a half hour, midnight at the top: the part of the day that's gone is a little
+   brighter, a half hour you talked in is lit warm, and now is the white one. The light behind it is what Luma is
+   doing at home. The greeting and the ask bar stand on the same stage, so the first thing on the phone is Luma and
+   the second is talking to it. */
+.hello { margin: calc(-74px - env(safe-area-inset-top)) -16px 0; }
+.stage { position: relative; isolation: isolate; overflow: hidden; padding: calc(70px + env(safe-area-inset-top)) 20px 22px; border-radius: 0 0 40px 40px;
+  background: #050608; color: #f7f4ee;
+  --ground: #050608; --ink: #f7f4ee; --ink-2: rgba(247, 244, 238, .76); --muted: rgba(247, 244, 238, .56); --line: rgba(255, 255, 255, .13);
+  --glass: rgba(255, 255, 255, .075); --aura: 255, 181, 98;
+  box-shadow: 0 30px 60px -34px rgba(0, 0, 0, .65); }
+body.thinking .stage { --aura: 132, 166, 255; }
+body.quiet .stage { --aura: 150, 156, 176; }
+.stage::before { content: ""; position: absolute; z-index: -2; left: 50%; top: -6%; width: 150%; aspect-ratio: 1; translate: -50% 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(var(--aura), .30), rgba(var(--aura), .09) 46%, rgba(var(--aura), 0) 72%); animation: breathe 9s ease-in-out infinite; }
+/* a fine grain, so the dark has a surface */
+.stage::after { content: ""; position: absolute; z-index: -1; inset: 0; pointer-events: none; opacity: .5; mix-blend-mode: soft-light;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.presence { position: relative; width: min(78vw, 320px, 40vh); aspect-ratio: 1; margin: 0 auto 34px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.presence .body { position: absolute; inset: 7%; -webkit-box-reflect: below -9% linear-gradient(transparent 52%, rgba(0, 0, 0, .34)); }
+/* If the phone can't draw the water, a warm ball stands in. */
+.presence .body:not(.liquid) { inset: 24%; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #fff8ee, rgb(var(--aura)) 46%, rgba(var(--aura), .25) 100%);
+  box-shadow: 0 0 70px 6px rgba(var(--aura), .42); animation: breathe 6s ease-in-out infinite; }
+.presence .floor { position: absolute; left: -22%; right: -22%; top: 79%; height: 32%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(var(--aura), .20), rgba(var(--aura), .05) 55%, transparent 76%); filter: blur(5px); }
+.day { position: absolute; inset: 0; width: 100%; height: 100%; stroke: none; overflow: visible; }
+.day circle { fill: #f7f4ee; opacity: .17; transition: opacity .8s var(--ease), fill .8s var(--ease); }
+.day circle.gone { opacity: .38; }
+.day circle.talk { fill: #ffb562; opacity: .95; }
+.day circle.now { fill: #fff; opacity: 1; animation: now 3.2s ease-in-out infinite; }
+.day circle.now.talk { fill: #ffcf96; }
+@keyframes now { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.here { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 15px; color: var(--ink-2); }
+.here::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none; background: rgb(var(--aura)); box-shadow: 0 0 0 4px rgba(var(--aura), .2); }
+.stage h1 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: clamp(40px, 12vw, 56px); line-height: 1; letter-spacing: -.02em; margin: 0 0 10px; }
+.stage #sub { margin: 0 0 22px; color: var(--ink-2); font-size: 17px; }
+.stage #sub a { color: var(--ink); }
+.stage .ask { background: var(--glass); border-color: var(--line); transition: border-color .4s var(--ease), box-shadow .4s var(--ease); }
+.stage .ask:focus-within { border-color: rgba(var(--aura), .6); box-shadow: 0 0 0 4px rgba(var(--aura), .13); }
+/* While the stage is on screen the bar over it is clear and Luma's state is said on the stage; once it's scrolled
+   away the bar frosts over and the little orb with its word comes back. */
+body.on-stage .top { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; color: #f7f4ee;
+  --line: rgba(255, 255, 255, .13); --glass-2: rgba(255, 255, 255, .075); --ink-2: rgba(247, 244, 238, .76); }
+.top .state { transition: opacity .35s var(--ease), transform .35s var(--ease); }
+body.on-stage .top .state { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+main > .panel:first-of-type { margin-top: 2px; }
+@media (max-height: 640px) { .presence { width: min(60vw, 240px, 36vh); margin-bottom: 26px; } }
+@media (prefers-reduced-motion: reduce) { .stage::before, .day circle.now, .presence .body:not(.liquid) { animation: none; } }
 .ask { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 20px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--glass); backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2); }
 .ask input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; outline: none; min-height: 44px; }
@@ -223,6 +268,9 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
    ====================================================================== */
 .linkish { background: none; border: 0; padding: 12px 6px; min-height: 44px; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .tour { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--ground); color: var(--ink); overflow: hidden;
+  /* the same dark stage as the top of the app, in either theme: this is where Luma is met */
+  --ground: #050608; --ink: #f7f4ee; --ink-2: rgba(247, 244, 238, .78); --muted: rgba(247, 244, 238, .56); --line: rgba(255, 255, 255, .13);
+  --glass: rgba(255, 255, 255, .075); --glass-2: rgba(255, 255, 255, .07); --chat: #6aa8ff; --mem: #41d38a; --warm: #ffb562; --violet: #c9a2ff;
   padding: calc(env(safe-area-inset-top) + 18px) 24px calc(env(safe-area-inset-bottom) + 22px); --tc: var(--warm); transition: opacity .55s var(--ease); }
 /* What's marked hidden is hidden, whatever its class says about display (a row is a flex box; it used to show anyway). */
 [hidden] { display: none !important; }
@@ -240,7 +288,11 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
   transition: opacity .5s var(--ease), transform .6s var(--ease), filter .5s var(--ease); }
 .tour-scene.out { opacity: 0; pointer-events: none; transform: translateX(calc(var(--dir, 1) * -34px)) scale(.97); filter: blur(4px); }
 .tour-scene.wait { opacity: 0; pointer-events: none; transform: translateX(calc(var(--dir, 1) * 34px)) scale(.97); filter: blur(4px); }
-.tour-art { position: relative; height: min(42vh, 300px); display: grid; place-items: center; margin-bottom: 10px; }
+.tour-art { position: relative; height: min(46vh, 360px); display: grid; place-items: center; margin-bottom: 10px; }
+/* every picture stands on the same wet floor as Luma does */
+.tour-art > * { -webkit-box-reflect: below 14px linear-gradient(transparent 62%, rgba(0, 0, 0, .22)); }
+.tour-art::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -4%; height: 26%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tc) 22%, transparent), transparent 74%); filter: blur(6px); transition: background .8s var(--ease); }
 .tour-scene h2 { margin: 0; font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: clamp(38px, 11vw, 52px); line-height: 1.02; letter-spacing: -.02em; }
 .tour-scene h2 em { font-style: italic; color: var(--tc); }
 .tour-scene p.say { margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink-2); max-width: 30ch; }
@@ -259,7 +311,8 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
 
 /* 1. talk: Luma itself, a drop of liquid light (orb.js). The warm ball, rings and bars below it are what's shown
    when a phone can't draw that. */
-.t-luma { width: min(42vh, 300px, 84vw); aspect-ratio: 1; }
+.t-luma { width: min(44vh, 340px, 92vw); aspect-ratio: 1; }
+.tour-art > .t-luma { -webkit-box-reflect: below -12% linear-gradient(transparent 60%, rgba(0, 0, 0, .24)); margin-top: -12%; }
 .t-orb { position: relative; width: 150px; height: 150px; display: grid; place-items: center; }
 .t-orb b { width: 92px; height: 92px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8ee, var(--warm) 45%, #ff7a3c 80%);
   animation: breathe 3.2s ease-in-out infinite; }
@@ -273,27 +326,27 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
 @keyframes t-bar { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
 
 /* 2. chats: a conversation writing itself, kept as one chain */
-.t-chat { width: min(300px, 82vw); display: flex; flex-direction: column; gap: 10px; }
-.t-chat p { margin: 0; padding: 11px 15px; border-radius: 20px; font-size: 15px; max-width: 82%; opacity: 0; animation: t-msg 7s var(--ease) infinite; }
+.t-chat { width: min(330px, 86vw); display: flex; flex-direction: column; gap: 11px; }
+.t-chat p { margin: 0; padding: 11px 15px; border-radius: 22px; font-size: 16.5px; max-width: 84%; opacity: 0; animation: t-msg 7s var(--ease) infinite; }
 .t-chat .me { align-self: flex-end; background: var(--chat); color: #fff; border-bottom-right-radius: 6px; }
 .t-chat .lu { align-self: flex-start; background: var(--glass); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
 .t-chat p:nth-child(2) { animation-delay: .9s; } .t-chat p:nth-child(3) { animation-delay: 1.8s; }
 @keyframes t-msg { 0% { opacity: 0; transform: translateY(12px) scale(.96); } 8%, 82% { opacity: 1; transform: none; } 92%, 100% { opacity: 0; transform: translateY(-6px); } }
 
 /* 3. memory: the deck, the front card green, one swiped aside and coming back */
-.t-deck { position: relative; width: 230px; height: 170px; }
+.t-deck { position: relative; width: min(270px, 72vw); height: 200px; }
 .t-deck .c { position: absolute; inset: 0; border-radius: 24px; border: 1px solid var(--line); background: var(--glass); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .7); }
 .t-deck .c3 { transform: rotate(-9deg) translate(-26px, 10px); opacity: .55; }
 .t-deck .c2 { transform: rotate(-4deg) translate(-12px, 4px); opacity: .8; }
-.t-deck .c1 { display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 18px; background: linear-gradient(160deg, color-mix(in srgb, var(--mem) 85%, #fff 0%), #1f8f5a);
+.t-deck .c1 { display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 18px; background: linear-gradient(160deg, #63e2a4, #1f9a61); box-shadow: 0 30px 60px -28px rgba(31, 154, 97, .8), inset 0 1px 0 rgba(255, 255, 255, .45);
   color: #06210f; animation: t-swipe 5.5s var(--ease) infinite; }
-.t-deck .c1 span { font-size: 30px; } .t-deck .c1 b { font-size: 17px; line-height: 1.25; }
+.t-deck .c1 span { font-size: 34px; } .t-deck .c1 b { font-size: 19px; line-height: 1.25; }
 @keyframes t-swipe { 0%, 45% { transform: none; } 58% { transform: translateX(120px) rotate(14deg); opacity: 0; } 62% { transform: translateX(-30px) rotate(-6deg); opacity: 0; } 76%, 100% { transform: none; opacity: 1; } }
 
 /* 4. your Luma: room left in LED dots, the mic switch going off and on */
-.t-device { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 22px 26px; border-radius: 28px; background: var(--glass); border: 1px solid var(--line);
+.t-device { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 28px 34px; border-radius: 32px; background: var(--glass); border: 1px solid var(--line);
   box-shadow: inset 0 0 40px color-mix(in srgb, var(--warm) 18%, transparent); }
-.t-device .dots svg { width: 34px; height: 48px; } .t-device .dots circle { fill: var(--warm); } .t-device .dots circle.off { fill: color-mix(in srgb, var(--warm) 14%, transparent); }
+.t-device .dots svg { width: 46px; height: 64px; } .t-device .dots circle { fill: var(--warm); } .t-device .dots circle.off { fill: color-mix(in srgb, var(--warm) 14%, transparent); }
 .t-device .unit { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .t-mic { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--ink-2); }
 .t-mic i { position: relative; width: 50px; height: 30px; border-radius: 99px; background: var(--mem); animation: t-track 4s steps(1) infinite; }
@@ -302,22 +355,22 @@ main { width: min(560px, 100%); margin: 0 auto; padding: 0 16px; display: flex; 
 @keyframes t-track { 0% { background: var(--mem); } 50% { background: color-mix(in srgb, var(--ink) 25%, transparent); } }
 
 /* 5. approvals: Luma shows what it would do and waits for your OK */
-.t-approve { position: relative; width: min(300px, 82vw); padding: 18px; border-radius: 24px; background: var(--glass); border: 1px solid var(--line);
+.t-approve { position: relative; width: min(330px, 86vw); padding: 22px; border-radius: 24px; background: var(--glass); border: 1px solid var(--line);
   animation: t-card 6s var(--ease) infinite; }
 .t-approve .k { margin: 0 0 4px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.t-approve .q { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
+.t-approve .q { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
 .t-approve .m { margin: 0 0 14px; font-size: 15px; color: var(--ink-2); }
 .t-approve .b { display: flex; gap: 8px; }
 .t-approve .b span { flex: 1; text-align: center; padding: 10px 0; border-radius: 14px; font-size: 15px; font-weight: 600; background: var(--glass-2); border: 1px solid var(--line); }
 .t-approve .b .ok { background: #c9a2ff; color: #1a0b33; border: 0; animation: t-press 6s var(--ease) infinite; }
-.t-approve .done { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--ground) 70%, transparent);
-  font-size: 18px; font-weight: 650; opacity: 0; animation: t-done 6s var(--ease) infinite; }
+.t-approve .done { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--ground) 90%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 18px; font-weight: 650; opacity: 0; animation: t-done 6s var(--ease) infinite; }
 @keyframes t-card { 0% { opacity: 0; transform: translateY(26px); } 10%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
 @keyframes t-press { 0%, 48% { transform: none; box-shadow: 0 0 0 0 rgba(201, 162, 255, .6); } 52% { transform: scale(.94); } 56% { transform: none; box-shadow: 0 0 0 12px rgba(201, 162, 255, 0); } }
 @keyframes t-done { 0%, 58% { opacity: 0; } 64%, 86% { opacity: 1; } 100% { opacity: 0; } }
 
 /* 6. ready: the ask bar typing its own question */
-.t-bar { display: flex; align-items: center; gap: 4px; width: min(310px, 84vw); height: 58px; padding: 0 8px 0 20px; border-radius: 999px; background: var(--glass);
+.t-bar { display: flex; align-items: center; gap: 4px; width: min(340px, 88vw); height: 64px; padding: 0 8px 0 20px; border-radius: 999px; background: var(--glass);
   border: 1px solid var(--line); box-shadow: 0 0 0 6px color-mix(in srgb, var(--chat) 12%, transparent); }
 .t-type { overflow: hidden; white-space: nowrap; font-size: 16px; width: 0; animation: t-typing 5s steps(16) infinite; }
 .t-caret { width: 2px; height: 22px; background: var(--chat); animation: t-blink .9s steps(1) infinite; }

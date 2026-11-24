@@ -109,6 +109,36 @@ class CompanionTests(unittest.TestCase):
         self.assertGreater(today['device']['storage']['total'],0)
         self.assertIn(today['device']['mic'],{'on','off'})
 
+    def test_the_ring_of_the_day_is_times_only(self):
+        # The phone draws today as a ring of 48 dots round Luma, lit where they talked. It's given the half hours and
+        # nothing else: no word of what was said, nothing from another day, and nothing at all in kids mode.
+        from datetime import datetime
+        from luma.control import today as day
+        self.pair()
+        self.assertEqual(day.talked(self.agent),[])
+        midnight=datetime.fromtimestamp(self.agent.clock(),self.agent.zone).replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
+        self.agent.transcripts['main']=[{'role':'user','text':'my secret plan','at':midnight+9*3600+60},{'role':'luma','text':'ok','at':midnight+9*3600+90},
+                                        {'role':'user','text':'later','at':midnight+13*3600+31*60},{'role':'user','text':'yesterday','at':midnight-600},{'role':'user','text':'no time'}]
+        self.assertEqual(day.talked(self.agent),[18,27])
+        with self.request('/api/today') as r:raw=r.read().decode()
+        self.assertEqual(json.loads(raw)['talked'],[18,27])
+        self.assertEqual(day.compact(self.agent)['talked'],[18,27])             # the same through the relay, away from home
+        self.agent.set_mode('kids')
+        self.assertNotIn('talked',day.payload(self.agent))
+        page=(Path(__file__).resolve().parents[1]/'src'/'luma'/'control'/'web'/'phone'/'phone.js').read_text()
+        self.assertIn('renderDay(today.talked, today.zone)',page)
+
+    def test_luma_on_its_stage_says_only_what_is_true(self):
+        # The line under Luma on the phone is its state in its own words. A nap never says it can't hear (anything said
+        # wakes it); mic off says so plainly; it never calls itself an AI or an assistant.
+        web=Path(__file__).resolve().parents[1]/'src'/'luma'/'control'/'web'/'phone'
+        js,page=(web/'phone.js').read_text(),(web/'index.html').read_text()
+        for line in ('"Napping. Say anything and I\'m up."','"Here, and listening."','"Here. My mic is off, so I can\'t hear the room."','"I can\'t be reached right now."'):
+            self.assertIn(line,js)
+        for part in ('id="stage"','id="luma-body"','id="day"','id="here"','id="hello"','id="ask-text"','id="state"'):self.assertIn(part,page)
+        here=js[js.index('$("here").textContent'):];here=here[:here.index(';')]
+        for word in ('AI','assistant','program','asleep',"can't hear you"):self.assertNotIn(word,here)
+
     def test_the_storage_screen_from_a_paired_phone(self):
         with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/storage')
         self.assertEqual(e.exception.code,401)                                  # not paired: nothing about what's kept

@@ -79,6 +79,19 @@ def chats(agent, limit=12):
     return rows[:limit]
 
 
+def talked(agent):
+    """The half hours of today in which they and Luma talked, as numbers from 0 (midnight) to 47, in the home's own
+    time. The phone draws them as lit dots in the ring of the day around Luma. Times only: nothing that was said."""
+    midnight = datetime.fromtimestamp(agent.clock(), agent.zone).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    slots = set()
+    for t in agent.thread_list():
+        for m in agent.transcripts.get(t["id"]) or []:
+            at = m.get("at") or 0
+            if midnight <= at < midnight + 86400:
+                slots.add(int((at - midnight) // 1800))
+    return sorted(slots)
+
+
 # First match wins: a birthday is a date even if it mentions mom; a savings goal is a plan even if it names a month.
 KINDS = (("Dates", ("birthday", "anniversary", "every year")),
          ("Plans", ("saving", "trip", "plan", "goal", "want to", "going to", "training for")),
@@ -193,7 +206,7 @@ def payload(agent):
     # "zone" is the home's own time zone: every time the apps show is said in it, so a task set for 8 AM reads 8 AM
     # on a phone that's somewhere else.
     return {"name": (agent.profile.get("name") or "").split(" ")[0], "now": agent.clock(), "zone": getattr(agent.zone, "key", None),
-            "chats": chats(agent), "memory": memory(agent), "rapport": how_to_be(agent),
+            "chats": chats(agent), "talked": talked(agent), "memory": memory(agent), "rapport": how_to_be(agent),
             "device": device(agent), "projects": projects(agent), "approvals": waiting, "account": account(agent)}
 
 
@@ -222,7 +235,7 @@ def compact(agent):
     device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"), "napping_until": dev.get("napping_until") or 0, "naps": dev.get("naps", True),
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
-    return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),
+    return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "talked": full.get("talked") or [], "chats_today": sum(1 for c in full["chats"] if c.get("today")),
             "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account"),
             "rapport": [{"key": r.get("key"), "text": cut(r.get("text"), 120),
                          "because": [{"said": cut(b.get("said"), 90), "at": b.get("at")} for b in (r.get("because") or [])[:1]]} for r in (full.get("rapport") or [])[:6]]}

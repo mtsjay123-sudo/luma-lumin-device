@@ -23,6 +23,15 @@ The owner set the direction, so it wins over the generic rules below:
   light and moves with its own voice while it speaks), and a sheet rises softly when it opens. Everything
   respects reduced motion: the orb holds still and only changes with the mood.
 - **Dials:** energy 2, rhythm 2, motion 2.
+- **The phone opens on Luma (the owner, Nov 24: "more cooler, better detail, look like presence").** The first
+  thing on the phone is Luma itself, not a list: a body of water on its own dark stage (the same stage in light and
+  dark, because water has nothing to shine against on a light page), its reflection on a wet floor under it, and
+  its state said in its own words ("Here, and listening."). Round it, today is a ring of 48 dots, one a half hour,
+  midnight at the top: the part of the day that's gone is a little brighter, a half hour they talked in is lit
+  warm, and now is the white one. That ring is the one new detail and it means something; nothing else on the
+  stage is decoration. Luma answers the phone too: it leans in while they type, turns while a message is on its
+  way, and warms when the reply lands. The tour is the same dark stage, and every picture in it stands on the
+  same floor.
 
 **Known collision.** The rules cap glass at one or two elements per screen. Luma's identity is glass, and the
 owner chose that on purpose. So glass stays on the chrome (the sidebar, the top bar, sheets, the chat dock).
