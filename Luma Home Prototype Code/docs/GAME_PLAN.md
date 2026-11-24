@@ -271,6 +271,10 @@ on day 1 and run alongside everything else:
   stock 1.7B 192, own small 199; safety 13 of 13 on all four; nobody claimed to be human. The judge preferred the
   stock 4B to our 4B add-on 30 to 5. Conversations on the stock 4B read 96 of 115 against 104 last time (96, 101,
   104, 96 over four runs), so they're being run side by side on the old code and the new.
+- **Run 88 (Nov 24): conversations before the note and after, half an answer.** On the two small brains, no
+  difference (stock 1.7B 158 → 161 of 230, own small 180 → 181). On the 4Bs the "before" half ran out of the job's
+  150 minutes, so there's no side-by-side yet; today's code alone passed 200 of 230 on the stock 4B (100 of 115 a
+  pass, inside the 96 to 104 of earlier runs). The limit is raised and it's running again (run 89).
 - **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
   Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
   is never slept through, and a nap is in its own record so it's spoken of only when it happened. The body (a

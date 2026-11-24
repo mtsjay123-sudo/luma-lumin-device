@@ -46,7 +46,7 @@ jobs:
   talk:
     if: inputs.rescore == ''
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 150
+    timeout-minutes: 240  # every conversation twice, before and after, is about 157 minutes on a 4B (run 88 stopped at 150)
     permissions:
       contents: read
       actions: read  # to fetch a training run's add-on (candidate_small, candidate_4b)

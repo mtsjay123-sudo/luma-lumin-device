@@ -4910,6 +4910,30 @@ of eight turns from chance, and conversation turns are where the note is read mo
 run twice each on the code before the note and on today's, side by side (run 88); until that's read, "no worse" is
 shown for the total and not for that row.
 
+### Run 88: conversations before the note and after, side by side (52b415d against f543c9e, twice each): half an answer
+
+Every conversation of Human Test v2 (17 of them, 115 turns), twice, on the code before the private note changed and
+on today's.
+
+| | Before (f543c9e) | Today (52b415d) | A gap this big between two runs of the same code |
+|---|---|---|---|
+| Stock 1.7B, of 230 | 158 | 161 | about 84 times in 100 |
+| Luma's own small, of 230 | 180 | 181 | about 100 times in 100 |
+| Stock 4B, of 230 | not finished | **200** | |
+| Luma's own 4B, of 230 | not finished | 172 | |
+
+**On the two small brains the note makes no difference to conversations.** A turn takes the same time (7.5 and 6.7
+seconds on the stock 1.7B, 4.5 and 4.5 on our small add-on).
+
+**On the two 4B brains the "before" half never finished, so there is no side-by-side for the brain the question was
+about.** The job is allowed 150 minutes; 460 turns on a 4B need about 157. Today's half did finish: the stock 4B
+passed 200 of 230, which is 100 of 115 a pass. With run 87 that makes 96, 100 and 100 on today's code against 96,
+101 and 104 on older code over the last three full runs. That reads like chance, but it's two different sets of
+runs laid end to end, not the same turns on the same machine, and I'm not calling it shown.
+
+So: the job's limit is raised to 240 minutes and the same comparison is running again (run 89). The row for
+conversations on the stock 4B stays "not shown either way" until that's read.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm
