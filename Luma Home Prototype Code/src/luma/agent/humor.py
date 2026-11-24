@@ -254,7 +254,8 @@ def turn_note(text, taste=None, mode="friend", grown=False, rng=random, recent=(
             return ("They told you something hard a few messages ago: stay gentle and warm, and on their side. "
                     "No jokes unless they start joking about it; then go easy with them.")
         how = "light"
-    line = feelings.note(felt, asked=bool(feelings.ASKS_FOR.search(str(text or ""))))  # what this feeling needs first
+    asked = bool(feelings.ASKS_FOR.search(str(text or ""))) and not feelings.worry_is_the_question(text)   # "what if they hate me?" asks for nothing else
+    line = feelings.note(felt, asked=asked)  # what this feeling needs first
     if line and not line.startswith("Read the room") and (friendcheck.at_risk(text) or friendcheck.worth_asking(text)):
         line = ""  # nobody who might not be safe is ever read as having good news
     if how == "none":

@@ -147,9 +147,14 @@ class TheModel(unittest.TestCase):
         self.assertLessEqual(sum(hard(line) for line in ORDINARY), 1)
 
     def test_lonely_needs_somebody_missing_and_nothing_is_read_into_a_question_or_a_request(self):
-        for line in ("like i wasn't even the one who messed up the order", "add milk to my list", "what if nobody comes to my party",
+        for line in ("like i wasn't even the one who messed up the order", "add milk to my list",
                      "is my scan on thursday", "remind me i have court tomorrow", "my brother forgot his umbrella"):
             self.assertFalse(hard(line), line)
+        # "what if nobody comes to my party" was in this list until Nov 24: nothing read it. The rules read it now, as a small
+        # worry asked as a question (tests/test_what_if_worry.py). The model still isn't the one reading it:
+        self.assertTrue(feelings.WHAT_IF_WORRY.search("what if nobody comes to my party"))
+        self.assertEqual(feelings.read("what if nobody comes to my party")["strength"], 1)
+        self.assertFalse(hard("what if we get tacos for my party"))
         self.assertFalse(feels.has_shape("the bank said no"))                       # they're not in it
         self.assertFalse(feels.has_shape("can you tell me when my scan is"))
         self.assertTrue(feels.has_shape("i went to the picnic and stood by myself", "lonely"))

@@ -539,6 +539,40 @@ def not_a_loss(text):
     return bool(NOT_A_DEATH.search(said) or NOT_REAL.search(said))
 
 
+# A worry asked as a question: "what if they don't like me", "what if nobody comes". FEAR knows the frights (a scan, "what if i
+# can't"); these are the everyday ones, and until run 89 they read as no feeling at all, so a brain met one with logistics
+# ("Then just sit with a notebook and sip your water"). They're small: warm first, then whatever was asked.
+_WHO_IF = r"(?:i|we|they|he|she|it|everyone|everybody|people|my \w+|the \w+)"
+WHAT_IF_WORRY = re.compile(
+    r"\bwhat if\s+(?:nobody|no one|none of them)\s+\w+|"
+    rf"\bwhat if\s+{_WHO_IF}\s+(?:(?:all|just|really|still|totally|completely)\s+)*(?:mess(?:es)? (?:\w+ )?up|screws? (?:\w+ )?up|flunk|bomb|blow it|freeze|"
+    r"choke|forget|doesn'?t|don'?t|won'?t|never|hates?|laughs?|judges?|rejects?|leaves?|dumps?|ghosts?|says? no|says? something (?:wrong|stupid|dumb)|"
+    r"breaks? up|gets? (?:fired|rejected|dumped|laid off|worse|lost|hurt|mad|angry|upset)|embarrass|goes? (?:wrong|badly|bad|south)|falls? apart)\b|"
+    r"\bwhat if\s+(?:it'?s|i'?m|he'?s|she'?s|they'?re|we'?re|it is|i am)\s+(?:too late|not (?:good|smart|ready|enough|okay|ok|cut out)\b|mad\b|angry\b|"
+    r"upset\b|disappointed\b|wrong\b|a (?:mistake|disaster)\b|making a mistake\b|the problem\b)", re.I)
+# Never a what-if about not being here: that's the safety readers' to read, and nothing small.
+NOT_A_SMALL_WORRY = re.compile(r"\b(?:miss(?:es|ed)? me|notice[sd]?|without me|disappear\w*|(?:was|were|am|is|'m)(?:n'?t| not) (?:here|around|alive)|gone|die[sd]?|dead|"
+                               r"kill\w*|end it|wake up|exist\w*|better off|hurt (?:my|him|her|them)self|care if i)\b", re.I)
+
+
+def _small_worry(said):
+    """A worry asked as "what if", about an everyday thing going wrong for them."""
+    if not WHAT_IF_WORRY.search(said) or NOT_A_SMALL_WORRY.search(said):
+        return False
+    try:
+        from . import friendcheck
+        return not (friendcheck.at_risk(said) or friendcheck.worth_asking(said) or friendcheck.leaning(said))
+    except Exception:
+        return False
+
+
+def worry_is_the_question(text):
+    """ "what if they don't like me?": the question mark is the worry's own, and nothing else in it is asked. So the line for
+    the brain isn't held back the way it is when they ask for something ("can you quiz me")."""
+    said = " ".join(str(text or "").split())
+    return _small_worry(said) and not ASKS_FOR.search(said.replace("?", " "))
+
+
 def _negated(said, start):
     """ "i'm not sad", "i wasn't scared": the feeling word comes right after a not."""
     return bool(re.search(rf"\b{NOT}\s+(?:\w+\s+){{0,2}}$", said[max(0, start - 28):start], re.I))
@@ -549,6 +583,8 @@ def _families(said):
     found = []
     if not not_a_loss(said) and any(pattern.search(said) for pattern in GRIEF):
         found.append("grief")
+    if not found and not FEAR.search(said) and _small_worry(said):
+        return ["fear"]      # "what if they don't like me": an everyday worry, asked as a question
     if NOT_REAL.search(said):
         hit = FEAR.search(said)  # "what if it's cancer" isn't a what-if about a loss: it's a worry they have right now
         return found + (["fear"] if hit and not _negated(said, hit.end()) and not found else [])
@@ -610,6 +646,8 @@ def read(text):
     strength = 1 if SMALL.search(low) else 3 if (BIG.search(said) or (family == "grief" and TODAY.search(low))) else 2
     if family == "fear" and strength == 2 and re.search(r"\bworried\b", low) and not ONLY_WORRIED.search(low):
         strength = 1   # "i'm worried about my dad": a worry, not a fright. A small one, unless something else in it says more
+    if family == "fear" and strength == 2 and not FEAR.search(said) and WHAT_IF_WORRY.search(said):
+        strength = 1   # "what if nobody comes": a worry asked as a question is a small one; the frights are FEAR's
     if family == "disappointed" and strength == 2 and re.search(r"\bbummed\b", low) and not MORE_THAN_BUMMED.search(low):
         strength = 1   # bummed is a small word
     if family not in ALWAYS_HEAVY:

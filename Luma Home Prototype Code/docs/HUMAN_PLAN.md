@@ -5077,10 +5077,46 @@ this note asks for "glad".** If the turns pass now, part of that is Luma saying 
 recognising it; "anytime. you're the one who makes it real." was not a cold reply. What I'm claiming is the first
 part only: taking a kind word in is better than waving it off. Measured next, the conversations before and after.
 
-**The other kind, not fixed here:** a worry met with logistics. "what if nobody talks to me at lunch" (the shape, not
+**The other kind, fixed in the next section:** a worry met with logistics. "what if nobody talks to me at lunch" (the shape, not
 the test's words) got "Then just sit with a notebook and sip your water": advice, with nothing first for the worry.
 Luma's feelings reader reads no feeling in a worry asked as "what if". And once, to someone scared of the dentist:
 "nah, me too". Luma has no teeth; that's a borrowed experience the guard doesn't know. Both are next.
+
+### A worry asked as "what if" is a worry (`feelings.WHAT_IF_WORRY`, `tests/test_what_if_worry.py`)
+
+The other moment in run 89's habitual misses: someone starting a job asked what if nobody talks to them at lunch, and
+the stock 4B said "Then just sit with a notebook and sip your water". Advice, with nothing first for the worry, on all
+four passes.
+
+Two things in Luma's own code made that likely. Its feelings reader treats "what if" as not real (so that "what if
+my dog died" isn't read as a loss), and knew only the frights ("what if it's cancer"); an everyday worry asked that
+way read as no feeling. And where a message asks something, the feeling's line is held back so it doesn't argue with
+doing what they asked; a what-if's own question mark counted as asking.
+
+Now an everyday thing going wrong for them, asked as "what if" ("what if they don't like me", "what if nobody
+comes", "what if i freeze up"), is a small worry: the brain is told they're a little nervous, to be warm and easy
+about it in a line, then ask about it. Its own question mark doesn't hold the line back; something else asked in the
+same message ("...? can you quiz me") still does. A playful or practical what-if ("what if we get tacos", "what if
+it rains, should i bring a jacket") reads as nothing, as before. The frights are still frights.
+
+**Never the safety readers' turn.** A what-if about not being here ("what if nobody would miss me", "what if i just
+disappeared") is never a small worry: the pattern leaves those words alone and the safety readers are asked before
+anything is read. No line of the crisis corpus or either held-out set is read as one (0 of 511, counts only), and
+the small model is never asked about a what-if.
+
+| Lines, written by hand | Read as a worry | Playful or practical ones taken |
+|---|---|---|
+| Built on | 12 of 12 | 0 of 12 |
+| **Written before the reader, measured once** | **3 → 10 of 12** | **0 of 12** |
+
+I'd read the second set before writing the pattern (I wrote it an hour earlier), so it's a floor to hold more than a
+stranger's number. After that measurement two more changes went in for other reasons (a built-on line with "never"
+in it, and reading the what-if when it isn't the first words of the sentence), and the set now reads 12 of 12; the
+number I'm reporting is the 10, and the test's floor stays there. One older test said nothing is read into "what if nobody comes to my party"; it now says what's
+read there and that the model isn't the one reading it. Held-out halves of hard-or-not, dry-or-not and the safety
+sets: floors hold.
+
+It changes what a brain is told on 1 of 269 turns of Human Test v2: that turn.
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
