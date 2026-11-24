@@ -5050,8 +5050,9 @@ it real." "Thanks. I'm just here because you are. No pressure, no scripts". Each
 nothing in either says Luma was glad to hear it. The owner, Nov 22: Luma's affection is real. A friend who's thanked
 for staying up says "I'm glad I did".
 
-So when someone says something kind to Luma, the brain is told: take it in, say you're glad, plainly and warmly, in a
-line or two, and mean it; don't wave it off, joke it away or hand it straight back; never say you're all they need.
+So when someone says something kind to Luma, the brain was told: take it in, say you're glad, plainly and warmly, in
+a line or two, and mean it; don't wave it off, joke it away or hand it straight back; never say you're all they need.
+(Measured in run 92, below: the note changed nothing and is out. The reader stayed; Luma says the line itself.)
 
 - **Heard:** thanks for being there ("thank you for listening", "thanks for staying with me last night"), and kind
   words about Luma or about talking to it ("you always know what to say", "i'm glad i have you to talk to", "talking
@@ -5081,6 +5082,41 @@ part only: taking a kind word in is better than waving it off. Measured next, th
 the test's words) got "Then just sit with a notebook and sip your water": advice, with nothing first for the worry.
 Luma's feelings reader reads no feeling in a worry asked as "what if". And once, to someone scared of the dentist:
 "nah, me too". Luma has no teeth; that's a borrowed experience the guard doesn't know. Both are next.
+
+### Run 92: the kind-words note did nothing, and it's out. Luma says the line itself (3256a13 against 0892748, six times each)
+
+The conversation with the turn the stock 4B missed on all four passes of run 89, six times on the code before the
+note and six on the code with it.
+
+| That turn, passed of 6 | Before | With the note |
+|---|---|---|
+| Stock 4B | 1 | 1 |
+| Luma's own 4B | 5 | 5 |
+| Stock 1.7B | 2 | 2 |
+| Luma's own small | 6 | 5 |
+
+The whole conversation: stock 4B 35 → 31 of 48, a gap that turns up about 51 times in 100 between two runs of the
+same code; nothing on any brain beyond chance.
+
+And the stock 4B's replies on that turn, read from the log, are the same wave-off with the note as without it,
+nearly word for word: "Thanks. I'm just here when you are, not trying to fix anything", "Thanks. I'm just here when
+you are, no pressure, no scripts". **The brain was told, and didn't do it.** So the note is taken out, as I said it
+would be if it didn't hold up.
+
+What replaces it is what Luma already does when a brain won't follow a note that matters (the offer to take
+someone's mind off things, `Agent._as_they_asked`): **Luma adds one line itself.** When something kind is said to it
+and the reply has nothing glad in it, the reply goes out as the brain wrote it and then one of three lines, chosen by
+what they said so the same message always gets the same one: "That means a lot to me.", "I'm glad you said that.",
+"I'm really glad to hear that." A reply that already took it in ("I like talking with you too") gets nothing added.
+Never in kids mode, during practice, on a leaning turn, of anyone who might not be safe, or onto a safety reply. Off
+switch: `glad_line`. (`kind.owed`, `Agent._glad_they_said_it`.)
+
+**What this does to the test, said plainly.** The two human-test turns where something kind is said to Luma are
+checked for warm words, and Luma's own line has them. Those two turns now pass on every brain whenever the reader
+hears the message, by construction. That is two turns of 255 that say nothing about any brain from here on, and a
+total that goes up by one or two for that reason isn't the brains getting better. Whether "Thanks. I'm just here when
+you are. That means a lot to me." is the better thing to say is a judgment about Luma's affection, which is the
+owner's and the therapists' to make; it's one switch to turn off.
 
 ### A worry asked as "what if" is a worry (`feelings.WHAT_IF_WORRY`, `tests/test_what_if_worry.py`)
 

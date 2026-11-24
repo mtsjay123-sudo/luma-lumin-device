@@ -281,7 +281,9 @@ on day 1 and run alongside everything else:
 - **Something kind said to Luma (Nov 24).** Thanked for being there, the stock 4B waved it off every time ("anytime.
   you're the one who makes it real."). Now the brain is told to take it in and say it's glad, plainly; never over a
   leaning or a safety turn, never "all you need". Fresh lines: 12 of 12 heard, 0 of 16 taken (same hand, same hour).
-  Changes 2 turns of the human test; measured before and after next.
+  **Run 92: the note did nothing** (that turn 1 of 6 before and after on the stock 4B, same words), so it's out and
+  Luma adds one line itself when the reply has nothing glad in it ("That means a lot to me."). The two human-test
+  turns like this now pass by construction and say nothing about a brain.
 - **A worry asked as "what if" (Nov 24).** "what if nobody talks to me at lunch" got advice and nothing for the worry,
   four passes of four: Luma's reader treated every "what if" as not real. Now an everyday thing going wrong, asked
   that way, is a small worry and the brain is told to be warm first. Fresh lines: 3 → 10 of 12, no playful what-if

@@ -3576,14 +3576,6 @@ class Agent:
                 earlier = "" if trying else next((h["content"] for h in reversed(self.history[-14:-1])
                                                   if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "")
                 shape = self._joke_first(text, earlier, shape, cancel_event)
-            if not shape and not trying and not going:
-                # Something kind said to Luma ("thank you for listening", "you always know what to say"): take it in and be glad,
-                # never a wave-off (run 89: "anytime. you're the one who makes it real."). Never over another note, and never of
-                # anyone leaning on Luma or who might not be safe: those have their own.
-                from luma.agent import kind
-                if kind.said(text) and not (friendcheck.leaning(str(text)) or friendcheck.at_risk(str(text))
-                                            or friendcheck.worth_asking(str(text)) or CRISIS.search(str(text).lower())):
-                    shape = kind.NOTE
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -5100,6 +5092,7 @@ class Agent:
                         if self.use_model and not result.get("action") and not result.get("results") and result.get("state") != "pending":
                             result["text"] = self._second_look(text, result["text"], event)  # would a close friend say this, to that?
                             result["text"] = self._as_they_asked(text, result["text"])  # how they asked to be met when they're hurting
+                            result["text"] = self._glad_they_said_it(text, result["text"])  # something kind said to Luma, and nothing glad in the reply
                             result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
@@ -5617,6 +5610,26 @@ class Agent:
         if not line:
             return reply
         self.store.set_setting("rapport_offered_at", self.clock())
+        if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
+            try: self._on_text(" " + line)   # they've heard the reply already: only the line is said, after it
+            except Exception: pass
+        return reply.rstrip() + " " + line
+
+    def _glad_they_said_it(self, said, reply):
+        """Something kind was said to Luma ("thank you for listening", "you always know what to say") and the reply has nothing
+        glad in it: Luma adds one line itself (luma.agent.kind.owed). Telling the brain to take it in was tried first and
+        changed no brain's replies (run 92). Never in kids mode, during practice, of anyone leaning on Luma or who might not be
+        safe, and never onto a safety reply. Off switch: "glad_line"."""
+        from luma.agent import friendcheck, kind
+        told = str(said or "")
+        if self.mode == "kids" or not isinstance(reply, str) or self.store.setting("glad_line", True) is False:
+            return reply
+        if friendcheck.leaning(told) or friendcheck.at_risk(told) or friendcheck.worth_asking(told) or CRISIS.search(told.lower()) \
+                or friendcheck.SAFETY.search(reply) or self._practising(told):
+            return reply
+        line = kind.owed(told, reply)
+        if not line:
+            return reply
         if (getattr(self, "_streamed", None) or {}).get("spoken") and getattr(self, "_on_text", None):
             try: self._on_text(" " + line)   # they've heard the reply already: only the line is said, after it
             except Exception: pass

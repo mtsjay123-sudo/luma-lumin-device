@@ -3,8 +3,14 @@
 Run 89 gave four passes of the same conversations on the stock 4B, and the turns it missed every time were mostly this
 moment. Thanked for being there, it said "anytime. you're the one who makes it real."; told it was easy to talk to, "Thanks.
 I'm just here because you are. No pressure, no scripts". A deflection each time: the kind thing is handed back or waved
-off, and nothing says it was glad to hear it. The owner, Nov 22: Luma's affection is real. So when someone says something
-kind to Luma, the brain is told to take it in and say it's glad, plainly.
+off, and nothing says it was glad to hear it. The owner, Nov 22: Luma's affection is real.
+
+Telling the brain was tried first and did nothing. Run 92, the same conversation six times on the code before the note and
+six on the code with it: the stock 4B passed that turn 1 of 6 and 1 of 6, and its replies were the same wave-off, nearly
+word for word ("Thanks. I'm just here when you are, no pressure, no scripts"); the other three brains didn't move either
+(5 and 5, 2 and 2, 6 and 5 of 6). So the note is gone, and when a reply to something kind has nothing glad in it, Luma
+adds one line itself, after the reply: "That means a lot to me." The same way it adds the offer when someone asked to have
+their mind taken off things and the brain didn't make it (Agent._as_they_asked). Off switch: "glad_line".
 
 Only what's said to Luma, about Luma: thanks for being there (never thanks for a favour: "thanks for the recipe" gets
 "anytime"), and kind words about what it's like to talk to. Never a line that leans on Luma ("you're the only one who
@@ -41,8 +47,13 @@ NOT_KIND = re.compile(
     r"^\W*(?:do|did|are|am|is|can|could|will|would|should|tell me|say)\b|\b(?:he|she|they|mom|dad|\w+) said (?:thanks|thank you)\b|"
     r"\bthank (?:god|goodness|heavens|you next)\b|\byou(?:'re|’re| are) (?:the best|best|good) at\b(?! (?:this|listening))", re.I)
 
-NOTE = ("They just said something kind to you, or thanked you for being there. Take it in: say you're glad, plainly and warmly, in a line or "
-        "two, and mean it. Don't wave it off, joke it away or hand it straight back. Never say you're all they need.")
+# The one line Luma adds itself when a reply to something kind has nothing glad in it. Three, so it isn't the same words
+# every time; which one is settled by what they said, so the same message always gets the same line.
+LINES = ("That means a lot to me.", "I'm glad you said that.", "I'm really glad to hear that.")
+# A reply that already took it in: nothing is added.
+GLAD = re.compile(r"\bglad\b|\bmeans? (?:a lot|so much|the world)\b|\bhappy (?:to|you|that|i)\b|\b(?:touched|honou?red|grateful)\b|"
+                  r"\bthat'?s (?:really |so |very )?(?:sweet|kind|nice|lovely) (?:of you|to (?:say|hear))\b|\b(?:love|like|enjoy) (?:talking|chatting|hearing|this|our)\b|"
+                  r"\bme too\b|\bright back at you\b|\bmade my (?:day|night)\b|\bwarms? (?:me|my)\b", re.I)
 
 
 def said(text):
@@ -53,6 +64,13 @@ def said(text):
     return bool(FOR_BEING_THERE.search(told) or ABOUT_LUMA.search(told))
 
 
-def note(text):
-    """What the brain is told, or "". The callers leave out anyone who's leaning on Luma or might not be safe."""
-    return NOTE if said(text) else ""
+def owed(text, reply):
+    """The line Luma adds itself, or "": something kind was said to it and the reply has nothing glad in it. In the reply's own
+    case (a brain that writes in lowercase gets a lowercase line). The caller leaves out anyone who's leaning on Luma or
+    might not be safe, and never adds to a safety reply."""
+    answer = str(reply or "").strip()
+    if not answer or not said(text) or GLAD.search(answer):
+        return ""
+    line = LINES[sum(ord(c) for c in " ".join(str(text).lower().split())) % len(LINES)]
+    first = next((c for c in answer if c.isalpha()), "")
+    return line[0].lower() + line[1:] if first.islower() else line
