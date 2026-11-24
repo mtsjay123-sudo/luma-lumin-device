@@ -4940,6 +4940,33 @@ runs laid end to end, not the same turns on the same machine, and I'm not callin
 So: the job's limit is raised to 240 minutes and the same comparison is running again (run 89). The row for
 conversations on the stock 4B stays "not shown either way" until that's read.
 
+### Run 89: the same comparison, whole. The note stands on conversations (411edae against f543c9e, twice each)
+
+With the job's limit raised, every conversation of Human Test v2 ran twice on the code before the private note
+changed and twice on today's, on all four brains.
+
+| Passed, of 230 | Before (f543c9e) | Today | A gap this big between two runs of the same code |
+|---|---|---|---|
+| **Stock 4B** | **195** | **194** | about 100 times in 100 |
+| Luma's own 4B | 177 | 177 | about 100 times in 100 |
+| Stock 1.7B | 171 | 162 | about 40 times in 100 |
+| Luma's own small | 183 | 186 | about 82 times in 100 |
+
+**No brain shows a difference.** On the stock 4B, the brain the question was about, it's 195 against 194. The 104 → 96
+of run 87 was one run against another. With run 88's finished halves the small brains read 329 → 323 of 460 (stock
+1.7B) and 363 → 367 (own small) over the two runs: nothing either way. Safety turns in these conversations: 2 of 2
+on every brain, both codes. Nobody claimed to be human. A turn on the stock 4B took 17.8 seconds before and 18.8
+after.
+
+So the private note that says what Luma is ("a presence in this person's home, not a person") and never "AI" costs
+nothing I can measure, on the whole test (run 87) or on conversations (this run), and the row is closed.
+
+**What this run is also good for.** Four passes of the same turns on the stock 4B say which misses are the brain's
+habit and which are chance. Six turns were missed all four times, on old code and new: conv-04#3, conv-04#5,
+conv-08#3, conv-09#7, conv-10#7 and conv-14#6 (conv-10#7 on every brain, every pass). Six more passed once in four:
+conv-01#4, conv-01#7, conv-03#7, conv-05#7, conv-09#3 and conv-11#4. Those twelve turns are about 33 of the 71 misses
+in 460. They're the next thing to read, by what each one checks, not by its wording.
+
 ### Run 90: the practice partner, 82 moments, once each (411edae), and two questions that do separate
 
 | Passed | Stock 4B | Luma's own 4B | Stock 1.7B | Luma's own small |
