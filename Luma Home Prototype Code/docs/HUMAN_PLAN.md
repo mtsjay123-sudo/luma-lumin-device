@@ -4863,7 +4863,13 @@ it can:
 - **It's in Luma's own record.** A nap that happened can be spoken of ("I had a 15-minute nap this afternoon"), and
   asked "did you nap?" or "do you sleep?" the brain is told the true things: it can, and when it last did, or that it
   hasn't lately. A nap is no longer read as a made-up life; "I just woke up and made coffee" still is.
-- The apps and the lamp can read when a nap ends (`napping_until` in the status). Nothing draws it yet.
+- **It's drawn and named (Nov 24).** The orb has a sixth look, napping: dim and nearly still, in both the marble and
+  the water (`orb.js`; checked in a real browser: dimmer than idle, and like no other look). The phone's state says
+  "Napping" beside a resting orb, and both apps have a Nap row: tap for twenty quiet minutes, tap again to wake it.
+  The row says when it's due up, and with the mic on it says "It still hears you: say anything and it's up", because
+  a nap is not the mic being off and only the mic switch says whether Luma hears the room (a test reads the words).
+  The phone can start a nap and end one, at home or away; switching naps off altogether is a setting on the
+  computer ("Naps"). The lamp's own dome isn't built; it would follow the same `napping_until`.
 - Off switch: the setting `naps`. Kids mode can ask for a nap and keeps no record of it.
 
 | Asks, written by hand | Heard as "Luma, nap" | Their own nap taken for Luma's |

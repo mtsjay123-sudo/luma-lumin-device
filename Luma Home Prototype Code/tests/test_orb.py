@@ -23,7 +23,7 @@ from luma.memory.store import Store
 HERE = Path(__file__).resolve().parent
 ORB = ROOT / "orb.js"
 CHECK = HERE / "orb_check.cjs"
-MOODS = ["idle", "listening", "waiting", "thinking", "speaking"]
+MOODS = ["idle", "listening", "waiting", "thinking", "speaking", "napping"]
 
 
 def browser():
@@ -131,6 +131,7 @@ class Served(unittest.TestCase):
         self.assertGreater(warm(looks["waiting"]), warm(looks["idle"]) + 30)         # waiting is the warm one
         self.assertGreater(looks["thinking"]["tone"][2], looks["thinking"]["tone"][1] + 20)   # violet while it thinks
         self.assertGreater(looks["speaking"]["lit"], looks["idle"]["lit"] + 0.05, "its voice should make it glow")
+        self.assertLess(sum(looks["napping"]["tone"]), sum(looks["idle"]["tone"]) - 40, "a napping lamp is dimmer than a waking one")
 
         # Not asked for water, a large orb is the marble (the first slides, on their light page), and looks as it did.
         marble = seen["marble"]
@@ -139,6 +140,7 @@ class Served(unittest.TestCase):
         self.assertLess(marble["listening"]["middle"], 30, "listening should open its middle into a ring")
         self.assertLess(warm(marble["listening"]), -20)
         self.assertGreater(warm(marble["speaking"]), 10)    # warm while it speaks
+        self.assertLess(sum(marble["napping"]["tone"]), sum(marble["idle"]["tone"]) - 40)   # and dim while it naps
 
         # With no WebGL it still draws something.
         self.assertFalse(seen["plainLiquid"])

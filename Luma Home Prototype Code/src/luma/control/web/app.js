@@ -303,7 +303,7 @@ async function refresh() {
       ? "Microphone off"
       : "Microphone on · mute";
     $("#privacy").classList.toggle("enabled", !s.microphone_muted);
-    $("#device-status").textContent = s.busy ? "Thinking, right here." : s.speaking ? "Speaking with you." : s.microphone_muted
+    $("#device-status").textContent = s.busy ? "Thinking, right here." : s.speaking ? "Speaking with you." : Number(s.napping_until || 0) * 1000 > Date.now() ? "Napping. Say anything and I'm up." : s.microphone_muted
       ? "Quietly ready."
       : "Listening on this Mac.";
     $(".device-scene").classList.toggle("listening", !s.microphone_muted);

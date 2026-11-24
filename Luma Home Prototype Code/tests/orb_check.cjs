@@ -115,6 +115,9 @@ async function alone(browser) {
   await page.evaluate(() => window.marble.set("listening", 0));
   await page.waitForTimeout(1500);
   out.marble.listening = await see(page, "#marble");
+  await page.evaluate(() => window.marble.set("napping", 0));
+  await page.waitForTimeout(1500);
+  out.marble.napping = await see(page, "#marble");
   await page.evaluate(() => { window.marble.stop(); document.getElementById("marble").remove(); });
 
   // it cleans up: closed, it drains away and takes its canvas with it; taken off the page, it stops by itself

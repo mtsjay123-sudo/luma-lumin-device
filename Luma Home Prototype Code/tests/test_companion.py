@@ -74,6 +74,29 @@ class CompanionTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/setting',{'key':'muted','value':False})
         self.assertEqual(e.exception.code,403);self.assertIn('at home',json.load(e.exception)['error'])
         self.assertTrue(self.agent.muted)
+    def test_phone_can_start_a_nap_and_end_one_but_not_switch_naps_off(self):
+        # A nap asked for from the phone is the same nap as one asked for out loud: nothing started until the time's up,
+        # and it only ever makes Luma quieter. The off switch is a setting, and settings are changed at home.
+        from luma.agent import nap
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/setting',{'key':'nap','value':True})
+        self.assertIn(e.exception.code,(401,403));self.assertFalse(nap.napping(self.agent))   # a stranger on the Wi-Fi can't (an unpaired POST is a 403)
+        self.pair()
+        with self.request('/api/setting',{'key':'nap','value':True}) as r:self.assertEqual(r.status,200)
+        self.assertTrue(nap.napping(self.agent))
+        with self.request('/api/today') as r:day=json.load(r)
+        self.assertGreater(day['device']['napping_until'],self.agent.clock());self.assertTrue(day['device']['naps'])
+        with self.request('/api/setting',{'key':'nap','value':False}) as r:self.assertEqual(r.status,200)
+        self.assertFalse(nap.napping(self.agent))
+        with self.request('/api/today') as r:self.assertEqual(json.load(r)['device']['napping_until'],0)
+        with self.request('/api/setting',{'key':'nap','value':45}) as r:self.assertEqual(r.status,200)
+        self.assertAlmostEqual(nap.until(self.agent)-self.agent.clock(),45*60,delta=5)
+        for wrong in (0,-5,181,'20',2.5,None):
+            with self.assertRaises(urllib.error.HTTPError):self.request('/api/setting',{'key':'nap','value':wrong})
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/setting',{'key':'naps','value':False})
+        self.assertEqual(e.exception.code,403);self.assertTrue(nap.napping(self.agent))
+        self.agent.store.set_setting('naps',False);nap.wake(self.agent)   # switched off at home: the phone is told so, and nothing naps
+        with self.assertRaises(urllib.error.HTTPError) as e:self.request('/api/setting',{'key':'nap','value':True})
+        self.assertEqual(e.exception.code,409);self.assertIn('switched off',json.load(e.exception)['error']);self.assertFalse(nap.napping(self.agent))
     def test_the_phone_app_and_its_today_call(self):
         with self.request('/phone/') as r:
             page=r.read().decode();self.assertIn('phone.js',page);self.assertIsNone(r.headers.get('Set-Cookie'))

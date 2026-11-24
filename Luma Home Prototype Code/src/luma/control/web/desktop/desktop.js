@@ -842,6 +842,17 @@
     const on = dev.mic === "on";
     $("hp-mic").setAttribute("aria-checked", String(on));
     $("hp-mic-sub").textContent = on ? "On. Say “Hey Luma” from across the room." : "Off. Luma only hears you when you press Talk.";
+    // Luma's nap: the row says so, and the orb by its name rests while nothing else is going on.
+    const napTill = Number(dev.napping_until || 0) * 1000, napping = napTill > Date.now();
+    $("hp-nap").hidden = dev.naps === false && !napping;
+    $("hp-nap").dataset.napping = napping ? "1" : "";
+    $("hp-nap-sub").textContent = napping
+      ? `Napping until ${clock.format(new Date(napTill))}. ` + (on ? "It still hears you: say anything and it's up. Tap to wake it." : "Tap to wake it.")
+      : "Awake. Tap for 20 quiet minutes, or say “take a nap”.";
+    if ((document.body.dataset.mood || "idle") === "idle") {
+      mascotOrb?.set?.(napping ? "napping" : "idle"); dockOrb?.set?.(napping ? "napping" : "idle");
+      if (napping) $("doing").textContent = "Napping"; else if ($("doing").textContent === "Napping") $("doing").textContent = "Here with you";
+    }
     $("hp-brain").textContent = dev.brain || "Not ready yet. Tap to fix it in Settings.";
     $("hp-link").textContent = dev.device ? `Paired with ${dev.device.name || "your Luma device"}. Same memory on both.` : "None yet. This computer runs Luma on its own. Pair a device in Settings.";
   }
@@ -880,6 +891,11 @@
   $("hp-mic").addEventListener("click", async () => {
     const on = $("hp-mic").getAttribute("aria-checked") === "true";
     try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma only hears you when you press Talk." : "Listening for “Hey Luma”."); refreshToday(); }
+    catch (e) { toast(e.message); }
+  });
+  $("hp-nap").addEventListener("click", async () => {
+    const napping = $("hp-nap").dataset.napping === "1";
+    try { await api("/api/setting", { key: "nap", value: !napping }); toast(napping ? "Luma's up." : "Luma's napping for 20 minutes. Say anything and it's up."); refreshToday(); }
     catch (e) { toast(e.message); }
   });
   $("hp-brain-row").addEventListener("click", () => go("settings"));
@@ -4055,6 +4071,7 @@
     box.append(toggleRow("Stay in conversation", "Once you start talking, Luma keeps listening between replies, however long it takes, until you say “bye” or “that's all”. With this on it's listening as soon as you bring it up, no tapping.", voice.stay, (on) => setStay(on)));
     box.append(toggleRow("Say “mm-hm” while I talk", "When you talk for a while, Luma says a quiet “mm-hm” at your pauses so you know it's with you, like a friend listening. It never counts as something you said.", voice.mm, (on) => setMm(on)));
     box.append(toggleRow("Think out loud", "When an answer takes a moment, Luma says a quick “hmm, let me think” or “let me check” so you know it heard you, the way a friend would.", s.thinking_out_loud !== false, (on) => api("/api/setting", { key: "thinking_out_loud", value: on })));
+    box.append(toggleRow("Naps", "Say “take a nap” and Luma rests: it starts nothing on its own until the time's up or you speak. It still hears you, and anything you say wakes it.", s.naps !== false, (on) => api("/api/setting", { key: "naps", value: on })));
     box.append(languageRow(s.language || "en"));
     if (s.is_device) box.append(toggleRow("Think on my computer", "While your paired computer is on, Luma thinks there, much faster than the device's own brain (seven seconds or more before it starts talking). What it does still happens here, and still asks you first.", s.brain_use_computer !== false, (on) => api("/api/setting", { key: "brain_use_computer", value: on })));
     else if (s.has_device) box.append(toggleRow("Lend my Luma this computer's brain", "Your Luma device thinks with this computer's brain while it's on, so it answers much faster. It only borrows the thinking: nothing on this computer is opened or changed.", s.lend_brain !== false, (on) => api("/api/setting", { key: "lend_brain", value: on })));

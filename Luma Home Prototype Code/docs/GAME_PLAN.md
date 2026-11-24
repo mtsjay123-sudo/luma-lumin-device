@@ -277,7 +277,8 @@ on day 1 and run alongside everything else:
   pass, inside the 96 to 104 of earlier runs). The limit is raised and it's running again (run 89).
 - **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
   Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
-  is never slept through, and a nap is in its own record so it's spoken of only when it happened. The body (a
+  is never slept through, and a nap is in its own record so it's spoken of only when it happened. Since Nov 24 it's
+  drawn: the orb has a resting look, the phone says "Napping", and both apps have a Nap row. The body (a
   physical robot) is a plan; what "true affection like a real person" changes in Luma's lines about love is the
   owner's call and a therapist's read, and is unchanged.
 - **A joke at someone's expense, a joke for a room (Nov 22).** The brain is now told when a joke is a dig at someone

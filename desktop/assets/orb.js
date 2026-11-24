@@ -9,6 +9,7 @@
 //   thinking    the ribbons wind into a spiral
 //   speaking    it fills with warm light and moves with Luma's voice
 //   waiting     warm and slow, while Luma waits for your answer
+//   napping     dim and nearly still, while Luma naps (it still hears you: anything said wakes it)
 //
 // It has two looks. On the talk screen it's a body of clear water (look: "water"): a see-through middle, a thick
 // wet rim, lines of light running down it, warm glints at its sides, spray coming off its edge, and its whole shape
@@ -35,6 +36,7 @@
     waiting: { flow: 0.26, turb: 0.24, swirl: 0.0, hollow: 0.0, bright: 1.04, iri: 0.45, deep: [0.060, 0.035, 0.085], mid: [0.99, 0.72, 0.46], lite: [1.0, 0.95, 0.86], glint: [0.80, 0.64, 1.0] },
     thinking: { flow: 0.80, turb: 0.50, swirl: 1.0, hollow: 0.0, bright: 1.0, iri: 0.65, deep: [0.045, 0.022, 0.125], mid: [0.56, 0.43, 1.0], lite: [0.93, 0.87, 1.0], glint: [1.0, 0.46, 0.72] },
     speaking: { flow: 0.62, turb: 0.52, swirl: 0.0, hollow: 0.0, bright: 1.12, iri: 0.75, deep: [0.060, 0.030, 0.110], mid: [1.0, 0.68, 0.46], lite: [1.0, 0.975, 0.93], glint: [1.0, 0.44, 0.66] },
+    napping: { flow: 0.07, turb: 0.14, swirl: 0.0, hollow: 0.0, bright: 0.60, iri: 0.22, deep: [0.016, 0.020, 0.062], mid: [0.30, 0.34, 0.60], lite: [0.80, 0.82, 0.94], glint: [0.86, 0.58, 0.36] },
   };
   const NUMBERS = ["flow", "turb", "swirl", "hollow", "bright", "iri"];
   const COLORS = ["deep", "mid", "lite", "glint"];
@@ -50,6 +52,7 @@
     waiting: { flow: 0.26, turb: 0.40, swirl: 0.0, hollow: 0.0, bright: 1.0, iri: 0.95, deep: [0.040, 0.022, 0.050], mid: [0.62, 0.44, 0.80], lite: [1.0, 0.93, 0.84], glint: [1.0, 0.55, 0.22] },
     thinking: { flow: 0.70, turb: 0.50, swirl: 1.0, hollow: 0.0, bright: 1.0, iri: 0.60, deep: [0.034, 0.016, 0.095], mid: [0.50, 0.32, 1.0], lite: [0.92, 0.86, 1.0], glint: [1.0, 0.42, 0.78] },
     speaking: { flow: 0.60, turb: 0.55, swirl: 0.0, hollow: 0.0, bright: 1.12, iri: 0.85, deep: [0.012, 0.022, 0.075], mid: [0.22, 0.44, 1.0], lite: [0.90, 0.95, 1.0], glint: [1.0, 0.40, 0.18] },
+    napping: { flow: 0.08, turb: 0.20, swirl: 0.0, hollow: 0.0, bright: 0.60, iri: 0.25, deep: [0.008, 0.014, 0.050], mid: [0.16, 0.24, 0.62], lite: [0.70, 0.76, 0.92], glint: [0.86, 0.50, 0.26] },
   };
   const FRAGMENT = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH

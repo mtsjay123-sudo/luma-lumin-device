@@ -121,7 +121,13 @@ def device(agent):
         thinking, plus = None, {}
     # Luma Plus's Super Intelligence, for someone who has it: whether it's on, and how much of the month is left.
     plus = {k: plus.get(k) for k in ("on", "used_up", "left_share", "resets", "can_turn_on")} if plus.get("member") and plus.get("available") else None
+    try:  # Luma's nap (luma.agent.nap): when it's due up, or 0. The apps draw a resting lamp and say "Napping".
+        from luma.agent import nap
+        napping, naps = nap.until(agent), agent.store.setting("naps", True) is not False
+    except Exception:
+        napping, naps = 0, True
     return {"storage": storage(agent), "mic": "off" if agent.muted else "on", "speaking": bool(agent.speaking), "busy": bool(agent.busy),
+            "napping_until": napping, "naps": naps,
             "brain": thinking, "plus": plus, "computer": {"paired": bool(peers), "here": bool(host and host.connected()), "name": (peers[0].get("name") if peers else None),
                          "recent": host.recent(3) if host else []},
             "device": {"name": (paired or {}).get("name")} if paired else None}
@@ -213,7 +219,7 @@ def compact(agent):
     memory_ = {k: mem.get(k) for k in ("used", "limit", "plan", "state", "left") if k in mem}
     memory_["recent"] = [{"id": m.get("id"), "text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
     dev = full["device"] or {}
-    device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"),
+    device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"), "napping_until": dev.get("napping_until") or 0, "naps": dev.get("naps", True),
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
     return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "chats_today": sum(1 for c in full["chats"] if c.get("today")),

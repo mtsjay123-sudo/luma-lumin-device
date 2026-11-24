@@ -803,10 +803,22 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                     key,value=data.get('key'),data.get('value')
                     # The phone can always turn the mic off; turning listening back on happens at home (the device or the computer).
                     if companion and key=='muted' and value is False: return self.send({'error':"Turn the mic back on at home, on your Luma or your computer."},403)
-                    if companion and key not in {'hush','muted'}: return self.send({'error':'Change device and integration settings on the Mac.'},403)
+                    if companion and key not in {'hush','muted','nap'}: return self.send({'error':'Change device and integration settings on the Mac.'},403)
                     if key=='mode': agent.set_mode(value); ctx.events.clear()
                     elif key=='muted' and type(value) is bool: agent.set_muted(value)
                     elif key=='hush': agent.hush()
+                    elif key=='nap' and (type(value) is bool or (type(value) is int and 1<=value<=180)):
+                        # A nap from the app is the same nap as one asked for out loud (luma.agent.nap): nothing started until
+                        # the time's up, and anything said wakes it. False wakes it.
+                        from luma.agent import nap
+                        if value is False: nap.wake(agent)
+                        else:
+                            began=nap.start(agent, nap.DEFAULT if value is True else value)
+                            if not began.get('napping_until'): return self.send({'error':began['text']},409)
+                    elif key=='naps' and type(value) is bool:
+                        from luma.agent import nap
+                        if not value: nap.wake(agent)
+                        agent.store.set_setting('naps',value)
                     elif key=='barge_in' and type(value) is bool: agent.store.set_setting('barge_in',value)
                     elif key=='backchannels' and type(value) is bool: agent.store.set_setting('backchannels',value)
                     elif key=='spend_cap' and type(value) is int and 10<=value<=2000: agent.store.set_setting('spend_cap',value)  # daily limit for orders Luma places, in dollars

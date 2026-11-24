@@ -129,6 +129,49 @@ class NapMode(Luma):
         self.assertIsNone(nap.last(self.agent))
 
 
+class WhatTheAppsShow(Luma):
+    """A napping lamp is drawn and named: the orb has a resting look, the phone's state says "Napping", and both apps have a
+    row that starts a nap or ends one. The words never say it can't hear: with the mic on, it still does."""
+    WEB = ROOT / "src" / "luma" / "control" / "web"
+
+    def test_the_device_state_says_when_its_due_up(self):
+        from luma.control import today
+        self.assertEqual(today.device(self.agent)["napping_until"], 0)
+        self.assertTrue(today.device(self.agent)["naps"])
+        self.say("nap for ten minutes")
+        self.assertAlmostEqual(today.device(self.agent)["napping_until"], self.now[0] + 600, delta=1)
+        self.assertAlmostEqual(self.agent.status()["napping_until"], self.now[0] + 600, delta=1)
+        self.minutes(11)
+        self.assertEqual(today.device(self.agent)["napping_until"], 0)
+        self.agent.store.set_setting("naps", False)
+        self.assertFalse(today.device(self.agent)["naps"])
+        self.assertFalse(self.agent.status()["naps"])
+
+    def test_away_from_home_the_phone_is_told_too(self):
+        from luma.control import today
+        self.say("take a nap")
+        self.assertAlmostEqual(today.compact(self.agent)["device"]["napping_until"], self.now[0] + 20 * 60, delta=1)
+
+    def test_the_orb_has_a_resting_look_and_the_apps_ask_for_it(self):
+        orb = (self.WEB / "orb.js").read_text()
+        self.assertEqual(len(re.findall(r"^    napping: \{", orb, re.M)), 2)   # the marble and the water
+        self.assertEqual(orb, (ROOT.parent / "desktop" / "assets" / "orb.js").read_text(), "copy orb.js to desktop/assets after a change")
+        phone, desktop = (self.WEB / "phone" / "phone.js").read_text(), (self.WEB / "desktop" / "desktop.js").read_text()
+        for app in (phone, desktop):
+            self.assertIn('"napping"', app)
+            self.assertIn('key: "nap", value: !napping', app)
+        self.assertIn('label.textContent = "Napping"', phone)
+        self.assertIn('id="nap"', (self.WEB / "phone" / "index.html").read_text())
+        self.assertIn('id="hp-nap"', (self.WEB / "desktop" / "index.html").read_text())
+
+    def test_the_words_never_say_it_cant_hear(self):
+        # Only the mic switch says whether Luma hears the room. A nap with the mic on still hears, and the row says so.
+        for app in ((self.WEB / "phone" / "phone.js").read_text(), (self.WEB / "desktop" / "desktop.js").read_text()):
+            self.assertIn("It still hears you", app)
+            row = app[app.index("napTill"):][:1400]
+            self.assertNotRegex(row, r"(?i)can'?t hear|not listening|mic(rophone)? (is )?off|asleep")
+
+
 class ItsOwnRecord(Luma):
     def test_a_nap_is_in_lumas_record_and_only_a_real_one(self):
         self.assertEqual(nap.says(self.agent), "")

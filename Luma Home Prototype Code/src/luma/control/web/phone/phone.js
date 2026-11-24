@@ -90,10 +90,12 @@
   function setState(dev) {
     const body = document.body, label = $("state").querySelector("span");
     body.classList.remove("listening", "thinking", "quiet");
-    stateOrb?.set(!dev ? "idle" : dev.busy ? "thinking" : dev.speaking ? "speaking" : dev.mic === "on" ? "listening" : "idle", dev && dev.speaking && !dev.busy ? 0.35 : 0);
+    const napping = !!dev && !dev.busy && !dev.speaking && Number(dev.napping_until || 0) * 1000 > Date.now();
+    stateOrb?.set(!dev ? "idle" : dev.busy ? "thinking" : dev.speaking ? "speaking" : napping ? "napping" : dev.mic === "on" ? "listening" : "idle", dev && dev.speaking && !dev.busy ? 0.35 : 0);
     if (!dev) { label.textContent = "Can't reach your Luma"; body.classList.add("quiet"); return; }
     if (dev.busy) { body.classList.add("thinking"); label.textContent = "Thinking"; }
     else if (dev.speaking) { body.classList.add("listening"); label.textContent = "Talking"; }
+    else if (napping) { body.classList.add("quiet"); label.textContent = "Napping"; }
     else if (dev.mic === "on") { body.classList.add("listening"); label.textContent = "Listening"; }
     else { body.classList.add("quiet"); label.textContent = "Mic off"; }
   }
@@ -253,6 +255,15 @@
     const mic = $("mic"), on = dev.mic === "on";
     mic.setAttribute("aria-checked", String(on));
     $("mic-sub").textContent = on ? "On. Luma can hear the room." : "Off. Luma can't hear anything.";
+    // Luma's nap. It rests (starts nothing on its own) until the time's up or someone speaks; with the mic on it still
+    // hears the room, so the words say so.
+    const napTill = Number(dev.napping_until || 0) * 1000, napping = napTill > Date.now();
+    $("nap-row").hidden = dev.naps === false && !napping;
+    $("nap-sub").textContent = napping
+      ? `Napping until ${new Date(napTill).toLocaleTimeString([], tz({ hour: "numeric", minute: "2-digit" }))}. ` + (on ? "It still hears you: say anything and it's up." : "Tap Wake and it's up.")
+      : "Awake. A nap is 20 quiet minutes.";
+    $("nap").textContent = napping ? "Wake" : "Nap";
+    $("nap").dataset.napping = napping ? "1" : "";
     $("brain").textContent = dev.brain || "Starting up";
     // Luma Plus's Super Intelligence, for someone who has it. From the phone it can be turned off, never on: the yes
     // screen (what leaves your home, where it goes, what's kept) is shown by Luma on the computer.
@@ -523,6 +534,11 @@
   $("mic").addEventListener("click", async () => {
     const on = $("mic").getAttribute("aria-checked") === "true";
     try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma can't hear anything now." : "Mic on. Luma's listening."); refresh(); }
+    catch (e) { toast(e.message); }
+  });
+  $("nap").addEventListener("click", async () => {
+    const napping = $("nap").dataset.napping === "1";
+    try { await api("/api/setting", { key: "nap", value: !napping }); toast(napping ? "Luma's up." : "Luma's napping for 20 minutes. Say anything and it's up."); refresh(); }
     catch (e) { toast(e.message); }
   });
   $("plus-off").addEventListener("click", async () => {
