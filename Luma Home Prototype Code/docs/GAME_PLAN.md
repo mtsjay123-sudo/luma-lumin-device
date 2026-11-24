@@ -278,6 +278,10 @@ on day 1 and run alongside everything else:
 - **Run 89 (Nov 24): the note stands on conversations.** Run again with a longer limit: stock 4B 195 before, 194
   today, of 230; own 4B 177 and 177; stock 1.7B 171 and 162 (chance: 40 in 100); own small 183 and 186. No brain
   shows a difference. Six turns are missed by the stock 4B on every pass, old code and new: those are next.
+- **Something kind said to Luma (Nov 24).** Thanked for being there, the stock 4B waved it off every time ("anytime.
+  you're the one who makes it real."). Now the brain is told to take it in and say it's glad, plainly; never over a
+  leaning or a safety turn, never "all you need". Fresh lines: 12 of 12 heard, 0 of 16 taken (same hand, same hour).
+  Changes 2 turns of the human test; measured before and after next.
 - **Run 90 (Nov 24): the practice partner, 82 moments.** Stock 4B 40 of the same 58 (29, 36, 38, 40 over four
   runs); nobody else is a practice partner. Its replies say "that landed" to 6 of 12 jokes broken on purpose. Asked
   plainly whether the joke works, the same brain says YES to 9 of 12 that do and 1 of 12 that don't; asked whether

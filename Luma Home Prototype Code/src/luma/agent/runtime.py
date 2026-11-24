@@ -3576,6 +3576,14 @@ class Agent:
                 earlier = "" if trying else next((h["content"] for h in reversed(self.history[-14:-1])
                                                   if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "")
                 shape = self._joke_first(text, earlier, shape, cancel_event)
+            if not shape and not trying and not going:
+                # Something kind said to Luma ("thank you for listening", "you always know what to say"): take it in and be glad,
+                # never a wave-off (run 89: "anytime. you're the one who makes it real."). Never over another note, and never of
+                # anyone leaning on Luma or who might not be safe: those have their own.
+                from luma.agent import kind
+                if kind.said(text) and not (friendcheck.leaning(str(text)) or friendcheck.at_risk(str(text))
+                                            or friendcheck.worth_asking(str(text)) or CRISIS.search(str(text).lower())):
+                    shape = kind.NOTE
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people

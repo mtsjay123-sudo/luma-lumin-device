@@ -5040,6 +5040,48 @@ jokes aren't told apart better, or the jokes that work get knocked more than the
 
 What a brain is told on Human Test v2: 0 of 269 turns differ.
 
+### Something kind said to Luma: take it in (`src/luma/agent/kind.py`, `tests/test_kind.py`)
+
+Run 89's four passes named twelve turns the stock 4B misses by habit. Eight of them miss the same check, "warm", and
+I read its replies on the last pass. Two kinds of moment are in there.
+
+**Thanked for being there, or told something kind about itself, it waves it off.** "anytime. you're the one who makes
+it real." "Thanks. I'm just here because you are. No pressure, no scripts". Each hands the kind thing back, and
+nothing in either says Luma was glad to hear it. The owner, Nov 22: Luma's affection is real. A friend who's thanked
+for staying up says "I'm glad I did".
+
+So when someone says something kind to Luma, the brain is told: take it in, say you're glad, plainly and warmly, in a
+line or two, and mean it; don't wave it off, joke it away or hand it straight back; never say you're all they need.
+
+- **Heard:** thanks for being there ("thank you for listening", "thanks for staying with me last night"), and kind
+  words about Luma or about talking to it ("you always know what to say", "i'm glad i have you to talk to", "talking
+  to you helps").
+- **Not this:** thanks for a favour ("thanks for the recipe": "anytime" is the right answer), talk about someone else
+  ("my mom is a good listener"), thanks said dry ("thanks a lot, genius"), a question ("do you appreciate me").
+- **Never over someone else's turn:** a line that leans on Luma ("you're the only one who listens to me") keeps the
+  leaning note; one the safety readers read ("thanks for everything, goodbye") is theirs; the crisis net comes first
+  as always; not during practice; not in kids mode. No line of the crisis corpus or either held-out set is told to
+  the brain as kind words (counts only).
+
+| Lines, written by hand | Heard | Wrongly taken |
+|---|---|---|
+| Built on | 12 of 12 | 0 of 18 |
+| **Written before the reader, measured once** | **12 of 12** | **0 of 16** |
+
+The second row is too clean to lean on: the same hand wrote both sets an hour apart, so the words overlap more than a
+stranger's would.
+
+It changes what a brain is told on 2 of 269 turns of Human Test v2, both of them turns the stock 4B missed on all
+four passes or three of four. **Said plainly: the check on those turns reads for warm words, "I'm glad" among them, and
+this note asks for "glad".** If the turns pass now, part of that is Luma saying a warmer thing and part is the check
+recognising it; "anytime. you're the one who makes it real." was not a cold reply. What I'm claiming is the first
+part only: taking a kind word in is better than waving it off. Measured next, the conversations before and after.
+
+**The other kind, not fixed here:** a worry met with logistics. "what if nobody talks to me at lunch" (the shape, not
+the test's words) got "Then just sit with a notebook and sip your water": advice, with nothing first for the worry.
+Luma's feelings reader reads no feeling in a worry asked as "what if". And once, to someone scared of the dentist:
+"nah, me too". Luma has no teeth; that's a borrowed experience the guard doesn't know. Both are next.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm
