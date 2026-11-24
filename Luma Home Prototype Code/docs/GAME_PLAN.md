@@ -300,7 +300,7 @@ on day 1 and run alongside everything else:
   counts. Telling this brain what it already knows doesn't change what it says: the third fix of that kind to
   measure flat (the room question, the kind-words note, this).
 - **A what-if worry (Nov 24, run 93).** Read right by the words (3 → 10 of 12 on a set written first); on real
-  brains the turn it touches shows no difference (stock 4B 0 → 2 of 6, own 4B 5 → 2).
+  brains the turn it touches shows no difference (of 6: stock 4B 2 → 3, own 4B 3 → 2, stock 1.7B 0 → 2, own small 3 → 4).
 - **The phone opens on Luma (Nov 24, the owner: "more cooler, better detail, look like presence").** Living water
   on its own dark stage, its reflection, its state in its own words, today round it as a ring of 48 dots lit where
   they talked (times only), and it leans in while they type. The tour is the same stage. Pictures: `demo/phone/`.

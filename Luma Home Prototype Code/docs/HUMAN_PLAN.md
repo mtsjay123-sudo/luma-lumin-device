@@ -5195,13 +5195,18 @@ The conversation of Human Test v2 with the what-if turn (the one turn the change
 
 | | Stock 4B | Own 4B | Stock 1.7B | Own small |
 |---|---|---|---|---|
-| The what-if turn, before → after | 0 → 2 | 5 → 2 | 1 → 1 | 1 → 1 |
+| The what-if turn ("ok and what if nobody talks to me at lunch", the fifth), before → after | 2 → 3 | 3 → 2 | 0 → 2 | 3 → 4 |
 | The whole conversation, of 42 | 32 → 34 | 37 → 34 | 25 → 25 | 34 → 32 |
 | A gap this big by chance | 79 in 100 | 55 in 100 | 100 in 100 | 79 in 100 |
 
 No brain shows a difference either way. The reader is right by the words (the set written first: 3 → 10 of 12, 0
 of 12 taken) and costs nothing, so it stays, and the plain result is that being told "a small worry: be warm first"
-doesn't change how any of the four answers that turn. It's still missed four times in six on the stock 4B.
+doesn't change how any of the four answers that turn: 8 of 24 passes before across the four brains, 11 with it, and
+no single brain beyond chance. It's still missed three times in six on the stock 4B.
+
+A correction: the commit that first wrote this up (18227f2) gave the third turn's numbers ("lowkey nervous tho":
+stock 4B 0 → 2, own 4B 5 → 2) as the what-if turn's. The third turn isn't touched by the change; its numbers
+moving that much is what six passes of an untouched turn look like.
 
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
