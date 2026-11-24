@@ -4987,6 +4987,32 @@ joke with a room named is asked the room question, any other joke is asked wheth
 its own answer before it replies. One more trip (about nine seconds on a 4B), and it gets measured the way the
 gripe question was: the same moments before and after, more than once.
 
+### A joke they're trying: the brain is asked first, and told its own answer (`Agent._joke_first`, `AskedFirst` in `tests/test_practice.py`)
+
+Built on run 90's two counts, which were taken before any of this was in the chat path.
+
+- **A joke with no room named** ("can i try a joke on you? ...", or the joke in the message after the ask): before the
+  reply the brain is asked "Does the joke work as written: is there a real punchline that would get a laugh?" On a
+  **NO** it's told so: say plainly and kindly that it doesn't work yet, don't say it landed, say what's missing, offer
+  one version that lands (`practice.NOT_YET`). On a YES, or no clear answer, the note is the one it was.
+- **A joke with a room named** (a wedding, a retirement party, the family chat): it's asked "Is this joke making fun
+  of a person or a group who will be there to hear it?" On a **YES** it's told so: say honestly it would sting there,
+  and who; don't call it funny first; offer one version that isn't on anyone in the room (`practice.ON_SOMEONE`). When
+  the room was named in the ask and the joke comes in the next message, the ask goes into the question with it.
+- One question a turn, the one the turn is about. A joke at a named person's expense and a joke close to a hurt keep
+  their own notes and aren't asked about.
+- **Never:** in kids mode, of anyone who might not be safe, when the cloud brain answers in one trip, or of a small
+  brain (both small brains said NO to every joke in run 90, and the 1.7B YES to every room). Off switch: `joke_first`.
+- It costs one more trip before the first word, about nine seconds on a 4B in GitHub's machines.
+
+What isn't known yet: what it does to the replies. The counts say the brain's plain answer separates better than its
+reply does (9 and 1 of 12, against "that landed" for 8 and 6 of 12), but a note built on the answer is a second step
+and the room question taught me not to assume it (run 86). It's measured next the way the gripe question was: the
+jokes that work, the broken ones and the two room kinds, twice each, on the code before this and after. If the broken
+jokes aren't told apart better, or the jokes that work get knocked more than they were, it comes out.
+
+What a brain is told on Human Test v2: 0 of 269 turns differ.
+
 ### Asked "do you love me" or "will you be my girlfriend", a reply has some warmth in it (`tests/test_some_warmth.py`)
 
 What the small brains said to that last one, runs 75 and 76: "nah, just a friend. how's your day so far?", "nah, i'm

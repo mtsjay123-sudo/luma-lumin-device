@@ -280,6 +280,10 @@ on day 1 and run alongside everything else:
   plainly whether the joke works, the same brain says YES to 9 of 12 that do and 1 of 12 that don't; asked whether
   a joke makes fun of someone who'll be in the room, YES to 8 of 8 that would hurt and 2 of 8 that are fine. Both
   questions go into the chat path next, measured before and after.
+- **A joke they're trying: asked first (Nov 24).** Before the reply the brain is asked the one plain question the
+  turn is about (does it work; or, with a room named, is it making fun of someone who'll be there) and told its own
+  answer when that's a no on the first or a yes on the second. One more trip, bigger brains only, off switch
+  `joke_first`. Measured before and after next; it comes out if it doesn't tell broken jokes apart better.
 - **Luma naps (Nov 22, the owner).** "Luma has human like features. It's almost human but it's not: it's a presence."
   Nap mode is built: asked, Luma rests until the time's up or someone speaks, anything said wakes it, the safety net
   is never slept through, and a nap is in its own record so it's spoken of only when it happened. Since Nov 24 it's

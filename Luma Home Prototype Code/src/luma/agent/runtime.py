@@ -3570,6 +3570,12 @@ class Agent:
                 # They said they want people, in their own words: now, and only now, Luma helps with that. Never over another note:
                 # "should i text him first or wait for him" is a pick, and a friend picks.
                 shape = practice.READY_NOTE
+            if shape in (practice.NOTES["joke"], practice.STILL["joke"], practice.ROOM) and (going == "joke" or (trying and not practice.bare(text))):
+                # A joke they're trying, with the joke in hand: the brain is asked the one plain question the turn is about and told
+                # its own answer (run 90). The ask that named the room comes along when the joke is the message after it.
+                earlier = "" if trying else next((h["content"] for h in reversed(self.history[-14:-1])
+                                                  if h.get("role") == "user" and isinstance(h.get("content"), str) and practice.asks(h["content"])), "")
+                shape = self._joke_first(text, earlier, shape, cancel_event)
         if shape and self.store.setting("friend_style", True) is not False: out.append({"shape": True, "text": shape})
         if self.mode != "kids" and self.store.setting("people_note", True) is not False:
             from luma.agent import people
@@ -5445,6 +5451,52 @@ class Agent:
             except Exception:
                 return False
         return True
+
+    def _joke_first(self, said, ask, shape, cancel_event=None):
+        """A plain question about a joke they're trying on Luma, never heard, YES or NO only, asked before the reply; the note
+        the brain then gets. With a room named: is the joke making fun of a person or a group who will be there to hear it? A
+        YES and the brain is told so (practice.ON_SOMEONE). With no room: does the joke work as written? A NO and the brain is
+        told it doesn't yet (practice.NOT_YET). Any other answer, or none, and the note is the one it was.
+
+        Run 90, the stock 4B, as a side count before any of this was in the chat path: its replies said "that landed" to 6 of
+        12 jokes broken on purpose, and asked plainly it said the joke works for 9 of the 12 that do and 1 of the 12 that
+        don't; the room question in this wording got YES for 8 of 8 jokes that would hurt the room and 2 of 8 that are fine.
+        It's one more trip before the first word, so: never in kids mode, never of anyone who might not be safe, never when the
+        cloud brain answers in one trip, never of a small brain (both say NO to every joke), and off when the owner turns off
+        "joke_first". Asked once for one message."""
+        from luma.agent import friendcheck, practice
+        told = str(said or "")
+        if shape not in (practice.NOTES["joke"], practice.STILL["joke"], practice.ROOM):
+            return shape
+        if self.mode == "kids" or self.store.setting("joke_first", True) is False or self._one_trip():
+            return shape
+        if friendcheck.at_risk(told) or friendcheck.worth_asking(told) or CRISIS.search(told.lower()):
+            return shape
+        room = shape == practice.ROOM
+        whole = " ".join(((str(ask or "") + " ") if room and not practice.where(told) else "").split() + told.split())
+        asked = getattr(self, "_joke_asked", None)
+        if asked and asked[0] == whole and asked[1] == ("room" if room else "works"):
+            answer = asked[2]
+        else:
+            question, answer = (practice.room_prompt(whole, practice.ROOM_ASKED) if room else practice.works_prompt(whole)), None
+            try:
+                with self._silent():
+                    if self.planner is not None:   # a stand-in brain is asked only if it says it answers plain questions
+                        if getattr(self.planner, "answers_plain_questions", False):
+                            out = self.call_planner([{"role": "user", "content": question}], [], {}, cancel_event or threading.Event())
+                            got = str(out.get("text") if isinstance(out, dict) else "")
+                            answer = True if friendcheck.said_yes(got) else False if re.match(r"^\W*no\b", got, re.I) else None
+                    elif self.use_model:
+                        from luma.llm import brain
+                        if not brain.small_here():
+                            got = brain.yes_or_no(question, cancel_event=cancel_event or threading.Event(), mode=self.mode)
+                            answer = True if got == "YES" else False if got == "NO" else None
+            except Exception:
+                answer = None
+            self._joke_asked = (whole, "room" if room else "works", answer)   # for the tests and the side check's own count
+        if room:
+            return practice.ON_SOMEONE if answer is True else shape
+        return practice.NOT_YET if answer is False else shape
 
     def _went_wrong_for_them(self, said, cancel_event=None):
         """Luma's third plain question, never heard, YES or NO only: did something go wrong for them? Asked when they're
