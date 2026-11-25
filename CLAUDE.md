@@ -201,3 +201,4 @@ Both human tests and the think set are held out. Never put their wording in prac
 | Baseline | `docs/HUMAN_BASELINE.md` |
 | For therapists | `docs/CLINICAL_SAFETY.md` |
 | Super Intelligence: the master prompt and the scoreboard | `docs/SUPER_INTELLIGENCE_PROMPT.md`, `docs/SUPER_INTELLIGENCE.md` |
+| The presence in the home: one master prompt for all of it (the owner, Nov 25): speed, how the brain gets stronger without training one from scratch, local against a paid cloud brain (the owner's call; parked), the devices people can buy, the body as a presence around the home and not a robot, who else is in the room, what Luma does for people, running all day and night, money, the order of work and the owner's decisions. Flags that the Jetson inside Luma Home is reported up from $249 to $399 (July 2026), which puts its parts above its $549 price until checked | `docs/PRESENCE_MASTER_PROMPT.md` |
