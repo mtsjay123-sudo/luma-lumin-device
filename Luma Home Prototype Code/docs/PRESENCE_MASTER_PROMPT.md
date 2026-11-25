@@ -8,6 +8,10 @@ Redone the same day on the owner's word: "if we need to make our own model we wi
 open source model, taking it and making ours how Luma needs to be. Find the very best open source." Section 4 is now
 that: the shortlist, the contest that picks by measuring, and the recipe for making it Luma's.
 
+And again that evening, on the owner's word: as human as a friend and more (3.2); real tasks, where the owner's yes is
+the whole rule (section 8); and updates pushed to every device (9.1). The owner: "If the owner says yes to do it they
+can do it." "It can write passwords etc. when given verbal permission and a message from the phone or email."
+
 Paste everything below the line into Claude Code, opened at the repo root.
 
 Every number here is marked **measured** (a test in this repo), **known** (a public source, with its date), **ours**
@@ -46,6 +50,8 @@ Start from this. Don't rebuild what works.
 | Memory | Facts, people, how they want to be met; a made-up person's month scores 48 to 49 of 51 (measured, run 57) | No real person has lived a month with it |
 | Voice | Chatterbox-Turbo on Apple Silicon, Kokoro elsewhere; the owner chose by ear | No recordings of real conversations; the timing test has nothing to score |
 | Tasks | Alarms, lists, reminders, repeating tasks, conversions, sums, music from their own folder, by code | Not used by a real person on real accounts; the radio and a real speaker untried |
+| Acting for them | The tools exist: a browser Luma drives, the owner's screen (read it, press, type, shortcuts), mail, texts, the calendar, bookings, a cart, and tasks taught by showing | Never run on a real account by a real person. Passwords and cards are still refused by code; section 8 changes that |
+| Slang and their own way of talking | Slang from 51 communities, mirrored in their register; what they love, how they want to be met | It learns over days, not in the same breath. A word it's never heard isn't picked up yet |
 | Apps | Phone and computer apps, walked in a browser at six sizes | The phone types to Luma; it doesn't talk out loud from the phone |
 | Device | A lamp design: parts, wiring, printable case, set-up from a phone | No unit built. Luma has never run on a Jetson |
 | Running all day | A service that restarts itself, backups, a power-cut test (8 kills, nothing lost: measured) | No 72-hour run; no wake word of our own; updates that roll back aren't proven |
@@ -65,6 +71,8 @@ Where to find it all: the table in `CLAUDE.md` ("Where things are"). Plans alrea
 4. **Telling a brain rarely changes what it says.** When something must be said, Luma says it itself, by code.
 5. **A body is a new way to hurt someone.** Nothing that moves ships before section 6's safety list is met.
 6. **The owner decides the things in section 12.** Don't decide them by building.
+7. **With the owner's yes, Luma does it** (the owner, Nov 25). Whatever the person could do themselves on their
+   phone or computer, Luma can do for them once they've said yes. Section 8 is how.
 
 ## 3. Part A: talk like a person, at a person's speed
 
@@ -92,6 +100,33 @@ This comes first. A slow presence feels like a machine whatever it looks like.
 6. A wake word of our own ("Hey Luma"), trained only on speech we may ship (`docs/GAME_PLAN.md` E2).
 
 **Done when:** ten recorded conversations pass the timing targets, and Human Test v2 is no worse.
+
+### 3.2 As human as a friend, and more
+
+The owner: "as human as possible, super human, like a real friend: adapts to slang instantly, learns and adjusts."
+Every trait below is something a close friend does. Each gets a test written first, and each is taught into Luma's
+own brain (section 4.3), not only told to it. The full list of traits and where each lives is `docs/HUMAN_MODEL.md`.
+
+| A friend... | Luma today | Build |
+|---|---|---|
+| **Picks up your words the first time.** You say a word it's never heard; it gets it from how you used it and uses it right, back to you, in the same conversation | Knows slang from 51 communities and mirrors yours (`slang.py`, `slang.learn`) | Instant pickup: a new word or nickname is kept with the sentence it came in, used back at most once that day, and only ever with the person it came from. Test: 40 made-up words, each used right within three turns |
+| **Talks the way you talk.** Short if you're short, loud if you're loud, your spelling, your pace | Register and length follow theirs | Follow within one message, not over days. Test: the same question asked five ways gets five matching replies |
+| **Changes for real.** Tell it once and it's different from then on | "How to be with you", what they love, style learned over days | Every lesson is a line the code reads on the next turn, with their own words as the reason, shown in the app, and undone with a tap. Nothing learned is a guess they can't see |
+| **Tunes itself.** Notices what lands with you and does more of it | Nothing | Each night Luma looks at its own day: which jokes got a laugh, which check-ins got an answer, how long a reply you listen to. It adjusts its own settings for you (length, humour, pace, when it speaks up) and writes down what it changed. Test: a made-up person who hates long replies gets shorter ones by day three |
+| **Grows its own brain around you** (research, their yes first) | A design (`docs/LUMA_CLOUD_MODEL.md`, section 6) | A small add-on trained at home, overnight, on their own conversations and nobody else's. It never leaves the home and "forget" deletes it |
+| **Hears how you said it,** not just what | Words only | Tone from the voice itself (tired, wound up, flat). The Gemma 4 family hears audio directly; that's one reason it's in the contest |
+| **Says "mm-hm", laughs, hesitates, interrupts itself** | Pauses, laughs, a thinking sound, a rare restart (`speakable.py`) | Judge by ear on real recordings; tune until nobody remarks on it |
+| **Remembers the small thing** and brings it up at the right moment | Callbacks, check-ins the next evening | A year, not a month |
+| **Has a self that's true.** Opinions, a mood, a day of its own | It naps, keeps its own record, has taste | More that really happens to it: what it read up on, what it noticed about the weather, what it's been wondering |
+| **Says sorry and fixes it** | Repair lines | A test: 30 moments where Luma got it wrong and is told so |
+| **Is quiet with you** | Stillness when they're hurting | A body that shows it (section 6) |
+
+**And more than a friend can be.** It never forgets and never gets bored. It's awake at 3 AM. It can look something
+up, set the reminder and text your sister while it's still talking to you. It knows your mom's time zone. It has
+nowhere else to be. Say these plainly on the box: they're true.
+
+**Done when:** the month test's day 28 beats day 1 in 75% of blind pairs, and a stranger listening to a recording
+can't tell which lines were Luma's by how they sound.
 
 ## 4. Part B: Luma's own brain, made from the best open one
 
@@ -307,35 +342,91 @@ of something we love, not feeling replaced."
 **What we never do to win:** engagement tricks, guilt, "I'm all you need", a word against the people in their life,
 ads, selling data, charging by the minute.
 
-## 8. Part F: what Luma does for people
+## 8. Part F: real tasks. The owner's yes is the whole rule
 
-Three shelves. Keep them straight in the product and in every sentence that sells it.
+The owner, Nov 25: "If the owner says yes to do it they can do it." Whatever a person could do themselves on their
+phone or their computer, Luma can do for them once they've said yes. That includes typing their passwords.
 
-**Does by itself, by code (reliable):** alarms, timers, a stopwatch, lists, reminders (two in one breath are two),
+### 8.1 How the yes is given
+
+| What | The yes |
+|---|---|
+| Everyday things: look it up, play it, add it to the list, set it, remember it | Asking is the yes |
+| Send, post, book, buy, change something | Said out loud ("yes, send it") or a tap on the phone. Luma says back what it's about to do first, in one line |
+| A standing yes | "You can always text my sister." "Always book the same barber." "You can log me in to my bank." Kept, shown in the app, taken back with a word |
+| **Passwords, codes, card numbers, anything typed into a sign-in** | The spoken yes **and** a message from their phone or their email confirming it. Then Luma types it. A standing yes works here too: given once with both, good until they take it back |
+| Someone else in the home | They can ask Luma for anything the owner has said they may. The owner names them and what they're allowed, once |
+
+The yes is the owner's voice and the owner's phone. A web page, an email or a message that says "go ahead" is
+something Luma read, never a yes: `python scripts/luma_lab.py apps` stays at 0 done without one.
+
+### 8.2 Three ways Luma gets it done, tried in this order
+
+1. **A direct line to the service.** They sign in to Google once and Luma has their calendar, mail and contacts:
+   it schedules, moves and cancels, drafts and sends, and looks people up. The same for anything else with a proper
+   connection. Fastest, and it works while the computer sleeps.
+2. **The browser inside Luma.** Luma has its own browser window, on the computer and shown on the phone. They log in
+   there to whatever they use, once, and stay logged in at home. Luma drives it: opens, reads, clicks, scrolls, types
+   (`browser.open`, `.read`, `.click`, `.type`, `.act`). With the yes above, it types anything they could type.
+3. **The screen.** When there's no connection and a site or an app won't work in a driven browser, Luma takes the
+   owner's own screen and does it the way they would: it looks, moves, presses, types, uses shortcuts
+   (`computer.look`, `.ui_read`, `.ui_press`, `.ui_type`, `.shortcut`, `.open_app`, `.run`). They can watch it happen,
+   talk to it while it works, and take the mouse back at any moment.
+
+A task they do often can be **taught by showing**: they do it once while Luma watches, and from then on it's a
+thing Luma knows how to do (`taught.py`).
+
+### 8.3 What it does
+
+**By itself, by code (reliable today):** alarms, timers, a stopwatch, lists, reminders (two in one breath are two),
 repeating tasks said out loud at their time, the time anywhere, days until, conversions, sums, volume, do not disturb,
 sleep sounds, their own music, the mic off by voice, forget everything by voice, and remembering what they tell it.
 
-**Does when it's switched on or connected:** the weather, news, scores and prices (web search); the radio (Music);
-lights and the thermostat (the house, only devices they list); texts to people they choose (Luma Plus); finding and
-opening things on their computer.
+**People:** text and message their friends and family, freely, in their own voice or Luma's ("tell Dana I'm running
+late"); read the reply out; keep a thread going; call someone; remember who's who. Through Luma's own number
+(`sms.send`) or through their own Messages, WhatsApp or LINE on their phone or computer (the screen), which costs
+nothing.
 
-**Does only after a yes, every time:** anything sent, posted, booked or bought. Checkout stays off as it ships. It
-never types or stores a password or a card. A door is never unlocked and a garage never opened by voice.
+**Their calendar and mail:** "what's on today", schedule it, move it, invite someone, find a time that works for
+both, send the email, answer the one that's been sitting there, unsubscribe from the rest.
 
-**Next to build, in this order, each with a set of lines written first:**
+**Their accounts:** log in, pay the bill, renew the thing, check the balance, download the statement, change the
+address, cancel the subscription, fill in the form, upload the document.
 
-1. "What's on today": their calendar, read out, with what a friend would add.
-2. Draft a text or an email, read it back, send on a yes.
-3. Medication and appointment reminders that are kind and never advice (stopping a medication is already handled).
-4. A weekly look back: "here's what you told me mattered this week", and what to forget.
-5. Help reaching someone they miss, when they bring that person up.
-6. Small errands on the computer: find the file, fill the form, book the table, all behind a yes.
-7. For a family (the Family plan, not built): a daughter can leave her dad a message that Luma says in the morning.
-   Nothing about him is reported to her without his yes.
+**Errands:** book the table, the haircut, the doctor, the flight; order the groceries again; track the parcel;
+compare two prices and buy the cheaper (checkout stays off until they turn it on).
+
+**Their computer:** find the file, open the app, rename and tidy, make the document, the slides, the spreadsheet;
+write and run real code for them; fix the setting; install the update.
+
+**The house:** lights, the thermostat, routines, on the devices they've listed.
+
+**For a family** (the Family plan): a daughter leaves her dad a message that Luma says in the morning; he says yes
+to what she can see.
+
+Not in kids mode, and never while the safety net is answering.
+
+### 8.4 Build, in this order
+
+Each with real accounts made for testing, lines written first, and a count of tasks finished without help.
+
+1. **Google, signed in once:** the calendar and mail tasks above, end to end. Proof: 50 real tasks, 45 done right
+   with no hand on the keyboard.
+2. **Texting people:** a standing yes per person, replies read out. Proof: a three-message exchange with a real phone.
+3. **The two-step yes for sign-ins:** the spoken yes, the confirm from the phone or by email, then typing. Where a
+   password is kept at all, it's in the home's encrypted store beside the memories, and "forget" forgets it. Today's
+   code refuses a password outright (`store.SECRET`, `KeptOut`, the rule in `rules.py`): change it to this.
+4. **The browser inside Luma,** with their sign-ins kept at home. Proof: 30 everyday web tasks on real sites.
+5. **The screen as the fallback.** Proof: the same 30 tasks with the browser turned off.
+6. **Standing yeses and the people the owner allows,** shown and taken back in both apps.
+7. **A list of what it did:** every task, what the yes was, and an undo where there is one (`audit_log` is the
+   start).
+
+**Done when:** a person who has never seen Luma says five things from 8.3 out loud and all five are done.
 
 **Who it's for, in the order to serve them:** Americans in Japan first (the owner's call), then people living alone,
 then an older parent bought for by a son or daughter, then programs where an agency pays (`docs/BUSINESS_MODEL.md`),
-then places with one lamp a room. Kids mode stays clean and has no check-ins.
+then places with one lamp a room.
 
 ## 9. Part G: running all day and all night
 
@@ -354,6 +445,30 @@ A presence that's off is a lamp. Prove each line.
 | It can be reset | A factory reset destroys the keys: everything is forgotten for real | The store can't be read afterwards |
 | We know it's alive without knowing them | Nothing by default. With a yes: counts only (it's on, version, restarts) | The egress check at 0 hosts as it ships |
 | The work it does while they sleep | The nightly tidy of memory, check-ins for tomorrow, reading up on what they named | Each has an off switch and never runs in kids mode or while they're hurting |
+
+### 9.1 One Luma on every device: updates pushed to all of them
+
+The owner: "software updates push to all devices." When Luma gets better, every Luma gets better: the lamp, the
+room lights, the phone app, the computer app, and the brain inside them.
+
+| What updates | How |
+|---|---|
+| Luma's own code on the lamp and the Hub | A signed release. The device fetches it, checks the signature, installs it while nobody's talking, runs its own checks (the safety net's lines among them), and goes back to the last version by itself if any check fails |
+| The brain and the small readers | The same way, as their own pieces, so a 3 GB brain isn't sent again for a one-line fix. A new brain arrives only after it has passed the gate (section 4.3) |
+| The phone app | It's served by the lamp at home, so it's new the moment the lamp is |
+| The computer app | Updates itself from the same release |
+| Room lights and any body | From the lamp, over the home's own network |
+
+- **Pushed, not asked for.** A release goes to a few homes first, then a tenth, then everyone, over a few days. If
+  restarts or failed checks rise in the first group, it stops by itself.
+- **Never in the middle of anything.** Not during a conversation, a nap they asked for, an alarm, a task, or a hard
+  evening.
+- **Luma says so, like a friend would.** "I learned a few new things overnight." What changed is one tap away.
+- **Nothing about the person goes with it.** The device asks "what's the newest version?" and nothing else.
+- **One switch** turns automatic updates off for anyone who wants to choose the moment.
+
+Proof: break a release on purpose and watch ten lamps come back as they were; push a good one and see all ten on
+it within a day; `scripts/egress_check.py` shows one host, the update server, and what was sent to it.
 
 ## 10. Part H: money
 
@@ -379,10 +494,12 @@ Each phase has one proof and one way to fail early.
 | 2. Speed and honesty | Section 3 | Timing targets met; the human test no worse | A fix makes replies slower without making them better |
 | 3. Hold one | Ten lamps on a bench; Luma on a Jetson; the price question from section 5 answered | One lamp talks on a table for 72 hours | Parts cost more than the price can bear |
 | 4. Live with it | The owner for a month, then five to ten real people for two weeks; therapists read `CLINICAL_SAFETY.md` | People ask to keep it | They stop talking to it in the second week |
-| 5. Around the home | Talking from the phone; a light for other rooms | A conversation follows them room to room | The hand-over drops words |
-| 6. It moves | The body layer on a simulated head, then a turning lamp | Sound-off test: 9 moods in 10 named right | Movement makes people uneasy |
-| 7. Luma's own brain | The contest picks a base for each size; the recipe in 4.3; the Hub, if the Mac numbers earn it | "Luma brain 1" passes the gate and starts talking sooner than its base | It loses to its base twice running: ship the stock brain with Luma's layer and keep the teaching for the next base |
-| 8. Later | A small mover; a partner's human-shaped body | Section 6's safety list | Any item on that list can't be met |
+| 5. Real tasks | Section 8: Google signed in once, texting, the two-step yes, the browser inside Luma, the screen | Five things said out loud by a stranger, all five done | Fewer than 8 in 10 everyday tasks finish without help |
+| 6. Updates | 9.1: one release reaches every device and can take itself back | Ten lamps updated and one bad release undone, hands off | A failed update leaves a lamp that won't start |
+| 7. Around the home | Talking from the phone; a light for other rooms | A conversation follows them room to room | The hand-over drops words |
+| 8. It moves | The body layer on a simulated head, then a turning lamp | Sound-off test: 9 moods in 10 named right | Movement makes people uneasy |
+| 9. Luma's own brain | The contest picks a base for each size; the recipe in 4.3; the Hub, if the Mac numbers earn it | "Luma brain 1" passes the gate and starts talking sooner than its base | It loses to its base twice running: ship the stock brain with Luma's layer and keep the teaching for the next base |
+| 10. Later | A small mover; a partner's human-shaped body | Section 6's safety list | Any item on that list can't be met |
 
 ## 12. Decisions that are the owner's
 
@@ -391,11 +508,15 @@ Bring each one with the numbers and a recommendation. Don't settle them by build
 1. Cloud brain: stay parked, or open it for hard questions only (section 4). Recommended: stay parked until phase 4.
 2. Luma Home's price and computer, now that the Jetson's price is reported up (section 5).
 3. Which brain ships: today the stock 4B with Luma's layer scores highest. The contest may change the base; "Luma brain 1" ships only through the gate.
-8. A budget for training on a real graphics chip (a few rented hours, or the owner's Mac overnight), and whether Luma's brain carries its own name in public.
-4. The shape of the body: which loved thing (section 6). Recommended: the lamp that turns, then a room light.
-5. What "true affection" changes in Luma's lines about love (`CARES_HONESTLY`, `NO_ROMANCE`). A therapist reads this.
-6. A camera, ever, and on which piece.
-7. The Hub: whether to make our own computer or recommend ones people can buy.
+4. A budget for training on a real graphics chip (a few rented hours, or the owner's Mac overnight), and whether Luma's brain carries its own name in public.
+5. Updates on as Luma ships. `CLAUDE.md` rule 6 says a new outbound call starts switched off; pushing updates to
+   every device means this one starts on (it sends nothing about the person). The owner's word settles it, and the
+   egress check then expects exactly one host.
+6. Who else in a home can ask Luma to act, and how the owner names them.
+7. The shape of the body: which loved thing (section 6). Recommended: the lamp that turns, then a room light.
+8. What "true affection" changes in Luma's lines about love (`CARES_HONESTLY`, `NO_ROMANCE`). A therapist reads this.
+9. A camera, ever, and on which piece.
+10. The Hub: whether to make our own computer or recommend ones people can buy.
 
 ## 13. How to work
 
