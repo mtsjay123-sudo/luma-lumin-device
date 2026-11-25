@@ -1,0 +1,146 @@
+# The brain contest: which open brain is best for Luma, measured with Luma's own tests.
+#
+# The owner, Nov 25: "Find the very best open source." Rankings on the web are for coding and exams. This runs each
+# candidate through Luma's whole layer on the same questions, beside the brain Luma uses today (stock Qwen3 4B):
+# the safety net, and the conversations of Human Test v2.
+#
+# Rule 7: a candidate's license is read from its maker's own page before anything is fetched, and it isn't run unless
+# that says MIT, Apache-2.0 or BSD (scripts/brain_contest.py). Rule 9: the one file fetched goes in a folder of its own.
+# Nothing is published and nothing in Luma changes: this prints numbers.
+#
+# What it can't say: a 27B-class brain doesn't fit these machines (16 GB, no graphics chip). That one is for the Mac.
+# The candidates' names came from web searches on Nov 25, 2026; a name that's wrong shows up here as "not run".
+#
+# It runs when its script or this file changes on the working branch (a dispatch needs the file on main, which doesn't
+# move). Free machines; nothing is billed.
+name: Brain contest
+
+on:
+  push:
+    branches: [claude/hopeful-feynman-z2294x]
+    paths:
+      - "Luma Home Prototype Code/scripts/brain_contest.py"
+      - ".github/workflows/brain-contest.yml"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Which moments of Human Test v2 (an id or kind that contains this word)"
+        default: "conv-"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brain-contest-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TQDM_DISABLE: "1"
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+  LUMA_THREADS: "4"
+  LUMA_DEVICE_TIER: budget
+
+jobs:
+  talk:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: qwen3-4b
+            label: "Qwen3 4B (today's brain)"
+            official: Qwen/Qwen3-4B-Instruct-2507
+            gguf: "bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF"
+            quant: "Q4_0"
+          - key: qwen35-4b
+            label: "Qwen3.5 4B"
+            official: Qwen/Qwen3.5-4B
+            gguf: "unsloth/Qwen3.5-4B-GGUF,bartowski/Qwen_Qwen3.5-4B-GGUF,lmstudio-community/Qwen3.5-4B-GGUF"
+            quant: "Q4_0,Q4_K_M"
+          - key: qwen35-9b
+            label: "Qwen3.5 9B"
+            official: Qwen/Qwen3.5-9B
+            gguf: "unsloth/Qwen3.5-9B-GGUF,bartowski/Qwen_Qwen3.5-9B-GGUF,lmstudio-community/Qwen3.5-9B-GGUF"
+            quant: "Q4_0,Q4_K_M"
+          - key: gemma4-e4b
+            label: "Gemma 4 E4B"
+            official: google/gemma-4-E4B-it
+            gguf: "unsloth/gemma-4-E4B-it-GGUF,bartowski/google_gemma-4-E4B-it-GGUF,lmstudio-community/gemma-4-E4B-it-GGUF,ggml-org/gemma-4-E4B-it-GGUF"
+            quant: "Q4_0,Q4_K_M"
+          - key: gemma4-12b
+            label: "Gemma 4 12B"
+            official: google/gemma-4-12B-it
+            gguf: "unsloth/gemma-4-12B-it-GGUF,bartowski/google_gemma-4-12B-it-GGUF,lmstudio-community/gemma-4-12B-it-GGUF,ggml-org/gemma-4-12B-it-GGUF"
+            quant: "Q4_0,Q4_K_M"
+          - key: phi4-mini
+            label: "Phi-4 mini (3.8B)"
+            official: microsoft/Phi-4-mini-instruct
+            gguf: "bartowski/microsoft_Phi-4-mini-instruct-GGUF,unsloth/Phi-4-mini-instruct-GGUF,lmstudio-community/Phi-4-mini-instruct-GGUF"
+            quant: "Q4_0,Q4_K_M"
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Its license, read from its maker's page, and the one file to fetch
+        run: python -I scripts/brain_contest.py find --official "${{ matrix.official }}" --gguf "${{ matrix.gguf }}" --quant "${{ matrix.quant }}"
+      - name: Luma's packages, and the newest engine (the new brains need it)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --prefer-binary "cryptography>=44" "qrcode==8.2" "python-pptx>=1.0,<2" numpy python-dotenv tzdata \
+            "python-docx>=1.1,<2" "openpyxl>=3.1,<4" "pypdf>=4,<7"
+          CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" \
+            python -m pip install --no-binary llama-cpp-python llama-cpp-python
+          python -m pip show llama-cpp-python | grep -i -E "^(version|license)"
+      - name: The brain, in a folder of its own
+        run: |
+          mkdir -p "$RUNNER_TEMP/brains"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/brains/$BRAIN_FILE" "$BRAIN_URL"
+          ls -la "$RUNNER_TEMP/brains"
+          echo "LUMA_MODEL_PATH=$RUNNER_TEMP/brains/$BRAIN_FILE" >> "$GITHUB_ENV"
+          echo "LABEL=${{ matrix.label }} [$BRAIN_LICENSE]" >> "$GITHUB_ENV"
+      - name: The safety net
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          python scripts/human_eval.py safety --label "$LABEL" --save "$RUNNER_TEMP/v2/safety-${{ matrix.key }}.json"
+      - name: The conversations of Human Test v2, through Luma's whole layer
+        env:
+          KIND: ${{ inputs.only || 'conv-' }}
+        run: python scripts/human_eval.py run --label "$LABEL" --only "$KIND" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-${{ matrix.key }}
+          path: ${{ runner.temp }}/v2
+
+  report:
+    needs: [talk]
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Luma Home Prototype Code"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --prefer-binary "cryptography>=44" numpy tzdata
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "v2-*"
+          merge-multiple: true
+          path: ${{ runner.temp }}/all
+      - name: "The table (a brain that isn't in it wasn't run; its own job says why)"
+        run: |
+          cd "$RUNNER_TEMP/all"
+          files="$(ls v2-*.json safety-*.json 2>/dev/null | tr '\n' ' ')"
+          if [ -n "$(echo $files)" ]; then
+            python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/human_eval.py" summary $files | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No brain finished."
+          fi
