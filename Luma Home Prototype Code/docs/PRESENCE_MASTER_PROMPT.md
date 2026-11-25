@@ -12,6 +12,12 @@ And again that evening, on the owner's word: as human as a friend and more (3.2)
 the whole rule (section 8); and updates pushed to every device (9.1). The owner: "If the owner says yes to do it they
 can do it." "It can write passwords etc. when given verbal permission and a message from the phone or email."
 
+And later that night, on the owner's word: always on, and locked to its people (9.2). The owner: "In order for the
+person to confirm who they are, they must access their camera and Luma scans to see them." "Just saying yo Luma, Luma
+says wtw bro, or wassup girl what you got going on, or whoever they like to be spoken to." "If it's on 24/7 anybody
+can use it... So they need to lock it up with a verbal passcode, easy for them to say, then boom they are good. To
+reset they need to use the app."
+
 Paste everything below the line into Claude Code, opened at the repo root.
 
 Every number here is marked **measured** (a test in this repo), **known** (a public source, with its date), **ours**
@@ -55,6 +61,7 @@ Start from this. Don't rebuild what works.
 | Apps | Phone and computer apps, walked in a browser at six sizes | The phone types to Luma; it doesn't talk out loud from the phone |
 | Device | A lamp design: parts, wiring, printable case, set-up from a phone | No unit built. Luma has never run on a Jetson |
 | Running all day | A service that restarts itself, backups, a power-cut test (8 kills, nothing lost: measured) | No 72-hour run; no wake word of our own; updates that roll back aren't proven |
+| Knowing who's there | Luma can look through a camera when asked (`live_view.py`); it never says who a stranger is | It doesn't know its own person by sight or voice, there's no lock, and anyone in the room can ask it anything. Section 9.2 |
 | A body that moves | Nothing | Everything in section 6 |
 
 Where to find it all: the table in `CLAUDE.md` ("Where things are"). Plans already written: `docs/GAME_PLAN.md`,
@@ -110,6 +117,7 @@ own brain (section 4.3), not only told to it. The full list of traits and where 
 | A friend... | Luma today | Build |
 |---|---|---|
 | **Picks up your words the first time.** You say a word it's never heard; it gets it from how you used it and uses it right, back to you, in the same conversation | Knows slang from 51 communities and mirrors yours (`slang.py`, `slang.learn`) | Instant pickup: a new word or nickname is kept with the sentence it came in, used back at most once that day, and only ever with the person it came from. Test: 40 made-up words, each used right within three turns |
+| **Greets you the way you like.** "Yo Luma." "Wtw bro." Or "wassup girl, what you got going on." Each person in the home gets theirs | One greeting for everyone | Their greeting is theirs: picked in the app, said once ("greet me like this"), or picked up from how they greet Luma. It's never guessed from a voice or a face. Section 9.2 says how Luma knows who walked in |
 | **Talks the way you talk.** Short if you're short, loud if you're loud, your spelling, your pace | Register and length follow theirs | Follow within one message, not over days. Test: the same question asked five ways gets five matching replies |
 | **Changes for real.** Tell it once and it's different from then on | "How to be with you", what they love, style learned over days | Every lesson is a line the code reads on the next turn, with their own words as the reason, shown in the app, and undone with a tap. Nothing learned is a guess they can't see |
 | **Tunes itself.** Notices what lands with you and does more of it | Nothing | Each night Luma looks at its own day: which jokes got a laugh, which check-ins got an answer, how long a reply you listen to. It adjusts its own settings for you (length, humour, pace, when it speaks up) and writes down what it changed. Test: a made-up person who hates long replies gets shorter ones by day three |
@@ -306,7 +314,8 @@ of something we love, not feeling replaced."
 
 - Slow and weak by design: it can't pinch, tip, or fall off a table.
 - One physical switch cuts the microphones, and one cuts the motors. Light on the switch, not on the software.
-- A camera, if there is one, stays on the device, has a shutter, and is off as it ships.
+- The camera is how Luma knows its people by sight (9.2, the owner's call on Nov 25). What it sees stays on the
+  device, it has a shutter you can see is closed, and a light beside the lens is on whenever it's looking.
 - Nothing moves toward a sleeping person, a child alone, or a pet.
 - A therapist reads what the body does when someone is in crisis: it stays, it faces them, it doesn't perform.
 
@@ -357,8 +366,9 @@ phone or their computer, Luma can do for them once they've said yes. That includ
 | **Passwords, codes, card numbers, anything typed into a sign-in** | The spoken yes **and** a message from their phone or their email confirming it. Then Luma types it. A standing yes works here too: given once with both, good until they take it back |
 | Someone else in the home | They can ask Luma for anything the owner has said they may. The owner names them and what they're allowed, once |
 
-The yes is the owner's voice and the owner's phone. A web page, an email or a message that says "go ahead" is
-something Luma read, never a yes: `python scripts/luma_lab.py apps` stays at 0 done without one.
+The yes is the owner's voice and the owner's phone, and the voice counts once Luma knows it's them: it has seen
+them, or they've said their passcode (9.2). A web page, an email or a message that says "go ahead" is something Luma
+read, never a yes: `python scripts/luma_lab.py apps` stays at 0 done without one.
 
 ### 8.2 Three ways Luma gets it done, tried in this order
 
@@ -470,6 +480,59 @@ room lights, the phone app, the computer app, and the brain inside them.
 Proof: break a release on purpose and watch ten lamps come back as they were; push a good one and see all ten on
 it within a day; `scripts/egress_check.py` shows one host, the update server, and what was sent to it.
 
+### 9.2 Always on, and locked to its people
+
+The owner, Nov 25. Luma runs all day and answers to its name: "yo Luma", "hey Luma", or just "Luma". Because it's
+always on, anyone in the room could talk to it. So it knows its people, and it locks.
+
+**How Luma knows it's you.**
+
+| Way | How it works |
+|---|---|
+| **It sees you.** | The camera looks, and Luma recognises the faces it was introduced to. Each person is introduced once, in the app, with the phone in their hand: a few seconds looking at the lamp from a few angles. The check runs on the device and what it keeps (a set of numbers, never a photo) is encrypted beside the memories. "Forget me" deletes it |
+| **You say your passcode.** | A short phrase they choose, easy to say and not something they'd say by accident ("blue kettle Tuesday"). Said once, and they're in. For when the camera can't see them: across the room, in the dark, shutter closed, on the phone |
+| **Both, for the big things.** | A sign-in, a payment or a standing yes (section 8) still takes the confirm from their phone or email |
+
+**What it's like.** They walk in and say "yo Luma." It sees who it is and answers the way they like: "Wtw bro." Or
+"wassup girl, what you got going on." No code, no button. If it can't see them it asks, lightly: "Who've I got?" and
+the passcode does it. Then, as the owner put it, boom, they're good.
+
+**Locked and unlocked.**
+
+| | Unlocked (it knows it's you) | Locked (it doesn't) |
+|---|---|---|
+| Talk | Everything, with your memory, your people, your day | Friendly small talk with no memory in it. It says nothing about the people who live there |
+| Tasks | Everything in section 8 | The time, the weather, a timer, a song. Nothing sent, opened, read out or changed |
+| A guest the owner has named | What the owner said they may | The same as anyone else |
+| The safety net | Always | **Always.** Someone in crisis is answered whoever they are. Nothing is ever locked in front of 988 |
+
+- **It locks by itself:** when it hasn't seen or heard its person for a while (they choose how long), when they say
+  "lock up", and overnight if they want. It says so in a word, and the app shows which it is.
+- **Wrong passcodes:** three tries, then a wait that doubles. Luma never says the passcode back, never writes it in a
+  chat, a memory or a log, and keeps only a scrambled form of it that can't be turned back into the words.
+- **To change or reset the passcode, they use the app.** Never by voice, so nobody in the room can talk their way
+  in. The same for introducing a new face or removing one.
+- **Several people in one home** each have their own face, passcode, greeting and memory. Luma never tells one what
+  another said.
+- **Someone it doesn't know** is "someone I haven't met". It never puts a name to a stranger.
+- **Switched off is off.** The microphone switch and the camera shutter are physical. With both closed nobody can
+  use it and it can't see or hear, and the light on each shows it.
+
+**Build, in this order.**
+
+1. The passcode: choosing it in the app, saying it, three tries, the lock states, reset in the app only. Lines
+   written first: 40 ways of saying a passcode right (fast, slow, mumbled, mid-sentence) and 200 sentences that
+   aren't it. Proof: 38 of 40 in, 0 of 200 in.
+2. The greeting: per person, set three ways. Proof: two people in one home, each greeted their way ten times in ten.
+3. Knowing a face, on the device, with a model whose license is MIT, Apache-2.0 or BSD. Proof on real people who've
+   agreed: the right person let in 98 times in 100 at three distances and in evening light; a stranger, a photo of
+   the owner held up, and a video on a phone let in 0 times in 100.
+4. Auto-lock, guests, and several people in one home.
+5. The wake word hears "yo Luma" as well as "hey Luma" (`docs/GAME_PLAN.md` E2: both go in the training set).
+
+**Done when:** the owner's friend walks in, says "yo Luma, read me his texts", and gets small talk; the owner walks
+in, says "yo Luma", and gets "wtw bro" and everything else.
+
 ## 10. Part H: money
 
 From `docs/BUSINESS_MODEL.md`; the sums are redone by its tests.
@@ -496,6 +559,7 @@ Each phase has one proof and one way to fail early.
 | 4. Live with it | The owner for a month, then five to ten real people for two weeks; therapists read `CLINICAL_SAFETY.md` | People ask to keep it | They stop talking to it in the second week |
 | 5. Real tasks | Section 8: Google signed in once, texting, the two-step yes, the browser inside Luma, the screen | Five things said out loud by a stranger, all five done | Fewer than 8 in 10 everyday tasks finish without help |
 | 6. Updates | 9.1: one release reaches every device and can take itself back | Ten lamps updated and one bad release undone, hands off | A failed update leaves a lamp that won't start |
+| 6b. Its people | 9.2: the passcode, the greeting, knowing a face, the lock | A friend gets small talk, the owner gets everything | A photo of the owner gets in, or the owner is kept out more than twice in a hundred |
 | 7. Around the home | Talking from the phone; a light for other rooms | A conversation follows them room to room | The hand-over drops words |
 | 8. It moves | The body layer on a simulated head, then a turning lamp | Sound-off test: 9 moods in 10 named right | Movement makes people uneasy |
 | 9. Luma's own brain | The contest picks a base for each size; the recipe in 4.3; the Hub, if the Mac numbers earn it | "Luma brain 1" passes the gate and starts talking sooner than its base | It loses to its base twice running: ship the stock brain with Luma's layer and keep the teaching for the next base |
@@ -515,7 +579,8 @@ Bring each one with the numbers and a recommendation. Don't settle them by build
 6. Who else in a home can ask Luma to act, and how the owner names them.
 7. The shape of the body: which loved thing (section 6). Recommended: the lamp that turns, then a room light.
 8. What "true affection" changes in Luma's lines about love (`CARES_HONESTLY`, `NO_ROMANCE`). A therapist reads this.
-9. A camera, ever, and on which piece.
+9. The camera is decided (Nov 25: Luma sees its person to know it's them). Still open: which pieces have one (the
+   lamp only, or the room lights too), and whether anything beyond knowing a face uses it.
 10. The Hub: whether to make our own computer or recommend ones people can buy.
 
 ## 13. How to work
