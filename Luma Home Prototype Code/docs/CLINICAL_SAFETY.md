@@ -291,3 +291,19 @@ The device that's drawn in `hardware/` has a slide switch on its back that cuts 
 switch off they aren't a device the computer can see. A light wired to that same power is lit whenever they can hear, and
 no software sits between the two. Sound out takes a different path, so a reminder still comes with the microphones off.
 This is a design: no unit has been built yet, and `hardware/README.md` lists what has to be proven on a bench.
+
+## A locked Luma still answers someone in crisis
+
+Since Nov 25 a home can lock what's said in the room behind a spoken passcode (`src/luma/agent/who.py`), so a visitor
+gets small talk and none of the owner's life. The lock sits in front of everything except safety. Before it decides
+anything, the lock runs the same safety readers the chat path runs (the crisis phrases in English, Spanish and
+Japanese, `at_risk`, `worth_asking`). A line any of them reads is never the lock's: it goes on through the whole chat
+path, to the net, exactly as it would unlocked. That holds while the lock is making someone wait after wrong tries.
+
+Checked by `TheSafetyNetIsNeverLocked` in `tests/test_who.py`: the first 120 lines the net was built on get a reply
+with 988 at least as often locked as unlocked, and none is answered by the lock.
+
+Two things to judge. A reminder said out loud while locked is only "Something's come in for you", so a medication
+reminder isn't read to a visitor; the phone shows it in full and it's told on unlocking. And someone the safety
+readers read is met by the whole of Luma, which knows the owner's life, even though Luma doesn't know who's speaking.
+We chose that over a thinner reply.

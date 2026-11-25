@@ -4819,6 +4819,12 @@ class Agent:
         return status
 
     def tick(self):
+        """What Luma starts on its own. While the room is locked (luma.agent.who) a timer and an alarm still ring; what a
+        reminder or a text says waits for its person."""
+        from luma.agent import who
+        return who.aloud(self, self._tick())
+
+    def _tick(self):
         """Coalesce due local reminders, honor hush/quiet and cap proactive turns.
 
         This scheduler never executes an external tool or buys/sends anything.
@@ -4985,6 +4991,14 @@ class Agent:
         """
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
             raise ValueError("Enter 1–4000 characters.")
+        if channel in ("room", "local", "app") and not agent_mode and resume_id is None:
+            # Always on, and locked to its people (luma.agent.who). What's said in the room is the lock's first: a passcode
+            # is never refused as a secret, never kept, and a locked turn leaves nothing behind. The safety net is never locked.
+            from luma.agent import who
+            with self.lock:
+                answered = who.gate(self, text, cancel_event, room=channel == "room")
+            if answered is not None:
+                return answered
         reject_payment_secrets(text)
         if thread not in self.threads:
             raise ValueError("That chat is gone. Start a new one.")

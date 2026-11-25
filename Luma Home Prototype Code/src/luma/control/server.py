@@ -544,6 +544,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/today':
                 from luma.control import today
                 return self.send(today.payload(agent))
+            if path=='/api/who':
+                from luma.agent import who
+                return self.send({'who':who.people(agent)})
             if path=='/api/wifi':
                 # Which Wi-Fi the device is on, and (asked for) the networks around it, to switch from the phone or computer.
                 if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
@@ -923,6 +926,21 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/who':
+                        # The lock and the greeting (luma.agent.who). The passcode is chosen, changed and reset here and only
+                        # here: by the owner's computer or a paired phone, never by anything said in the room. It's never sent back.
+                        if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        from luma.agent import who
+                        act,pid=str(data.get('action','')),re.sub(r'[^a-z0-9_-]','',str(data.get('person') or 'owner').lower())[:24] or 'owner'
+                        if act=='choose': result=who.choose(agent,data.get('phrase'),pid,name=data.get('name'))
+                        elif act=='reset': result=who.clear(agent,pid)
+                        elif act=='greeting': result=who.set_greeting(agent,data.get('line'),pid,name=data.get('name'))
+                        elif act=='quiet' and type(data.get('minutes')) is int: result=who.set_quiet(agent,data['minutes'])
+                        elif act=='lock': who.lock(agent); result=who.people(agent)
+                        elif act=='unlock': result=who.from_the_app(agent,pid)
+                        elif act=='remove' and pid!='owner': result=who.remove(agent,pid)
+                        else: raise ValueError('Choose what to change.')
+                        result={'who':result}
                     elif path=='/api/rapport/forget':  # one line of "How to be with me", gone for good
                         if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)  # a paired phone may: it can forget a memory too
                         from luma.agent import rapport
@@ -1263,7 +1281,7 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         threading.Thread(target=ctx.phone_app.notify,args=(event,),daemon=True).start()
                         if not agent.muted and not event.get('silent'):
                             from luma.orchestrator import speak
-                            speak(event['text'],agent)
+                            speak(event.get('say') or event['text'],agent)  # 'say': a locked Luma says only that something came in
                 except Exception: pass
         threading.Thread(target=clock_loop,daemon=True).start()
     return server

@@ -128,6 +128,31 @@ class CompanionTests(unittest.TestCase):
         page=(Path(__file__).resolve().parents[1]/'src'/'luma'/'control'/'web'/'phone'/'phone.js').read_text()
         self.assertIn('renderDay(today.talked, today.zone)',page)
 
+    def test_the_passcode_is_chosen_and_reset_from_the_paired_phone_and_never_sent_back(self):
+        # Always on, and locked to its people (luma.agent.who): the phrase is chosen, changed and reset in the app, and
+        # nothing the phone is sent holds it. A weak one is refused with a sentence. Not in kids mode.
+        import urllib.error
+        from luma.agent import who
+        self.pair()
+        with self.request('/api/who',{'action':'choose','phrase':'blue kettle tuesday'}) as r:raw=r.read().decode()
+        self.assertTrue(json.loads(raw)['who']['people'][0]['passcode'])
+        self.assertNotIn('kettle',raw)
+        with self.request('/api/who',{'action':'greeting','line':'wtw bro'}) as r:self.assertEqual(json.loads(r.read())['who']['people'][0]['greeting'],'Wtw bro')
+        with self.request('/api/who',{'action':'lock'}) as r:self.assertTrue(json.loads(r.read())['who']['locked'])
+        self.assertTrue(self.agent.chat('what is on my list',channel='room').get('locked'))
+        with self.request('/api/today') as r:today=r.read().decode()
+        self.assertTrue(json.loads(today)['device']['who']['locked'])
+        self.assertNotIn('kettle',today)
+        with self.request('/api/who',{'action':'unlock'}) as r:self.assertFalse(json.loads(r.read())['who']['locked'])
+        with self.assertRaises(urllib.error.HTTPError) as weak:self.request('/api/who',{'action':'choose','phrase':'hello'})
+        self.assertIn('two or three words',json.loads(weak.exception.read())['error'])
+        with self.request('/api/who',{'action':'reset'}) as r:self.assertFalse(json.loads(r.read())['who']['people'][0]['passcode'])
+        self.assertFalse(who.enabled(self.agent))
+        self.agent.set_mode('kids')
+        with self.assertRaises(urllib.error.HTTPError) as kids:self.request('/api/who',{'action':'choose','phrase':'blue kettle tuesday'})
+        self.assertIn(kids.exception.code,{400,403})
+        self.assertFalse(who.enabled(self.agent))
+
     def test_luma_on_its_stage_says_only_what_is_true(self):
         # The line under Luma on the phone is its state in its own words. A nap never says it can't hear (anything said
         # wakes it); mic off says so plainly; it never calls itself an AI or an assistant.

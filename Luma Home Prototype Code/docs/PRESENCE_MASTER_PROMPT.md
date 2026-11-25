@@ -533,6 +533,23 @@ the passcode does it. Then, as the owner put it, boom, they're good.
 **Done when:** the owner's friend walks in, says "yo Luma, read me his texts", and gets small talk; the owner walks
 in, says "yo Luma", and gets "wtw bro" and everything else.
 
+**Where this stands (Nov 25).** Steps 1, 2 and most of 4 are built (`src/luma/agent/who.py`, `tests/test_who.py`).
+
+- The passcode: 39 of 40 right ways of saying it let in, 0 of 200 others (lines written first, same hand, same hour).
+  Chosen, changed and removed in both apps and nowhere else; three tries, then a wait that doubles; the app lets them
+  in at once.
+- The greeting: two people in one home, each greeted their way ten times in ten. Set in the app, by "greet me like …",
+  or picked up from a way of their own said three times. It works with no passcode too.
+- Locked: small talk, the time, the volume, a coin, a conversion, a timer, a sound. Nothing of a locked turn is kept.
+  A reminder said while locked is "Something's come in for you" and is told on unlocking. The safety net answers
+  anyone, locked or not: the same reply on the first 120 lines the net was built on.
+- The "done when" above passes as a test, with the passcode standing in for the camera.
+- Not built: knowing a face (step 3; it needs a licensed model and real people), guests the owner has named, locking
+  overnight, the weather for someone locked out (it would say which city). Step 5, the wake word, is training work.
+- Known: someone the safety readers read is met by the whole of Luma, memory and all, even while locked. And the
+  scrambled passcode keeps the words from being read back, but a three-word phrase wouldn't survive someone who
+  stole the device and could work on it.
+
 ## 10. Part H: money
 
 From `docs/BUSINESS_MODEL.md`; the sums are redone by its tests.

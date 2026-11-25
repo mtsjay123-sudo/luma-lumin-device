@@ -238,6 +238,9 @@ main > .panel:first-of-type { margin-top: 2px; }
 .pill { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-2); cursor: pointer; font-weight: 600; }
 .pill.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
 .pill.danger { color: var(--danger); }
+.sheet .lock { display: grid; gap: 14px; }
+.sheet .lock label { display: grid; gap: 6px; font-size: 14px; color: var(--muted, inherit); }
+.sheet .lock input, .sheet .lock select { width: 100%; min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass-2); color: var(--ink); font: inherit; font-size: 16px; padding: 0 14px; }
 .sheet textarea { width: 100%; min-height: 140px; border-radius: 18px; border: 1px solid var(--line); background: var(--glass-2); color: var(--ink); font: inherit; padding: 14px; resize: vertical; }
 
 .toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); translate: -50% 20px; opacity: 0; pointer-events: none; z-index: 9;

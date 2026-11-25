@@ -164,12 +164,13 @@ class SpeechStream:
         return True
 
 
-def ask_typed(text, agent=None, voice=False, cancel_event=None):
+def ask_typed(text, agent=None, voice=False, cancel_event=None, heard=False):
+    """heard: said out loud to the always-on microphone, not typed. That's the channel a passcode locks (luma.agent.who)."""
     agent = agent or get_agent()
     event = cancel_event or agent.new_turn()
     stream = SpeechStream(agent, event).think_out_loud(text) if voice else None
     try:
-        result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None)
+        result = agent.chat(text, cancel_event=event, on_text=stream.feed if stream else None, **({'channel': 'room'} if heard else {}))
     except ValueError as refused:   # a password said out loud, a grown-up thing in kids mode: refused, and Luma says so instead of going quiet
         said = agent.said_instead(refused) if hasattr(agent, 'said_instead') else None
         if said is None: raise
@@ -205,7 +206,7 @@ def ask_voice(agent=None):
     if not path: return
     try:
         text = transcribe(path)
-        if text and not capture_blocked(agent): return ask_typed(text, agent, voice=True)
+        if text and not capture_blocked(agent): return ask_typed(text, agent, voice=True, heard=True)
     finally:
         try: os.unlink(path)
         except FileNotFoundError: pass
@@ -316,7 +317,7 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                     feel.set_from(text) if agent.store.setting('match_mood', True) is not False else feel.reset()
                 except Exception:
                     pass
-                ask_typed(text, agent, voice=True, cancel_event=event)
+                ask_typed(text, agent, voice=True, cancel_event=event, heard=True)
                 followup_until = time.monotonic() + 45
             except Exception as error:
                 if getattr(agent, 'on_result', None): agent.on_result({'text':'Voice turn paused: ' + str(error)[:250]})

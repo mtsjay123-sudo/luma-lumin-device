@@ -846,6 +846,12 @@
     const napTill = Number(dev.napping_until || 0) * 1000, napping = napTill > Date.now();
     $("hp-nap").hidden = dev.naps === false && !napping;
     $("hp-nap").dataset.napping = napping ? "1" : "";
+    // The passcode: without one anyone in the room can talk to Luma; with one the room is small talk until it's said.
+    const who = dev.who, mine = ((who && who.people) || []).find((p) => p.id === "owner") || {};
+    $("hp-lock").hidden = !who;
+    $("hp-lock").dataset.who = JSON.stringify(who || {});
+    $("hp-lock-sub").textContent = !mine.passcode ? "None. Anyone in the room can talk to Luma. Tap to choose one." + (mine.greeting ? ` It greets you with “${mine.greeting}”.` : "")
+      : who.locked ? "Locked. In the room it's small talk until it hears your passcode." : "Unlocked. Luma knows it's you.";
     $("hp-nap-sub").textContent = napping
       ? `Napping until ${clock.format(new Date(napTill))}. ` + (on ? "It still hears you: say anything and it's up. Tap to wake it." : "Tap to wake it.")
       : "Awake. Tap for 20 quiet minutes, or say “take a nap”.";
@@ -892,6 +898,24 @@
     const on = $("hp-mic").getAttribute("aria-checked") === "true";
     try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma only hears you when you press Talk." : "Listening for “Hey Luma”."); refreshToday(); }
     catch (e) { toast(e.message); }
+  });
+  // The passcode and the greeting (luma.agent.who). Chosen and reset here or on the paired phone, never out loud.
+  $("hp-lock").addEventListener("click", async () => {
+    const who = JSON.parse($("hp-lock").dataset.who || "{}"), me = (who.people || []).find((p) => p.id === "owner") || {};
+    const send = (body) => api("/api/who", body);
+    try {
+      if (me.passcode && who.locked && confirm("Luma is locked in the room. Unlock it now?")) { await send({ action: "unlock" }); toast("Unlocked."); return refreshToday(); }
+      const phrase = prompt(me.passcode
+        ? "Type a new passcode to say out loud, or leave this empty to keep yours. Type “remove” to take it off."
+        : "Pick a short phrase to say out loud, like “blue kettle Tuesday”. Until Luma hears it, the room gets small talk and nothing of yours. Leave this empty for no passcode.", "");
+      if (phrase == null) return;
+      if (phrase.trim().toLowerCase() === "remove") { await send({ action: "reset" }); toast("Removed. Anyone in the room can talk to Luma again."); return refreshToday(); }
+      if (phrase.trim()) await send({ action: "choose", phrase: phrase.trim() });
+      const line = prompt("How should Luma greet you? Like “wtw bro”. Leave it empty for a plain hello.", me.greeting || "");
+      if (line != null && line.trim() !== (me.greeting || "")) await send({ action: "greeting", line: line.trim() });
+      toast(phrase.trim() ? "Saved. Say it at home and Luma knows it's you." : "Saved.");
+      refreshToday();
+    } catch (e) { toast(e.message); }
   });
   $("hp-nap").addEventListener("click", async () => {
     const napping = $("hp-nap").dataset.napping === "1";

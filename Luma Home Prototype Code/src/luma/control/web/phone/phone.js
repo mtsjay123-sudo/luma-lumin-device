@@ -317,6 +317,14 @@
       : "Awake. A nap is 20 quiet minutes.";
     $("nap").textContent = napping ? "Wake" : "Nap";
     $("nap").dataset.napping = napping ? "1" : "";
+    // The passcode (luma.agent.who): said out loud at home, chosen and reset only here. Without one, anyone in the room
+    // can talk to Luma; with one, the room is small talk until Luma hears it.
+    lockState = dev.who || { people: [] };
+    const me = (lockState.people || []).find((p) => p.id === "owner") || {};
+    $("lock-row").hidden = !dev.who;
+    $("lock-sub").textContent = !me.passcode ? "None. Anyone in the room can talk to Luma." + (me.greeting ? ` It greets you with “${me.greeting}”.` : "")
+      : lockState.locked ? "Locked. At home it's small talk until it hears your passcode." : "Unlocked. Luma knows it's you.";
+    $("lock").textContent = me.passcode ? "Change" : "Set up";
     $("brain").textContent = dev.brain || "Starting up";
     // Luma Plus's Super Intelligence, for someone who has it. From the phone it can be turned off, never on: the yes
     // screen (what leaves your home, where it goes, what's kept) is shown by Luma on the computer.
@@ -536,6 +544,64 @@
       list.lastChild?.scrollIntoView({ block: "end" });
     } catch (e) { list.replaceChildren(el("p", "empty", e.message)); }
   }
+  // The passcode sheet. The phrase is typed here so they can see it; Luma keeps only a scrambled form and never sends it back.
+  var lockState = { people: [] };   // var: the page is drawn before this line is reached
+  function openLock() {
+    const me = (lockState.people || []).find((p) => p.id === "owner") || {};
+    const wrap = el("div", "lock");
+    wrap.append(el("p", "hint", me.passcode
+      ? "Say your passcode at home and Luma knows it's you. It's changed here, never out loud."
+      : "Pick a short phrase to say out loud, like “blue kettle Tuesday”. Until Luma hears it, the room gets small talk and nothing of yours."));
+    const field = (label, placeholder, value) => {
+      const l = el("label", null, label), i = el("input");
+      i.type = "text"; i.placeholder = placeholder; i.value = value || ""; i.maxLength = 80;
+      i.autocomplete = "off"; i.autocapitalize = "off"; i.spellcheck = false;
+      l.append(i); wrap.append(l); return i;
+    };
+    const phrase = field(me.passcode ? "New passcode (leave empty to keep yours)" : "Passcode", "blue kettle Tuesday", "");
+    const greet = field("How Luma greets you", "wtw bro", me.greeting);
+    const after = el("select");
+    for (const [m, t] of [[10, "10 quiet minutes"], [30, "30 quiet minutes"], [60, "an hour"], [240, "four hours"], [0, "Never by itself"]]) {
+      const o = el("option", null, t); o.value = String(m); o.selected = Number(lockState.quiet_minutes) === m; after.append(o);
+    }
+    const afterLabel = el("label", null, "Locks again after"); afterLabel.append(after); wrap.append(afterLabel);
+    const actions = el("div", "actions");
+    const save = el("button", "pill primary", "Save");
+    save.type = "button";
+    const send = (body) => api("/api/who", body);
+    save.addEventListener("click", async () => {
+      try {
+        if (phrase.value.trim()) await send({ action: "choose", phrase: phrase.value.trim() });
+        if (greet.value.trim() !== (me.greeting || "")) await send({ action: "greeting", line: greet.value.trim() });
+        if (Number(after.value) !== Number(lockState.quiet_minutes)) await send({ action: "quiet", minutes: Number(after.value) });
+        sheet.close(); toast(phrase.value.trim() ? "Saved. Say it at home and Luma knows it's you." : "Saved."); refresh();
+      } catch (e) { toast(e.message); }
+    });
+    actions.append(save);
+    if (me.passcode) {
+      const toggle = el("button", "pill", lockState.locked ? "Unlock now" : "Lock now");
+      const gone = el("button", "pill danger", "Remove passcode");
+      toggle.type = gone.type = "button";
+      toggle.addEventListener("click", async () => {
+        try { await send({ action: lockState.locked ? "unlock" : "lock" }); sheet.close(); toast(lockState.locked ? "Unlocked." : "Locked."); refresh(); }
+        catch (e) { toast(e.message); }
+      });
+      gone.addEventListener("click", () => {
+        actions.replaceChildren(el("p", "confirm", "Remove your passcode? Anyone in the room can talk to Luma again."));
+        const keep = el("button", "pill", "Keep it"), yes = el("button", "pill danger", "Remove it");
+        keep.type = yes.type = "button";
+        keep.addEventListener("click", () => actions.replaceChildren(save, toggle, gone));
+        yes.addEventListener("click", async () => {
+          try { await send({ action: "reset" }); sheet.close(); toast("Removed."); refresh(); }
+          catch (e) { toast(e.message); }
+        });
+        actions.append(keep, yes);
+      });
+      actions.append(toggle, gone);
+    }
+    wrap.append(actions);
+    openSheet("Passcode", wrap);
+  }
   function openMemory(m) {
     const wrap = el("div");
     const area = el("textarea");
@@ -604,6 +670,7 @@
     try { await api("/api/setting", { key: "nap", value: !napping }); toast(napping ? "Luma's up." : "Luma's napping for 20 minutes. Say anything and it's up."); refresh(); }
     catch (e) { toast(e.message); }
   });
+  $("lock").addEventListener("click", openLock);
   $("plus-off").addEventListener("click", async () => {
     try { await api("/api/brain", { action: "plus_no" }); toast("Off. Luma is thinking at home again."); refresh(); }
     catch (e) { toast(e.message); }
