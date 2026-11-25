@@ -76,10 +76,11 @@ class PromptReuseTests(unittest.TestCase):
             def create_chat_completion(self, **kwargs):
                 seen.append(kwargs["messages"])
                 if len(seen) == 1 and refuse:
-                    raise ValueError("Conversation roles must alternate user/assistant/user/assistant")
+                    raise ValueError(refuse)
                 return {"choices": [{"message": {"content": json.dumps({"type": "reply", "text": "hey"})}}]}
 
-        for refuse in (False, True):
+        # The second wording is Qwen3.5's own (the brain contest's first run: every reply of its 4B and 9B was this error).
+        for refuse in (False, "Conversation roles must alternate user/assistant/user/assistant", "System message must be at the beginning."):
             seen.clear()
             with mock.patch.object(inference, "_load_model", return_value=Model()), mock.patch.dict(os.environ, {"LUMA_TIMEZONE": "UTC"}):
                 out = inference._plan_here([{"role": "user", "content": "hi"}], [{"text": "likes tea"}], TOOLS, "friend")

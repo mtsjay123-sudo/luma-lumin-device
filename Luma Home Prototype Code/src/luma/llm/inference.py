@@ -188,7 +188,10 @@ def _warm_here(steady, cancel_event=None):
 def _template_refused(error):
     """A chat template that won't take a second system message says so in its own words."""
     said = f"{type(error).__name__} {error}".lower()
-    return "template" in said or "alternate" in said or ("system" in said and "role" in said)
+    # Qwen3.5's says "System message must be at the beginning." (the brain contest's first run, Nov 25: every reply of
+    # its 4B and 9B was this error, because the words "role" and "template" aren't in it).
+    return ("template" in said or "alternate" in said
+            or ("system" in said and any(word in said for word in ("role", "message", "prompt", "beginning", "first"))))
 
 
 def plan(messages, memories, tools, mode, profile=None, cancel_event=None, on_text=None):
