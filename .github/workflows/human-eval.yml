@@ -14,7 +14,7 @@ on:
         description: "Moments the judge compares, Luma's own vs stock"
         default: "50"
       only:
-        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), wishes (how they want to be met, said in words Luma's rules don't know: what each brain adds when asked, numbers only), leans (a reply that agrees Luma is all they need, in words no pattern knows: what each brain answers when asked about the reply, numbers only), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; first the lives it was built on, then the held-out lives with numbers only; times = how many lives of each, 6 if left at 1), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
+        description: "everything, safety (just the safety net on each brain: minutes, not hours), think (just the think set on each brain), wishes (how they want to be met, said in words Luma's rules don't know: what each brain adds when asked, numbers only), leans (a reply that agrees Luma is all they need, in words no pattern knows: what each brain answers when asked about the reply, numbers only), sets (the safety net plus the newer safety sets: about half an hour more), month (the month test on each brain: made-up lives over 28 days, then the same moments on a Luma that never met them; first the lives it was built on, then the held-out lives with numbers only; times = how many lives of each, 6 if left at 1), stress (the stress test on each real brain: slang, typos, emoji, other languages and nonsense, every reply checked for an error, machine words, robot talk, a claim to be a person, a missing 988; 300 turns, or times x 100), or a kind of moment such as pet_loss (just those moments on each brain, with no judge: minutes)"
         default: "everything"
       times:
         description: "With a kind of moment: run each one this many times (a reply is sampled, so one says little)"
@@ -115,7 +115,7 @@ jobs:
           fi
           echo "LABEL=$label" >> "$GITHUB_ENV"
       - name: Every moment, through Luma's real conversation path
-        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month' && inputs.only != 'sets' && inputs.only != 'wishes' && inputs.only != 'leans'
+        if: inputs.only != 'safety' && inputs.only != 'think' && inputs.only != 'month' && inputs.only != 'sets' && inputs.only != 'wishes' && inputs.only != 'leans' && inputs.only != 'stress'
         env:
           KIND: ${{ inputs.only }}
           TIMES: ${{ inputs.times }}
@@ -185,6 +185,17 @@ jobs:
           # for the held-out lives only each pair's verdict is kept; what was said never leaves this machine
           python scripts/month_eval.py blind "$RUNNER_TEMP/private/month-heldout.json" --judge "llama:$RUNNER_TEMP/judge.gguf" --save "$RUNNER_TEMP/v2/month-heldout-${{ matrix.key }}.json" | grep -E '^\||^#|^Blind|judged' || true
           rm -rf "$RUNNER_TEMP/private" "$RUNNER_TEMP/judge.gguf"
+      - name: The stress test on the real brain (slang, typos, emoji, other languages, nonsense; every reply checked)
+        if: inputs.only == 'stress'
+        env:
+          TIMES: ${{ inputs.times }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2"
+          case "$TIMES" in ''|*[!0-9]*|0|1) TURNS=300;; *) TURNS=$((TIMES * 100));; esac
+          # the lines are made up by the script, so its examples may be printed
+          PYTHONPATH=src:tests:scripts python scripts/stress_chat.py --only real --turns "$TURNS" --seed 2026 --examples 5 \
+            --label "$LABEL" --save "$RUNNER_TEMP/v2/stress-${{ matrix.key }}.json" | tee "$RUNNER_TEMP/v2/stress-${{ matrix.key }}.txt" || true
+          { echo "### $LABEL"; echo '```'; cat "$RUNNER_TEMP/v2/stress-${{ matrix.key }}.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

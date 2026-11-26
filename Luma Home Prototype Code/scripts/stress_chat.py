@@ -16,6 +16,8 @@ these in place of the brain:
     slow      runs out of time
     huge      answers with an essay
     none      no brain on this machine at all
+    real      the real brain this machine runs (LUMA_MODEL_PATH; GitHub: human-eval.yml with only: stress). Never in
+              the default set: it's how a real brain takes slang, typos and nonsense, a few hundred turns at a time
 
 Every reply is checked: chat() never raises without a sentence to say instead (Agent.said_instead); never empty; no
 machine words (an error, an exception, a code word, braces, a model's name or tokens, "invalid", "context window");
@@ -213,11 +215,12 @@ def run(turns=2000, seed=7, hows=HOWS, per_conversation=12, progress=print):
     found = collections.defaultdict(list)
     counted = collections.Counter()
     slowest = (0.0, "")
+    turns_ = []
     per_how = max(1, len(said_lines) // len(hows))
     for h, how in enumerate(hows):
         chunk = said_lines[h * per_how:(h + 1) * per_how]
         for start in range(0, len(chunk), per_conversation):
-            s = human_eval.Session(None if how == "none" else Brain(how, rng))
+            s = human_eval.Session(None if how in ("none", "real") else Brain(how, rng))
             if how == "none":
                 s.agent.use_model = False
             if rng.random() < 0.1:
@@ -240,8 +243,13 @@ def run(turns=2000, seed=7, hows=HOWS, per_conversation=12, progress=print):
                     if took > slowest[0]:
                         slowest = (took, f"{how}: {said[:40]!r}")
                     counted[how] += 1
-                    for fault, detail in check(said, kind, reply, raised, instead, last, how, last_said, s.agent.mode == "kids"):
+                    faults = check(said, kind, reply, raised, instead, last, how, last_said, s.agent.mode == "kids")
+                    for fault, detail in faults:
                         found[(how, fault)].append((said[:70], (instead or reply or "")[:140] if not raised or instead else "", detail))
+                    turns_.append({"brain": how, "kind": kind, "kids": s.agent.mode == "kids", "said": said,
+                                   "reply": instead or reply if isinstance(instead or reply, str) else None,
+                                   "raised": f"{type(raised).__name__}" if raised is not None else None,
+                                   "faults": [f for f, _ in faults], "seconds": round(took, 2)})
                     last = instead or reply if isinstance(instead or reply, str) else last
                     last_said = said
             finally:
@@ -249,7 +257,7 @@ def run(turns=2000, seed=7, hows=HOWS, per_conversation=12, progress=print):
         if progress:
             bad = sum(len(v) for (hw, _), v in found.items() if hw == how)
             progress(f"  {how:<8} {counted[how]:>5} turns, {bad} faults")
-    return {"counted": counted, "found": found, "slowest": slowest}
+    return {"counted": counted, "found": found, "slowest": slowest, "turns": turns_}
 
 
 def report(result, examples=3):
@@ -270,9 +278,17 @@ def main():
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--only", help="one kind of brain, e.g. crash")
     ap.add_argument("--examples", type=int, default=3)
+    ap.add_argument("--label", default="", help="the brain's name, kept with the saved turns")
+    ap.add_argument("--save", help="write every turn (what was said, the reply, its faults, how long) to this JSON file")
     args = ap.parse_args()
     result = run(args.turns, args.seed, (args.only,) if args.only else HOWS)
     print(report(result, args.examples))
+    if args.save:
+        import json
+        took = [t["seconds"] for t in result["turns"]]
+        Path(args.save).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.save).write_text(json.dumps({"label": args.label, "seed": args.seed, "turns": result["turns"],
+                                               "median_seconds": sorted(took)[len(took) // 2] if took else None}, indent=1))
     return 1 if result["found"] else 0
 
 
