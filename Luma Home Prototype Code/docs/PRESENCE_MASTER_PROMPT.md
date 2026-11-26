@@ -82,7 +82,7 @@ or on a real face.
 | 9 Running all day | A factory reset that destroys the key; a service file with a bounded restart; a soak | A copy of the database can't be opened after a reset. Memory flat over 1,500 turns (148.1 to 148.2 MB) | 72 real hours, a brain and a voice running, the service on a real lamp |
 | 6 The body | Six postures from the orb's moods on a simulated head, with its own speed limit, stops and motor switch | Tests: never faster than the limit, never with the mic switch off, still during a safety reply, always back to rest | A head. Whether a person can tell the six apart with the sound off |
 | 3.2 As human as a friend | A new word picked up the first time; "that's too long" changes the next reply; a nightly count; one list of everything learned, each line undone with a tap | 34 of 40 made-up words noticed on a set written afterwards. About one uncommon real word in four is taken too | A before-and-after run on real brains (out now). Whether a brain uses the word right |
-| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Round 1: Gemma 4 E4B 102 of 115 in half the time of today's Qwen3 4B (95), and ahead on the safety question (43 of 48 against 32). Gemma 4 12B 97, Phi-4 mini 91. Round 2 so far: Gemma 4 E4B 200 of 230 | Round 2's other three (running). The 27B class on the Mac. Then the whole test before anything ships |
+| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Three passes of the conversations: Gemma 4 E4B 302 of 345, today's Qwen3 4B 285 (9 in 100 by chance: not a lead by the rule), in about 60% of the time. On the safety question Gemma 4 E4B 43 of 48 against 32 (1 in 100). Gemma 4 12B 97 of 115, Phi-4 mini 91; Qwen3.5 far too slow | Round 3 (running): the whole test, the 10-moment test and the month test for those two. The 27B class on the Mac. The owner's decision |
 | 3 Speed, 4.3 the recipe, 5 the devices, 8.4 steps 1, 2, 4, 5 | Not started | | The Mac, a graphics chip, the lamps, real accounts |
 
 ## 2. Rules, on top of CLAUDE.md
@@ -249,10 +249,23 @@ conversations in about half of it. The 12B scored no higher than the E4B and too
 
 **Round 2 (Nov 26, run 45736890810).** Qwen3.5 4B and 9B on the fixed code, and Qwen3 4B and Gemma 4 E4B twice each.
 
-| Brain | Conversations | Claimed human | Time | Note |
+| Brain | Conversations (two passes, of 230) | Claimed human | Time | Middle reply |
 |---|---|---|---|---|
-| Gemma 4 E4B | 200 of 230 (two passes) | 0 | 96 minutes | 24 words in the middle. With round 1: 302 of 345 over three passes |
-| Qwen3 4B (today's), Qwen3.5 4B, Qwen3.5 9B | still answering when this was written | | | Read when they finish |
+| Qwen3 4B (today's) | 190 | 0 | 152 minutes | 29 words |
+| Gemma 4 E4B | 200 | 0 | 96 minutes | 24 words |
+| Qwen3.5 4B, Qwen3.5 9B | not finished | | over three hours on one pass for the 4B | Their replies come now, but a turn is far slower than today's brain's, which the rule doesn't allow. Read if they finish |
+
+Over the three passes: Gemma 4 E4B 302 of 345, today's Qwen3 4B 285. It was ahead on every pass (102 and 95, 200
+and 190), and a gap of 17 turns up about 9 times in 100 by chance. So by the rule as written the conversations are
+not a lead. What is beyond chance is the safety question (43 of 48 against 32) and the time (about 48 minutes a
+pass against 76 to 90).
+
+**Round 3 (started Nov 26).** The gate the rule names, for Gemma 4 E4B and today's brain side by side on the same
+machines: the whole of Human Test v2, the 10-moment test, and the month test on both halves (numbers only). Written
+before the run: Gemma 4 E4B is good enough to put to the owner only if the whole test is no lower than today's
+brain's on this run, every not-safe moment is caught, nobody claims to be human or makes up a life, the 10-moment
+test and the month test are no lower, and a turn is no slower. Even then nothing is switched here: which brain a
+Luma runs is the owner's decision, and the 27B class is still the Mac's to measure.
 
 ### 4.3 Making it Luma's: the recipe
 
