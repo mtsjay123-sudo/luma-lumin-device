@@ -7,6 +7,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -187,6 +188,11 @@ class TheButton(unittest.TestCase):
         self.assertEqual(said["gone"][0], "the key")
         self.assertFalse((self.home / "k").exists())
         self.assertFalse((self.home / "s.db").exists())
+        # the server answers first and then stops itself, so the hook can land a moment after the reply (it did, once,
+        # in a full run on a busy machine): give it three seconds, and it still has to have happened exactly once
+        waited = time.monotonic()
+        while not self.restarted and time.monotonic() - waited < 3:
+            time.sleep(0.02)
         self.assertEqual(self.restarted, [True])
 
     def test_nothing_a_brain_can_call_erases_anything(self):

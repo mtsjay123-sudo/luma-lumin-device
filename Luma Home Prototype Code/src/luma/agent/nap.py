@@ -35,6 +35,15 @@ ASK = re.compile(
     + _LEAD + r"(?:(?:turn on|switch on|go (?:in)?to|start|enter)\s+)?nap (?:mode|time)(?: on)?" + _FOR.replace("<n>", "<n2>").replace("<unit>", "<unit2>") + _TAIL, re.I)
 # Theirs, or somebody else's: "i need a nap", "let me take a nap", "the baby is napping", "should i nap".
 NOT_LUMAS = re.compile(r"\b(?:i|i'?m|i'?ll|i'?d|we|we'?re|he|she|they|me|my|our|the (?:baby|kids?|dog|cat|twins|boys|girls)|should i|can i|let me|lemme)\b", re.I)
+# Told to go back to it, after being woken: "go back to your nap", "sorry, go back to sleep", "you can keep napping".
+_SORRY = r"^\W*(?:(?:oh|ok|okay|alright|well|hey|sorry|never ?mind|nevermind|luma|luna)\W+)*"
+_RESTING = r"(?:nap|naps|napping|sleep|sleeping|bed|rest|resting|snooze|snoozing)"
+BACK = re.compile(
+    _SORRY + r"(?:(?:you (?:can|could|may)|go ahead and|go on and|just)\s+)?(?:"
+    r"(?:go |get )?back to (?:your |the )?" + _RESTING + r"|"
+    r"(?:keep|keep on|carry on|continue|finish|resume)(?: with| on with)? (?:your |the )?" + _RESTING + r")"
+    r"(?:\s+(?:then|now|luma|luna|with you|if you (?:want|like)))*\W*$", re.I)
+CUT_SHORT = 15 * 60   # woken this recently, "go back to your nap" is the rest of that nap
 # Called while it naps, with nothing else said: "luma?", "wake up", "you up?".
 WAKE = re.compile(r"^\W*(?:(?:hey|ok|okay|yo|psst|hello|hi)\W+)*(?:(?:luma|luna)\W*)?(?:(?:time to )?wake up|(?:are )?(?:you|u) (?:up|awake|there|napping|asleep|sleeping)|"
                   r"rise and shine|nap'?s over|nap time'?s over|get up|good morning|morning)?\W*(?:(?:luma|luna|sleepyhead)\W*)?$", re.I)
@@ -58,6 +67,22 @@ def asked(text):
     if n.lower() in ("half an", "a half"):
         minutes = 30
     return max(1, minutes)
+
+
+def back(agent, text):
+    """They're telling Luma to go back to its nap: how many minutes (what was left of the nap they woke it from, when
+    that was a moment ago; a little nap otherwise), or None when it isn't that. Their own sleep is theirs."""
+    said = " ".join(str(text or "").split())
+    if not BACK.match(said) or NOT_LUMAS.search(BACK_LEAD.sub("", said)):
+        return None
+    cut = getattr(agent, "_nap_cut", None)
+    now = _now(agent)
+    if cut and 0 <= now - cut["at"] <= CUT_SHORT and cut["until"] - now >= 60:
+        return max(1, int(round((cut["until"] - now) / 60)))
+    return DEFAULT
+
+
+BACK_LEAD = re.compile(_SORRY, re.I)
 
 
 def _now(agent):
@@ -85,8 +110,8 @@ def until(agent):
     return float(state(agent)["until"]) if napping(agent) else 0
 
 
-def start(agent, minutes=DEFAULT):
-    """Lie down. What Luma says as it does."""
+def start(agent, minutes=DEFAULT, again=False):
+    """Lie down. What Luma says as it does. again: it was woken and told to go back."""
     if agent.store.setting("naps", True) is False:
         return {"text": "Naps are switched off in my settings, so I'll stay up.", "section": "nap"}
     asked_for = int(minutes)
@@ -95,7 +120,10 @@ def start(agent, minutes=DEFAULT):
     before = agent.store.setting("hush_until", 0) or 0
     agent.store.set_setting(KEY, {"since": now, "until": now + minutes * 60, "hush": before})
     agent.store.set_setting("hush_until", max(float(before), now + minutes * 60))   # nothing is started while it rests
-    if asked_for > LONGEST:
+    agent._nap_cut = None
+    if again:
+        said = "Okay, back to my nap. Say my name and I'm up."
+    elif asked_for > LONGEST:
         said = "That's more than a nap. I'll rest for three hours. Say my name and I'm up."
     elif minutes == DEFAULT:
         said = "Okay, a little nap. Say my name and I'm up."
@@ -113,6 +141,7 @@ def wake(agent):
     if now >= kept["until"]:
         _end(agent, kept, kept["until"])
         return None   # it was up already
+    agent._nap_cut = {"until": float(kept["until"]), "at": now}   # "sorry, go back to your nap" is the rest of this one
     return _end(agent, kept, now)
 
 

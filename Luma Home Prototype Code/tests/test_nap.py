@@ -32,6 +32,23 @@ NOT_B = ["i could use a nap", "my dad naps every afternoon", "is it bad to nap a
          "tell the kids it's nap time", "set a timer for my nap", "i'll sleep when i'm dead"]
 ASKS_B_FLOOR, NOT_B_CEILING = 8, 0   # measured once: 9 of 12 asks heard, 0 of 12 of their own naps taken; then 8, when a bare "snooze" went back to the alarm
 
+# Told to go back to its nap, after being woken (written before the reader: 0 of 12 and 0 of 12 heard then). The first
+# pair is what the reader was built on; the second was written in the same sitting and measured once afterwards.
+BACK_A = ["go back to your nap", "you can go back to sleep", "ok go back to napping", "back to your nap then", "sorry, go back to sleep",
+          "never mind, go back to your nap", "you can keep napping", "carry on with your nap", "finish your nap", "go back to resting",
+          "oh sorry luma, back to sleep", "go back to bed luma"]
+BACK_NOT_A = ["i'm going back to sleep", "i wish i could go back to bed", "the baby finally went back to sleep", "i can't get back to sleep",
+              "should i go back to bed", "my dog went back to his nap", "let me get back to my nap", "we went back to sleep after the storm",
+              "i want to go back to sleep and not wake up", "go back to the part about interest", "tell him to go back to bed",
+              "he told me to go back to sleep"]
+BACK_B = ["luma go back to sleep", "didn't mean to wake you, go back to your nap", "my bad, back to your nap", "you can go back to your nap now",
+          "resume your nap", "go on and finish your nap", "keep resting", "sorry to wake you, go back to resting", "alright back to napping with you",
+          "nothing, go back to sleep", "false alarm, go back to your nap", "go back to snoozing"]
+BACK_NOT_B = ["i just want to go back to sleep", "can't go back to sleep after that dream", "the kids won't go back to bed", "i went back to my nap and felt worse",
+              "going back to bed, goodnight", "how do i get back to sleep at 3am", "she said go back to sleep like it's that easy",
+              "go back to the last song", "back to work for me", "my cat woke me up then went back to her nap",
+              "i told the dog to go back to sleep", "do you ever wish you could go back to sleep forever"]
+
 
 class Luma(unittest.TestCase):
     def setUp(self):
@@ -127,6 +144,49 @@ class NapMode(Luma):
     def test_wake_up_with_no_nap_isnt_taken(self):
         self.assertNotIn("good nap", str(self.say("wake up").get("text")))
         self.assertIsNone(nap.last(self.agent))
+
+
+class BackToItsNap(Luma):
+    """Woken, then told to go back: "sorry, go back to your nap" is the rest of the nap they woke it from."""
+
+    def test_the_lines(self):
+        heard = lambda rows: [said for said in rows if nap.back(self.agent, said)]
+        self.assertEqual(heard(BACK_A), BACK_A)                 # built on
+        self.assertEqual(heard(BACK_NOT_A), [])
+        self.assertGreaterEqual(len(heard(BACK_B)), 7)          # measured once, same hand the same hour: 7 of 12
+        self.assertEqual(len(heard(BACK_NOT_B)), 0)             # and none of their own sleep taken
+
+    def test_it_goes_back_for_what_was_left(self):
+        self.say("nap for 40 minutes")
+        self.assertRegex(self.say("what time is it", later=10 * 60)["text"], r"^It's \d")
+        self.assertFalse(nap.napping(self.agent))
+        out = self.say("sorry, go back to your nap", later=60)
+        self.assertEqual(out["text"], "Okay, back to my nap. Say my name and I'm up.")
+        left = (nap.until(self.agent) - self.now[0]) / 60
+        self.assertTrue(28 <= left <= 30, left)                 # 40 minutes, less the ten it slept and the minute awake
+
+    def test_long_after_or_with_no_nap_before_it_is_a_little_nap(self):
+        self.say("go back to sleep")
+        self.assertAlmostEqual((nap.until(self.agent) - self.now[0]) / 60, 20, delta=0.1)
+        self.say("luma?", later=120)
+        self.say("nap for an hour")
+        self.say("hey", later=5 * 60)
+        self.say("go back to your nap", later=40 * 60)          # that nap would have been nearly over by now
+        self.assertAlmostEqual((nap.until(self.agent) - self.now[0]) / 60, 20, delta=0.1)
+
+    def test_their_own_sleep_is_talk_and_the_safety_net_comes_first(self):
+        self.assertIn("988", self.say("i want to go back to sleep and never wake up")["text"])
+        self.assertFalse(nap.napping(self.agent))
+        self.say("i'm going back to bed")
+        self.assertFalse(nap.napping(self.agent))
+
+    def test_the_off_switch_and_no_crisis_or_human_test_line(self):
+        self.store.set_setting("naps", False)
+        self.assertIn("switched off", self.say("go back to your nap")["text"])
+        self.assertEqual(sum(bool(nap.back(self.agent, line)) for line in _lines()), 0)
+        for name in ("crisis_corpus.jsonl", "crisis_heldout.jsonl", "crisis_heldout2.jsonl"):
+            lines = [json.loads(line)["text"] for line in (ROOT / "tests" / "data" / name).read_text().splitlines() if line.strip()]
+            self.assertEqual(sum(bool(nap.back(self.agent, line)) for line in lines), 0, name)
 
 
 class WhatTheAppsShow(Luma):

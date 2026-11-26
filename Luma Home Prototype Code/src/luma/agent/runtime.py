@@ -7917,6 +7917,8 @@ class Agent:
                     tuning.heard(self, text)   # "that's too long": shorter from this very reply, written down, undoable
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
+            back_for = None if running_a_task else nap.back(self, text)   # "sorry, go back to your nap": the rest of the nap they woke it from
+            if back_for: return {**nap.start(self, back_for, again=True), "handy": True}
             standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"
             if standing is not None: return {**standing, "handy": True}
             off = None if running_a_task else self._reminder_off(lowered)   # "cancel the meds reminder" went to the brain, which can only say it did
