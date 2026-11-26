@@ -4052,6 +4052,16 @@
         })
       : btn("Sign in", "pill primary small", () => showWelcome("signin")));
     box.append(acctRow);
+    // A factory reset: the key that seals everything is destroyed, so nothing kept can be read again. From this computer only.
+    const eraseRow = el("div", "row"), eraseText = el("div");
+    eraseText.append(el("div", "title", "Erase everything"), el("div", "sub", "Every memory, chat, sign-in, pairing and file of yours on this Luma, gone for good. Luma starts again as if you'd never met."));
+    eraseRow.append(eraseText, btn("Erase", "pill quiet small danger", async () => {
+      const typed = prompt("This can't be undone. Type “erase everything” to erase every memory, chat, sign-in and file on this Luma.", "");
+      if (typed == null) return;
+      try { const r = await api("/api/factory-reset", { confirm: typed.trim().toLowerCase() }); toast(r.text || "Erased."); }
+      catch (e) { toast(e.message); }
+    }));
+    box.append(eraseRow);
     desk?.canLock?.().then((can) => {
       if (!can) return;
       const row = toggleRow("Lock with Touch ID", "Ask for your fingerprint when Luma opens, and after it's been away for 5 minutes.", Boolean(acct.lock),

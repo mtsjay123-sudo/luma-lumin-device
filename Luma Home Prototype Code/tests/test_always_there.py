@@ -132,5 +132,68 @@ class AFactoryReset(unittest.TestCase):
         self.assertTrue((outside / "keep.txt").exists())
 
 
+class TheButton(unittest.TestCase):
+    """The route the computer app's Erase button calls. Only from the computer Luma runs on, only with the words typed out."""
+
+    def setUp(self):
+        import threading
+        from luma.control.server import make_server
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name) / "state"
+        self.home.mkdir()
+        self.store = Store(self.home / "s.db", self.home / "k")
+        self.agent = Agent(store=self.store, use_model=False)
+        self.store.put("memory", {"text": "They are afraid of the dentist.", "kind": "fact"})
+        self.server = make_server(self.agent, 0)
+        self.ctx = self.server.control_context
+        self.restarted = []
+        self.ctx.after_reset = lambda: self.restarted.append(True)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.server.server_port}"
+        self.addCleanup(lambda: (self.ctx.stop.set(), self.server.shutdown(), self.server.server_close()))
+
+    def call(self, data, owner=True):
+        import json
+        import urllib.error
+        import urllib.request
+        headers = {"Content-Type": "application/json", "Origin": self.base}
+        if owner:
+            headers["Cookie"] = "luma_owner=" + self.ctx.owner_session
+        request = urllib.request.Request(self.base + "/api/factory-reset", data=json.dumps(data).encode(), headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.status, json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            return error.code, json.loads(error.read())
+
+    def test_not_without_the_words_and_not_from_anyone_else(self):
+        self.assertEqual(self.call({"confirm": "erase everything"}, owner=False)[0], 403)
+        for words in (None, "", "yes", "erase", "ERASE EVERYTHING please"):
+            status, said = self.call({"confirm": words})
+            self.assertEqual(status, 400, words)
+            self.assertIn("erase everything", said["error"])
+        self.assertTrue((self.home / "k").exists())
+        self.assertEqual(self.restarted, [])
+        source = (ROOT / "src" / "luma" / "control" / "server.py").read_text()
+        route = source[source.index("elif path=='/api/factory-reset':"):source.index("elif path=='/api/yes':")]
+        self.assertIn("if companion or linked: return self.send(", route)             # never from a phone or a paired computer
+        self.assertIn("if agent.mode=='kids': return self.send(", route)
+        self.assertLess(route.index("if companion or linked"), route.index("reset.factory_reset"))
+
+    def test_with_the_words_everything_is_gone_and_luma_starts_again(self):
+        status, said = self.call({"confirm": "erase everything"})
+        self.assertEqual(status, 200)
+        self.assertEqual(said["gone"][0], "the key")
+        self.assertFalse((self.home / "k").exists())
+        self.assertFalse((self.home / "s.db").exists())
+        self.assertEqual(self.restarted, [True])
+
+    def test_nothing_a_brain_can_call_erases_anything(self):
+        from luma.agent import runtime
+        self.assertEqual([name for name in runtime.TOOLS if "reset" in name or "erase" in name or "factory" in name], [])
+        self.assertNotIn("factory_reset", (ROOT / "src" / "luma" / "agent" / "runtime.py").read_text())
+
+
 if __name__ == "__main__":
     unittest.main()

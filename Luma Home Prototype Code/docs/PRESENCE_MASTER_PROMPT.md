@@ -497,6 +497,16 @@ A presence that's off is a lamp. Prove each line.
 | We know it's alive without knowing them | Nothing by default. With a yes: counts only (it's on, version, restarts) | The egress check at 0 hosts as it ships |
 | The work it does while they sleep | The nightly tidy of memory, check-ins for tomorrow, reading up on what they named | Each has an off switch and never runs in kids mode or while they're hurting |
 
+**Where this stands (Nov 26).** Three lines of the table have their first proof, none on a lamp.
+
+- It can be reset: built (`src/luma/memory/reset.py`, the Erase everything button). The key is destroyed first; a copy
+  of the database taken beforehand can't be opened afterwards.
+- It's always there: `hardware/luma.service` is written (five starts in five minutes, then it stays down). Read by a
+  test, never run on a lamp.
+- Memory use flat: `scripts/soak.py`, 1,500 turns with the clock run forward two days and no brain: 148.1 MB a third of
+  the way in, 148.2 MB at the end. Not 72 hours, and not with a brain or a voice.
+- It updates safely: 9.1 below. The wake word, power, heat and the real-lamp proofs are untouched.
+
 ### 9.1 One Luma on every device: updates pushed to all of them
 
 The owner: "software updates push to all devices." When Luma gets better, every Luma gets better: the lamp, the

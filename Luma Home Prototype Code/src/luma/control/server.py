@@ -55,6 +55,9 @@ class ControlContext:
         self.lock = threading.RLock()
         self.limits = {}
         self.phone_app = PhoneApp(agent)
+        # After a factory reset this Luma has no store left: it stops, and whatever started it (luma.service) starts a
+        # fresh one that has met nobody. A test puts its own hook here.
+        self.after_reset = lambda: threading.Timer(1.0, lambda: os._exit(75)).start()
         agent.on_result = self.publish
 
     def publish(self, result):
@@ -930,6 +933,19 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/factory-reset':
+                        # Everything forgotten for real (luma.memory.reset): the key is destroyed first. Only from the
+                        # computer Luma runs on, only in adult mode, and only with the words typed out. Never from a
+                        # phone, never by voice, never by anything a brain proposes.
+                        if companion or linked: return self.send({'error':'Erase everything from the computer your Luma runs on.'},403)
+                        if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        if data.get('confirm')!='erase everything': return self.send({'error':'Type “erase everything” to do this. It can\'t be undone.'},400)
+                        from luma.memory import reset
+                        ctx.stop.set(); agent.interrupt()
+                        gone=reset.factory_reset(agent.store)
+                        self.send({'reset':True,'gone':gone,'text':'Everything is erased. Luma is starting again as new.'})
+                        ctx.after_reset()
+                        return
                     elif path=='/api/yes':
                         # The owner's yes (luma.agent.yeses). A sign-in is typed in here once and never sent back. The
                         # second step of a two-step yes counts only from the paired phone: that's what "a message from
