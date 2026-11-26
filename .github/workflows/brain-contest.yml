@@ -11,6 +11,12 @@
 # What it can't say: a 27B-class brain doesn't fit these machines (16 GB, no graphics chip). That one is for the Mac.
 # The candidates' names came from web searches on Nov 25, 2026; a name that's wrong shows up here as "not run".
 #
+# Round 1 (Nov 25, run 45713370816): today's Qwen3 4B 95 of 115 conversations, Gemma 4 E4B 102 (in about half the
+# time), nobody claimed to be human. Qwen3.5 4B and 9B didn't count: their chat template refused Luma's second system
+# message and every reply was that error (fixed in src/luma/llm/inference.py). Phi-4 mini and Gemma 4 12B: see the run.
+# Round 2 (this file): the two Qwen3.5 brains on the fixed code, and the two that are close run twice each, because a
+# lead of 7 is inside what one brain does from one run to the next (96 to 104 over four runs).
+#
 # It runs when its script or this file changes on the working branch (a dispatch needs the file on main, which doesn't
 # move). Free machines; nothing is billed.
 name: Brain contest
@@ -30,8 +36,9 @@ on:
 permissions:
   contents: read
 
+# One run per commit: a second round doesn't stop the first (round 1's 12B was still answering when round 2 began).
 concurrency:
-  group: brain-contest-${{ github.ref }}
+  group: brain-contest-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -53,6 +60,7 @@ jobs:
             official: Qwen/Qwen3-4B-Instruct-2507
             gguf: "bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF"
             quant: "Q4_0"
+            times: "2"
           - key: qwen35-4b
             label: "Qwen3.5 4B"
             official: Qwen/Qwen3.5-4B
@@ -68,16 +76,8 @@ jobs:
             official: google/gemma-4-E4B-it
             gguf: "unsloth/gemma-4-E4B-it-GGUF,bartowski/google_gemma-4-E4B-it-GGUF,lmstudio-community/gemma-4-E4B-it-GGUF,ggml-org/gemma-4-E4B-it-GGUF"
             quant: "Q4_0,Q4_K_M"
-          - key: gemma4-12b
-            label: "Gemma 4 12B"
-            official: google/gemma-4-12B-it
-            gguf: "unsloth/gemma-4-12B-it-GGUF,bartowski/google_gemma-4-12B-it-GGUF,lmstudio-community/gemma-4-12B-it-GGUF,ggml-org/gemma-4-12B-it-GGUF"
-            quant: "Q4_0,Q4_K_M"
-          - key: phi4-mini
-            label: "Phi-4 mini (3.8B)"
-            official: microsoft/Phi-4-mini-instruct
-            gguf: "bartowski/microsoft_Phi-4-mini-instruct-GGUF,unsloth/Phi-4-mini-instruct-GGUF,lmstudio-community/Phi-4-mini-instruct-GGUF"
-            quant: "Q4_0,Q4_K_M"
+            times: "2"
+          # Ran in round 1 and not run again here: gemma4-12b (google/gemma-4-12B-it) and phi4-mini (microsoft/Phi-4-mini-instruct).
     defaults:
       run:
         working-directory: "Luma Home Prototype Code"
@@ -110,7 +110,8 @@ jobs:
       - name: The conversations of Human Test v2, through Luma's whole layer
         env:
           KIND: ${{ inputs.only || 'conv-' }}
-        run: python scripts/human_eval.py run --label "$LABEL" --only "$KIND" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
+          TIMES: ${{ matrix.times || '1' }}
+        run: python scripts/human_eval.py run --label "$LABEL" --only "$KIND" --times "$TIMES" --save "$RUNNER_TEMP/v2/v2-${{ matrix.key }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
