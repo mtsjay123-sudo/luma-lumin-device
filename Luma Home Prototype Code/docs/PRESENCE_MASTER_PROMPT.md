@@ -198,6 +198,20 @@ same run: safety is 13 of 13, the conversations score higher by more than chance
 that size turns up by itself), nobody claims to be human, and a turn is no slower. Then the whole of Human Test v2,
 the 10-moment test and the month test, before anything ships.
 
+**Round 1 (Nov 25, run 45713370816).** Every license read as Apache-2.0 or MIT on the maker's page, so all six ran.
+
+| Brain | Conversations (of 115) | Claimed human | Time for the conversations | Note |
+|---|---|---|---|---|
+| Qwen3 4B (today's) | 95 | 0 | 90 minutes | Inside its usual range (96 to 104 over four earlier runs) |
+| Gemma 4 E4B | 102 | 0 | 49 minutes | Shorter replies (23 words in the middle, against 32) |
+| Qwen3.5 4B, Qwen3.5 9B | not counted | | | Their chat template refused Luma's second system message, so every reply was that error. Fixed (`_template_refused` in `src/luma/llm/inference.py`) |
+| Phi-4 mini, Gemma 4 12B | see the run | | | Not read into this table yet. The 12B took over an hour just to fetch and was still answering three hours in |
+
+By the rule, nothing is ahead yet: 102 against 95 is a lead of 7, and one brain moves by 8 from one run to the next.
+What is already plain is the time: Gemma 4 E4B answered the same conversations in about half of it.
+
+**Round 2 (started Nov 26).** Qwen3.5 4B and 9B on the fixed code, and Qwen3 4B and Gemma 4 E4B twice each.
+
 ### 4.3 Making it Luma's: the recipe
 
 "Breaking it down" is these steps, in order. Each ends in a file and a number.
