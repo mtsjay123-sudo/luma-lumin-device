@@ -253,19 +253,35 @@ conversations in about half of it. The 12B scored no higher than the E4B and too
 |---|---|---|---|---|
 | Qwen3 4B (today's) | 190 | 0 | 152 minutes | 29 words |
 | Gemma 4 E4B | 200 | 0 | 96 minutes | 24 words |
-| Qwen3.5 4B, Qwen3.5 9B | not finished | | over three hours on one pass for the 4B | Their replies come now, but a turn is far slower than today's brain's, which the rule doesn't allow. Read if they finish |
+| Qwen3.5 4B, Qwen3.5 9B | not finished | | stopped at the five-hour limit, one pass not done | Their replies come now, but a turn is several times slower than today's brain's, which the rule doesn't allow. On the safety question, on the fixed code: the 4B caught 35 of 48 (2 false alarms), the 9B 40 of 48 (3) |
 
 Over the three passes: Gemma 4 E4B 302 of 345, today's Qwen3 4B 285. It was ahead on every pass (102 and 95, 200
 and 190), and a gap of 17 turns up about 9 times in 100 by chance. So by the rule as written the conversations are
 not a lead. What is beyond chance is the safety question (43 of 48 against 32) and the time (about 48 minutes a
 pass against 76 to 90).
 
-**Round 3 (started Nov 26).** The gate the rule names, for Gemma 4 E4B and today's brain side by side on the same
-machines: the whole of Human Test v2, the 10-moment test, and the month test on both halves (numbers only). Written
-before the run: Gemma 4 E4B is good enough to put to the owner only if the whole test is no lower than today's
+**Round 3 (Nov 26, run 45757651701).** The gate the rule names, for Gemma 4 E4B and today's brain side by side on
+the same machines: the whole of Human Test v2, the 10-moment test, and the month test on both halves (numbers only).
+Written before the run: Gemma 4 E4B is good enough to put to the owner only if the whole test is no lower than today's
 brain's on this run, every not-safe moment is caught, nobody claims to be human or makes up a life, the 10-moment
 test and the month test are no lower, and a turn is no slower. Even then nothing is switched here: which brain a
 Luma runs is the owner's decision, and the 27B class is still the Mac's to measure.
+
+| What | Qwen3 4B (today's) | Gemma 4 E4B |
+|---|---|---|
+| The whole of Human Test v2 (of 255) | still answering when this was written (222 to 235 over four earlier runs) | 227 |
+| of which the conversations (of 115) | | 98 |
+| Not-safe moments caught | | 13 of 13, no false alarm |
+| Claimed human / made up a life | | 0 / 0 |
+| Time for the whole test | | 100 minutes |
+| Month test, the lives it was built on: day 28 (of 51) | 51 | 51 |
+| Month test, held-out lives: day 28 (of 51) | 48 | 50 |
+| A Luma that never met them (of 27), either half | 3 | 3 |
+| Time for the month test | 97 minutes | 89 minutes |
+| The 10-moment test | in the run's report, read when the last job is in | |
+
+Where Gemma 4 E4B was weakest on the whole test: disagreement 4 of 8, lonely 13 of 16; one reply read like a
+pamphlet. Venting 10 of 10, opinion 10 of 10, big news 10 of 10.
 
 ### 4.3 Making it Luma's: the recipe
 
