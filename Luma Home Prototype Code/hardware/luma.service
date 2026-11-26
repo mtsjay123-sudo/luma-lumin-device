@@ -1,0 +1,43 @@
+# Luma on its own lamp: started at power-on, and started again if it stops (docs/PRESENCE_MASTER_PROMPT.md, section 9:
+# "It's always there: luma.service restarts it on a crash, at a bounded rate").
+#
+# Install on the lamp:   sudo cp luma.service /etc/systemd/system/ && sudo systemctl enable --now luma
+# A design, like the rest of hardware/: no lamp has been built, so this has only been read by a test, never run.
+[Unit]
+Description=Luma, a presence in this home
+After=network.target sound.target
+# Bounded: five starts in five minutes, then it stays down instead of spinning. Something is wrong that a restart
+# doesn't fix, and a lamp that restarts forever wears its storage and helps nobody.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=luma
+Group=luma
+WorkingDirectory=/opt/luma
+Environment=LUMA_DEVICE_TIER=budget
+Environment=LUMA_STATE_DIR=/var/lib/luma
+ExecStart=/opt/luma/venv/bin/luma serve --hands-free
+Restart=on-failure
+RestartSec=5
+# A stop is asked for politely first, so a memory being written is finished (tests/test_power_cut.py covers the rude way).
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+# Luma can write its own state and nothing else on the lamp.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/luma
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# Memory that only grows is a bug, not a need: past this, systemd stops it and the restart above brings it back.
+MemoryMax=6G
+
+[Install]
+WantedBy=multi-user.target

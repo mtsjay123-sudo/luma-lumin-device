@@ -2205,6 +2205,7 @@ class Agent:
         except BrowserError as error:
             raise ProviderError(str(error)) from None
         self.store.set_setting("browser_page", (snap.get("title") or "") + " — " + snap.get("url", ""))
+        self.store.set_setting("browser_url", str(snap.get("url") or ""))   # the address by itself: a title is the page's to write (luma.agent.yeses)
         limit = 1800 if self.use_model else 6000
         return {"page": page_for_model(snap, limit_elements=20)[:limit], "url": snap.get("url"), "title": snap.get("title"),
                 "summary": "Done." if name == "browser.act" else f"Opened {snap.get('title') or snap.get('url')}."}
@@ -5038,6 +5039,9 @@ class Agent:
         if ahead is not None and (ahead["said"] != " ".join(text.split()) or thread != "main"):
             self.forget_ahead()  # a reply was started on other words: it's never used
         with self.lock:
+            # What they asked for this turn, for the owner's yes: never an earlier turn's words, and never a task's. Set
+            # here, before anything in the chat path can answer first.
+            self._yes_said = "" if channel == "task" or agent_mode else str(text)
             self._brain_texts = []  # what the brain writes this turn
             self._caught = None  # what the second look caught this turn, if anything
             main, self.history = self.history, self.threads[thread]

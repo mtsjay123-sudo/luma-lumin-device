@@ -31,6 +31,7 @@ KEY = "who"
 ROUNDS = 1200          # every stretch of what's said is tried, a few dozen a turn, so one has to be quick
 QUIET = 30             # minutes with nothing from its person before it locks again (they choose: 0 is never)
 TRIES = 3
+QUIET_TRIES = 5        # a few bare words that could be a guess, said cold, this many times in two minutes: the wait starts
 FIRST_WAIT = 60        # seconds; doubles each time the tries run out again
 LONGEST_WAIT = 900     # and never more than a quarter of an hour: the app lets them in at once
 LETTERS = "abcdefghijklmnop"   # a hash is kept as letters, never digits: the store refuses anything that looks like a card number
@@ -41,9 +42,13 @@ LOCK_UP = re.compile(r"^\W*(?:(?:hey|yo|ok|okay)\W+)?(?:luma\W+)?(?:lock(?: it| 
 # Said by someone trying to get in, when nothing opened: these count as a try. Ordinary talk to a locked Luma doesn't.
 ATTEMPT = re.compile(r"\b(?:pass ?code|pass ?word|pass ?phrase|unlock|it'?s me|let me in|open up)\b", re.I)
 # The few things a locked Luma still does, read off the words before anything is run.
-BASICS = re.compile(r"\b(?:what(?:'s| is)? (?:the )?(?:time|day|date)\b|what time\b|today'?s date|(?:turn|crank) (?:it|the volume|that) (?:up|down)|volume\b|louder|quieter|"
-                    r"flip a coin|roll (?:a|the) dic?e|how many \w+ (?:are )?in an? \w+|convert \d|(?:rain|ocean|white noise|brown noise|fire|thunder)\b.*\bsounds?\b|"
-                    r"(?:play|put on) (?:some )?(?:rain|ocean|white noise|brown noise|sleep|relaxing)\b)", re.I)
+# The whole of what was said has to be the basic, and nothing else: "clear my shopping list, what time is it" used to
+# reach the list before anything checked what kind of command it was.
+BASICS = re.compile(r"^\W*(?:please\W+)?(?:what(?:'s| is)? (?:the )?(?:time|day|date)(?: is it| today)?|what time is it(?: now| right now)?|what day is it(?: today)?|what'?s today'?s date|"
+                    r"(?:turn|crank) (?:it|the volume|that) (?:up|down)(?: a (?:bit|little))?|(?:volume|turn it) (?:up|down)|louder|quieter|what'?s (?:the|my) volume|"
+                    r"flip a coin|roll (?:a|the) dic?e|how many \w+ (?:are (?:there )?)?in an? \w+|"
+                    r"(?:play|put on) (?:some |the )?(?:rain|ocean|white noise|brown noise|thunder|fire)(?: sounds?)?)(?:\W+please)?\W*$", re.I)
+NOT_BASIC = re.compile(r"\b(?:list|lists|add|remove|delete|clear|cross|alarm|alarms|remind|reminder|note|notes|remember|forget|text|message|email|call|lights?|thermostat|unlock|door|garage)\b", re.I)
 ALLOWED_SECTIONS = {"time", "volume", "games", "convert", "sounds"}
 GREET_ME = re.compile(r"^\W*(?:(?:hey|yo|ok|okay)\W+)?(?:luma\W+)?(?:from now on,? )?(?:greet me (?:like|with|by saying)|say (?:hi|hello|hey) (?:to me )?(?:like|with|by saying)|"
                       r"when i (?:say (?:hey|hi|yo)(?: luma)?|walk in|come in|get home|say your name),? (?:just )?say)\W+(?P<line>.{2,80}?)\W*$", re.I)
@@ -51,13 +56,16 @@ GREET_ME = re.compile(r"^\W*(?:(?:hey|yo|ok|okay)\W+)?(?:luma\W+)?(?:from now on
 # How they greet Luma, when it's a way of their own ("wtw luma", three times): Luma says it back from then on. Plain hellos aren't a style.
 OPENER = re.compile(r"^\W*(?P<o>wtw|wassup|wazzup|what'?s up|sup|what'?s good|what it do|what'?s poppin|howdy|hola|ayo|g'?day|what'?s crackin|what'?s the word)\W+"
                     r"(?:luma|luna)\W*$", re.I)
-TIMER = re.compile(r"\b(?:set|start) (?:a |an |the |me a )?(?:[\w-]+ ){0,3}timer\b|\btimer for \w+ (?:second|minute|hour)", re.I)
+TIMER = re.compile(r"^\W*(?:please\W+)?(?:(?:set|start) (?:a |an |the |me a )?(?:[\w-]+ ){0,3}timer(?: for [\w -]{1,30})?|(?:a |an )?[\w-]+ (?:second|minute|hour) timer|timer for [\w -]{1,30})(?:\W+please)?\W*$", re.I)
 HINT = "Something's come in for you. Say your passcode and I'll tell you."
 HELD = "While I was locked: "
 
 # After "Who've I got?", a few bare words are a try at the passcode. A sentence with these in it is somebody talking.
 TALK = re.compile(r"\?|\b(?:i|i'?m|i'?ve|you|you'?re|your|me|my|we|is|are|was|it'?s|that'?s|what|who|how|why|where|when|can|could|do|does|did|the|a|an|hello|hi|hey|"
                   r"nice|cool|thanks|thank|please|no|nope|yes|yeah|nothing|nobody|just|never ?mind|sorry|oh|wow|lol)\b", re.I)
+
+GREETING = re.compile(r"^\W*(?:good (?:morning|afternoon|evening|night)|morning|evening|night night|goodnight|bye(?: bye)?|goodbye|see ya|later|"
+                      r"happy (?:birthday|holidays|new year)|merry christmas|excuse me|bless you|never ?mind|hang on|one sec(?:ond)?|hold on)\b[\w ,.!]{0,24}$", re.I)
 
 ASK = "Hey. Who've I got?"
 LOCKED_LINE = ("I'm Luma. I don't think we've met, so I'm keeping to small talk: I can tell you the time or put a sound on. "
@@ -293,6 +301,29 @@ def _miss(agent):
     return line
 
 
+def _could_be_a_guess(said):
+    """A few bare words that aren't talk, a greeting or a basic: what a guess at a passcode looks like when nobody
+    said "hey Luma" first. ("blue kettle monday", "red kettle friday", ... used to be tried without limit.)"""
+    return (2 <= len(_tokens(said)) <= 6 and not TALK.search(said) and not WAKE.match(said) and not BASICS.match(said) and not TIMER.match(said)
+            and not GREETING.match(said))
+
+
+def _quiet_miss(agent):
+    """Count one, without a word. True when it was one too many: the wait has started."""
+    state = _state(agent)
+    tries = state.get("tries") or {"count": 0, "wait": FIRST_WAIT, "until": 0}
+    now = agent.clock()
+    recent = [t for t in (tries.get("quiet") or []) if now - t < 120] + [now]
+    started = len(recent) >= QUIET_TRIES
+    if started:
+        tries["until"], recent = now + tries["wait"], []
+        tries["wait"] = min(tries["wait"] * 2, LONGEST_WAIT)
+    tries["quiet"] = recent
+    state["tries"] = tries
+    _save(agent, state)
+    return started
+
+
 def _waiting(agent):
     tries = _state(agent).get("tries") or {}
     left = float(tries.get("until") or 0) - agent.clock()
@@ -325,11 +356,13 @@ def _small_talk(agent, said, cancel_event=None):
             agent.history = keep
     if text:
         try:
-            text = style.friend_style(text)
+            polished = style.friend_style(text)
+            text = polished[0] if isinstance(polished, tuple) else polished   # (the reply, what was fixed)
         except Exception:
             pass
-        if style.claims_human(text) or re.search(r"\b(?:AI|assistant|language model)\b", text):
-            text = None
+        from luma.agent import friendcheck
+        if style.claims_human(text) or friendcheck.MACHINE.search(text) or re.search(r"\b(?:an? ai|ai (?:model|system|assistant|companion|friend)|assistant|chat ?bot|program|language model|software)\b", text, re.I):
+            text = None     # rule 1 holds for a stranger too: it's Luma, a presence, never "an AI" or "an assistant"
     return text or LOCKED_LINE
 
 
@@ -393,16 +426,20 @@ def gate(agent, text, cancel_event=None, room=True):
         return {"text": WAIT_LINE.format(when=_wait(waiting)), "section": "who", "locked": True, "handy": True}
     if asked or ATTEMPT.search(said):
         return {"text": _miss(agent), "section": "who", "locked": True, "handy": True}
+    if waiting and _could_be_a_guess(said):
+        return {"text": WAIT_LINE.format(when=_wait(waiting)), "section": "who", "locked": True, "handy": True}
+    if _could_be_a_guess(said) and _quiet_miss(agent):
+        return {"text": WAIT_LINE.format(when=_wait(_waiting(agent))), "section": "who", "locked": True, "handy": True}
     from luma.agent import presence
     plain = presence.strip_wake(said) or said
-    if BASICS.search(plain):
+    if BASICS.match(plain) and not NOT_BASIC.search(plain):
         try:
             done = agent.athome.handle(plain, plain.lower())
         except Exception:
             done = None
         if isinstance(done, dict) and done.get("section") in ALLOWED_SECTIONS:
             return {"text": done.get("text") or "", "section": done.get("section"), "locked": True, "handy": True}
-    if TIMER.search(plain):
+    if TIMER.match(plain) and not NOT_BASIC.search(plain):
         try:
             done = agent.household.command(plain, mode=agent.mode)
         except Exception:

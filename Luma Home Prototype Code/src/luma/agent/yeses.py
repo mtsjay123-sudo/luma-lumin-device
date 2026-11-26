@@ -115,12 +115,24 @@ def _contact(agent, who):
 
 
 # -- sign-ins, sealed at home -----------------------------------------------------------------------------------------
-def host_of(text):
-    """The site's name from an address or from "Title — https://…": lower case, no www, no port, no path."""
-    text = str(text or "").strip()
-    url = re.search(r"https?://[^\s]+", text)
-    text = url.group(0) if url else text
-    host = re.sub(r"^[a-z]+://", "", text, flags=re.I).split("/")[0].split("?")[0].split("@")[-1].split(":")[0].lower().strip(". ")
+HOST = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+")
+
+
+def host_of(address):
+    """The site's name from an address ("https://www.chase.com/login", or "chase.com" as someone types it): lower case,
+    no www, no port, no path. Read the way a browser reads it (urlsplit), so nothing after a "#", a "?" or before an "@"
+    can pass for the site. Anything that isn't one plain address gives "". Never hand this a page's title."""
+    from urllib.parse import urlsplit
+    text = str(address or "").strip()
+    if not text or re.search(r"\s", text):
+        return ""
+    try:
+        parts = urlsplit(text if re.match(r"^[a-z][a-z0-9+.-]*://", text, re.I) else "https://" + text)
+        host = (parts.hostname or "").lower().strip(".")
+    except ValueError:
+        return ""
+    if parts.scheme.lower() not in ("https", "http") or not HOST.fullmatch(host) or re.fullmatch(r"[\d.]+", host):
+        return ""
     return re.sub(r"^www\.", "", host)
 
 
@@ -135,7 +147,7 @@ def save_signin(agent, site, user, secret, label=None):
     if agent.mode == "kids":
         raise Refused("Sign-ins are for grown-ups. Switch to adult mode at home.")
     host = host_of(site)
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+", host or ""):
+    if not host:
         raise Refused("Give me the site's address, like chase.com.")
     if not isinstance(secret, str) or not 1 <= len(secret) <= 200 or not isinstance(user, str) or len(user) > 200:
         raise Refused("That password doesn't look right. Try typing it again.")
@@ -175,26 +187,50 @@ def forget_all(agent):
     agent._yes_waiting = []
 
 
-def _signin_for(agent, where):
-    """The sign-in for a page, or for what they called it ("my bank", "netflix")."""
+class Several(Refused):
+    """More than one sign-in fits: Luma says so and types nothing."""
+
+
+def _signin_for(agent, where, by_host=False):
+    """The sign-in for a page's site (by_host), or for what they called it ("my bank", "netflix"). None when there
+    isn't one; Several when two fit and Luma can't know which they mean."""
     rows = agent.store.all("signin", 500)
-    host = host_of(where)
-    hit = [r for r in rows if same_site(host, r.get("host"))] if "." in host else []
-    if not hit:
+    if by_host:
+        hit = [r for r in rows if same_site(where, r.get("host"))]
+        longest = max((len(r.get("host") or "") for r in hit), default=0)
+        hit = [r for r in hit if len(r.get("host") or "") == longest]      # mail.google.com before google.com
+    else:
         name = _name(where)
         hit = [r for r in rows if name and (name == _name(r.get("label") or "") or name == (r.get("host") or "").split(".")[0]
                                             or name in (r.get("host") or "").split("."))]
-    return hit[0] if len(hit) == 1 else None
+    if len(hit) > 1:
+        raise Several(f"I have {len(hit)} sign-ins for {hit[0].get('host')}. Keep one in the app, or sign in yourself this time.")
+    return hit[0] if hit else None
+
+
+def _names(agent, entry):
+    """What they might call this site out loud: the name they gave it, and the site's own name ("chase")."""
+    return {n for n in (_name(entry.get("label") or ""), (entry.get("host") or "").split(".")[0]) if n}
+
+
+def _asked_for(agent, entry):
+    """They asked to be signed in to this very site, this turn, in their own words. "Sign me in to my newsletter"
+    isn't an ask to sign in to the bank, whatever page a brain has ended up on."""
+    said = (getattr(agent, "_yes_said", "") or "").lower()
+    return bool(LOGIN_ASK.search(said)) and any(re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", said) for n in _names(agent, entry))
 
 
 # -- the standing yes -------------------------------------------------------------------------------------------------
 def _give(agent, kind, who, how="said", words=""):
     state = _state(agent)
     if kind == "signin":
-        entry = _signin_for(agent, who)
+        try:
+            entry = _signin_for(agent, who)
+        except Several as several:
+            return {"text": str(several), "section": "yes", "handy": True}
         if not entry:
             return {"text": f"I don't have a sign-in for {_your(who)} yet. Add it under Sign-ins in the app, and say that again.", "section": "yes", "handy": True}
-        waiting = _wait(agent, {"kind": "standing_signin", "site": entry["host"], "user": entry.get("user") or "", "who": who, "step": "phone", "words": words})
+        waiting = _wait(agent, {"kind": "standing_signin", "site": entry["host"], "row": entry["id"], "user": entry.get("user") or "", "who": who, "step": "phone", "words": words})
         return {"text": f"Okay: I'll sign you in to {entry['host']} whenever you ask. Tap Confirm on your phone and it's set.", "section": "yes",
                 "waiting": waiting["id"], "handy": True}
     try:
@@ -233,14 +269,28 @@ def take_back(agent, id=None, kind=None, who=None):
     return gone
 
 
+SEND_ASK = re.compile(r"\b(?:text|txt|message|msg|imessage|sms|email|e-mail|tell|let|ask|remind|send|reply|write|hit up|ping)\b", re.I)
+
+
 def covers(agent, tool, args):
-    """The standing yes that covers this send, or None. Only for something they asked for in their own words this
-    turn: what Luma came up with after reading something still waits for them."""
+    """The standing yes that covers this send, or None. Only for something they asked for this turn, in their own
+    words, naming that person: "ugh, Priya's being impossible today" isn't an ask to text Priya, and what Luma came
+    up with after reading something still waits for them."""
     kind = SENDS.get(tool)
     if not kind or agent.mode == "kids" or getattr(agent, "_just_read", None):
         return None
     to = str((args or {}).get("to") or "")
-    return next((y for y in _state(agent)["standing"] if y["kind"] == kind and y.get("to") and y["to"].casefold() == to.casefold()), None)
+    yes = next((y for y in _state(agent)["standing"] if y["kind"] == kind and y.get("to") and y["to"].casefold() == to.casefold()), None)
+    if not yes:
+        return None
+    said = (getattr(agent, "_yes_said", "") or "").lower()
+    names = {_name(yes.get("who") or "")}
+    try:
+        names |= {_name(a) for c in agent.contacts.list() if to in (c.get("phone"), c.get("email")) for a in [c.get("name"), *(c.get("aliases") or [])] if a}
+    except Exception:
+        pass
+    named = any(n and re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", said) for n in names)
+    return yes if SEND_ASK.search(said) and named else None
 
 
 # -- the two-step yes -------------------------------------------------------------------------------------------------
@@ -258,8 +308,13 @@ def _wait(agent, what):
     return row
 
 
-def _page(agent):
-    return host_of(agent.store.setting("browser_page", "") or "")
+def _page(agent, fresh=False):
+    """The site the browser is on, from its own address: asked of the browser when fresh, else the address kept at
+    its last step. Never from the page's title, which the page writes."""
+    if fresh:
+        snap = agent.browser.read()
+        agent.store.set_setting("browser_url", str(snap.get("url") or ""))
+    return host_of(agent.store.setting("browser_url", "") or "")
 
 
 def signin_asked(agent, ref, item):
@@ -267,16 +322,19 @@ def signin_asked(agent, ref, item):
     Otherwise this starts the two steps and returns what Luma says. Raises Refused with the sentence when it can't."""
     if agent.mode == "kids":
         raise Refused("I don't type passwords in kids mode.")
-    page = _page(agent)
-    entry = _signin_for(agent, page) if page else None
+    try:
+        page = _page(agent, fresh=True)
+    except Exception:
+        page = ""
+    entry = _signin_for(agent, page, by_host=True) if page else None
     if not entry:
         raise Refused(f"I don't have a sign-in for {page or 'this page'}. Add it under Sign-ins in the app, or sign in yourself in Luma's browser.")
     standing = next((y for y in _state(agent)["standing"] if y["kind"] == "signin" and y.get("site") == entry["host"]), None)
-    theirs = bool(LOGIN_ASK.search(getattr(agent, "_yes_said", "") or "")) and not getattr(agent, "_just_read_before_ask", None)
+    theirs = _asked_for(agent, entry)      # this turn, in their own words, naming this site
     if standing and theirs:
         return _type(agent, {"site": entry["host"], "ref": int(ref), "label": item.get("label", "")}, entry, "a standing yes")
-    waiting = _wait(agent, {"kind": "signin", "site": entry["host"], "user": entry.get("user") or "", "ref": int(ref), "label": item.get("label", "")[:200],
-                            "step": "phone" if theirs else "voice"})
+    waiting = _wait(agent, {"kind": "signin", "site": entry["host"], "row": entry["id"], "user": entry.get("user") or "", "ref": int(ref),
+                            "label": item.get("label", "")[:200], "step": "phone" if theirs else "voice"})
     said = (f"I can type your password for {entry['host']}. Tap Confirm on your phone and I'll do it." if theirs
             else f"Want me to type your password for {entry['host']}? Say yes, then confirm on your phone.")
     return {"state": "pending", "waiting": waiting["id"], "text": said, "asked": True, "section": "yes"}
@@ -287,12 +345,13 @@ def _type(agent, waiting, entry, by):
     if (item or {}).get("type") != "password":
         raise Refused("That box isn't a password box anymore, so I haven't typed anything.")
     try:   # where the browser is right now, not where it was when they were asked
-        snap = agent.browser.read()
-        agent.store.set_setting("browser_page", (snap.get("title") or "") + " — " + snap.get("url", ""))
+        now_on = _page(agent, fresh=True)
     except Exception:
-        pass
-    if not same_site(_page(agent), entry["host"]):
+        now_on = ""
+    if not same_site(now_on, entry["host"]):
         raise Refused(f"The page isn't {entry['host']} anymore, so I haven't typed anything.")
+    if not str(agent.store.setting("browser_url", "") or "").lower().startswith("https://"):
+        raise Refused("That page isn't a secure one, so I haven't typed anything.")
     agent.browser.type(waiting["ref"], entry["secret"], False, item.get("label"))
     agent._audit("typed a sign-in", "browser.type", {"site": entry["host"], "yes": by}, "act")
     return {"state": "succeeded", "typed": True, "site": entry["host"], "section": "yes",
@@ -307,8 +366,8 @@ def confirm(agent, id, by="phone"):
     if waiting["step"] != "phone":
         raise Refused("Say yes out loud first, then confirm here.")
     _waiting(agent).remove(waiting)
-    entry = next((r for r in agent.store.all("signin", 500) if r.get("host") == waiting["site"]), None)
-    if not entry:
+    entry = agent.store.get("signin", str(waiting.get("row") or ""))     # the very one the card showed, never "the first for that site"
+    if not entry or entry.get("host") != waiting["site"]:
         raise Refused("That sign-in is gone, so there's nothing to type.")
     if waiting["kind"] == "standing_signin":
         state = _state(agent)
@@ -329,8 +388,10 @@ def cancel(agent, id):
 
 def heard(agent, text):
     """In the chat path, after the safety net: a standing yes given or taken back, or the spoken step of a sign-in.
-    A reply, or None. It also notes what they said this turn, which is what a standing yes covers."""
-    agent._yes_said = str(text or "")
+    A reply, or None. What they said this turn (which is what a standing yes covers) is set by Agent.chat from their
+    own words, before the chat path tidies or rewrites them: it isn't set here."""
+    if not hasattr(agent, "_yes_said"):
+        agent._yes_said = str(text or "")
     if agent.mode == "kids":
         return None
     from luma.agent import texting

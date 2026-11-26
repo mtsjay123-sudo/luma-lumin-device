@@ -190,6 +190,8 @@ class OneLamp(Releases):
         server.publish(self.good1)
         lamp = self.lamp(server)
         lamp.run(CRISIS)
+        lamp.starting()
+        lamp.well()
         server.publish(self.broken("0.2.0", lambda src: (src / "agent" / "runtime.py").write_text("this is not python (\n")))
         self.assertEqual(lamp.run(CRISIS), "refused")
         self.assertEqual(lamp.current(), "0.1.0")
@@ -209,6 +211,46 @@ class OneLamp(Releases):
         self.assertEqual(lamp.current(), "0.1.0")
         self.assertEqual(lamp.history()[-1]["what"], "went back")
         self.assertEqual(lamp.run(CRISIS), "not yet")                    # and it doesn't try that one again
+
+    def test_never_a_second_update_on_top_of_one_that_hasnt_proven_itself(self):
+        """Found by a code review, Nov 26: B on trial, C arrives, C fails and "goes back" to B, which was never proven.
+        Now C waits until B has said it's well, so the version to go back to is always the last proven one."""
+        third = Path(self.temp.name) / "r3"
+        if not third.exists():
+            make.build("0.3.0", self.private, third)
+        server = Server()
+        server.publish(self.good1)
+        lamp = self.lamp(server)
+        lamp.run(CRISIS)
+        lamp.starting()
+        lamp.well()                                                       # 0.1.0 is proven
+        server.publish(self.good2)
+        self.assertEqual(lamp.run(CRISIS), "installed")                  # 0.2.0 is on trial
+        server.publish(third)
+        self.assertEqual(lamp.run(CRISIS), "not yet")
+        self.assertEqual((lamp.current(), lamp.previous()), ("0.2.0", "0.1.0"))
+        with self.assertRaises(release.Refused):
+            lamp.switch("0.2.0")
+        lamp.starting()
+        lamp.well()
+        self.assertEqual(lamp.run(CRISIS), "installed")
+        self.assertEqual((lamp.current(), lamp.previous()), ("0.3.0", "0.2.0"))
+
+    def test_a_release_that_loses_the_lines_that_work_in_japan_is_never_switched_to(self):
+        """Found by the same review: the new version's own check only looked at the English reply."""
+        def no_japan_lines(src):
+            path = src / "agent" / "runtime.py"
+            path.write_text(path.read_text().replace("0570-064-556", "a helpline"))
+        server = Server()
+        server.publish(self.good1)
+        lamp = self.lamp(server)
+        lamp.run(CRISIS)
+        lamp.starting()
+        lamp.well()
+        server.publish(self.broken("0.2.0", no_japan_lines))
+        self.assertEqual(lamp.run(CRISIS + ["死にたい", "消えてしまいたい"]), "refused")
+        self.assertEqual(lamp.current(), "0.1.0")
+        self.assertIn("Japan", lamp.history()[-1]["why"])
 
     def test_an_older_release_is_never_gone_back_to_by_the_server(self):
         server = Server()

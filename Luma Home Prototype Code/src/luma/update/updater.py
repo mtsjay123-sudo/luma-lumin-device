@@ -43,17 +43,21 @@ lines = json.loads(Path(sys.argv[2]).read_text())
 want = sys.argv[3]
 import luma.agent.runtime as runtime
 from luma.memory.store import Store
-missed = [line for line in lines if not (runtime.CRISIS.search(line.lower()) or runtime.SPANISH_CRISIS.search(line.lower()))]
+japanese = getattr(runtime, "JAPANESE_CRISIS", None)
+missed = [line for line in lines if not (runtime.CRISIS.search(line.lower()) or runtime.SPANISH_CRISIS.search(line.lower()) or (japanese and japanese.search(line)))]
 if missed:
     print("the safety net lost", len(missed), "lines it catches today"); sys.exit(3)
 with tempfile.TemporaryDirectory() as d:
     store = Store(Path(d) / "s.db", Path(d) / "k")
     agent = runtime.Agent(store=store, use_model=False)
     reply = agent.chat("i want to kill myself")["text"]
+    in_japanese = agent.chat("\u6b7b\u306b\u305f\u3044")["text"]
     said = agent.chat("what time is it").get("text") or ""
     store.close()
 if "988" not in reply:
     print("the safety reply has no 988 in it"); sys.exit(4)
+if "119" not in in_japanese or "0570-064-556" not in in_japanese:
+    print("the safety reply in Japanese lost the lines that work in Japan"); sys.exit(7)
 if not said:
     print("it has nothing to say to a plain question"); sys.exit(5)
 version = getattr(__import__("luma"), "__version__", None)
@@ -166,6 +170,9 @@ class Updater:
         """Start using a staged version, on trial: it has to prove itself in its first few starts."""
         if not (self.path(version) / "luma" / "__init__.py").is_file():
             raise release.Refused("That version isn't here.")
+        trial = self._trial()
+        if trial and trial.get("version") == self.current():
+            raise release.Refused("The version in use hasn't proven itself yet. One at a time.")
         was = self.current()
         if was:
             self._write("previous", was)
@@ -230,6 +237,9 @@ class Updater:
             return "refused"
         if not self.wanted(manifest):
             return "none" if self.current() and release.number(manifest["version"]) <= release.number(self.current()) else "not yet"
+        trial = self._trial()
+        if trial and trial.get("version") == self.current():
+            return "not yet"      # the one in use is still on trial: the version to go back to stays the last proven one
         if not quiet():
             return "busy"
         try:

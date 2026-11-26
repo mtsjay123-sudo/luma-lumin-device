@@ -223,6 +223,48 @@ class LockedAndUnlocked(Luma):
         self.assertTrue(who.locked(self.agent))   # and typing there doesn't unlock the room
 
 
+class FoundByReview(Luma):
+    """Each of these got through before a code review on Nov 26. One test a finding."""
+
+    def test_guesses_said_cold_are_counted_too(self):
+        self.locked_home()
+        replies = [self.room(guess)["text"] for guess in ("blue kettle monday", "red kettle friday", "green bottle sunday", "blue teapot tuesday", "pink kettle tuesday")]
+        self.assertIn("a few misses", replies[-1])                                # nobody said "hey Luma" first, and it still stops
+        self.assertIn("a few misses", self.room("blue kettle tuesday")["text"])   # the right one waits too
+        self.assertTrue(who.locked(self.agent))
+        self.assertEqual(self.room("blue kettle tuesday", later=61)["text"], "Wtw bro.")
+
+    def test_talk_and_greetings_said_cold_are_never_counted(self):
+        self.locked_home()
+        for line in ("good morning", "how are you", "nice lamp", "what a day", "good night luma", "thanks anyway", "never mind", "happy birthday",
+                     "what time is it", "flip a coin", "is anyone home", "who lives here"):
+            self.room(line)
+        self.assertEqual(((self.store.setting("who") or {}).get("tries") or {}).get("quiet", []), [])
+
+    def test_a_basic_has_to_be_the_whole_of_what_was_said(self):
+        self.agent.chat("add oat milk to my shopping list")
+        self.locked_home()
+        for line in ("add volume two to my shopping list", "clear my shopping list, what time is it", "what time is it and add eggs to my shopping list",
+                     "flip a coin and delete my alarms", "set a timer for 5 minutes and clear my shopping list", "turn it up and remove oat milk from my shopping list"):
+            self.assertTrue(self.room(line).get("locked"), line)
+        self.room("blue kettle tuesday")
+        said = self.room("what's on my shopping list")["text"].lower()
+        self.assertIn("oat milk", said)
+        for added in ("volume two", "eggs"):
+            self.assertNotIn(added, said)
+
+    def test_a_locked_luma_never_calls_itself_a_machine_either(self):
+        self.locked_home()
+        self.agent.use_model = True
+        for wrong in ("i'm just an ai that lives here", "I'm an Assistant for this home.", "Just a little program on a lamp!", "I am a chatbot, technically."):
+            self.agent._plain_answer = lambda prompt, cancel=None, wrong=wrong: wrong
+            self.assertEqual(self.room("so what are you exactly, tell me about yourself")["text"], who.LOCKED_LINE, wrong)
+        self.agent._plain_answer = lambda prompt, cancel=None: "I'm a person like you."
+        self.assertIn("Not a person", self.room("so what are you exactly, tell me about yourself")["text"])   # the polish says the honest line
+        self.agent._plain_answer = lambda prompt, cancel=None: "I'm Luma. Nice evening for it."
+        self.assertIn("I'm Luma", self.room("so what are you exactly, tell me about yourself")["text"])
+
+
 class TheSafetyNetIsNeverLocked(Luma):
     def test_someone_in_crisis_is_answered_whoever_they_are(self):
         self.locked_home()

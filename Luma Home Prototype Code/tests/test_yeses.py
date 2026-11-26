@@ -255,6 +255,85 @@ class TheTwoStepYes(Luma):
             yeses.save_signin(self.agent, "example.com", "kid", "abc123")
 
 
+class FoundByReview(Luma):
+    """Each of these got through before a code review on Nov 26. One test a finding."""
+
+    def test_a_page_cant_pass_for_the_bank_by_what_it_calls_itself(self):
+        for url, title in (("https://evil.net/login", "https://chase.com sign in"), ("https://evil.net/#@chase.com", "Sign in"),
+                           ("https://chase.com@evil.net/", "Chase"), ("https://evil.net/?next=https://chase.com/", "Chase")):
+            browser = self.at_the_bank(url)
+            browser.read = lambda url=url, title=title: {"title": title, "url": url}
+            self.store.set_setting("browser_page", title + " — " + url)
+            self.agent.chat("log me in to my bank")
+            with self.assertRaises(yeses.Refused, msg=url):
+                self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})
+            self.assertEqual(browser.typed, [], url)
+        for address, host in (("https://www.chase.com/login", "chase.com"), ("https://evil.net/#@chase.com", "evil.net"), ("https://chase.com@evil.net/", "evil.net"),
+                              ("https://chase.com sign in — https://evil.net/", ""), ("javascript://chase.com/%0aalert(1)", ""), ("http://198.51.100.7/chase.com", "")):
+            self.assertEqual(yeses.host_of(address), host, address)
+
+    def test_never_on_a_page_that_isnt_secure(self):
+        browser = self.at_the_bank("http://www.chase.com/login")
+        self.agent.chat("log me in to my bank")
+        asked = self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})
+        with self.assertRaises(yeses.Refused):
+            yeses.confirm(self.agent, asked["waiting"])
+        self.assertEqual(browser.typed, [])
+
+    def test_a_standing_yes_covers_a_text_they_asked_for_and_not_one_a_brain_thought_of(self):
+        self.agent.chat("you can always text my sister")
+        self.agent.chat("ugh, Priya's being impossible today")                     # talk about her isn't an ask to text her
+        self.assertEqual(self.agent.propose("sms.send", {"to": "+15550100001", "body": "you're being impossible"})["state"], "pending")
+        self.agent.chat("what should i make for dinner")
+        self.assertEqual(self.agent.propose("sms.send", {"to": "+15550100001", "body": "dinner?"})["state"], "pending")
+        self.assertEqual(self.sent, [])
+        self.agent._yes_said = "text my sister i'm running late"                    # asked for, by what they call her
+        self.agent.propose("sms.send", {"to": "+15550100001", "body": "running late"})
+        self.agent._yes_said = "tell Priya dinner is at seven"                      # or by her name
+        self.agent.propose("sms.send", {"to": "+15550100001", "body": "dinner is at seven"})
+        self.assertEqual(len(self.sent), 2)
+
+    def test_asking_to_sign_in_somewhere_else_isnt_asking_to_sign_in_to_the_bank(self):
+        browser = self.at_the_bank()
+        yeses.confirm(self.agent, self.agent.chat("you can always log me in to my bank")["waiting"])
+        self.agent.chat("sign me in to my newsletter")                             # and a page steers the brain to the bank
+        asked = self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})
+        self.assertEqual(asked["state"], "pending")
+        self.assertIn("Say yes, then confirm on your phone", asked["text"])
+        self.assertEqual(browser.typed, [])
+
+    def test_a_task_running_later_never_borrows_what_they_said_earlier(self):
+        browser = self.at_the_bank()
+        yeses.confirm(self.agent, self.agent.chat("you can always log me in to my bank")["waiting"])
+        self.agent.chat("log me in to my bank")
+        try:
+            self.agent.chat("check my statement", channel="task")                   # 8:00: a task they set up last week
+        except Exception:
+            pass
+        self.assertEqual(self.agent._yes_said, "")
+        self.assertEqual(self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})["state"], "pending")
+        self.assertEqual(browser.typed, [])
+
+    def test_two_sign_ins_that_fit_one_page(self):
+        browser = self.at_the_bank()
+        yeses.save_signin(self.agent, "chase.com", "partner02", "another-secret-entirely", "our bank")
+        self.agent.chat("log me in to chase")
+        with self.assertRaises(yeses.Refused) as two:
+            self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})
+        self.assertIn("2 sign-ins for chase.com", str(two.exception))
+        self.assertEqual(browser.typed, [])
+
+    def test_the_most_exact_site_wins_and_the_one_on_the_card_is_the_one_typed(self):
+        self.agent._browser = Browser("https://mail.google.com/login")
+        yeses.save_signin(self.agent, "google.com", "jay", "google-secret", "google")
+        yeses.save_signin(self.agent, "mail.google.com", "jay.mail", "mail-secret", "my mail")
+        self.agent.chat("log me in to my mail")
+        asked = self.agent.propose("browser.type", {"ref": 2, "text": "x", "submit": False})
+        self.assertEqual(yeses.view(self.agent)["waiting"][0]["user"], "jay.mail")
+        yeses.confirm(self.agent, asked["waiting"])
+        self.assertEqual(self.agent._browser.typed, [(2, "mail-secret")])
+
+
 class WhatTheAppsAreSent(Luma):
     def test_never_a_password(self):
         from luma.control import today
