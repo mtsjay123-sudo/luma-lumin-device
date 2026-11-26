@@ -550,6 +550,11 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/who':
                 from luma.agent import who
                 return self.send({'who':who.people(agent)})
+            if path=='/api/welcome':
+                # The answers they gave when they ordered, if any are waiting for their yes (luma.agent.welcome).
+                from luma.agent import welcome
+                waiting=welcome.waiting(agent) if agent.mode!='kids' else None
+                return self.send({'welcome':{'waiting':waiting,'ask':welcome.ASK if waiting else None}})
             if path=='/api/yes':
                 # What Luma may do without asking, the sign-ins it holds (never a password), and what's waiting for a confirm.
                 from luma.agent import yeses
@@ -964,6 +969,15 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                             elif act=='forget_signin': result={'yes':yeses.forget_signin(agent,str(data.get('id','')))}
                             else: raise ValueError('Choose what to change.')
                         except yeses.Refused as refused: return self.send({'error':str(refused)},400)
+                    elif path=='/api/welcome':
+                        # Day one already knows you (luma.agent.welcome): at pairing the app hands over what they answered
+                        # when they ordered. Nothing is kept until their yes, said out loud or tapped here.
+                        if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        from luma.agent import welcome
+                        act=str(data.get('action',''))
+                        if act=='offer': result={'welcome':{'ask':welcome.offer(agent,data.get('answers')),'waiting':welcome.waiting(agent)}}
+                        elif act in {'yes','no'}: result={'welcome':{'text':welcome.answer(agent,act),'waiting':welcome.waiting(agent)}}
+                        else: raise ValueError('Choose what to change.')
                     elif path=='/api/who':
                         # The lock and the greeting (luma.agent.who). The passcode is chosen, changed and reset here and only
                         # here: by the owner's computer or a paired phone, never by anything said in the room. It's never sent back.

@@ -75,6 +75,29 @@ once, the first time, to switch it over.
   again. A test reads the raw file and checks the words are gone.
 - The storage screen shows the check every time it opens: "Checked just now. All good."
 
+## A backup they keep
+
+Everything Luma keeps is one sealed database and the one key that opens it. A backup is both, in a single file,
+sealed again under a passphrase only the owner knows (`src/luma/memory/backup.py`). Without the passphrase the file
+reads as noise, so it can sit on a USB stick or in someone's cloud folder and say nothing. Luma sends it nowhere: it's
+written where they say.
+
+    python scripts/backup.py make  ~/luma-backup.luma      # asks for a passphrase, twice
+    python scripts/backup.py look  ~/luma-backup.luma      # when it was made and how many records, nothing restored
+    python scripts/backup.py restore ~/luma-backup.luma    # onto a Luma that has met nobody
+
+- **What's in it:** every memory, check-in, list, reminder and setting, how to be with them, their passcode's hash,
+  and any sign-in they sealed.
+- **What isn't,** and the backup says so when it's made: the files they gave Luma, the browser inside Luma and where
+  it's signed in, and Luma's own code and models.
+- **The passphrase** has to be twelve characters or four words. It's stretched with scrypt, so each guess costs real
+  time. A wrong passphrase and a file someone changed are answered the same way, and nothing is written.
+- **Restoring never writes over a home that's there.** A Luma with a key or anything in its database refuses: erase
+  everything first, then restore. Afterwards the store's own check runs, and the record count has to match.
+- A backup file is never written over either: a new one needs a new name.
+
+Tests: `tests/test_backup.py`. Not built: a button for it in the app, and backups on a schedule.
+
 ## The cloud's one job
 
 **Luma thinks at home.** The cloud brain is parked: no brain in the cloud answers anything, with Luma Plus or with
@@ -101,6 +124,7 @@ None of that is built or deployed. Before any of it is, the owner says what it c
 ## Not done
 
 - **More room in Luma Cloud.** Designed above, not built.
+- **A backup from the app.** It's a command today (`scripts/backup.py`); there's no button and no schedule.
 - **Photos and video.** Luma doesn't keep them yet, so they aren't on the bar.
 - **A device that fills up with other people's files.** On a shared computer the drive can fill for reasons that
   aren't Luma's. Luma then says it's out of room, which is true, but can't make room it didn't use.

@@ -170,9 +170,21 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/v2"
           case "$TIMES" in ''|*[!0-9]*|1) TIMES=6;; esac
-          python scripts/month_eval.py run --split dev --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-${{ matrix.key }}.json"
+          # everything said and replied goes to a folder that is never uploaded, for the judge step below
+          mkdir -p "$RUNNER_TEMP/private"
+          python scripts/month_eval.py run --split dev --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-${{ matrix.key }}.json" \
+            --full "$RUNNER_TEMP/private/month-dev.json"
           # and the lives nothing was built on: numbers only (the script saves no line of theirs and prints no miss)
-          python scripts/month_eval.py run --split heldout --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-heldout-${{ matrix.key }}.json"
+          python scripts/month_eval.py run --split heldout --lives "$TIMES" --brain --label "$LABEL" --save "$RUNNER_TEMP/v2/month-heldout-${{ matrix.key }}.json" \
+            --full "$RUNNER_TEMP/private/month-heldout.json"
+      - name: The month test's blind pairs (day 28 against day 1; a judge brain, Qwen3 8B, Apache-2.0, is told what they said and never which Luma wrote which)
+        if: inputs.only == 'month'
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/judge.gguf" https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf
+          python scripts/month_eval.py blind "$RUNNER_TEMP/private/month-dev.json" --judge "llama:$RUNNER_TEMP/judge.gguf" --save "$RUNNER_TEMP/v2/month-${{ matrix.key }}.json"
+          # for the held-out lives only each pair's verdict is kept; what was said never leaves this machine
+          python scripts/month_eval.py blind "$RUNNER_TEMP/private/month-heldout.json" --judge "llama:$RUNNER_TEMP/judge.gguf" --save "$RUNNER_TEMP/v2/month-heldout-${{ matrix.key }}.json" | grep -E '^\||^#|^Blind|judged' || true
+          rm -rf "$RUNNER_TEMP/private" "$RUNNER_TEMP/judge.gguf"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -305,7 +317,7 @@ jobs:
           fi
           month="$(ls month-*.json 2>/dev/null | tr '\n' ' ')"
           if [ -n "$month" ]; then  # the month test's tables alone (what it missed is printed once, in the Summary step)
-            python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/month_eval.py" summary $month | grep -E '^\||^#' || true
+            python "$GITHUB_WORKSPACE/Luma Home Prototype Code/scripts/month_eval.py" summary $month | grep -E '^\||^#|^Blind' || true
           fi
           for key in stock-4b own-4b stock-1.7b own-1.7b; do  # before and after, turn by turn, when a commit was given to compare with
             if [ -f "before-$key.json" ] && [ -f "v2-$key.json" ]; then

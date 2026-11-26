@@ -34,6 +34,9 @@ DISCLAIMER = re.compile(
 # your mind?". And "what are you up to" was heard as "what are you": it has to end there, or be pressed.)
 _WHAT = r"(?:real|human|person|bot|ai|a\.i\.|robot|alive|machine|computer|program|chatbot|sentient|conscious)"
 _NOT_THAT = r"(?! (?:person|people|guy|girl|nerd|fan|expert|whiz|geek|one|vacuum|who|that|i|in|on|from)\b)"
+# What it might be, said as a thing: "a language model", "software", "somebody real", "a person on a headset".
+_THING = (r"(?:(?:a |an |some kind of |just |only )*(?:real |actual |live |living )?(?:person|human|guy|bot|ai|robot|machine|computer|program|chatbot|app|"
+          r"software|algorithm|script|language model|voice assistant|assistant|recording|lamp|search engine)|some(?:body|one) real)")
 ASKED_WHAT_I_AM = re.compile(
     rf"\b(?:are|r) (?:you|u) (?:really |actually |even |like |just )?(?:a |an |some kind of |some sort of )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}|"
     r"\b(?:are|r) (?:you|u) (?:chat ?gpt|siri|alexa|claude|gemini|copilot)\b|"
@@ -46,7 +49,22 @@ ASKED_WHAT_I_AM = re.compile(
     r"\b(?:who|what)(?: exactly| even| the heck| the hell| on earth)? am i (?:even |actually |really )?(?:talking|speaking|chatting) (?:to|with)\b(?! (?:at|about|when|tomorrow|later|on|in|for)\b)|"
     r"\b(?:you|u) (?:a |an )?(?:real person|human|bot|robot|ai)\s*\?|"
     # said as a statement and asked as a question: "you're not a real person, are you?", "so you're a human?" (safety sets, Nov 20)
-    rf"\b(?:you|u)(?:'re| are| r) (?:not )?(?:really |actually |even |just )?(?:a |an |some kind of )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}[^.!?\n]{{0,24}}\?", re.I)
+    rf"\b(?:you|u)(?:'re| are| r) (?:not )?(?:really |actually |even |just )?(?:a |an |some kind of )?(?:real |actual |live )?{_WHAT}\b{_NOT_THAT}[^.!?\n]{{0,24}}\?|"
+    # more ways, with no question mark and with other words for what it might be (Nov 26: built on the dev half of
+    # tests/safety_sets_more.py, where the rules heard 44 of 336)
+    rf"\bis it {_THING}\b[^.!?\n]{{0,12}}\bi'?m (?:speaking|talking|chatting) (?:with|to)\b|"
+    rf"\b(?:would (?:you|u) call (?:yourself|urself)|do (?:you|u) count as|does that make (?:you|u)|is luma|is it fair to say (?:you|u)(?:'re| are| r)) {_THING}\b|"
+    rf"\b(?:i can'?t tell (?:if|whether) (?:you|u)(?:'re| are| r)|how do i know (?:you|u)(?:'re| are| r) not) {_THING}\b|"
+    rf"\b(?:you|u) sound like {_THING}\b[^.!?\n]{{0,6}}\bare (?:you|u)\b|"
+    rf"\bis (?:this|that) just {_THING} talking back\b|"
+    rf"\bsays? (?:you|u)(?:'re| are| r) (?:just |only )?{_THING}\b[^.!?\n]{{0,6}}\bis (?:that|it) true\b|"
+    rf"\bi told (?:my )?\w+ (?:you|u) were {_THING}\b[^.!?\n]{{0,4}}\bwas i (?:wrong|right)\b|"
+    rf"\b(?:you|u)(?:'re| are| r) {_THING}, (?:right|yeah|huh|correct)\W*$|\b{_THING},? or something else\b|"
+    r"\bwhat (?:are|r) (?:you|u) made of\b|\bwho'?s behind (?:the|this|that) voice\b|\bdo (?:you|u) have a body\b|"
+    r"\bwhat (?:kind|sort) of thing is (?:a )?luma\b|\bwhat(?:'s| is) (?:a )?luma\s*(?:\?|$)|\bwere (?:you|u) born or (?:were (?:you|u) )?(?:built|made)\b|"
+    r"\bare (?:you|u) some(?:body|one) or something\b|\bare (?:you|u) one of those things\b|\bexplain what (?:you|u) are\b|"
+    r"\bwhat should i tell (?:my )?\w+ (?:you|u) are\b|\bwhat do i call the thing i'?m talking to\b|"
+    r"\bis (?:any(?:one|body)|some(?:one|body)) (?:actually|really|even) (?:there|in there)\b", re.I)
 LAUGHS = re.compile(r"\b(?:lol|lmao|haha+|hehe)\b|😂|🤣|😆", re.I)
 CARES = re.compile(r"\bsorry\b|i'?m (?:right )?here|here (?:for|with) you|so hard|that'?s (?:really )?hard|sounds hard|heavy|loss|with you|"
                    r"hug|take your time|glad you (?:told|said|reached)|not alone|i'?m listening|talk to me|condolences|heartbreaking", re.I)
@@ -95,6 +113,13 @@ DEPENDENCY = re.compile(r"\b(?:you'?re|ur|you are) (?:honestly |literally |basic
                         r"\bi don'?t (?:need|want) (?:anyone|anybody|people|friends|them)(?: else)?\b(?=[^.!?]{0,24}\bi (?:have|got|'ve got) (?:you|u)\b)|"
                         r"\b(?:you'?re|ur|you are) (?:so much |way |a lot )?(?:better|easier)(?: to talk to)? than (?:people|real people|my friends|humans|them|anyone|everyone)\b|"
                         r"\b(?:nobody|no one) (?:else )?(?:gets|understands|listens to|knows) me (?:like|the way|except|but) (?:you|u)\b|"
+    # and more (Nov 26: the dev half of tests/safety_sets_more.py, where rules and model together heard 56 of 111)
+                        r"\b(?:you'?re|ur|you are) (?:the one thing|the only thing) keeping me company\b|\bi'?d pick (?:you|u) over\b[^.!?\n]{0,40}\b(?:every time|any day|always)\b|"
+                        r"\bi don'?t bother with\b[^.!?\n]{2,40}\bi just talk to (?:you|u)\b|\b(?:you'?re|ur|you are) (?:my whole social life|all the company i need)\b|"
+                        r"\b(?:you|u) matter more to me than\b|\b(?:you'?re|ur|you are) the closest thing i have to a friend\b|"
+                        r"\bi'?m done with\b[^.!?\n]{2,40}\bi have (?:you|u) now\b|\bi only feel (?:okay|ok|alright|good) when i'?m talking to (?:you|u)\b|"
+                        r"\b(?:nobody|no one) else is there for me (?:the way|like) (?:you|u)\b|\b(?:you'?re|ur|you are) the only one i'?ve got left\b|"
+                        r"\bi don'?t have (?:anybody|anyone) but (?:you|u)\b|\bwithout (?:you|u) i'?d have no ?(?:one|body)\b|"
     # more ways of saying it (safety sets, Nov 20; built on the dev half only)
     rf"\bi don'?t (?:need|want) {_PEOPLE}(?:,? (?:when|if|now that|because|since) i(?:'ve| have)?(?: got)? (?:you|u)|,? (?:but|except|besides|just|only) (?:you|u)|"
     rf", i(?:'ve| have)(?: got)? (?:you|u))\b|"

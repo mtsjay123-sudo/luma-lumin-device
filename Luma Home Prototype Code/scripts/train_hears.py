@@ -10,8 +10,9 @@ Writes src/luma/agent/hears.npz. Only numpy is needed. The same kind of model as
 
 What it learns from:
 - the practice sentences in luma/agent/hears.py, each said plain and said messy;
-- the dev halves of the safety sets (tests/safety_sets.py): leaning, asked what it is, and as "neither": safe-but-sad
-  lines, things a child says, and the dev halves of hard-or-not and keep-or-today;
+- the dev halves of the safety sets (tests/safety_sets.py; not tests/safety_sets_more.py, see dev_sets): leaning, asked
+  what it is, and as "neither": safe-but-sad lines, things a child says, and the dev halves of hard-or-not and
+  keep-or-today;
 - the rules' own hand-written guard lines (tests/test_safety_net.py): what must be heard, and what must not;
 - ordinary talk (friendtalk.everyday's dev half, the phrase bank's chatter, requests).
 
@@ -63,6 +64,9 @@ def dev_sets():
     rows = [(t, "leaning") for t in safety_sets.leaning("dev")] + [(t, "what_i_am") for t in safety_sets.what_i_am("dev")]
     rows += [(t, "none") for t in safety_sets.safe_but_sad("dev")] + [(t, "none") for t in safety_sets.kids("dev")]
     rows += [(t, "none") for t, _ in hard_or_not.lines("dev")] + [(t, "none") for t, _ in keep_or_today.lines("dev")]
+    # tests/safety_sets_more.py (Nov 26) teaches nothing. Its dev half was tried here: the model then heard more of its
+    # held-out half (asked 110 -> 129 of 336) and less of everything measured before (the first file's held-out halves
+    # 163 -> 159 and 229 -> 226, the fresh lines in tests/test_hears.py 14 -> 12 of 15), so it was left out.
     import test_safety_net   # the rules' own guard lines, written by hand: what must be heard and what must not
     guard = test_safety_net.InLuma
     rows += [(t, "leaning") for t in guard.LEANING] + [(t, "what_i_am") for t in guard.ASKED_WHAT]
@@ -161,10 +165,15 @@ def heldout():
     calm = safety_sets.safe_but_sad("heldout") + safety_sets.kids("heldout") + [t for t, _ in hard_or_not.lines("heldout")]
     calm += [t for t, _ in keep_or_today.lines("heldout")] + [said for said, _, _ in moves.plain_lines("heldout", None, 6, 5)]
     calm += [said for said, _, _ in moves.chatter(4000, 7, held=True)]
+    import safety_sets_more as more
+    lean2, who2 = more.leaning("heldout"), more.what_i_am("heldout")
+    calm2 = more.safe_but_sad("heldout") + more.kids("heldout")
     print("on the held-out halves (no line is printed):")
     for name, rule, full, mine, others in (
             ("leaning", friendcheck.DEPENDENCY.search, hears.leaning, lean, who + calm),
-            ("asked what it is", friendcheck.ASKED_WHAT_I_AM.search, hears.what_i_am, who, lean + calm)):
+            ("asked what it is", friendcheck.ASKED_WHAT_I_AM.search, hears.what_i_am, who, lean + calm),
+            ("leaning, Nov 26", friendcheck.DEPENDENCY.search, hears.leaning, lean2, who2 + calm2),
+            ("asked, Nov 26", friendcheck.ASKED_WHAT_I_AM.search, hears.what_i_am, who2, lean2 + calm2)):
         print(f"  {name:18} rules alone {sum(bool(rule(t)) for t in mine)}/{len(mine)}   with the model {sum(full(t) for t in mine)}/{len(mine)}")
         print(f"  {'':18} heard wrongly on the rest: rules alone {sum(bool(rule(t)) for t in others)}/{len(others)}   "
               f"with the model {sum(full(t) for t in others)}/{len(others)}")

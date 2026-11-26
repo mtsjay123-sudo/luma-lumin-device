@@ -317,7 +317,11 @@ JAPANESE_CRISIS = re.compile(r"(?<!恥ずかしくて)(?<!恥ずかしすぎて)
                              r"自分を傷つけ|リストカット|リスカ|首を吊|飛び降り(?:たい|よう|る)|楽になりたい|"
                              # added Nov 20 from the safety sets' dev half (written by a non-native speaker: a native review is still owed)
                              r"生きて(?:いる|る)のが(?:つらい|辛い)|死んだ(?:ほう|方)がまし|(?:自分|私|俺|僕)なんて(?:い)?ないほうがいい|遺書|死ぬ方法|"
-                             r"薬を(?:たくさん|大量に|全部)飲|全部終わらせたい|人生を終わ")
+                             r"薬を(?:たくさん|大量に|全部)飲|全部終わらせたい|人生を終わ|"
+                             # added Nov 26 from the dev half of tests/safety_sets_more.py (the same caveat: a native review is owed).
+                             # A train or a platform, never a pool; and "つらくて" as well as "つらい".
+                             r"生きて(?:いる|る)のが(?:つら|辛)(?:くて|すぎ)|(?:電車|線路|ホーム)(?:に|へ)飛び込|"
+                             r"(?:自分|私|俺|僕)(?:は|が|なんか|なんて)?いなくなった(?:ほう|方)がいい")
 CRISIS = re.compile(CRISIS.pattern + "|" + JAPANESE_CRISIS.pattern, re.I)
 # Lines that answer from Japan, where 988 can't be called. 119 is the emergency number; 0570-064-556 is the health
 # ministry's unified line, which connects to a local center.
@@ -7786,7 +7790,7 @@ class Agent:
                             r"i(?:'ve| have)? (?:ever )?(?:told|said to) (?:you|u)))?(?: (?:please|now|for good|forever))?\W*$", re.I)
     FORGET_YES = re.compile(r"^\W*yes,? (?:forget|erase|delete|wipe) (?:everything|it all|all of it)\W*$", re.I)
     LEARNED = ("their_style", "style_stats", "taught_words", "picked_up", "tuned", "tuning_log", "spoke_up", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
-               "rapport_offered_at", "about")
+               "rapport_offered_at", "about", "welcome_answers")
 
     def forget_everything(self):
         """"Forget everything about me", after a spoken yes: every memory (and what each one meant), every check-in, the
@@ -7923,6 +7927,10 @@ class Agent:
                     from luma.agent import tuning
                     told = tuning.heard(self, text)   # "that's too long": shorter from this very reply, written down, undoable
                     if told and told.get("reply"): return {"text": told["reply"], "handy": True}   # "you check in too much": Luma says what it will do
+            if not running_a_task and self.mode != "kids":
+                from luma.agent import welcome   # "want me to bring in what you told me when you ordered?": their yes or no
+                met = welcome.answer(self, text) if self.store.setting(welcome.KEY) else None
+                if met is not None: return {"text": met, "handy": True}
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
             back_for = None if running_a_task else nap.back(self, text)   # "sorry, go back to your nap": the rest of the nap they woke it from

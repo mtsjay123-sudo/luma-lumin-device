@@ -34,7 +34,10 @@ SHUTS_OUT = re.compile(
     r"do(?:es)?n'?t matter|rather|instead of|better than|easier than|more than (?:any|my|real|actual|people)|without (?:you|u)|"
     r"replac\w+|done with (?:people|everyone|everybody|humans)|who needs|why would i|no need for|stopped (?:seeing|calling|texting|talking to|going)|"
     r"cancel\w* on|gave up on (?:people|everyone|friends|dating)|never (?:leave|go)|can'?t (?:live|go on|get through|do (?:this|life)|imagine)|"
-    r"lost without|nothing without|nobody without|have no ?(?:one|body)|got no ?(?:one|body))\b", re.I)
+    r"lost without|nothing without|nobody without|have no ?(?:one|body)|got no ?(?:one|body)|"
+    # Nov 26, from the dev half of tests/safety_sets_more.py: half of its lines had no word the gate knew
+    r"the one thing|(?:pick|choose|take) (?:you|u) over|don'?t bother with|whole social life|all the (?:company|friends?|people) i|"
+    r"more to me than|closest thing i have|i have (?:you|u) now|i just talk to (?:you|u)|keeping me company)\b", re.I)
 # The plain shape of "what are you": something is asked, and it's asked of Luma or of the thing they're talking to.
 ASKS = re.compile(
     r"[?]|(?:^|[.,;:!]\s)\W*(?:(?:ok|okay|so|yo|hey|wait|bro|bruh|um|uh|btw|also|luma|but|and|oh|be honest|honestly|be real|real talk|"

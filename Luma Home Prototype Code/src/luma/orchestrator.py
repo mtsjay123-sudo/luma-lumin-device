@@ -254,7 +254,10 @@ def start_hands_free(agent=None, stop_event=None, ambient=False):
                 finally: transcribing.release()
                 if turn != ahead["turn"] or not text: return  # they carried on while this was being heard
                 ahead["text"] = (text, named)
-                if (named or time.monotonic() < followup_until) and not interruption_intent(text):
+                # with "the brain picks when" on, half a sentence ("I went to the store because") doesn't start a reply early
+                from luma.audio import when
+                held = agent.store.setting('brain_picks_when', False) and when.by_code(text) == "wait"
+                if (named or time.monotonic() < followup_until) and not interruption_intent(text) and not held:
                     agent.think_ahead(text)
             except Exception:
                 pass

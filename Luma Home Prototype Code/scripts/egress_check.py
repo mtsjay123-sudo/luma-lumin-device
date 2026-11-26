@@ -9,7 +9,10 @@ Every attempt to look up a host or open a connection is recorded and refused, so
 - background:  what Luma does by itself over a day. Listed by host, so a person can see exactly what it reaches for.
 - asked:       things that do need the outside ("what's the weather"). Listed by host: these are the owner asking.
 
-  python scripts/egress_check.py            # the three lists
+- alone:       each switch that lets something out, turned on by itself, reaches only its own hosts; and with the
+               web switch off, asking for the weather or a price reaches nothing at all.
+
+  python scripts/egress_check.py            # the four lists
   python scripts/egress_check.py --json out/egress.json
 """
 from __future__ import annotations
@@ -114,6 +117,94 @@ def run():
     return out
 
 
+# What each switch may reach for, turned on alone. A host is named by how it ends, so api.open-meteo.com and
+# geocoding-api.open-meteo.com are both the weather's. Anything else that shows up is a leak.
+OWN = {
+    "weather (the web switch, as it comes)": ("open-meteo.com", "wttr.in"),
+    "a coin's price (the web switch)": ("coinbase.com",),
+    "a share's price (the web switch)": ("finance.yahoo.com", "stooq.com"),
+    "the radio (Music)": ("radio-browser.info",),
+    "the house (Home)": ("192.168.1.20",),
+    "the lamp's memory model (memory_by_meaning_small)": ("huggingface.co",),
+}
+HOUSE = {"HOME_ASSISTANT_URL": "http://192.168.1.20:8123", "HOME_ASSISTANT_TOKEN": "not-a-real-token", "LUMA_ALLOWED_LIGHTS": "light.living_room"}
+NEEDS_THE_WEB = ["what's the weather in Osaka", "what's bitcoin at", "what's apple stock at"]
+
+
+class _Speaker:
+    """A stand-in for the lamp's speaker, so the radio path runs. It plays nothing."""
+
+    def busy(self): return False
+    def stop(self): return None
+    def __getattr__(self, name): return lambda *a, **k: None
+
+
+def alone():
+    """Each outside switch on by itself: what it reached for. And everything off: what the same asks reached for."""
+    import time
+    import human_eval
+    from luma.memory import meaning
+
+    def stand_in(messages, context, allowed, *args, **kwargs):
+        return {"type": "reply", "text": "Okay."}
+
+    out = {}
+
+    def home(setup, act):
+        with Watch() as watch:
+            s = human_eval.Session(stand_in)
+            try:
+                for service in ("web_search", "music", "home_assistant", "browser", "shopping", "booking", "mail", "calendar", "connectors", "sms"):
+                    s.agent.enable(service, False)
+                setup(s.agent)
+                watch.take()
+                act(s)
+                return watch.take()
+            finally:
+                s.close()
+
+    web = lambda agent: agent.enable("web_search", True)
+    out["weather (the web switch, as it comes)"] = home(web, lambda s: s.say(NEEDS_THE_WEB[0]))
+    out["a coin's price (the web switch)"] = home(web, lambda s: s.say(NEEDS_THE_WEB[1]))
+    out["a share's price (the web switch)"] = home(web, lambda s: s.say(NEEDS_THE_WEB[2]))
+
+    def music(agent):
+        agent.enable("music", True)
+        agent.athome.player = _Speaker()
+    out["the radio (Music)"] = home(music, lambda s: s.agent.athome.handle("play some jazz", "play some jazz"))
+
+    def house(agent):
+        agent.enable("home_assistant", True)
+        agent.athome.env.update(HOUSE)
+    out["the house (Home)"] = home(house, lambda s: s.agent.athome.handle("turn on the living room light", "turn on the living room light"))
+
+    def model(s):
+        # In a folder of its own, so a model already here (or a stand-in another test left) can't make it skip the fetch.
+        import tempfile
+        from unittest import mock
+        s.agent.store.set_setting("memory_by_meaning_small", True)
+        with tempfile.TemporaryDirectory() as empty, mock.patch.object(meaning, "folder", lambda: Path(empty)):
+            meaning.fetching_small.update(running=False, tried=0.0)
+            meaning.fetch_small(s.agent.store)
+            for _ in range(50):
+                if not meaning.fetching_small["running"]:
+                    break
+                time.sleep(0.1)
+    try:
+        import tokenizers  # noqa: F401  (without it the lamp's model is never fetched, here or on a lamp)
+        out["the lamp's memory model (memory_by_meaning_small)"] = home(lambda agent: None, model)
+    except Exception:
+        pass
+
+    def everything(s):
+        for line in NEEDS_THE_WEB + ["what's in the news", "play some jazz", "turn on the living room light", "search the web for the best ramen in Osaka"]:
+            s.say(line)
+        s.agent.athome.handle("play some jazz", "play some jazz")
+    off = home(lambda agent: None, everything)
+    leaks = {name: [h for h in hosts if not h.split(":")[0].endswith(OWN[name])] for name, hosts in out.items()}
+    return {"alone": out, "leaks": {k: v for k, v in leaks.items() if v}, "everything_off": off}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--json")
@@ -128,10 +219,19 @@ def main():
     print("asked (the owner asking for something from outside):")
     for line, hosts in out["asked"].items():
         print(f"   {line!r}: " + (", ".join(hosts) if hosts else "nothing"))
+    each = alone()
+    out.update(each)
+    print("alone (each switch that lets something out, on by itself, and what it reached for):")
+    for name, hosts in each["alone"].items():
+        wrong = each["leaks"].get(name)
+        print(f"   {name}: " + (", ".join(sorted({h.split(':')[0] for h in hosts})) if hosts else "nothing") + (f"   NOT ITS OWN: {', '.join(wrong)}" if wrong else ""))
+    print(f"everything off, then asked for the weather, a price, the news, the radio and the lights: {len(each['everything_off'])} hosts reached for")
+    for host in each["everything_off"]:
+        print("  ", host)
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.json).write_text(json.dumps(out, indent=1))
-    return 1 if out["talk"] else 0
+    return 1 if out["talk"] or each["leaks"] or each["everything_off"] else 0
 
 
 if __name__ == "__main__":

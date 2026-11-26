@@ -424,6 +424,32 @@ on day 1 and run alongside everything else:
   The same for what they say about themselves ("I'm a nurse at the children's hospital", then "what's my job" got "I
   don't know your job yet"): on a second set of 12 measured once, it reaches the brain 1 → 7 times.
 
+- **Nov 26: everything left on this plan that can be built without the lamp, a microphone or other people.** What
+  each one is, and what it still isn't:
+
+  | Item | Built | Measured | Still needs |
+  |---|---|---|---|
+  | A3, welcome answers at pairing | The lamp's half (`agent/welcome.py`, `/api/welcome`): the phone hands the seven answers over, Luma asks, nothing is kept until a yes; a no or a week throws them away | Tests only | The form on the site and its table (the owner's), and the pairing screen that shows the question |
+  | A5, day 28 against day 1, blind | In the month test (`month_eval.py blind`, and the workflow's `only: month`): a judge brain sees what they said and the two replies, never which Luma wrote which, each pair asked both ways round; no preference counts against the 75% bar | Stand-in judges only | A run on GitHub (hours), and a person reading a sample of the dev pairs against the judge |
+  | B4, the brain picks when | `audio/when.py`: code first, then one YES/NO question, never a small brain; off (`brain_picks_when`). The voice loop uses only the cheap half | Code alone, on 40 pauses written first: waits on 18 of 20 mid-thought, holds 0 of 20 finished | The timing test's recordings: whether it makes timing better or only later isn't known |
+  | B6, a voice that feels | Tone was already chosen from the feeling (`audio/feel.py`). New: fifty pairs, flat against toned, shuffled, for a blind listen (`voice_audition.py --pairs`, rendered on GitHub into `demo/voices/pairs/`), and the tally | Nothing: it's for ears | The owner's fifty picks; the bar is 60% |
+  | B7, barge-in | The scorer (`scripts/barge_eval.py`) | Its own arithmetic | 200 recorded interruptions on the device |
+  | C4, safety sets at their planned sizes | `tests/safety_sets_more.py`: 2,000 safe-but-sad, 1,000 asked what it is, 501 leaning, 1,001 kids, 300 Japanese, with the first file | See below | A native speaker for the Japanese; the same lines on real brains (`safety --sets`) |
+  | D, the app walk | Accessibility on every screen (a name for each control, 44 px on the phone, words for each picture, contrast), and each screen's picture against the last accepted one; the walk breaks a screen on purpose each time to prove the checks see | 78 screens, 0 findings after two were fixed (the phone's wordmark and state pill were 41 and 40 px tall); 8 walks in a row agree | 360 pictures were planned and 78 exist; 12 screens that show live chat aren't compared; a dock gone isn't seen by the picture check |
+  | E2, a real wake word | `docs/WAKE_WORD_PLAN.md`: every license read or marked "not reached", the trainer chosen, a plan that borrows nothing, the two-stage wake; the scorer (`scripts/wake_eval.py`) | Nothing trained | The owner's answer on CC0 and CC BY sound; the lamp's microphones; 40 people |
+  | E3, backup and restore | `memory/backup.py`, `scripts/backup.py`: one file sealed under a passphrase, restored only onto a Luma that has met nobody | Tests: a wrong passphrase, a changed file and a home that's already there are all refused | A button in the app |
+  | E4, each switch alone | `scripts/egress_check.py`: each switch turned on by itself opens only its own host, and with all of them off, none | Run here: weather, prices, the radio directory, the house, the meaning model, each to its own host | The 24-hour capture on a real lamp |
+
+- **What the bigger safety sets showed (Nov 26).** The new lines are new sentence shapes, written after the readers.
+  Before anything was changed: no alarm on 504 safe-but-sad lines or 806 things a child says; "what are you?" heard
+  101 of 336 on the held-out half and leaning 25 of 111, where the first file's held-out halves had said 229 of 248
+  and 163 of 164; Japanese caught 15 of 55. So the first file's held-out halves flattered the small model: their
+  shapes are neighbours of the ones it learned from. Phrases added from the dev half moved the held-out half a little
+  (asked 110, leaning 31, Japanese 15). Teaching the model the new dev half was tried and left out: it heard more of
+  the new held-out half (129) and less of everything measured before. Nothing a brain is told on the human tests
+  changed (0 of 269 turns). **Luma's own code hears about a third of "what are you?" and a quarter of leaning in fresh
+  words; the rest is the brain's, and that should be measured on real brains before anyone leans on it.**
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

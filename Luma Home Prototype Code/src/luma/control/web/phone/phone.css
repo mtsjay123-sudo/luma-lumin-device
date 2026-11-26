@@ -54,8 +54,8 @@ body.quiet .bg .glow { background: radial-gradient(circle, rgba(160, 150, 140, .
 .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 12px 18px 18px;
   background: color-mix(in srgb, var(--ground) 62%, transparent); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
   -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent); mask-image: linear-gradient(180deg, #000 72%, transparent); }
-.word { font-family: "Instrument Serif", Georgia, serif; font-size: 28px; letter-spacing: -.01em; text-decoration: none; margin-right: auto; }
-.state { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+.word { display: inline-flex; align-items: center; min-height: 44px; font-family: "Instrument Serif", Georgia, serif; font-size: 28px; letter-spacing: -.01em; text-decoration: none; margin-right: auto; }
+.state { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--glass-2); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); font-size: 14px; color: var(--ink-2); cursor: pointer; }
 .state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 body.listening .state i { background: var(--mem); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mem) 22%, transparent); }

@@ -128,6 +128,25 @@ class CompanionTests(unittest.TestCase):
         page=(Path(__file__).resolve().parents[1]/'src'/'luma'/'control'/'web'/'phone'/'phone.js').read_text()
         self.assertIn('renderDay(today.talked, today.zone)',page)
 
+    def test_the_welcome_answers_come_in_from_the_paired_phone_and_wait_for_a_yes(self):
+        # Day one already knows you (luma.agent.welcome): the phone hands over what they answered when they ordered,
+        # Luma asks, and nothing is a memory until the yes. Not from a phone that isn't paired, not in kids mode.
+        import urllib.error
+        answers={'name':'Sam','show':'The Great British Bake Off','rough_day':'listen'}
+        with self.assertRaises(urllib.error.HTTPError) as stranger:self.request('/api/welcome',{'action':'offer','answers':answers})
+        self.assertIn(stranger.exception.code,(401,403))
+        self.pair()
+        with self.request('/api/welcome',{'action':'offer','answers':answers}) as r:got=json.load(r)['welcome']
+        self.assertEqual(got['ask'],'Want me to bring in what you told me when you ordered?')
+        self.assertEqual(self.store.all('memory',10),[])
+        with self.request('/api/welcome') as r:self.assertEqual(json.load(r)['welcome']['waiting']['show'],'The Great British Bake Off')
+        with self.request('/api/welcome',{'action':'yes'}) as r:done=json.load(r)['welcome']
+        self.assertEqual(done['text'],'Done. Good to meet you properly, Sam.');self.assertIsNone(done['waiting'])
+        self.assertIn('My comfort show is The Great British Bake Off',[m['text'] for m in self.store.all('memory',10)])
+        self.agent.set_mode('kids')
+        with self.assertRaises(urllib.error.HTTPError) as kids:self.request('/api/welcome',{'action':'offer','answers':answers})
+        self.assertIn(kids.exception.code,(400,403));self.assertIsNone(self.store.setting('welcome_answers'))
+
     def test_the_passcode_is_chosen_and_reset_from_the_paired_phone_and_never_sent_back(self):
         # Always on, and locked to its people (luma.agent.who): the phrase is chosen, changed and reset in the app, and
         # nothing the phone is sent holds it. A weak one is refused with a sentence. Not in kids mode.

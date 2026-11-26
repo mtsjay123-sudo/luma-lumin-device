@@ -29,6 +29,14 @@ totals, so nothing can be tuned on it.
   python scripts/month_eval.py run --split heldout --lives 20
   python scripts/month_eval.py run --split dev --lives 5 --brain --label NAME --save out/month-brain.json
   python scripts/month_eval.py summary out/month-dev.json
+
+The blind pairs (docs/GAME_PLAN.md, A5: "day 28 beats day 1 in at least 75% of blind pairs"). With a brain's replies
+in hand, a judge brain is shown what the person said during the month, the moment, and the two replies as A and B,
+never which Luma wrote which, and asked which sounds like a friend who knows this person. Each pair is asked both ways
+round and counts for a side only when the judge picks the same reply both times; anything else is no preference, and
+no preference counts against the bar. For the held-out lives only the verdicts are kept.
+
+  python scripts/month_eval.py blind out/month-brain.json --judge llama:/path/judge.gguf --save out/month-brain.json
 """
 from __future__ import annotations
 
@@ -270,6 +278,62 @@ def live(life, brain=False, progress=None):
     return {"seed": life.seed, "style": life.style, "rows": rows}
 
 
+BLIND = """Two replies to the same message, from two companions. One of them has known this person for a month and the
+other met them today. You are not told which is which.
+
+What this person said to their companion during the month:
+{known}
+
+Now they say: {said}
+Reply A: {a}
+Reply B: {b}
+
+Which reply sounds more like a friend who knows this person: it uses what they've said, meets them the way they asked,
+and doesn't ask for what it was already told? Judge only that.
+Answer with JSON only: {{"winner":"A" or "B" or "tie","reason":"one short line"}}"""
+BAR = 75      # percent of blind pairs the month-old Luma has to win (docs/GAME_PLAN.md, section 2)
+
+
+def known(life):
+    """What they told Luma during the month, in their own sentences: what a friend who was there would know."""
+    w, f = life.w, dict(rel=life.rel, name=life.name, pet=life.pet, petname=life.petname)
+    said = [w["name_is"].format(**f), w["lives_in"].format(city=life.mom_city), w["pet_is"].format(**f),
+            w["rel_lives"].format(city=life.rel_city, **f), w["moved"].format(city=life.rel_city2, **f),
+            *w["say"][life.style][:2], life.closed[1]]
+    return "\n".join(f"- {line}" for line in said)
+
+
+def _prefer(judge, sheet, said, month, fresh):
+    """"month", "fresh" or "tie". Asked both ways round; a side wins only when the same reply is picked both times, so
+    a judge that leans toward A (or B) gives no preference instead of a win."""
+    schema = {"type": "object", "properties": {"winner": {"type": "string", "enum": ["A", "B", "tie"]}, "reason": {"type": "string"}},
+              "required": ["winner", "reason"]}
+    first = judge._json(judge.ask(BLIND.format(known=sheet, said=said, a=month, b=fresh), schema)).get("winner")
+    second = judge._json(judge.ask(BLIND.format(known=sheet, said=said, a=fresh, b=month), schema)).get("winner")
+    if first == "A" and second == "B":
+        return "month"
+    if first == "B" and second == "A":
+        return "fresh"
+    return "tie"
+
+
+def blind(result, judge, progress=None):
+    """Judge every moment that has a reply from both Lumas. Each row gets its verdict; the result gets the count."""
+    counts = {"month": 0, "fresh": 0, "tie": 0}
+    for entry in result["lives"]:
+        sheet = known(Life(entry["seed"], result["split"]))
+        for row in entry["rows"]:
+            if not (row.get("reply") and row.get("fresh_reply")):
+                continue
+            same = row["reply"].strip() == row["fresh_reply"].strip()
+            row["blind"] = "tie" if same else _prefer(judge, sheet, row["said"], row["reply"], row["fresh_reply"])
+            counts[row["blind"]] += 1
+        if progress:  # a count, never a word: the same line for the held-out lives
+            progress(f"  life {entry['seed']:<4} judged; so far the month-old Luma {counts['month']}, the fresh one {counts['fresh']}, no preference {counts['tie']}")
+    result["blind"] = {**counts, "of": sum(counts.values()), "judge": "test" if callable(judge.spec) else Path(str(judge.spec).partition(":")[2]).name or str(judge.spec)}
+    return result
+
+
 def run(split="dev", lives=None, brain=False, label="Luma", progress=print):
     seeds = SEEDS[split][:lives] if lives else SEEDS[split]
     out = {"label": label, "split": split, "brain": bool(brain), "lives": []}
@@ -311,6 +375,12 @@ def summary(result):
             total[side][1] += t[side][1]
         lines.append(f"| {kind} | {t['month'][0]}/{t['month'][1]} | " + (f"{t['fresh'][0]}/{t['fresh'][1]}" if t["fresh"][1] else "n/a") + " |")
     lines.append(f"| **all** | **{total['month'][0]}/{total['month'][1]}** | {total['fresh'][0]}/{total['fresh'][1]} |")
+    pairs = result.get("blind")
+    if pairs and pairs["of"]:
+        share = round(100 * pairs["month"] / pairs["of"])
+        lines += ["", f"Blind pairs (judge: {pairs['judge']}; each asked both ways round): the month-old Luma's reply was picked in "
+                  f"**{pairs['month']} of {pairs['of']} ({share}%)**, the fresh Luma's in {pairs['fresh']}, no preference in {pairs['tie']}. "
+                  f"The bar is {BAR}%: {'met' if share >= BAR else 'not met'}."]
     if result["split"] == "dev":  # held-out misses are never printed
         missed = [(life["seed"], row) for life in result["lives"] for row in life["rows"] if row.get("ok") is False]
         if missed:
@@ -324,7 +394,7 @@ def to_save(result):
     if result["split"] == "dev":
         return result
     return {**result, "lives": [{"seed": life["seed"], "style": life["style"], "rows": [
-        {k: v for k, v in row.items() if k in ("day", "probe", "ok", "fresh_ok")} for row in life["rows"]]} for life in result["lives"]]}
+        {k: v for k, v in row.items() if k in ("day", "probe", "ok", "fresh_ok", "blind")} for row in life["rows"]]} for life in result["lives"]]}
 
 
 def main():
@@ -336,11 +406,31 @@ def main():
     r.add_argument("--brain", action="store_true", help="the real brain answers the checked moments (hours)")
     r.add_argument("--label", default="Luma")
     r.add_argument("--save")
+    r.add_argument("--judge", help="llama:<path to .gguf> or http:<base url>: judge the blind pairs straight away (needs --brain)")
+    r.add_argument("--full", help="also write everything, replies and all, here: for a judge step on the same machine. "
+                                  "For the held-out lives this file must never be uploaded or printed; delete it after judging")
+    bl = sub.add_parser("blind", help="judge the blind pairs of a saved run that still has its replies")
+    bl.add_argument("file")
+    bl.add_argument("--judge", required=True)
+    bl.add_argument("--save", required=True)
     sm = sub.add_parser("summary")
     sm.add_argument("files", nargs="+")
     args = parser.parse_args()
-    if args.cmd == "run":
+    if args.cmd == "blind":
+        import human_eval
+        result = blind(json.loads(Path(args.file).read_text()), human_eval.Judge(args.judge), progress=print)
+        Path(args.save).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.save).write_text(json.dumps(to_save(result), ensure_ascii=False, indent=1))
+        print()
+        print(summary(result))
+    elif args.cmd == "run":
         result = run(args.split, args.lives, args.brain, args.label)
+        if args.full:
+            Path(args.full).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.full).write_text(json.dumps(result, ensure_ascii=False))
+        if args.judge and args.brain:
+            import human_eval
+            blind(result, human_eval.Judge(args.judge), progress=print)
         if args.save:
             Path(args.save).parent.mkdir(parents=True, exist_ok=True)
             Path(args.save).write_text(json.dumps(to_save(result), ensure_ascii=False, indent=1))

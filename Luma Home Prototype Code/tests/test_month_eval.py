@@ -1,5 +1,6 @@
 """The month test (scripts/month_eval.py): a made-up person lives 28 days with one Luma, and the same moments are then
 said to a Luma that never met them. Here: a few dev lives, with a stand-in brain, reading what a brain is told."""
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -60,6 +61,84 @@ class AMonth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlindPairs(unittest.TestCase):
+    """Day 28 against day 1, judged blind (docs/GAME_PLAN.md, A5). Here with stand-in judges: what's checked is that
+    the judging is fair, not what a real judge thinks."""
+
+    @classmethod
+    def setUpClass(cls):
+        import human_eval
+        cls.Judge = human_eval.Judge
+        cls.fresh = lambda self: month_eval.run("dev", lives=2, progress=lambda line: None)
+
+    def judged(self, answer, split="dev"):
+        asked = []
+
+        def judge(prompt):
+            asked.append(prompt)
+            return answer(prompt)
+        result = month_eval.run(split, lives=2, progress=lambda line: None)
+        return month_eval.blind(result, self.Judge(judge)), asked
+
+    def test_the_judge_is_never_told_which_luma_wrote_which(self):
+        result, asked = self.judged(lambda prompt: '{"winner":"tie","reason":""}')
+        self.assertTrue(asked)
+        for prompt in asked:
+            replies = prompt.split("Reply A:")[1]
+            self.assertNotRegex(replies.lower(), r"month|day 28|day 1\b|fresh|never met|stand-in")
+        # and every pair is asked both ways round: the same two replies, swapped
+        first, second = asked[0], asked[1]
+        a1, b1 = first.split("Reply A: ")[1].split("\nReply B: ")
+        a2, b2 = second.split("Reply A: ")[1].split("\nReply B: ")
+        self.assertEqual((a1, b1.split("\n\n")[0]), (b2.split("\n\n")[0], a2))
+
+    def test_a_judge_that_always_says_a_gives_nobody_a_win(self):
+        result, _ = self.judged(lambda prompt: '{"winner":"A","reason":"first is best"}')
+        self.assertEqual((result["blind"]["month"], result["blind"]["fresh"]), (0, 0))
+        self.assertEqual(result["blind"]["tie"], result["blind"]["of"])
+        self.assertIn("not met", month_eval.summary(result))
+
+    def test_a_judge_that_reads_for_what_they_said_picks_the_luma_that_was_there(self):
+        def reads(prompt):
+            known = prompt.split("during the month:")[1].split("Now they say:")[0].lower()
+            names = {w for w in month_eval.WORDS["dev"]["names"] + month_eval.WORDS["dev"]["cities"] if w.lower() in known}
+            a, b = prompt.split("Reply A: ")[1].split("\nReply B: ")
+            score = lambda reply: sum(1 for w in names if w.lower() in reply.lower())  # noqa: E731
+            return '{"winner":"%s","reason":""}' % ("A" if score(a) > score(b) else "B" if score(b) > score(a) else "tie")
+        result, _ = self.judged(reads)
+        self.assertGreater(result["blind"]["month"], 0)
+        self.assertEqual(result["blind"]["fresh"], 0)
+        self.assertEqual(result["blind"]["of"], sum(1 for life in result["lives"] for row in life["rows"] if "blind" in row))
+
+    def test_the_same_reply_from_both_is_no_preference_and_nobody_is_asked(self):
+        result = month_eval.run("dev", lives=1, progress=lambda line: None)
+        for row in result["lives"][0]["rows"]:
+            if row.get("fresh_reply"):
+                row["reply"] = row["fresh_reply"]
+        asked = []
+        month_eval.blind(result, self.Judge(lambda prompt: asked.append(prompt) or "{}"))
+        self.assertEqual(asked, [])
+        self.assertEqual(result["blind"]["tie"], result["blind"]["of"])
+
+    def test_no_preference_counts_against_the_bar(self):
+        result = {"label": "x", "split": "dev", "brain": True, "lives": [], "blind": {"month": 74, "fresh": 0, "tie": 26, "of": 100, "judge": "test"}}
+        self.assertIn("74 of 100 (74%)", month_eval.summary(result))
+        self.assertIn("not met", month_eval.summary(result))
+        result["blind"].update(month=75, tie=25)
+        self.assertIn("The bar is 75%: met", month_eval.summary(result))
+
+    def test_for_the_held_out_lives_a_verdict_is_kept_and_never_a_word(self):
+        result, _ = self.judged(lambda prompt: '{"winner":"tie","reason":"a reason with their words in it"}', split="heldout")
+        saved = json.dumps(month_eval.to_save(result))
+        self.assertIn('"blind": "tie"', saved)
+        for life in result["lives"]:
+            for row in life["rows"]:
+                for text in (row.get("said"), row.get("reply"), row.get("fresh_reply")):
+                    if text and len(text) > 12:
+                        self.assertNotIn(text, saved)
+        self.assertNotIn("a reason with", saved)
 
 
 class AQuestionIsNeverAnOrderToSave(unittest.TestCase):

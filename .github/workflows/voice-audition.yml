@@ -61,6 +61,11 @@ jobs:
         run: python scripts/voice_audition.py --engine "${{ matrix.engine }}" --out "$RUNNER_TEMP/voices" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: As an mp3
         run: ffmpeg -loglevel error -y -i "$RUNNER_TEMP/voices/${{ matrix.engine }}.wav" -codec:a libmp3lame -q:a 3 "$RUNNER_TEMP/voices/${{ matrix.engine }}.mp3" && rm "$RUNNER_TEMP/voices/${{ matrix.engine }}.wav"
+      - name: The fifty pairs, flat against toned, for a blind listen (the classic voice; docs/GAME_PLAN.md, B6)
+        if: matrix.engine == 'kokoro'
+        run: |
+          python scripts/voice_audition.py --engine kokoro --pairs --out "$RUNNER_TEMP/voices"
+          for f in "$RUNNER_TEMP"/voices/pairs/pair-*.wav; do ffmpeg -loglevel error -y -i "$f" -codec:a libmp3lame -q:a 4 "${f%.wav}.mp3" && rm "$f"; done
       - uses: actions/upload-artifact@v4
         with:
           name: voice-${{ matrix.engine }}
@@ -83,6 +88,7 @@ jobs:
         run: |
           ls -la "$RUNNER_TEMP/voices" || exit 0
           mkdir -p demo/voices && cp "$RUNNER_TEMP"/voices/*.mp3 "$RUNNER_TEMP"/voices/*.md demo/voices/ 2>/dev/null || true
+          if [ -d "$RUNNER_TEMP/voices/pairs" ]; then rm -rf demo/voices/pairs && cp -r "$RUNNER_TEMP/voices/pairs" demo/voices/pairs; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add demo/voices

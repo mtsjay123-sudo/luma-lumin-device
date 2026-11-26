@@ -58,8 +58,8 @@ def kokoro():
     from luma.config import VOICE_SPEED
     engine = tts._get_kokoro()
 
-    def say(words):
-        samples, rate = engine.create(words, voice="af_heart", speed=VOICE_SPEED, lang="en-us")
+    def say(words, pace=1.0):
+        samples, rate = engine.create(words, voice="af_heart", speed=VOICE_SPEED * pace, lang="en-us")
         return resample(np.asarray(samples, dtype=np.float32), rate)
     return say, False
 
@@ -93,14 +93,139 @@ def write(path, samples):
         f.writeframes(pcm.tobytes())
 
 
+# ---------------------------------------------------------------------------------------- the fifty pairs (B6) ---
+# Does a voice that meets the moment sound more like someone who's with you? (docs/GAME_PLAN.md, B6: "judge listens to
+# 50 pairs blind; the toned one wins at least 60%".) Each line is said twice by the classic voice: once flat, and once
+# the way luma.audio.feel says it for that moment (slower with longer pauses for someone hurting, quicker and tighter
+# for a laugh). Which comes first is shuffled, and the answer sheet is a separate file to open afterwards.
+PAIRS = [
+    ("grief", "I'm so sorry. Tell me about her, if you want to."),
+    ("grief", "That's a lot to lose. I'm here, take your time."),
+    ("grief", "He sounds like he was a good dog. Fourteen years is a whole chapter."),
+    ("grief", "You don't have to be okay tonight."),
+    ("grief", "I remember you talking about her. She mattered."),
+    ("grief", "There's no right way to do this. You're doing it."),
+    ("grief", "I'm not going anywhere. Say as much or as little as you want."),
+    ("grief", "The first birthday without him was always going to be hard."),
+    ("grief", "It makes sense that the house feels quiet."),
+    ("grief", "You loved her well. That's what this hurt is."),
+    ("upset", "That would shake anybody. Are you somewhere you can sit for a minute?"),
+    ("upset", "Okay. One thing at a time. What happened first?"),
+    ("upset", "You're not overreacting. That was a scary call to get."),
+    ("upset", "I hear you. That's a lot for one afternoon."),
+    ("upset", "Breathe with me for a second. Then tell me the rest."),
+    ("upset", "That wasn't fair to you, and you didn't deserve it."),
+    ("upset", "Of course you're rattled. Anyone would be."),
+    ("upset", "We can figure out the next step in a bit. Right now, just tell me."),
+    ("upset", "I'm sorry it went that way. You prepared so hard for it."),
+    ("upset", "That's a hard thing to hear from someone you trust."),
+    ("venting", "Three trips for one prescription? That's ridiculous."),
+    ("venting", "They moved the deadline again? Of course they did."),
+    ("venting", "No, you're right to be annoyed. That was your one day off."),
+    ("venting", "He said that in front of everyone? Wow."),
+    ("venting", "Two hours on hold and then they hang up. Unreal."),
+    ("venting", "That's the third time this month. I'd be done too."),
+    ("venting", "So you did all the work and she took the credit. Great."),
+    ("venting", "You asked one simple thing. One."),
+    ("venting", "Yeah, that would wreck anybody's evening."),
+    ("venting", "The landlord again. What is it this time?"),
+    ("playful", "Okay, but pineapple on pizza is a bold hill to pick."),
+    ("playful", "You named the plant Gerald? I love Gerald already."),
+    ("playful", "Bold move, wearing white to a spaghetti dinner."),
+    ("playful", "So the plan is no plan. Classic."),
+    ("playful", "A third coffee? Living dangerously, I see."),
+    ("playful", "You beat your sister at Scrabble. Frame the board."),
+    ("playful", "That's either a great idea or a great story. Possibly both."),
+    ("playful", "Tell the cat I said hi. And that the vase had it coming."),
+    ("playful", "Look at you, cooking on a Tuesday."),
+    ("playful", "Fine, the blue one. But I'm noting my objection."),
+    ("laughing", "No way. He actually wore the costume to the meeting?"),
+    ("laughing", "Stop, that's so good. Then what happened?"),
+    ("laughing", "She said that with a straight face? I can't."),
+    ("laughing", "Ha! The dog ate the evidence. Perfect."),
+    ("laughing", "That's the funniest thing I've heard all day."),
+    ("laughing", "You locked yourself out twice? In one morning?"),
+    ("laughing", "Okay, that's incredible. Please tell me there's a photo."),
+    ("laughing", "And the cake just slid off? Oh no."),
+    ("laughing", "He thought it was a costume party. Amazing."),
+    ("laughing", "I can't believe that worked. You're a menace."),
+]
+BAR = 60      # percent of pairs the toned one has to win
+
+
+def said(say, text, mood, expressive, paced):
+    """One line as sound, in this mood."""
+    from luma.audio import feel
+    pieces = []
+    for words, pause in plan(text, mood, expressive):
+        if words.strip(" .,!?"):
+            pieces.append(say(words, feel.pace(1.0)) if paced else say(words))
+        pieces.append(np.zeros(int(pause / 1000 * RATE), dtype=np.float32))
+    return np.concatenate(pieces) if pieces else np.zeros(1, dtype=np.float32)
+
+
+def pairs(say, out, expressive=False, paced=True, seed=20261126):
+    """Fifty files, each the same line twice, and the key that says which one was toned."""
+    import json
+    import random
+    out.mkdir(parents=True, exist_ok=True)
+    rng, key = random.Random(seed), {}
+    sheet = ["# Fifty pairs: which one sounds more like someone who's with you?", "",
+             "Each file says the same line twice, A and then B. One is said flat; the other is said the way Luma says it for",
+             "that moment. Write a or b for each (or - for no difference) before opening KEY.json, then:", "",
+             "    python scripts/voice_audition.py tally --key demo/voices/pairs/KEY.json --picks \"a b a - ...\"", ""]
+    for n, (mood, text) in enumerate(PAIRS, 1):
+        toned_first = rng.random() < 0.5
+        flat, toned = said(say, text, "neutral", expressive, paced), said(say, text, mood, expressive, paced)
+        first, second = (toned, flat) if toned_first else (flat, toned)
+        write(out / f"pair-{n:02d}.wav", np.concatenate([first, np.zeros(int(1.4 * RATE), dtype=np.float32), second]))
+        key[f"{n:02d}"] = "a" if toned_first else "b"
+        sheet.append(f"- pair-{n:02d}: {text}  ____")
+    from luma.audio import feel
+    feel.reset()
+    (out / "KEY.json").write_text(json.dumps({"toned": key, "what": "for each pair, which of A and B was the toned one"}, indent=1) + "\n")
+    (out / "SHEET.md").write_text("\n".join(sheet) + "\n")
+    return key
+
+
+def tally(key, picks):
+    """How often the listener picked the toned one. A dash is no difference, and counts against the bar."""
+    toned = key["toned"]
+    picks = [p.lower() for p in picks]
+    if len(picks) != len(toned):
+        raise SystemExit(f"{len(picks)} picks for {len(toned)} pairs")
+    won = sum(pick == toned[name] for name, pick in zip(sorted(toned), picks))
+    none = sum(pick not in ("a", "b") for pick in picks)
+    share = round(100 * won / len(toned))
+    return {"won": won, "of": len(toned), "no_difference": none, "share": share, "passed": share >= BAR}
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "tally":
+        import json
+        ap = argparse.ArgumentParser()
+        ap.add_argument("cmd")
+        ap.add_argument("--key", required=True)
+        ap.add_argument("--picks", required=True, help='one for each pair, in order: "a b a - ..."')
+        args = ap.parse_args()
+        t = tally(json.loads(Path(args.key).read_text()), args.picks.split())
+        print(f"The toned one was picked in {t['won']} of {t['of']} ({t['share']}%), no difference in {t['no_difference']}. "
+              f"The bar is {BAR}%: {'met' if t['passed'] else 'not met'}.")
+        return
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", choices=sorted(ENGINES), required=True)
     ap.add_argument("--out", default="out/voices")
+    ap.add_argument("--pairs", action="store_true", help="the fifty pairs, flat against toned, for a blind listen (the classic voice)")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     say, expressive = ENGINES[args.engine]()
+    if args.pairs:
+        if args.engine != "kokoro":
+            raise SystemExit("The pairs are made with the classic voice: it's the one whose pace Luma sets.")
+        pairs(say, out / "pairs")
+        print(f"{len(PAIRS)} pairs in {out / 'pairs'}", flush=True)
+        return
     gap = np.zeros(int(0.8 * RATE), dtype=np.float32)
     whole, notes = [], [f"# {args.engine}: the same eight lines", ""]
     for name, mood, text in LINES:
