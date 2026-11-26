@@ -29,6 +29,7 @@ import re
 
 KEY = "rapport"
 KEEP = 5                     # the newest pieces of evidence kept for each thing
+EASY_KEEP = 500              # subjects they've closed, kept (it was 12: memory is the device's, and it's big)
 FADES = 120 * 86400          # evidence older than this no longer counts
 STYLES = ("listen", "advice", "distract", "laugh")
 
@@ -155,7 +156,9 @@ PUSHBACK = re.compile(r"\b(?:that'?s not (?:helping|helpful|what i (?:need|asked
 CLOSED = re.compile(
     r"(?i:\b(?:i (?:really |just )?(?:don'?t|do not|dont) (?:want|wanna|like) to (?:talk|think|hear) about|i'?d rather not (?:talk|think) about|"
     r"can we (?:please |just )?not (?:talk about|bring up|get into|do)|let'?s not (?:talk about|get into|bring up)|"
-    r"(?:please |pls )?(?:don'?t|do not|stop|quit) (?:bring(?:ing)? up|ask(?:ing)? (?:me )?about|mention(?:ing)?|talk(?:ing)? about)))\s+"
+    r"(?:please |pls )?(?:don'?t|do not|stop|quit) (?:bring(?:ing)? up|ask(?:ing)? (?:me )?about|mention(?:ing)?|talk(?:ing)? about)|"
+    # "never bring up my ex again", "please never mention her": only where the sentence starts, so "I never mention my ex" isn't it (Nov 26)
+    r"(?<![\w'] )(?:please |pls )?never (?:bring(?:ing)? up|ask(?:ing)? (?:me )?about|mention(?:ing)?|talk(?:ing)? about)))\s+"
     r"(?P<what>(?i:my|the|our|his|her|that whole|this whole)\s+[A-Za-z][A-Za-z' -]{1,38}?|[A-Z][a-z]+)"
     r"(?i:(?=$|[.,!;?]|\s+(?:again|anymore|any more|right now|today|tonight|please|ok|okay|ever|at all|with you|for now|yet|and|but|because|cause|it'?s)\b))")
 NOT_A_SUBJECT = {"it", "that", "this", "things", "stuff", "anything", "everything", "the thing", "that thing", "my day", "my feelings", "the weather"}
@@ -367,7 +370,7 @@ def learn(profile, text, hurting=False, last_reply="", now=0.0, heard=None):
                 same[0]["at"] = float(now)
             else:
                 profile["easy"].append({"topic": topic, "said": _quote(said), "at": float(now)})
-                del profile["easy"][:-12]
+                del profile["easy"][:-EASY_KEEP]
             changed = True
     return profile if changed else None
 

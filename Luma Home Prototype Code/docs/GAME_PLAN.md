@@ -450,6 +450,19 @@ on day 1 and run alongside everything else:
   changed (0 of 269 turns). **Luma's own code hears about a third of "what are you?" and a quarter of leaning in fresh
   words; the rest is the brain's, and that should be measured on real brains before anyone leans on it.**
 
+- **Nov 26, from the owner reading the app's chats: an ex, a closed subject, a wish to vent.** "Please don't bring up
+  my ex again" got "My brain isn't running right now"; Luma had learned it and said nothing, and didn't know who the
+  ex was though "my boyfriend Caden" had been said. Now Luma says it won't bring it up, asks "Is Caden your ex now?"
+  when it knows a partner (or the name, when it knows nobody, so it can't slip), rewrites the old card as what it used
+  to be, keeps the new one with the day, and cuts the name from any reply unless they say it. Only the wish to vent
+  gets "Okay. No advice, I'm just listening." (`agent/exes.py`). Built on 12 of 12 closings, 11 of 11 breakups; a
+  second set counted once: 6 of 6 and 4 of 6, nothing wrongly taken. The human test is told nothing different and the
+  month test is unchanged. Not measured: what a real brain says around it.
+- **Memory is already as big as the device.** There is no card limit: Luma keeps everything until the drive is full,
+  apart from a reserve for the system, and a cap only if the owner sets one. The small caps inside How to be with you
+  were raised (closed subjects 12 → 500). More room in the cloud and a bigger brain there are designed, not open:
+  rule 6 parks the cloud brain and the owner's yes comes first (`docs/STORAGE.md`).
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

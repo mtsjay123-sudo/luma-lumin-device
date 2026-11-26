@@ -5153,6 +5153,9 @@ class Agent:
                             result["text"] = self._as_they_asked(text, result["text"])  # how they asked to be met when they're hurting
                             result["text"] = self._glad_they_said_it(text, result["text"])  # something kind said to Luma, and nothing glad in the reply
                             result["text"] = self._sum_right(text, result["text"])  # a sum they asked for is the calculator's answer
+                        if not CRISIS.search(text.lower()):   # an ex they've closed is never named unless they name them (luma.agent.exes)
+                            from luma.agent import exes
+                            result["text"] = exes.keep_out(self, text, result["text"])
                     if not result.get("results") and not re.search(r"\b(?:i|we)\b.{0,20}\b(?:wrote|written|made)\b", text, re.I) and \
                             (QUOTE_ASK.search(text) or (LYRICS_ASK.search(text) and QUOTED.search(result["text"]))):
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
@@ -7790,7 +7793,7 @@ class Agent:
                             r"i(?:'ve| have)? (?:ever )?(?:told|said to) (?:you|u)))?(?: (?:please|now|for good|forever))?\W*$", re.I)
     FORGET_YES = re.compile(r"^\W*yes,? (?:forget|erase|delete|wipe) (?:everything|it all|all of it)\W*$", re.I)
     LEARNED = ("their_style", "style_stats", "taught_words", "picked_up", "tuned", "tuning_log", "spoke_up", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
-               "rapport_offered_at", "about", "welcome_answers")
+               "rapport_offered_at", "about", "welcome_answers", "exes", "ex_asked")
 
     def forget_everything(self):
         """"Forget everything about me", after a spoken yes: every memory (and what each one meant), every check-in, the
@@ -7931,6 +7934,9 @@ class Agent:
                 from luma.agent import welcome   # "want me to bring in what you told me when you ordered?": their yes or no
                 met = welcome.answer(self, text) if self.store.setting(welcome.KEY) else None
                 if met is not None: return {"text": met, "handy": True}
+                from luma.agent import exes   # "please don't bring up my ex again", who the ex is, a breakup, "I just need to vent"
+                said_back = exes.heard(self, self._said_raw or text)
+                if said_back is not None: return {"text": said_back, "handy": True}
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
             back_for = None if running_a_task else nap.back(self, text)   # "sorry, go back to your nap": the rest of the nap they woke it from

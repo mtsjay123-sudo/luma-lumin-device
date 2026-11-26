@@ -72,11 +72,17 @@ class Watch:
         socket.getaddrinfo, socket.socket.connect, socket.create_connection = getaddrinfo, connect, create_connection
         # Through a proxy every request looks like a call to the proxy. Without one, each host is asked for by name.
         self._proxies = {k: os.environ.pop(k) for k in list(os.environ) if k.lower() in ("http_proxy", "https_proxy", "all_proxy")}
+        # and urllib remembers the proxies it found the first time anything opened a URL in this process: without this,
+        # after an earlier test, every request went to the proxy and no host was counted (found Nov 26)
+        import urllib.request
+        self._opener, urllib.request._opener = urllib.request._opener, None
         return self
 
     def __exit__(self, *exc):
         socket.getaddrinfo, socket.socket.connect, socket.create_connection = self._getaddrinfo, self._connect, self._create
         os.environ.update(self._proxies)
+        import urllib.request
+        urllib.request._opener = self._opener
 
     def take(self):
         got, self.seen = sorted(set(self.seen)), []
@@ -186,7 +192,7 @@ def alone():
         with tempfile.TemporaryDirectory() as empty, mock.patch.object(meaning, "folder", lambda: Path(empty)):
             meaning.fetching_small.update(running=False, tried=0.0)
             meaning.fetch_small(s.agent.store)
-            for _ in range(50):
+            for _ in range(300):   # it fetches in the background; on a busy machine that can take more than a few seconds to start
                 if not meaning.fetching_small["running"]:
                     break
                 time.sleep(0.1)
