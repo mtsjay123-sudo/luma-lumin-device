@@ -33,7 +33,8 @@ on:
         default: ""
 
 concurrency:
-  group: human-eval-${{ github.ref }}
+  # one group for each kind of run: a stress run started beside the whole test must not cancel it (run 95 was, Nov 26)
+  group: human-eval-${{ github.ref }}-${{ inputs.only || 'everything' }}
   cancel-in-progress: true
 
 env:
