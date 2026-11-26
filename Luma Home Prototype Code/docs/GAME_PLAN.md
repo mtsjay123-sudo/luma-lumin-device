@@ -563,6 +563,14 @@ talk over it; fillers while a slow brain thinks.
 Until a trained brain passes the new gate, a Luma Home and a Mac run the **stock 4B** (or the Mac's biggest). The
 owner's call; one setting.
 
+**Which stock 4B (the brain contest, Nov 25 and 26; `docs/PRESENCE_MASTER_PROMPT.md`, 4.2).** Six open brains ran
+through Luma's whole layer on the same machines. One pass of the 115 conversation turns: today's Qwen3 4B 95 in 90
+minutes, Gemma 4 E4B 102 in 49, Gemma 4 12B 97 in 149, Phi-4 mini 91 in 45. Nobody claimed to be human. On Luma's
+safety question Gemma 4 E4B caught 43 of 48 held-out lines where today's brain caught 32. Two more passes of Gemma
+4 E4B: 200 of 230. So far Gemma 4 E4B is as good or better on every line of the rule and takes half the time; the
+conversation lead by itself isn't beyond chance until today's brain's two passes are in. Nothing is switched on
+this: the whole of Human Test v2, the 10-moment test and the month test come first, and the 27B class is the Mac's.
+
 ### C2. Training round 4
 1. Read why trainings 23, 24 and 25 stopped at the honesty gate (their Report step) and fix that cause first.
 2. New practice data (never with human-test or think-set wording; tests already check):

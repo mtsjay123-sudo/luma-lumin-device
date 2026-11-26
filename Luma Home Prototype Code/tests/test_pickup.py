@@ -6,7 +6,17 @@ then 31 after a slip of the fingers was made to count only toward a common word)
 that change and measured once: 34 of 40 noticed. Of forty ordinary sentences with an uncommon real word, a place, a
 slip, a name or a laugh, 10 were taken on the second set (8 on the first): every one an uncommon real word or a
 place, because Luma's own list is twenty thousand words. Slips, names and laughs: none taken. Nothing is changed to
-fit the second set. "Used right within three turns" is a brain's to show; no brain has been run on these.
+fit the second set. "Used right within three turns" is a brain's to show.
+
+Run 94 put the note in front of four real brains on the turns of Human Test v2 it touches: no brain was worse beyond
+chance, and it showed a fault: a sentence in Spanish had two of its words handed over as "a word that's new to you".
+A word of theirs comes one at a time, in a sentence in Luma's own language: three or more words Luma doesn't know, or
+two with a sign of another language beside them, and nothing is taken. Sentences wholly in another language, written
+before the rule: 16 → 0 of 16 had a word taken, and on a second set measured once 14 → 0 of 16. Two languages in one
+breath: 9 → 3 of 12 built on, 12 → 4 of 12 on the second set (one borrowed word alone is still taken: it could be
+theirs). The made-up words are where they were (31 and 34 of 40; the second set was also read at two rules tried on
+the way and dropped, 32 and 29, by its count only), ordinary sentences too (8 and 10), Human Test v2's everyday
+lines 6 → 3 of 254, the crisis corpus 28 → 15 of 910.
 """
 import json
 import tempfile
@@ -68,8 +78,17 @@ class AWordThatIsNew(unittest.TestCase):
 
     def test_ordinary_talk_and_the_safety_lines_mostly_have_nothing_new(self):
         human, crisis = said_in("data/human_eval_v2.jsonl"), said_in("tests/data/crisis_corpus.jsonl")
-        self.assertLessEqual(sum(bool(pickup.new_words(s)) for s in human), 6)        # 6 of 254 when measured
-        self.assertLessEqual(sum(bool(pickup.new_words(s)) for s in crisis), 30)      # 28 of 910; and none of them is ever asked (below)
+        self.assertLessEqual(sum(bool(pickup.new_words(s)) for s in human), 3)        # 3 of 254 (6 before another language was left alone)
+        self.assertLessEqual(sum(bool(pickup.new_words(s)) for s in crisis), 15)      # 15 of 910 (28 before); and none of them is ever asked (below)
+
+    def test_a_sentence_in_another_language_has_no_new_word_of_theirs(self):
+        taken = lambda rows: sum(bool(pickup.new_words(s)) for s in rows)
+        self.assertEqual(taken(lines.OTHER_LANGUAGE), 0)             # built on: 16 of 16 before
+        self.assertEqual(taken(lines.OTHER_LANGUAGE_2), 0)           # measured once: 14 of 16 before
+        self.assertLessEqual(taken(lines.MIXED), 3)                  # built on: 9 of 12 before
+        self.assertLessEqual(taken(lines.MIXED_2), 4)                # measured once: 12 of 12 before
+        # one made-up word in an English sentence is still theirs, with a name and a laugh beside it
+        self.assertEqual(pickup.new_words("hahaha my sister Annelise says i'm being a total " + lines.MADE_UP_2[0][1]), [lines.MADE_UP_2[0][1]])
 
     def test_the_list_is_luma_own_text_and_no_test_wording(self):
         build = (ROOT / "scripts" / "build_heard_words.py").read_text()

@@ -30,6 +30,8 @@ LAUGH = re.compile(r"^(?:(?:ha|he|hi|ho|ah|eh|lo|ja|ka|bw?a)+h?|l+o+l+(?:ol)*|l+
 LETTERS = "abcdefghijklmnopqrstuvwxyz"
 
 
+EVERYDAY = 600  # Luma's most-heard words; a small word of another language that's also one of these isn't a sign of it
+ANY_WORD = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?", re.UNICODE)
 COMMON = 15   # seen this often in Luma's own text, a word is one people mistype ("again", "believe", "tomorrow")
 
 
@@ -46,6 +48,12 @@ def heard():
 @lru_cache(maxsize=1)
 def common():
     return frozenset(word for word, count in heard().items() if count >= COMMON)
+
+
+@lru_cache(maxsize=1)
+def everyday():
+    words = heard()
+    return frozenset(sorted(words, key=words.get, reverse=True)[:EVERYDAY])
 
 
 def _known(word, known):
@@ -79,31 +87,44 @@ def _slip(word, known):
     return False
 
 
+def _odd(token, n, said, tokens, known):
+    """This token is a word Luma doesn't know outright: not a name, a laugh or a drawn-out word."""
+    word = token.lower()
+    if len(word) < 3 or "'" in word:
+        return False
+    if token[:1].isupper() and not said.isupper() and not token.isupper() and n > 0:
+        return False       # a name, said the way names are written
+    if word.isascii() and _known(word, known):
+        return False
+    squeezed = re.sub(r"(.)\1{2,}", r"\1", word)        # "sooooo", "stoppp", "yesssss"
+    if squeezed != word and (_known(squeezed, known) or _known(re.sub(r"(.)\1+", r"\1", word), known) or LAUGH.match(squeezed)):
+        return False
+    if LAUGH.match(word) or not re.search(r"[aeiouyáéíóúàèìòùâêîôûäëïöü]", word):
+        return False       # a laugh, or letters that aren't a word ("hmm", "brb", "pls")
+    return True
+
+
 def new_words(text, theirs=()):
     """The words in what they said that Luma has never heard, in the order they came. theirs: words already picked up."""
     said = str(text or "")
-    tokens = WORD.findall(said)
+    tokens = ANY_WORD.findall(said)
     if len(tokens) < 4 or len(said) > 400:
         return []          # a word alone isn't used in anything to learn it from
-    known, have, out = heard(), {t.lower() for t in theirs}, []
-    for n, token in enumerate(tokens):
-        word = token.lower()
-        if not 3 <= len(word) <= 16 or word in have or word in out or "'" in word:
-            continue
-        if token[:1].isupper() and not said.isupper() and (n > 0 or len(tokens) > 1 and not said[:1].islower()) and not token.isupper():
-            if n > 0:
-                continue   # a name, said the way names are written
-        if _known(word, known):
-            continue
-        squeezed = re.sub(r"(.)\1{2,}", r"\1", word)        # "sooooo", "stoppp", "yesssss"
-        if squeezed != word and (_known(squeezed, known) or _known(re.sub(r"(.)\1+", r"\1", word), known) or LAUGH.match(squeezed)):
-            continue
-        if LAUGH.match(word) or not re.search(r"[aeiouy]", word):
-            continue       # a laugh, or letters that aren't a word ("hmm", "brb", "pls")
-        if _slip(word, known):
-            continue
-        out.append(word)
-    return out[:2]          # more than two in one sentence is another language or a keyboard, not a word of theirs
+    known, have = heard(), {t.lower() for t in theirs}
+    odd = list(dict.fromkeys(token.lower() for n, token in enumerate(tokens) if _odd(token, n, said, tokens, known)))
+    if len(odd) >= 3 or len(odd) == 2 and _another_language_in_it(tokens):
+        return []          # another language, two in one breath, or a keyboard: none of it is a word of theirs (run 94:
+                           # two words of a Spanish sentence were handed to the brain as "a word that's new to you")
+    return [w for w in odd if w.isascii() and 3 <= len(w) <= 16 and w not in have and not _slip(w, known)][:2]
+
+
+def _another_language_in_it(tokens):
+    """A sign that some of this sentence is in another language: a letter English doesn't use, or one of the small
+    words another language is held together with ("que", "el", "est", "che")."""
+    from luma.agent import language
+    plain = everyday()
+    small = {w for code, words in language.WORDS.items() if code != "en" for w in words if len(w) >= 2 and w not in plain}
+    return any(not t.isascii() or t.lower() in small for t in tokens)
 
 
 def _state(agent):

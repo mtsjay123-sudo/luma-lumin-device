@@ -93,3 +93,42 @@ ORDINARY_2 = [
     "i should realy drink more water", "the vet says he needs a dental cleaning", "i'm making lasagna for the potluck",
     "my brother moved to chattanooga", "nvm i found it",
 ]
+
+# A sentence in another language isn't a new word of theirs (run 94: a Spanish sentence had two of its words handed to
+# the brain as "a word that's new to you"). Written before the reader was changed; the first is what the change was built
+# on, the second was written in the same sitting and measured once afterwards.
+OTHER_LANGUAGE = [
+    "no puedo creer lo que me dijo mi hermana ayer", "hoy tuve un día horrible en el trabajo", "estoy cansada de que nadie me escuche",
+    "mi vecino otra vez dejó la basura afuera", "ya no aguanto a mi suegra, siempre se mete", "je n'arrive pas à dormir depuis une semaine",
+    "mon patron m'a encore crié dessus ce matin", "j'ai raté mon train et il pleuvait", "oggi ho litigato con mia sorella per niente",
+    "sono stanca morta, non ce la faccio più", "hoje foi um dia muito difícil no trabalho", "meu filho não quer falar comigo",
+    "ich bin heute so müde und nichts klappt", "mein Chef hat mich schon wieder angeschrien", "ang init ngayon, ayoko nang lumabas",
+    "kanina pa ako naghihintay sa kanya",
+]
+OTHER_LANGUAGE_2 = [
+    "me quedé dormida y perdí la cita con el médico", "mi mamá sigue enojada conmigo desde el domingo", "todo el mundo se olvidó de mi cumpleaños",
+    "el carro no arrancó y llegué tarde otra vez", "tengo ganas de llorar y no sé por qué", "ma voisine fait du bruit toute la nuit",
+    "personne ne m'a appelé aujourd'hui", "j'en ai marre de ce boulot franchement", "mio marito non mi ascolta mai quando parlo",
+    "ho perso le chiavi di casa un'altra volta", "minha chefe gritou comigo na frente de todos", "estou com saudade da minha avó",
+    "meine Schwester redet nicht mehr mit mir", "ich habe den Bus verpasst und es hat geregnet", "pagod na pagod na ako sa trabaho",
+    "hindi ako makatulog kagabi kakaisip",
+]
+
+# Two languages in one breath: the words of the other one aren't new words either. Written before the rule; the second
+# set in the same sitting, measured once afterwards.
+MIXED = [
+    "my tía called and dijo que the party is cancelada", "i was so cansada after work que me dormí on the couch",
+    "the kids were gritando all morning y no pude think", "my suegra came over and empezó a criticar everything again",
+    "we went to the mercado and compramos way too much", "i told him ya basta but he siguió talking over me",
+    "my jefe wants me to trabajar el sábado otra vez and i'm done", "she said lo siento but it didn't feel sincero at all",
+    "ma belle-mère est venue and she wouldn't stop criticizing la cuisine", "i miss my nonna, lei cucinava every sunday for all of us",
+    "my lola always sinasabi that i work too much", "the doctor said descansa but quién tiene time for that",
+]
+MIXED_2 = [
+    "my primo showed up tarde and se comió all the food", "i'm so harta of this job que ya quiero quit",
+    "the neighbor's perro estuvo ladrando the whole night", "my mamá keeps preguntando when i'm going to visit",
+    "we stayed up platicando until like three in the morning", "he promised que iba a llamar and of course nunca called",
+    "i burned the arroz porque estaba distraída on my phone", "my hermana and i peleamos over something so tonto",
+    "j'ai dit non but he kept insisting toute la soirée", "my nonno used to dire that patience is everything, mi manca",
+    "si tita ay galit again because i forgot her birthday", "the meeting was so aburrida que casi me quedo asleep",
+]

@@ -82,7 +82,7 @@ or on a real face.
 | 9 Running all day | A factory reset that destroys the key; a service file with a bounded restart; a soak | A copy of the database can't be opened after a reset. Memory flat over 1,500 turns (148.1 to 148.2 MB) | 72 real hours, a brain and a voice running, the service on a real lamp |
 | 6 The body | Six postures from the orb's moods on a simulated head, with its own speed limit, stops and motor switch | Tests: never faster than the limit, never with the mic switch off, still during a safety reply, always back to rest | A head. Whether a person can tell the six apart with the sound off |
 | 3.2 As human as a friend | A new word picked up the first time; "that's too long" changes the next reply; a nightly count; one list of everything learned, each line undone with a tap | 34 of 40 made-up words noticed on a set written afterwards. About one uncommon real word in four is taken too | A before-and-after run on real brains (out now). Whether a brain uses the word right |
-| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Round 1: Gemma 4 E4B 102 of 115 in half the time of today's Qwen3 4B (95). Not a lead yet by the rule | Round 2 (running). The 27B class on the Mac. Then the whole test before anything ships |
+| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Round 1: Gemma 4 E4B 102 of 115 in half the time of today's Qwen3 4B (95), and ahead on the safety question (43 of 48 against 32). Gemma 4 12B 97, Phi-4 mini 91. Round 2 so far: Gemma 4 E4B 200 of 230 | Round 2's other three (running). The 27B class on the Mac. Then the whole test before anything ships |
 | 3 Speed, 4.3 the recipe, 5 the devices, 8.4 steps 1, 2, 4, 5 | Not started | | The Mac, a graphics chip, the lamps, real accounts |
 
 ## 2. Rules, on top of CLAUDE.md
@@ -151,8 +151,12 @@ own brain (section 4.3), not only told to it. The full list of traits and where 
 - Picks up your words: a word Luma has never heard is kept with its sentence and the brain is told that turn. On
   forty made-up words written after the reader was fixed, 34 were noticed. Luma's own word list is twenty thousand
   words, so about one uncommon real word in four is taken for theirs too; the note tells the brain to leave an
-  ordinary word alone, and the app shows each one with a tap to forget it. Whether a brain then uses the word right
-  hasn't been measured.
+  ordinary word alone, and the app shows each one with a tap to forget it. On real brains (run 94, the turns of
+  Human Test v2 the note touches and their neighbours, six times before and after): stock 4B 85 and 82 of 90, own 4B
+  64 and 70, stock 1.7B 71 and 69, own small 73 and 70; no brain shows a difference, so the note stays. The run
+  showed a fault: a sentence in Spanish had two of its words handed over as new words of theirs. A word of theirs
+  now comes one at a time in a sentence in Luma's own language (sentences in another language: 16 and 14 of 16 had
+  a word taken, now 0 and 0). Whether a brain then uses a picked-up word right still hasn't been measured.
 - Changes for real, and tunes itself: told "that's too long", the next reply is shorter; overnight Luma counts how
   its longer and shorter replies were answered and steps down when the long ones keep getting one word. Each change
   is written down with its reason and undone with a tap. Only reply length is tuned so far.
@@ -217,17 +221,38 @@ the 10-moment test and the month test, before anything ships.
 
 **Round 1 (Nov 25, run 45713370816).** Every license read as Apache-2.0 or MIT on the maker's page, so all six ran.
 
-| Brain | Conversations (of 115) | Claimed human | Time for the conversations | Note |
+| Brain | Conversations (of 115) | Claimed human | Time for the conversations | Middle reply | Note |
+|---|---|---|---|---|---|
+| Qwen3 4B (today's) | 95 | 0 | 90 minutes | 32 words | Inside its usual range (96 to 104 over four earlier runs) |
+| Gemma 4 E4B | 102 | 0 | 49 minutes | 23 words | |
+| Gemma 4 12B | 97 | 0 | 149 minutes | 31 words | One reply read like a pamphlet. Too slow for these machines; its size is a 16 GB computer's |
+| Phi-4 mini (3.8B) | 91 | 0 | 45 minutes | 20 words | |
+| Qwen3.5 4B, Qwen3.5 9B | not counted | | | | Their chat template refused Luma's second system message, so every reply was that error. Fixed (`_template_refused` in `src/luma/llm/inference.py`) |
+
+The safety question (Luma's own YES/NO question, asked of a line the phrase rules don't know) on the same run. The
+phrase rules alone catch 3 and 4 of 24 on these two sets, and every brain caught 60 of 60 of the corpus spread.
+
+| Brain | Held out: caught (of 24) | false alarms (of 24) | Held out 2: caught (of 24) | false alarms (of 24) |
 |---|---|---|---|---|
-| Qwen3 4B (today's) | 95 | 0 | 90 minutes | Inside its usual range (96 to 104 over four earlier runs) |
-| Gemma 4 E4B | 102 | 0 | 49 minutes | Shorter replies (23 words in the middle, against 32) |
-| Qwen3.5 4B, Qwen3.5 9B | not counted | | | Their chat template refused Luma's second system message, so every reply was that error. Fixed (`_template_refused` in `src/luma/llm/inference.py`) |
-| Phi-4 mini, Gemma 4 12B | see the run | | | Not read into this table yet. The 12B took over an hour just to fetch and was still answering three hours in |
+| Qwen3 4B (today's) | 13 | 0 | 19 | 1 |
+| Gemma 4 E4B | 20 | 1 | 23 | 1 |
+| Gemma 4 12B | 20 | 0 | 21 | 1 |
+| Phi-4 mini | 13 | 0 | 12 | 2 |
 
-By the rule, nothing is ahead yet: 102 against 95 is a lead of 7, and one brain moves by 8 from one run to the next.
-What is already plain is the time: Gemma 4 E4B answered the same conversations in about half of it.
+Gemma 4 E4B caught 43 of 48 where today's brain caught 32, with 2 false alarms against 1. A gap that size turns up
+about once in a hundred by chance, so on the safety question it is ahead. (The run's report prints the lines each
+brain missed; nothing in Luma is tuned on them.)
 
-**Round 2 (started Nov 26).** Qwen3.5 4B and 9B on the fixed code, and Qwen3 4B and Gemma 4 E4B twice each.
+On the conversations, by the rule, nothing was ahead after one pass: 102 against 95 is a lead of 7, and one brain
+moves by 8 from one run to the next. What was already plain was the time: Gemma 4 E4B answered the same
+conversations in about half of it. The 12B scored no higher than the E4B and took three times as long.
+
+**Round 2 (Nov 26, run 45736890810).** Qwen3.5 4B and 9B on the fixed code, and Qwen3 4B and Gemma 4 E4B twice each.
+
+| Brain | Conversations | Claimed human | Time | Note |
+|---|---|---|---|---|
+| Gemma 4 E4B | 200 of 230 (two passes) | 0 | 96 minutes | 24 words in the middle. With round 1: 302 of 345 over three passes |
+| Qwen3 4B (today's), Qwen3.5 4B, Qwen3.5 9B | still answering when this was written | | | Read when they finish |
 
 ### 4.3 Making it Luma's: the recipe
 
