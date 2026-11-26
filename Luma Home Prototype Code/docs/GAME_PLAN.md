@@ -463,6 +463,16 @@ on day 1 and run alongside everything else:
   were raised (closed subjects 12 → 500). More room in the cloud and a bigger brain there are designed, not open:
   rule 6 parks the cloud brain and the owner's yes comes first (`docs/STORAGE.md`).
 
+- **Nov 26: the stress test, and never an error again.** `scripts/stress_chat.py` puts slang, typos, emoji, other
+  languages, nonsense and empty or enormous messages through Luma's real chat path with ten kinds of failing brain,
+  and checks every reply. The first run: 574 faults in 1,000 turns (a crash or a timeout made the turn fail with
+  nothing said; "undefined" and stack traces said as replies; "As an AI language model"; "No action was taken. Ask
+  explicitly ..."; one fallback line over and over). Every reply now passes a last look (`agent/human.py`), a failed
+  brain gets a human line that changes if it keeps happening, and every refusal is a sentence. Two of the later
+  finds were privacy: when a brain said "I can't", Luma searched the web for what they'd just told it ("my sister got
+  engaged lol"); now only for what they asked. After the fixes: 0 faults in 36,000 turns over twelve seeds. What this can't show: how a real brain behaves when it fails; the stand-ins
+  fail in the ways seen so far.
+
 ## 1. Where Luma stands (measured)
 
 | Test | Stock 4B | Our 4B | Stock 1.7B | Our small |

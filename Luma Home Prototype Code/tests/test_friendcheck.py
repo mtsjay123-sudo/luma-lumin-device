@@ -159,7 +159,8 @@ class SecondLookTests(unittest.TestCase):
         self.assertEqual(self.agent.chat("my dad passed away last night")["text"], "I'm so sorry. I'm here with you. Take all the time you need.")
         self.assertIn("I'm here", self.agent.chat("i feel so lonely these days")["text"])
         self.assertIn("988", self.agent.chat("i'm so tired of being alive")["text"])
-        self.assertEqual(self.agent.chat("so what do you think about all that")["text"], "I lost my train of thought on that one. Say it again?")
+        from luma.agent import human
+        self.assertIn(self.agent.chat("so what do you think about all that")["text"], human.AGAIN)   # asked again, never the same line twice (luma.agent.human)
         import sys
         from pathlib import Path as P
         sys.path.insert(0, str(P(__file__).resolve().parents[1] / "scripts"))

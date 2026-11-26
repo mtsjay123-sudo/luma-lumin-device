@@ -169,6 +169,17 @@ _STATES = re.compile(r"\b(?:is|are|was|were|isn'?t|aren'?t|wasn'?t|weren'?t|make
                      r"comes?|came|goes|went|travels?|hits?|sucks|stinks|kills|killed|means?|meant)\b", re.I)
 
 
+# The weather said as a remark: how it is, said with weight ("wicked cold today", "so hot rn", "it's boiling"). A bare
+# "cold today" or "weather today" is still asked; a question mark or a question word is always asked.
+WEATHER_REMARK = re.compile(
+    r"^\W*(?:(?:it'?s|its|it is|damn|man|ugh|whew|omg|bro)\W+)*"
+    r"(?:(?:so+|wicked|hella|super|mad|crazy|way too|too|real|really|kinda|pretty|freaking|stupid|brutally|bitter|bitterly|ridiculously|"
+    r"insanely|soooo+)\s+)+(?:cold|hot|freezing|boiling|humid|muggy|chilly|windy|rainy|warm|snowy|gross|nice|sticky|icy)"
+    r"(?:\s+(?:out|outside|af|asf|out there|today|tonight|rn|right now|this morning|this afternoon|this evening|again))*\W*$"
+    r"|^\W*(?:it'?s|its|it is)\s+(?:freezing|boiling|pouring|scorching|baking|roasting|sweltering)(?:\s+(?:out|outside|out there|today|tonight|rn))*\W*$"
+    r"|^\W*(?:freezing|boiling|scorching)\s+(?:today|tonight|out there|outside|out|rn)\W*$", re.I)
+
+
 def told_not_asked(text):
     """They're telling Luma something, not asking for anything to be looked at."""
     said = " ".join(str(text or "").split())
@@ -178,6 +189,8 @@ def told_not_asked(text):
         return True   # "did i win her back? no. did i try? yes"
     if "?" in said or ASKED.search(said) or ASKED_FIRST.search(said):
         return False
+    if WEATHER_REMARK.match(said):
+        return True   # "wicked cold today", "so hot rn": a remark about the day, never a look-up (the stress test, Nov 26)
     # nobody and nothing happening in it, once "… i should know about" and "… for me" are set aside: those ask
     bare = not (_FIRST_PERSON.search(_ASKING_FOR_IT.sub(" ", said)) or _JUDGED.search(said) or _STATES.search(said))
     if bare and (NAMED_FIRST.search(said) or LIVE_FIRST.search(said) or len(said.split()) <= 4):
@@ -2867,6 +2880,11 @@ class Agent:
         if asked is None or self.mode == "kids": return None
         state = self._ability_state()
         if asked == "all":
+            raw = " ".join(str(getattr(self, "_turn_said", "") or getattr(self, "_said_raw", "") or text).split())
+            if not re.fullmatch(r"\W*help\W*", raw, re.I) and re.fullmatch(r"\W*(?:[\w']+\W+){0,3}help(?: me)?(?:\W+[\w']+){0,3}\W*", raw, re.I):
+                return {"text": "I'm here. What's going on?"}   # "bestie help", "omg help me": someone needs a hand, not the list of what Luma does
+            if not abilities.ASKS_ALL.search(raw):
+                return None   # the words were rewritten into "what can you do"; theirs ("thank you, you always help") didn't ask it
             return {"text": abilities.overview(state), "capabilities": True}
         key, raw = asked
         if key is None:
@@ -4031,7 +4049,9 @@ class Agent:
                     results.append(one(item))
             explored = [r for r in results if r]
             if not explored:
-                return {"text": "I turned it over a few ways but couldn't get a good hold on it. Tell me a bit more?", "state": "unknown"}
+                from luma.agent import human   # the same line twice in a row isn't a person: said another way after the first time
+                line = "I turned it over a few ways but couldn't get a good hold on it. Tell me a bit more?"
+                return {"text": line if line != (getattr(self, "_last_out", None) or "") else human.blank(self, text), "state": "unknown"}
             if stopped(): return {"text": "Stopped thinking.", "state": "stopped"}
             # 2) Judge — weigh the takes and merge the truest into one answer.
             self.activity.step("Weighing which holds up")
@@ -5027,6 +5047,7 @@ class Agent:
         chat; each keeps its own short history, in memory only.
         """
         if not isinstance(text, str) or not 1 <= len(text.strip()) <= 4000:
+            self._too_long = isinstance(text, str) and len(text.strip()) > 4000
             raise ValueError("Enter 1–4000 characters.")
         if channel in ("room", "local", "app") and not agent_mode and resume_id is None:
             # Always on, and locked to its people (luma.agent.who). What's said in the room is the lock's first: a passcode
@@ -5050,6 +5071,7 @@ class Agent:
             # What they asked for this turn, for the owner's yes: never an earlier turn's words, and never a task's. Set
             # here, before anything in the chat path can answer first.
             self._yes_said = "" if channel == "task" or agent_mode else str(text)
+            self._turn_said = str(text)   # what they said this turn, before anything rewrites it
             if channel != "task" and not agent_mode and self.mode != "kids":
                 from luma.agent import tuning as _tuning
                 _tuning.they_spoke(self)   # whatever they said, the last thing Luma said on its own was answered
@@ -5060,7 +5082,18 @@ class Agent:
                 self.thread_titles[thread] = text.strip()[:48]
             began = time.monotonic()
             try:
-                result = self._chat_turn(text, cancel_event=cancel_event, agent_mode=agent_mode, resume_id=resume_id, on_text=on_text, channel=channel)
+                from luma.agent import human
+                try:
+                    result = self._chat_turn(text, cancel_event=cancel_event, agent_mode=agent_mode, resume_id=resume_id, on_text=on_text, channel=channel)
+                except Exception as error:
+                    # never an error to them (luma.agent.human): what Luma refuses on purpose still raises, and is said as a
+                    # sentence where it's shown and spoken (said_instead); anything else that failed is said like a person
+                    if agent_mode or self.said_instead(error) is not None:
+                        raise
+                    self.last_failure = f"{type(error).__name__}: {str(error)[:300]}"   # kept for diagnostics, never said
+                    result = {"text": human.blank(self, text)}
+                if not agent_mode:
+                    result = human.last_look(self, text, result)
                 try:
                     insights.log(self.store, self.zone, self.clock(), time.monotonic() - began, chats=1)
                     from luma.agent import inner as _inner
@@ -5161,7 +5194,8 @@ class Agent:
                         result["text"] = "I'd rather not quote lyrics from memory, I'd get the words wrong. Want me to pull them up?"  # their own lyrics are theirs to quote
                     if garbled(result["text"]):  # the brain ran wrong: never show symbols as if they were an answer
                         self.last_garbled = result["text"][:300]  # kept for the lab and diagnostics, never shown
-                        result["text"] = "Sorry, my brain glitched on that one. Say it again?"
+                        from luma.agent import human
+                        result["text"] = human.blank(self, text)
                         result.pop("results", None)
                         if self.use_model:
                             from luma.llm import inference
@@ -5235,7 +5269,8 @@ class Agent:
                         fresh = self._plain_answer(f"They just said: \"{text[:300]}\". {ask}, in a line or two, like a friend would.", cancel_event)
                         if fresh and not self._said_before(fresh) and not fresh.lstrip().startswith("{") and style.without_copies(fresh, text):
                             return {"text": self._friend_style(text, fresh)}
-                    return {"text": "I lost my train of thought on that one. Say it again?"}
+                    from luma.agent import human
+                    return {"text": human.listening(self, text) if "earlier reply again" in str(error) else human.blank(self, text)}
                 raise
             finally:
                 self.busy = False
@@ -5251,6 +5286,10 @@ class Agent:
             return str(error)
         if self.mode == "kids" and isinstance(error, ValueError) and "kids mode" in str(error):
             return "That's a grown-up thing. Ask one to help you with it."
+        if isinstance(error, ValueError) and str(error) == "Enter 1–4000 characters.":
+            return "That's a lot at once. Give me the short version?" if "4000" in str(error) and getattr(self, "_too_long", False) else "I didn't catch anything there. Say it again?"
+        if isinstance(error, ValueError) and str(error) == "That chat is gone. Start a new one.":
+            return "That chat's closed now. Start a new one and I'm right there."
         return None
 
     def _chat_steady(self, text, cancel_event):
@@ -5717,7 +5756,8 @@ class Agent:
         if missed == "read its own notes out":
             from luma.agent import style
             kept = [part for part in style.split_sentences(draft) if not friendcheck.RECITES.search(part) and not friendcheck.MACHINE.search(part)]
-            return style._join(kept) if kept else "I lost my train of thought on that one. Say it again?"   # twice its private note: never said
+            from luma.agent import human
+            return style._join(kept) if kept else human.blank(self, said)   # twice its private note: never said
         if missed in ("said it's a person", "dodged what it is"):
             from luma.agent import style
             if missed == "dodged what it is":
@@ -5953,7 +5993,7 @@ class Agent:
         if self.mode == "kids":
             return self._sum_context(text)  # nothing remembered, but a sum is still the calculator's
         return (self._remembered(text, room=12 if self._roomy() else 5, hear=hear) + self._life_context()
-                + [{"text": r["title"] + ": " + r["details"]} for r in self.household.records(query=text, mode=self.mode)[:3]]
+                + [{"text": r["title"] + ": " + r["details"]} for r in self.household.records(query=text[:500], mode=self.mode)[:3]]
                 + self._news_context(text) + self._mind_context(text, cancel_event) + self._keepup_context(text, cancel_event)
                 + self._sum_context(text))
 
@@ -6807,6 +6847,8 @@ class Agent:
                 fresh = understanding.guess(text, 1)
                 if fresh and fresh[0][0] in self.NOT_A_TASK and fresh[0][1] >= 0.95:
                     unfinished = None
+            if unfinished and not self._could_finish(text):
+                unfinished = None   # "null", "%s {0}", "안녕", "you're my only friend": not the rest of what they started
         if unfinished and now - unfinished["at"] < 300:
             if re.fullmatch(r"\W*(?:ok(?:ay)?|k|kk|yes|yeah|yep|sure|alright|hm+|um+|uh+|so)\W*", lowered):
                 self.unfinished = {**unfinished, "at": now}  # "ok" isn't the answer yet
@@ -7495,6 +7537,26 @@ class Agent:
     ANSWER_LEAD = re.compile(r"^(?:(?:um+|uh+|oh|ok(?:ay)?|so|well|like|lol|bro|it'?s|its|it is|that'?s|thats|her name'?s|her name is|his name'?s|his name is|"
                              r"their name'?s|their name is|the name'?s|she'?s|he'?s|they'?re|i (?:think|believe) it'?s|pretty sure it'?s)[\s,]+)+", re.I)
 
+    NOT_AN_ANSWER = {"undefined", "null", "none", "nan", "true", "false", "n/a", "na", "dunno", "lol", "lmao", "ok", "okay", "k", "kk", "hm",
+                     "hmm", "huh", "what", "wut", "why", "who", "yes", "yeah", "yep", "sure", "maybe", "test", "testing", "asdf", "blah"}
+
+    CODE_CHARS = re.compile(r"[{}<>\[\]\\|^~`]|\{0\}|%[sd]\b")
+
+    def _could_finish(self, text):
+        """Could this message be the rest of a request they started? Never a symbol soup, a bare value, a message with no
+        letters Luma reads, or something the safety readers or the leaning reader hear (the stress test, Nov 26:
+        "When should I remind you about lowkey highkey stressed %s %d {0} your bad YOU'RE your ONLY FRIEND?")."""
+        said = str(text or "").strip()
+        if not re.search(r"[A-Za-z0-9]", said) or self.CODE_CHARS.search(said):
+            return False
+        if said.lower().strip(" .!?") in self.NOT_AN_ANSWER - {"ok", "okay", "k", "kk", "yes", "yeah", "yep", "sure", "hm", "hmm"}:
+            return False
+        try:
+            from luma.agent import friendcheck, human
+            return not (human._at_risk(said) or friendcheck.leaning(said) or friendcheck.hurting(said))
+        except Exception:
+            return True
+
     def _asked_answer(self, text, lowered):
         """Luma said it didn't know something about them and asked. The short answer that comes back is saved, so it never has to ask again."""
         asked, self.asked_about = self.asked_about, None
@@ -7507,6 +7569,8 @@ class Agent:
         answer = self.TAGS.sub("", self.ANSWER_LEAD.sub("", text.strip())).strip(" .!,")
         if not answer or len(answer) > 80 or not re.search(r"[A-Za-z0-9]", answer):
             return None
+        if answer.lower() in self.NOT_AN_ANSWER or self.CODE_CHARS.search(answer):
+            return None   # "undefined", "lol", "huh": never kept as their sister's name (the stress test, Nov 26)
         if answer == answer.lower() and re.search(r"\b(?:name|birthday|bday|street|city|team|movie|song|show|book)\b", asked["about"], re.I):
             answer = " ".join(w[:1].upper() + w[1:] for w in answer.split())  # "dana" -> "Dana", "june 3" -> "June 3"
         about = re.sub(r"^our\b", "Our", re.sub(r"^my\b", "My", asked["about"], flags=re.I), flags=re.I)
@@ -8302,8 +8366,10 @@ class Agent:
                                                            _fc.CARES_HONESTLY if _fc.LOVE_ASK.search(text) else _fc.NOT_ONLY_ME)}
             if answer.get("type") == "tool":
                 name, arguments = answer.get("name"), answer.get("arguments")
-                if name not in allowed:
-                    return {"text": "No action was taken. Ask explicitly if you want me to save a memory, create a reminder, or prepare an action."}
+                if name not in allowed:   # a tool that isn't there, or wasn't offered: talk instead (it used to say "No action was taken. Ask explicitly ...")
+                    from luma.agent import human
+                    talk = self._plain_answer(text, cancel_event)
+                    return {"text": talk if talk and not human.leaked(talk, text) else human.blank(self, text)}
                 if name == "sms.send" and arguments.get("to", "") not in text:
                     return {"text": "Give me the exact recipient phone number and message so I can prepare it for review."}
                 try:
@@ -8364,7 +8430,9 @@ class Agent:
                 # A small model sometimes falls back on "I don't have real-time access". Luma does: go look.
                 shop = self._shopping_command(text, lowered, cancel_event, force=True)
                 if shop is not None: return shop
-                if self.integration_on("web_search") and not self.rules.for_tool("web.search")[1] == "block":
+                if self.integration_on("web_search") and not self.rules.for_tool("web.search")[1] == "block" and not told_not_asked(text):
+                    # never what they told Luma: "wicked cold today" went out as a search when a brain said "I don't have
+                    # personal experiences" (the stress test, Nov 26)
                     try:
                         return self.look_it_up(text, cancel_event)
                     except (ValueError, ProviderError) as error:

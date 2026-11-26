@@ -163,7 +163,8 @@ class WhatTheySaidAboutThemselves(unittest.TestCase):
                 told = " ".join(prompts.build_plan_parts(context, [], "friend", None, "(the time)", compact=True)[1] for context in calls[start:])
             finally:
                 s.close()
-            by_luma = not ("glitched" in reply or reply == "(brain)")
+            from luma.agent import human
+            by_luma = not ("glitched" in reply or reply == "(brain)" or reply in human.OWN)   # Luma's line for a brain that failed isn't Luma answering
             has += gold in (reply if by_luma else told).lower()
             wrong += by_luma and gold not in reply.lower()
         return has, wrong

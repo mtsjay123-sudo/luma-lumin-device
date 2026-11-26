@@ -49,7 +49,8 @@ class HouseholdWorkflows(unittest.TestCase):
     def test_language_model_cannot_select_and_book_an_unreviewed_slot(self):
         self.agent.enable('booking',True);self.agent.use_model=True
         self.agent.planner=lambda *args:{'type':'tool','name':'booking.create','arguments':{'offer_id':'invented','name':'invented','email':'fake@example.test'}}
-        self.assertIn('No action was taken',self.agent.chat('Find me a time tomorrow')['text'])
+        from luma.agent import human
+        self.assertIn(self.agent.chat('Find me a time tomorrow')['text'],human.AGAIN+human.STILL)  # nothing booked, said like a person
         self.assertFalse(self.store.all('action'))
 
     def test_grocery_request_cannot_become_an_unrelated_message(self):

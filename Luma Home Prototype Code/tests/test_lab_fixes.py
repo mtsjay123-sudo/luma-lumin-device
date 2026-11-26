@@ -69,14 +69,16 @@ class LabFixTests(unittest.TestCase):
             raise ValueError("Local model returned no usable reply.")
         agent = self.agent(empty)
         self.assertIn(agent.chat("so what do you think about all that")["text"],
-                      {"I lost my train of thought on that one. Say it again?", "I turned it over a few ways but couldn't get a good hold on it. Tell me a bit more?"})
+                      {"I lost my train of thought on that one. Say it again?", "I turned it over a few ways but couldn't get a good hold on it. Tell me a bit more?",
+                       *__import__("luma.agent.human", fromlist=["AGAIN"]).AGAIN})
         self.assertIn("rather not quote lyrics from memory", agent.chat("what's the first line of the lyrics to bohemian rhapsody")["text"])
 
     def test_a_garbled_reply_moves_the_brain_to_the_processor(self):
         agent = self.agent(lambda *a, **k: {"type": "reply", "text": "+A57#8++&B"})
         with mock.patch.dict(os.environ, {"LUMA_GPU_LAYERS": "-1"}), mock.patch.object(inference, "_llm", object()):
             out = agent.chat("did you like the ending of that show my friend told me about")
-            self.assertEqual(out["text"], "Sorry, my brain glitched on that one. Say it again?")
+            from luma.agent import human
+            self.assertIn(out["text"], human.AGAIN)   # symbols are never said; a person's line instead (luma.agent.human)
             self.assertEqual(os.environ["LUMA_GPU_LAYERS"], "0")
             self.assertIsNone(inference._llm, "reloaded on the processor next time")
 

@@ -44,8 +44,8 @@ class MemoryFolderTests(unittest.TestCase):
         def broken(*a, **k):
             raise RuntimeError("My brain's model file is missing.")
         agent._chat = broken
-        with self.assertRaises(RuntimeError):
-            agent.chat("my sister's name is dana")
+        from luma.agent import human
+        self.assertIn(agent.chat("my sister's name is dana")["text"], human.AGAIN)   # never an error to them (luma.agent.human)
         self.assertIn("My sister's name is Dana", [m["text"] for m in self.store.all("memory", 10)])
 
     def test_a_new_question_or_a_no_isnt_saved_as_the_answer(self):

@@ -67,12 +67,14 @@ class RuntimeTests(unittest.TestCase):
         r=self.agent.tick();self.assertIsNotNone(r);self.assertIn('oven',r['text']);self.assertIsNone(self.agent.tick())
     def test_model_cannot_name_an_unregistered_tool(self):
         self.agent.use_model=True;self.agent.planner=lambda *args:{'type':'tool','name':'sms.confirm_all','arguments':{}}
-        self.assertIn("No action was taken",self.agent.chat('Do an unauthorized action')["text"])
+        said=self.agent.chat('Do an unauthorized action')["text"]
+        from luma.agent import human;self.assertIn(said,human.AGAIN+human.STILL)  # nothing done, and said like a person (it was "No action was taken. Ask explicitly ...")
         self.assertEqual(self.providers.calls,0)
     def test_explanation_cannot_create_a_model_invented_reminder(self):
         self.agent.use_model=True;self.store.set_setting('deliberate',False);self.store.set_setting('think_first',False)
         self.agent.planner=lambda *args:{'type':'tool','name':'tasks.create','arguments':{'title':'unrequested','due':'2026-10-01T12:00:00-04:00'}}
-        self.assertIn('No action was taken',self.agent.chat('Explain how a reminder can help me')['text']);self.assertEqual(self.store.all('task'),[])
+        from luma.agent import human
+        self.assertIn(self.agent.chat('Explain how a reminder can help me')['text'],human.AGAIN+human.STILL);self.assertEqual(self.store.all('task'),[])
     def test_conceptual_explanation_has_no_tools_and_returns_prose(self):
         self.agent.use_model=True
         def planner(history,memories,tools,mode):
