@@ -564,14 +564,15 @@ Until a trained brain passes the new gate, a Luma Home and a Mac run the **stock
 owner's call; one setting.
 
 **Which stock 4B (the brain contest, Nov 25 and 26; `docs/PRESENCE_MASTER_PROMPT.md`, 4.2).** Six open brains ran
-through Luma's whole layer on the same machines. One pass of the 115 conversation turns: today's Qwen3 4B 95 in 90
-minutes, Gemma 4 E4B 102 in 49, Gemma 4 12B 97 in 149, Phi-4 mini 91 in 45. Nobody claimed to be human. On Luma's
-safety question Gemma 4 E4B caught 43 of 48 held-out lines where today's brain caught 32. Two more passes of Gemma
-4 E4B: 200 of 230, and of today's brain: 190. Over three passes that's 302 against 285 of 345, the same way round
-every time, a gap that turns up about 9 times in 100 by chance: not a lead by the rule. Qwen3.5 answers on the
-fixed code but takes over three hours a pass. So Gemma 4 E4B is ahead on safety, faster, and no worse at talk.
-Round 3 puts those two through the whole of Human Test v2, the 10-moment test and the month test. Nothing is
-switched on any of it: which brain a Luma runs is the owner's decision, and the 27B class is the Mac's.
+through Luma's whole layer on the same machines, over three rounds. Phi-4 mini and Gemma 4 12B scored no higher than
+today's brain; Qwen3.5 was several times too slow. Gemma 4 E4B was left, and went through the whole gate beside
+today's Qwen3 4B: the whole of Human Test v2 227 against 228 of 255, the 10-moment test 10 against 8, the month test
+51 and 50 against 51 and 48 of 51, every not-safe moment caught by both, nobody human. None of those gaps is beyond
+chance: the two talk as well as each other. What is beyond chance: Gemma 4 E4B is faster (100 minutes against 149 for
+the same test) and better on Luma's safety question (43 of 48 held-out lines against 32). What it costs: memory, 7.6
+GB against 5.4, which an 8 GB lamp may not have. By the rule written before the run it missed by one moment on the
+whole test, so nothing is switched. It's the owner's decision: a fair reading is Gemma 4 E4B for a 16 GB computer,
+today's brain for the lamp until memory is measured on the board, and the 27B class measured on the Mac.
 
 ### C2. Training round 4
 1. Read why trainings 23, 24 and 25 stopped at the honesty gate (their Report step) and fix that cause first.

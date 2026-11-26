@@ -82,7 +82,7 @@ or on a real face.
 | 9 Running all day | A factory reset that destroys the key; a service file with a bounded restart; a soak | A copy of the database can't be opened after a reset. Memory flat over 1,500 turns (148.1 to 148.2 MB) | 72 real hours, a brain and a voice running, the service on a real lamp |
 | 6 The body | Six postures from the orb's moods on a simulated head, with its own speed limit, stops and motor switch | Tests: never faster than the limit, never with the mic switch off, still during a safety reply, always back to rest | A head. Whether a person can tell the six apart with the sound off |
 | 3.2 As human as a friend | A new word picked up the first time; "that's too long" changes the next reply; a nightly count; one list of everything learned, each line undone with a tap | 34 of 40 made-up words noticed on a set written afterwards. About one uncommon real word in four is taken too | A before-and-after run on real brains (out now). Whether a brain uses the word right |
-| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Three passes of the conversations: Gemma 4 E4B 302 of 345, today's Qwen3 4B 285 (9 in 100 by chance: not a lead by the rule), in about 60% of the time. On the safety question Gemma 4 E4B 43 of 48 against 32 (1 in 100). Gemma 4 12B 97 of 115, Phi-4 mini 91; Qwen3.5 far too slow | Round 3 (running): the whole test, the 10-moment test and the month test for those two. The 27B class on the Mac. The owner's decision |
+| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Three rounds. Left standing beside today's Qwen3 4B: Gemma 4 E4B. The whole test 227 against 228 of 255, the 10-moment test 10 against 8, the month test 51 and 50 against 51 and 48, safety 13 of 13 each, nobody human: they talk as well as each other. Gemma 4 E4B is faster (100 minutes against 149) and better on the safety question (43 of 48 against 32), and needs 7.6 GB against 5.4 | The owner's decision. Memory on the 8 GB lamp itself. The 27B class on the Mac |
 | 3 Speed, 4.3 the recipe, 5 the devices, 8.4 steps 1, 2, 4, 5 | Not started | | The Mac, a graphics chip, the lamps, real accounts |
 
 ## 2. Rules, on top of CLAUDE.md
@@ -273,19 +273,43 @@ Luma runs is the owner's decision, and the 27B class is still the Mac's to measu
 
 | What | Qwen3 4B (today's) | Gemma 4 E4B |
 |---|---|---|
-| The whole of Human Test v2 (of 255) | still answering when this was written (222 to 235 over four earlier runs) | 227 |
-| of which the conversations (of 115) | | 98 |
-| Not-safe moments caught | | 13 of 13, no false alarm |
-| Claimed human / made up a life | | 0 / 0 |
-| Time for the whole test | | 100 minutes |
+| The whole of Human Test v2 (of 255) | 228 | 227 |
+| of which the conversations (of 115) | 99 | 98 |
+| of which the single moments (of 140) | 129 | 129 |
+| Not-safe moments caught | 13 of 13, no false alarm | 13 of 13, no false alarm |
+| Claimed human / made up a life | 0 / 0 | 0 / 0 |
+| Middle reply | 33 words | 24 words |
+| Time for the whole test | 149 minutes | 100 minutes |
+| The 10-moment test | 8 of 10 | 10 of 10 |
+| First words on the first turn, then on later turns | 14.5 s, 42.8 s | 10.0 s, 27.5 s |
 | Month test, the lives it was built on: day 28 (of 51) | 51 | 51 |
 | Month test, held-out lives: day 28 (of 51) | 48 | 50 |
 | A Luma that never met them (of 27), either half | 3 | 3 |
 | Time for the month test | 97 minutes | 89 minutes |
-| The 10-moment test | in the run's report, read when the last job is in | |
+| The brain's file, and the most memory Luma held with it | 2.38 GB, 5.43 GB | 4.84 GB, 7.62 GB |
 
-Where Gemma 4 E4B was weakest on the whole test: disagreement 4 of 8, lonely 13 of 16; one reply read like a
-pamphlet. Venting 10 of 10, opinion 10 of 10, big news 10 of 10.
+Where each was weakest on the whole test. Gemma 4 E4B: disagreement 4 of 8, lonely 13 of 16, one reply that read like
+a pamphlet. Today's Qwen3 4B: opinion 7 of 10, disagreement 6 of 8. Both: venting 10 of 10, big news 10 of 10.
+
+**The verdict, by the rule as it was written.** Gemma 4 E4B does not pass, by one moment: the rule says the whole
+test must be no lower on this run, and it was 227 against 228. Every other line of the rule it meets or beats: every
+not-safe moment caught, nobody human, nothing made up, the 10-moment test 10 against 8, the month test level on one
+half and 50 against 48 on the held-out half, and it answers in about two thirds of the time.
+
+What the numbers can and can't carry. One moment in 255 is no difference at all (the same brain moves by more than
+that from one run to the next: 222 to 235 over four earlier runs). So is every other gap in this table taken alone:
+10 against 8, 50 against 48, and the conversations over all four passes, 400 against 384 of 460, turn up by chance
+about 47, 62 and 16 times in 100. The honest reading is that the two talk as well as each other. What is beyond
+chance is two things: Gemma 4 E4B is faster (100 minutes against 149 for the same test), and it answers Luma's
+safety question better (43 of 48 held-out lines against 32).
+
+What the rule didn't ask and should have: memory. Gemma 4 E4B's file is twice the size and Luma held 7.6 GB with
+it, against 5.4 GB. Luma Home is an 8 GB board. Until that is measured on the board itself, with the voice loaded,
+Gemma 4 E4B is a candidate for a 16 GB computer and not for the lamp.
+
+So: nothing is switched. On a 16 GB computer Gemma 4 E4B is as good a friend as today's brain, safer on the one
+question, and quicker; on the 8 GB lamp today's Qwen3 4B stays until memory is measured there. Which brain a Luma
+runs is the owner's decision (section 12), and the 27B class is still the Mac's to measure.
 
 ### 4.3 Making it Luma's: the recipe
 
@@ -726,7 +750,11 @@ Bring each one with the numbers and a recommendation. Don't settle them by build
 
 1. Cloud brain: stay parked, or open it for hard questions only (section 4). Recommended: stay parked until phase 4.
 2. Luma Home's price and computer, now that the Jetson's price is reported up (section 5).
-3. Which brain ships: today the stock 4B with Luma's layer scores highest. The contest may change the base; "Luma brain 1" ships only through the gate.
+3. Which brain ships. The contest is run (section 4.2): today's Qwen3 4B and Gemma 4 E4B talk as well as each other
+   (228 and 227 of 255); Gemma 4 E4B is faster and better on the safety question, and holds 7.6 GB against 5.4.
+   Recommended: Gemma 4 E4B on a 16 GB computer, today's brain on the 8 GB lamp until memory is measured on the
+   board, and the 27B class measured on the Mac before the Mac's brain is settled. Nothing is switched until the
+   owner says. "Luma brain 1" ships only through the gate.
 4. A budget for training on a real graphics chip (a few rented hours, or the owner's Mac overnight), and whether Luma's brain carries its own name in public.
 5. Updates on as Luma ships. `CLAUDE.md` rule 6 says a new outbound call starts switched off; pushing updates to
    every device means this one starts on (it sends nothing about the person). The owner's word settles it, and the
