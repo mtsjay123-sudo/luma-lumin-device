@@ -68,6 +68,23 @@ Where to find it all: the table in `CLAUDE.md` ("Where things are"). Plans alrea
 `docs/DREAM.md`, `docs/BUSINESS_MODEL.md`, `hardware/README.md`, `docs/SYSTEM_DESIGN_PHYSICAL.md`,
 `docs/LUMA_CLOUD_MODEL.md`, `docs/CLINICAL_SAFETY.md`.
 
+### 1.1 What's been built from this prompt (Nov 25 to 26)
+
+Each line says how it was proven and what it still waits on. Nothing below has run on a lamp, with a real account,
+or on a real face.
+
+| Part | Built | Proven by | Waits on |
+|---|---|---|---|
+| 9.2 The lock | A spoken passcode, a greeting for each person, locked and unlocked, reset in the apps only | Lines written first: 39 of 40 right ways in, 0 of 200 others. The safety net answers anyone, locked or not | The owner trying it out loud |
+| 9.2 Knowing a face | The frame around the model: introducing someone, numbers kept and never a picture, unlocking | A stand-in model | A model with its license read, real people who've agreed, the camera loop |
+| 8.1 The owner's yes | A standing yes for texting someone; a sign-in sealed at home and typed after a spoken ask and a Confirm on the paired phone | 15 of 16 standing yeses heard, 0 of 16 look-alikes. A stand-in browser. A code review found five ways through; each is closed and tested | Real sites, real accounts, a real phone. The confirm by email. Cards and codes |
+| 9.1 Updates | Signed releases, each checking itself (the safety net first) before it's used, a trial of three starts, going back by itself | Ten stand-in lamps refuse a release broken on purpose; a good one puts all ten on it | A release key, an update server, the owner's word on whether it's on by default |
+| 9 Running all day | A factory reset that destroys the key; a service file with a bounded restart; a soak | A copy of the database can't be opened after a reset. Memory flat over 1,500 turns (148.1 to 148.2 MB) | 72 real hours, a brain and a voice running, the service on a real lamp |
+| 6 The body | Six postures from the orb's moods on a simulated head, with its own speed limit, stops and motor switch | Tests: never faster than the limit, never with the mic switch off, still during a safety reply, always back to rest | A head. Whether a person can tell the six apart with the sound off |
+| 3.2 As human as a friend | A new word picked up the first time; "that's too long" changes the next reply; a nightly count; one list of everything learned, each line undone with a tap | 34 of 40 made-up words noticed on a set written afterwards. About one uncommon real word in four is taken too | A before-and-after run on real brains (out now). Whether a brain uses the word right |
+| 4.2 The brain contest | Six open brains through Luma's layer on the same questions | Round 1: Gemma 4 E4B 102 of 115 in half the time of today's Qwen3 4B (95). Not a lead yet by the rule | Round 2 (running). The 27B class on the Mac. Then the whole test before anything ships |
+| 3 Speed, 4.3 the recipe, 5 the devices, 8.4 steps 1, 2, 4, 5 | Not started | | The Mac, a graphics chip, the lamps, real accounts |
+
 ## 2. Rules, on top of CLAUDE.md
 
 1. **Prove it or say it isn't proven.** Every part ends in a number from a test, or in the sentence "not tried yet".
@@ -662,6 +679,13 @@ Bring each one with the numbers and a recommendation. Don't settle them by build
 9. The camera is decided (Nov 25: Luma sees its person to know it's them). Still open: which pieces have one (the
    lamp only, or the room lights too), and whether anything beyond knowing a face uses it.
 10. The Hub: whether to make our own computer or recommend ones people can buy.
+11. The release key. Updates can't work until one exists. It's made with `python scripts/release.py keygen`, its
+    private half is the owner's to keep offline, and whoever holds it can change every Luma.
+12. The model that reads a face, and who agrees to be the people it's measured on.
+13. A memory for each person in a home. Until it's built, anyone who isn't the owner gets their greeting and the
+    basics, and nothing Luma remembers.
+14. The new-word list. Luma's own text gives it twenty thousand words, so one uncommon real word in four is taken for
+    a word of theirs. A real dictionary would fix that; the ones looked at aren't under MIT, Apache-2.0 or BSD.
 
 ## 13. How to work
 
