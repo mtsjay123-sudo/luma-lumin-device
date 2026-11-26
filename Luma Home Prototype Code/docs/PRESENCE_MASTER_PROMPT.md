@@ -159,7 +159,11 @@ own brain (section 4.3), not only told to it. The full list of traits and where 
   a word taken, now 0 and 0). Whether a brain then uses a picked-up word right still hasn't been measured.
 - Changes for real, and tunes itself: told "that's too long", the next reply is shorter; overnight Luma counts how
   its longer and shorter replies were answered and steps down when the long ones keep getting one word. Each change
-  is written down with its reason and undone with a tap. Only reply length is tuned so far.
+  is written down with its reason and undone with a tap. Two things are tuned: how long a reply is, and how often
+  Luma speaks up on its own. The second only goes down from where Luma starts and back: told "you check in too
+  much" it's once a day at most, told again not at all on its own, and four check-ins left unanswered on four
+  different days step it down by itself. What they asked for (a reminder, an alarm) is never held back. Said in
+  words the reader was built on: 12 of 12; in other words, measured once: 5 of 12, with none taken wrongly.
 - The greeting is in 9.2. The rest of the table isn't built.
 
 **And more than a friend can be.** It never forgets and never gets bored. It's awake at 3 AM. It can look something

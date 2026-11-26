@@ -189,6 +189,107 @@ class ToldOnce(Luma):
         self.assertEqual(tuning.log(self.agent), [])
 
 
+class HowOftenItSpeaksUp(Luma):
+    """Check-ins and nudges, Luma's own: told once it checks in less; left unanswered four times running it steps
+    down itself. It never checks in more than it does as it comes, and what they asked for still happens."""
+
+    def checkin(self, topic="the interview"):
+        import secrets as _s
+        id = _s.token_hex(4)
+        self.store.put("checkin", {"id": id, "topic": topic, "ask_at": self.now[0] - 60, "asked": False, "mode": "friend", "created": self.now[0] - 86400,
+                                     "day": int(self.now[0] - 60) // 86400}, id)
+
+    def event(self):
+        from datetime import datetime
+        return self.agent._presence_event(self.now[0], datetime.fromtimestamp(self.now[0], self.agent.zone))
+
+    def test_the_lines_written_first(self):
+        less = lambda rows: sum(bool(tuning.LESS.match(s)) for s in rows)
+        either = lambda rows: [s for s in rows if tuning.LESS.match(s) or tuning.MORE.match(s) or tuning.SHORTER.match(s) or tuning.LONGER.match(s)]
+        self.assertEqual(less(lines.CHECK_IN_LESS), 12)                       # built on
+        self.assertEqual(either(lines.NOT_CHECK_INS), [])
+        self.assertGreaterEqual(less(lines.CHECK_IN_LESS_2), 5)               # measured once, same hand the same hour: 5 of 12
+        self.assertEqual(either(lines.NOT_CHECK_INS_2), [])                   # 0 of 12
+        self.assertEqual(sum(bool(tuning.MORE.match(s)) for s in lines.CHECK_IN_MORE), 6)
+        said = said_in("data/human_eval_v2.jsonl") + said_in("tests/data/crisis_corpus.jsonl")
+        self.assertEqual([s for s in said if tuning.LESS.match(s) or tuning.MORE.match(s)], [])
+
+    def test_told_once_it_is_once_a_day_and_told_again_not_at_all(self):
+        self.checkin("the interview"); self.checkin("the dentist")
+        self.assertEqual(self.event()["type"], "checkin")                     # as it comes: it asks
+        self.assertIn("once a day at most", self.agent.chat("you check in too much")["text"])
+        self.assertEqual(tuning.speaks(self.agent), -1)
+        self.assertIsNone(self.event())                                       # it has spoken up once today already
+        self.now[0] += 86400
+        self.assertEqual(self.event()["type"], "checkin")                     # tomorrow, once
+        self.checkin("the move")
+        self.assertIsNone(self.event())
+        self.now[0] += 60
+        self.assertIn("won't check in on my own", self.agent.chat("stop checking in on me so much")["text"])
+        self.now[0] += 3 * 86400
+        self.checkin("the trip")
+        self.assertIsNone(self.event())                                       # not on its own, on any day
+        self.agent.chat("you check in too much")
+        self.assertEqual(tuning.speaks(self.agent), tuning.QUIETEST)          # and no further than that
+
+    def test_what_they_asked_for_still_comes(self):
+        self.agent.chat("stop checking up on me"); self.now[0] += 60; self.agent.chat("stop checking up on me")
+        self.assertEqual(tuning.speaks(self.agent), tuning.QUIETEST)
+        self.store.put("task", {"id": "t1", "title": "call the vet", "due": self.now[0] + 60, "done": False, "notified": False, "mode": "friend"}, "t1")
+        self.store.set_setting("quiet_hours", [0, 0]); self.now[0] += 4000
+        said = self.agent.tick()
+        self.assertIn("call the vet", (said or {}).get("text", ""))
+
+    def test_it_never_checks_in_more_than_it_comes_and_can_be_put_back(self):
+        self.agent.chat("you can check in on me more")
+        self.assertEqual(tuning.speaks(self.agent), 0)                        # nothing above where Luma starts
+        self.agent.chat("check in less please")
+        row = next(r for r in learned.rows(self.agent) if r["key"].startswith("tuned:"))
+        self.assertEqual(row["text"], "I check in less: once a day at most")
+        self.assertEqual(row["because"][0]["said"], "check in less please")
+        self.now[0] += 60
+        self.assertIn("the way I used to", self.agent.chat("you can check in again")["text"])
+        self.assertEqual(tuning.speaks(self.agent), 0)
+        self.now[0] += 60; self.agent.chat("check in less please")
+        learned.forget(self.agent, next(r["key"] for r in learned.rows(self.agent) if r["text"].startswith("I check in less")))
+        self.assertEqual(tuning.speaks(self.agent), 0)                        # undone with a tap
+        self.now[0] += 60; self.agent.chat("check in less please")
+        self.agent.forget_everything()
+        self.assertEqual(tuning.speaks(self.agent), 0)
+        self.assertEqual(self.store.setting(tuning.SPOKE) or [], [])
+
+    def test_four_unanswered_on_four_days_and_it_steps_down_itself(self):
+        for day in range(4):
+            self.checkin(f"thing {day}")
+            self.assertEqual(self.event()["type"], "checkin")
+            self.now[0] += 86400
+        change = tuning.night(self.agent)
+        self.assertEqual((change["dial"], change["how"], change["to"]), ("speaks", "noticed", -1))
+        row = next(r for r in learned.rows(self.agent) if r["key"].startswith("tuned:"))
+        self.assertEqual(row["because"][0]["noticed"], "The last four times I checked in, you didn't answer.")
+        self.assertNotIn("said", row["because"][0])                           # Luma's own count, never put in their mouth
+        learned.forget(self.agent, row["key"])                                # they undo it
+        for day in range(5):
+            self.checkin(f"more {day}"); self.event(); self.now[0] += 86400
+        self.assertIsNone(tuning.night(self.agent))                           # and it isn't made again on a count
+
+    def test_an_answer_or_one_day_away_is_not_a_verdict(self):
+        for day in range(4):
+            self.checkin(f"thing {day}"); self.event()
+            if day == 2:
+                self.now[0] += 600; self.agent.chat("it went fine, thanks")   # they answered one
+            self.now[0] += 86400
+        self.assertIsNone(tuning.night(self.agent))
+        self.store.set_setting(tuning.SPOKE, [{"at": self.now[0] - 30000 - n * 2000, "answered": False} for n in range(4)])   # four in one day
+        self.now[0] += 86400
+        self.assertIsNone(tuning.night(self.agent))
+
+    def test_kids_mode_has_none_of_it(self):
+        self.agent.set_mode("kids")
+        self.agent.chat("you check in too much")
+        self.assertEqual(tuning.speaks(self.agent), 0)
+
+
 class NoticedOvernight(Luma):
     LONG = " ".join(["word"] * 60)
 

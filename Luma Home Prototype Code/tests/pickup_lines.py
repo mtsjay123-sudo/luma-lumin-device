@@ -132,3 +132,32 @@ MIXED_2 = [
     "j'ai dit non but he kept insisting toute la soirée", "my nonno used to dire that patience is everything, mi manca",
     "si tita ay galit again because i forgot her birthday", "the meeting was so aburrida que casi me quedo asleep",
 ]
+
+# How often Luma speaks up on its own (check-ins and nudges): told once, it checks in less. Written before the reader.
+# The first pair is what it was built on; the second was written in the same sitting and measured once afterwards.
+CHECK_IN_LESS = [
+    "you check in too much", "stop checking in on me so much", "you don't have to check on me all the time", "can you check in less",
+    "check in less please", "quit asking how everything went", "you don't need to keep checking on me", "stop checking up on me",
+    "less check-ins please", "i don't need you checking in every day", "you ask how things went too often", "ease up on the check-ins",
+]
+NOT_CHECK_INS = [
+    "my mom checks in too much", "i should check in on my sister more", "stop checking your phone so much", "can you check in for my flight",
+    "what time is check in at the hotel", "my boss keeps checking up on me", "i need to check in with my doctor",
+    "do you ever check in on me when i'm asleep", "thanks for checking in", "i like when you check in", "check the weather less often lol",
+    "nobody ever checks on me",
+]
+CHECK_IN_LESS_2 = [
+    "you're checking in on me too much", "please stop checking in so often", "i don't need the check-ins", "no more check-ins please",
+    "can you not check on me so much", "you check on me too often", "enough with the checking in", "stop asking me how things went",
+    "dial back the check-ins", "you can stop checking in on me", "check in on me less", "too many check-ins",
+]
+NOT_CHECK_INS_2 = [
+    "my ex keeps checking in on me", "should i check in on him", "i forgot to check in at work", "why does nobody check in on me",
+    "you're the only one who checks in", "the hotel check-in was a mess", "my manager checks in way too much", "i love that you check in",
+    "can you check in on my order", "check on the oven in ten minutes", "they stopped checking in after the funeral",
+    "do you think i check in on her too much",
+]
+CHECK_IN_MORE = [
+    "you can check in on me more", "check in on me more often", "you can check in again", "i miss you checking in",
+    "start checking in on me again", "you can ask how things went again",
+]

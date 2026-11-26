@@ -4758,6 +4758,8 @@ class Agent:
     def _presence_event(self, now, local):
         """A friend's check-in: how did the thing go, whose birthday is coming. One at a time."""
         if self.mode == "kids" or not self.store.setting("check_ins", True): return None
+        from luma.agent import tuning
+        if not tuning.may_speak_up(self, now): return None   # told "you check in too much", or left unanswered four times running
         due = sorted((c for c in self.store.all("checkin", 200) if not c["asked"] and c["ask_at"] <= now and c.get("mode", "friend") == self.mode),
                      key=lambda c: c["ask_at"])
         for checkin in due:
@@ -4765,6 +4767,7 @@ class Agent:
             if now - checkin["ask_at"] > 3 * 86400: continue  # too late to ask naturally
             text = presence.check_in_line(checkin["topic"], int(checkin["ask_at"]) // 86400)
             self.store.set_setting("last_proactive", now)
+            tuning.spoke_up(self, now)
             self.history.append({"role": "assistant", "content": text})
             return {"type": "checkin", "text": text, "created": now}
         today = local.date()
@@ -4777,6 +4780,7 @@ class Agent:
                 text = presence.nudge_line(soon[0], (self.profile.get("name") or "").strip().split(" ")[0],
                                            gentle=any(rapport.hard(feelings.read(said)) for said in lately))
                 self.store.set_setting("last_proactive", now)
+                tuning.spoke_up(self, now)
                 self.history.append({"role": "assistant", "content": text})
                 return {"type": "nudge", "text": text, "created": now}
         return None
@@ -5042,6 +5046,9 @@ class Agent:
             # What they asked for this turn, for the owner's yes: never an earlier turn's words, and never a task's. Set
             # here, before anything in the chat path can answer first.
             self._yes_said = "" if channel == "task" or agent_mode else str(text)
+            if channel != "task" and not agent_mode and self.mode != "kids":
+                from luma.agent import tuning as _tuning
+                _tuning.they_spoke(self)   # whatever they said, the last thing Luma said on its own was answered
             self._brain_texts = []  # what the brain writes this turn
             self._caught = None  # what the second look caught this turn, if anything
             main, self.history = self.history, self.threads[thread]
@@ -7778,7 +7785,7 @@ class Agent:
                             r"(?: (?:(?:that |which )?(?:you|u)(?:'ve| have)? (?:know|remember|have|got|saved|kept|learned|stored)(?: (?:about|on|of) me)?|about me|"
                             r"i(?:'ve| have)? (?:ever )?(?:told|said to) (?:you|u)))?(?: (?:please|now|for good|forever))?\W*$", re.I)
     FORGET_YES = re.compile(r"^\W*yes,? (?:forget|erase|delete|wipe) (?:everything|it all|all of it)\W*$", re.I)
-    LEARNED = ("their_style", "style_stats", "taught_words", "picked_up", "tuned", "tuning_log", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
+    LEARNED = ("their_style", "style_stats", "taught_words", "picked_up", "tuned", "tuning_log", "spoke_up", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
                "rapport_offered_at", "about")
 
     def forget_everything(self):
@@ -7914,7 +7921,8 @@ class Agent:
                 if yes is not None: return yes
                 if self.mode != "kids":
                     from luma.agent import tuning
-                    tuning.heard(self, text)   # "that's too long": shorter from this very reply, written down, undoable
+                    told = tuning.heard(self, text)   # "that's too long": shorter from this very reply, written down, undoable
+                    if told and told.get("reply"): return {"text": told["reply"], "handy": True}   # "you check in too much": Luma says what it will do
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
             back_for = None if running_a_task else nap.back(self, text)   # "sorry, go back to your nap": the rest of the nap they woke it from

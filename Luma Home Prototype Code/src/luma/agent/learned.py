@@ -15,7 +15,12 @@ def rows(agent):
         if change.get("undone"):
             continue
         reason = {"said": change["said"], "at": change.get("at")} if change.get("said") else {"noticed": change.get("why") or "", "at": change.get("at")}
-        out.append({"key": "tuned:" + change["id"], "text": "I keep my replies shorter" if change.get("says") == "shorter" else "I say a bit more", "because": [reason]})
+        if change.get("dial") == "speaks":
+            text = "I check in the way I used to" if change.get("says") == "more" and change.get("to") == 0 else "I check in a bit more again" if change.get("says") == "more" \
+                else "I don't check in on my own" if change.get("to") == tuning.QUIETEST else "I check in less: once a day at most"
+        else:
+            text = "I keep my replies shorter" if change.get("says") == "shorter" else "I say a bit more"
+        out.append({"key": "tuned:" + change["id"], "text": text, "because": [reason]})
     for word in pickup.view(agent)[:20]:
         out.append({"key": "word:" + word["word"], "text": f"“{word['word']}” is a word of yours", "because": [{"said": word["in"], "at": word.get("at")}]})
     return out
