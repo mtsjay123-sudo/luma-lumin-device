@@ -86,6 +86,22 @@ class TwoReminders(unittest.TestCase):
         self.assertEqual(round((rows[1]["due"] - rows[0]["due"]) / 60), 60)
         self.assertIn("2 things", said)
 
+    def test_then_comes_after_whatever_the_hour(self):
+        """Found by the suite at 5:37 PM (Nov 26): "at 5 ... and then at 6" made Sam tomorrow at 5 and the cat today at 6."""
+        from datetime import datetime
+        for hour, minute in ((9, 0), (17, 37), (17, 59), (23, 30)):
+            temp = tempfile.TemporaryDirectory()
+            self.addCleanup(temp.cleanup)
+            store = Store(Path(temp.name) / "s.db", Path(temp.name) / "k")
+            self.addCleanup(store.close)
+            zone = Agent(store=store, use_model=False).zone
+            at = datetime(2026, 11, 26, hour, minute, tzinfo=zone).timestamp()
+            agent = Agent(store=store, use_model=False, now=lambda at=at: at)
+            agent.chat("remind me at 5 to call sam and then at 6 to feed the cat")
+            rows = sorted(store.all("task", 1000), key=lambda r: r["due"])
+            self.assertEqual([r["title"] for r in rows], ["Call Sam", "Feed the cat"], (hour, minute))
+            self.assertEqual(round((rows[1]["due"] - rows[0]["due"]) / 60), 60, (hour, minute))
+
     def test_a_day_said_once_holds_for_both(self):
         rows, _ = self.made("remind me tomorrow at 9 to pay rent and at noon to call the bank")
         self.assertEqual([r["title"] for r in rows], ["Pay rent", "Call the bank"])

@@ -6307,7 +6307,9 @@ class Agent:
         parts = [p.strip(" ,") for chunk in self.SECOND_ASK.split(text) for p in self.SECOND_WHEN.split(chunk) if p.strip(" ,")]
         if len(parts) < 2 or not self.REMIND_ASK.match(parts[0]):
             return None
-        out, day = [], None
+        from luma.agent.later_mail import when
+        out, day, before = [], None, None
+        now = self.clock()
         for part in parts[:6]:
             said_day = re.search(r"\b" + self._DAY + r"\b", part, re.I)
             if not self.REMIND_ASK.match(part):
@@ -6315,6 +6317,19 @@ class Agent:
                     part = f"{day} {part}"   # "... and at noon to call the bank": the same day as the first
                 part = "remind me " + part
             day = said_day.group(0) if said_day else day
+            try:
+                due = when(part, now, self.zone)[0]
+            except Exception:
+                due = None
+            if due is not None and before is not None and due < before and not said_day and not day:
+                # "at 5 ... and then at 6", said at 5:30 PM: 5 is tomorrow, so 6 is tomorrow too, never this evening before it
+                then = datetime.fromtimestamp(before, self.zone).date()
+                today = datetime.fromtimestamp(now, self.zone).date()
+                lead = "tomorrow" if (then - today).days == 1 else then.strftime("%A") if 1 < (then - today).days < 7 else None
+                if lead:
+                    part = re.sub(r"^remind me ", f"remind me {lead} ", part, count=1)
+                    due = when(part, now, self.zone)[0]
+            before = due if due is not None else before
             out.append(part)
         return out
 

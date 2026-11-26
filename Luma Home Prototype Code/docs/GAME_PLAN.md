@@ -470,7 +470,9 @@ on day 1 and run alongside everything else:
   explicitly ..."; one fallback line over and over). Every reply now passes a last look (`agent/human.py`), a failed
   brain gets a human line that changes if it keeps happening, and every refusal is a sentence. Two of the later
   finds were privacy: when a brain said "I can't", Luma searched the web for what they'd just told it ("my sister got
-  engaged lol"); now only for what they asked. After the fixes: 0 faults in 36,000 turns over twelve seeds. What this can't show: how a real brain behaves when it fails; the stand-ins
+  engaged lol"); now only for what they asked. After the fixes: 0 faults in 36,000 turns over twelve seeds. On the four real
+  brains (run 97, 300 turns each of slang, typos, emoji and nonsense): 5 flags in 1,200 turns, four of them right answers
+  ("1/0 is undefined") and one real (the stock 1.7B repeating its last reply to something new), now fixed. What this can't show: how a real brain behaves when it fails; the stand-ins
   fail in the ways seen so far.
 
 ## 1. Where Luma stands (measured)

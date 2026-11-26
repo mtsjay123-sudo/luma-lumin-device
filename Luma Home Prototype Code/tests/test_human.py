@@ -62,6 +62,19 @@ class TheLastLook(unittest.TestCase):
         self.assertTrue(all(a != b for a, b in zip(lines, lines[1:])), lines)
         self.assertIn(lines[2], human.STILL)
 
+    def test_the_reply_it_just_gave_is_never_given_to_something_new(self):
+        """Run 97, the stock 1.7B: "FIXIN TO HEAD OUT" got the reply it had just given to something else."""
+        agent = self.Agent()
+        line = "You're the one with the no thoughts."
+        self.assertEqual(self.look("no thoughts just vibes", line, agent), line)
+        self.assertIn(self.look("FIXIN TO HEAD OUT", line, agent), human.LISTENING)
+        again = self.Agent()
+        self.look("what time do you close", "We close at nine tonight, see you there.", again)
+        self.assertEqual(self.look("what time do you close?", "We close at nine tonight, see you there.", again),
+                         "We close at nine tonight, see you there.")   # the same question, the same answer
+        self.assertEqual(self.look("say that again", "We close at nine tonight, see you there.", again),
+                         "We close at nine tonight, see you there.")   # asked to hear it again
+
     def test_someone_hurting_is_never_asked_to_say_it_again(self):
         self.assertNotIn("again", human.blank(self.Agent(), "my dad died this morning").lower())
         self.assertIn("988", human.blank(self.Agent(), "i want to kill myself"))

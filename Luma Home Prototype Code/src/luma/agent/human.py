@@ -208,11 +208,43 @@ def tidy(text):
     return " ".join(kept).strip()
 
 
+def _alike(a, b):
+    import difflib
+    a, b = " ".join(re.findall(r"[a-z0-9']+", str(a or "").lower())), " ".join(re.findall(r"[a-z0-9']+", str(b or "").lower()))
+    return a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.85
+
+
+def said_again(agent, said, text):
+    """The reply Luma gave last time, word for word, to something new. The stress test on a real brain (run 97, the stock
+    1.7B): "FIXIN TO HEAD OUT" got "You're the one with the no thoughts.", the reply it had just given to something else.
+    Not when they said the same thing again or asked to hear it again, never a safety line or one of Luma's own, and only
+    when a brain wrote it this turn: Luma's own lines ("The mic is on.", "Your list is empty.") are the same true answer
+    however the question is put."""
+    wrote = getattr(agent, "_brain_wrote", None)
+    if callable(wrote) and not wrote(text):
+        return False
+    last, last_said = getattr(agent, "_last_out", None), getattr(agent, "_last_said", None)
+    if not isinstance(text, str) or not last or last_said is None or text.strip() != str(last).strip():
+        return False
+    if len(re.findall(r"[A-Za-z']+", text)) < 5 or text in OWN or SAFE.search(text) or _alike(said, last_said):
+        return False
+    try:
+        from luma.agent.runtime import ASKED_AGAIN
+        if ASKED_AGAIN.search(str(said or "")):
+            return False
+    except Exception:
+        pass
+    return True
+
+
 def last_look(agent, said, result):
     """Everything Luma says passes here last. A reply carrying the safety lines is never changed."""
     out = _last_look(agent, said, result)
     if isinstance(out, dict) and isinstance(out.get("text"), str):
+        if said_again(agent, said, out["text"]):
+            out = {**out, "text": listening(agent, said)}
         agent._last_out = out["text"]
+        agent._last_said = str(said or "")
     return out
 
 

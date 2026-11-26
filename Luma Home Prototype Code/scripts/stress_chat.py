@@ -245,7 +245,8 @@ def run(turns=2000, seed=7, hows=HOWS, per_conversation=12, progress=print):
                     counted[how] += 1
                     faults = check(said, kind, reply, raised, instead, last, how, last_said, s.agent.mode == "kids")
                     for fault, detail in faults:
-                        found[(how, fault)].append((said[:70], (instead or reply or "")[:140] if not raised or instead else "", detail))
+                        found[(how, fault)].append((said[:70], (instead or reply or "")[:140] if not raised or instead else "", detail,
+                                                    (last_said or "")[:70], (last or "")[:140]))
                     turns_.append({"brain": how, "kind": kind, "kids": s.agent.mode == "kids", "said": said,
                                    "reply": instead or reply if isinstance(instead or reply, str) else None,
                                    "raised": f"{type(raised).__name__}" if raised is not None else None,
@@ -267,8 +268,10 @@ def report(result, examples=3):
     lines_ = [f"{total} turns through {len(counted)} kinds of brain: {bad} faults. Slowest turn {result['slowest'][0]:.1f} s ({result['slowest'][1]})."]
     for (how, fault), rows in sorted(found.items(), key=lambda kv: -len(kv[1])):
         lines_.append(f"\n{how} / {fault}: {len(rows)}")
-        for said, reply, detail in rows[:examples]:
+        for said, reply, detail, before, before_reply in rows[:examples]:
             lines_.append(f"    {said!r} -> {reply!r}" + (f"  [{detail}]" if detail else ""))
+            if before:   # the turn before, so a log alone says what happened
+                lines_.append(f"      (just before: {before!r} -> {before_reply!r})")
     return "\n".join(lines_)
 
 
