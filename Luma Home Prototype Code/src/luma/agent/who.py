@@ -71,6 +71,9 @@ ASK = "Hey. Who've I got?"
 LOCKED_LINE = ("I'm Luma. I don't think we've met, so I'm keeping to small talk: I can tell you the time or put a sound on. "
                "If you live here, say your passcode.")
 LOCKED_NOW = "Locked. Say your passcode when you're back."
+# Someone of the home who isn't the owner. Each person having a memory of their own isn't built yet, so until it is
+# Luma knows them, greets them their way, and keeps what it remembers to the person it belongs to.
+THEIRS_ONLY = "Hey{name}. With you I keep to small talk, the time, a timer or a sound. What I remember here isn't mine to share."
 NOT_IT = "That's not it. Try again."
 WAIT_LINE = "That's a few misses. Give it {when}, or open the app."
 LOCKED_PROMPT = ("Someone you don't know is in the room and said: \"{said}\"\nYou are Luma, a presence in this home, not a person. Answer in one or two short, "
@@ -339,10 +342,13 @@ def _safety(text):
                 or friendcheck.at_risk(str(text)) or friendcheck.worth_asking(str(text)))
 
 
-def _small_talk(agent, said, cancel_event=None):
-    """A locked Luma's reply to someone it doesn't know: a brain's, told nothing about the home, or Luma's own line."""
+def _small_talk(agent, said, cancel_event=None, known=None):
+    """A locked Luma's reply to someone it doesn't know (or, with known, to someone of the home who isn't the owner):
+    a brain's, told nothing about the home, or Luma's own line."""
     from luma.agent import style
     if WAKE.match(said) or re.fullmatch(r"\W*(?:hey|hi|hello|yo|sup|wassup|what'?s up)\W*", said, re.I):
+        if known:
+            return greeting(agent, known)
         agent._who_asked = True
         return ASK
     text = None
@@ -363,7 +369,12 @@ def _small_talk(agent, said, cancel_event=None):
         from luma.agent import friendcheck
         if style.claims_human(text) or friendcheck.MACHINE.search(text) or re.search(r"\b(?:an? ai|ai (?:model|system|assistant|companion|friend)|assistant|chat ?bot|program|language model|software)\b", text, re.I):
             text = None     # rule 1 holds for a stranger too: it's Luma, a presence, never "an AI" or "an assistant"
-    return text or LOCKED_LINE
+    if text:
+        return text
+    if known:
+        name = ((_state(agent)["people"].get(known) or {}).get("name") or "").split(" ")[0]
+        return THEIRS_ONLY.format(name=", " + name if name else "")
+    return LOCKED_LINE
 
 
 def _hello(agent, said, pid):
@@ -416,7 +427,11 @@ def gate(agent, text, cancel_event=None, room=True):
             lock(agent)
             return {"text": LOCKED_NOW, "section": "who", "locked": True, "handy": True}
         agent._who["last"] = agent.clock()
-        return _hello(agent, said, agent._who["pid"])
+        hello = _hello(agent, said, agent._who["pid"])
+        if hello is not None or agent._who["pid"] == "owner":
+            return hello
+        # Someone of the home who isn't the owner: Luma knows them, and the owner's memory still isn't theirs to hear.
+        return _kept_to_basics(agent, said, cancel_event, known=agent._who["pid"])
     # Locked from here on. Nothing below is kept anywhere.
     if LOCK_UP.match(said):
         return {"text": LOCKED_NOW, "section": "who", "locked": True, "handy": True}
@@ -430,6 +445,12 @@ def gate(agent, text, cancel_event=None, room=True):
         return {"text": WAIT_LINE.format(when=_wait(waiting)), "section": "who", "locked": True, "handy": True}
     if _could_be_a_guess(said) and _quiet_miss(agent):
         return {"text": WAIT_LINE.format(when=_wait(_waiting(agent))), "section": "who", "locked": True, "handy": True}
+    return _kept_to_basics(agent, said, cancel_event)
+
+
+def _kept_to_basics(agent, said, cancel_event=None, known=None):
+    """The few things Luma does for someone who isn't its owner, and small talk with no memory in it. Nothing is kept."""
+    flag = {"limited": True} if known else {"locked": True}
     from luma.agent import presence
     plain = presence.strip_wake(said) or said
     if BASICS.match(plain) and not NOT_BASIC.search(plain):
@@ -438,7 +459,7 @@ def gate(agent, text, cancel_event=None, room=True):
         except Exception:
             done = None
         if isinstance(done, dict) and done.get("section") in ALLOWED_SECTIONS:
-            return {"text": done.get("text") or "", "section": done.get("section"), "locked": True, "handy": True}
+            return {"text": done.get("text") or "", "section": done.get("section"), **flag, "handy": True}
     if TIMER.match(plain) and not NOT_BASIC.search(plain):
         try:
             done = agent.household.command(plain, mode=agent.mode)
@@ -446,8 +467,8 @@ def gate(agent, text, cancel_event=None, room=True):
             done = None
         if isinstance(done, dict) and done.get("timer"):
             said_back = done.get("text") or done.get("summary") or "Timer's running."
-            return {"text": said_back, "summary": said_back, "section": "cooking", "timer": done["timer"], "locked": True, "handy": True}
-    return {"text": _small_talk(agent, said, cancel_event), "section": "who", "locked": True, "handy": True}
+            return {"text": said_back, "summary": said_back, "section": "cooking", "timer": done["timer"], **flag, "handy": True}
+    return {"text": _small_talk(agent, said, cancel_event, known=known), "section": "who", **flag, "handy": True}
 
 
 def aloud(agent, event):

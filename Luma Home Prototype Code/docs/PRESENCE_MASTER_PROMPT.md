@@ -605,6 +605,8 @@ in, says "yo Luma", and gets "wtw bro" and everything else.
 - The "done when" above passes as a test, with the passcode standing in for the camera.
 - Knowing a face (step 3): the frame around the model is built and tested with a stand-in (`src/luma/agent/faces.py`).
   The model isn't chosen, no real face has been read, and the camera doesn't call it yet.
+- Several people in one home: each has a passcode and a greeting. A memory for each isn't built, so anyone who isn't
+  the owner gets their greeting, the basics and small talk, and nothing Luma remembers.
 - Not built: guests the owner has named, locking
   overnight, the weather for someone locked out (it would say which city). Step 5, the wake word, is training work.
 - Known: someone the safety readers read is met by the whole of Luma, memory and all, even while locked. And the

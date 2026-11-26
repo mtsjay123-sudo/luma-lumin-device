@@ -308,6 +308,29 @@ class TheGreeting(Luma):
         with self.assertRaises(ValueError):   # one passcode can't be two people's
             who.choose(self.agent, "blue kettle tuesday", "maya")
 
+    def test_someone_else_of_the_home_is_known_and_the_owners_memory_still_isnt_theirs(self):
+        """9.2: "Luma never tells one what another said." Each person having a memory of their own isn't built, so until
+        it is, anyone who isn't the owner gets their greeting, the basics and small talk, and nothing Luma remembers."""
+        self.agent.chat("add oat milk to my shopping list")
+        self.agent.chat("my sister Priya lives in Tampa")
+        who.choose(self.agent, "blue kettle tuesday", "owner", name="Jay")
+        who.choose(self.agent, "seven green umbrellas", "maya", name="Maya")
+        who.set_greeting(self.agent, "wassup girl", "maya")
+        who.lock(self.agent)
+        self.assertEqual(self.room("seven green umbrellas")["text"], "Wassup girl.")
+        self.assertFalse(who.locked(self.agent))
+        self.assertEqual(self.room("yo luma")["text"], "Wassup girl.")
+        self.assertEqual(self.room("what time is it")["section"], "time")
+        for ask in ("what's on my shopping list", "where does Jay's sister live", "what did he say today", "add eggs to my shopping list", "forget everything about me"):
+            reply = self.room(ask)
+            self.assertTrue(reply.get("limited"), ask)
+            self.assertNotRegex(reply["text"].lower(), r"oat milk|tampa|priya", ask)
+        self.assertIn("isn't mine to share", self.room("what do you know about jay")["text"])
+        self.assertEqual(self.room("blue kettle tuesday")["text"], "Hey, Jay.")       # the owner walks in
+        said = self.room("what's on my shopping list")["text"].lower()
+        self.assertIn("oat milk", said)
+        self.assertNotIn("eggs", said)
+
     def test_set_by_saying_it_once_they_are_in(self):
         self.locked_home(greeting=None)
         self.assertTrue(self.room("greet me like what's good king").get("locked"))      # a stranger can't set it
