@@ -210,6 +210,8 @@
       t.append(el("b", null, r.text));
       const said = (r.because || []).find((b) => b.said);
       if (said) t.append(el("small", null, `You said: \u201c${said.said}\u201d` + (said.at ? " \u00b7 " + when(said.at) : "")));
+      const noticed = (r.because || []).find((b) => b.noticed);   // Luma's own count, never their words
+      if (!said && noticed) t.append(el("small", null, `I noticed: ${noticed.noticed}` + (noticed.at ? " \u00b7 " + when(noticed.at) : "")));
       const forget = el("button", "linkish how-forget", "Forget");
       forget.type = "button";
       forget.setAttribute("aria-label", "Forget: " + r.text);

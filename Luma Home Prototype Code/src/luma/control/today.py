@@ -231,8 +231,8 @@ def how_to_be(agent):
     """ "How to be with you": what Luma has learned about how they like to be met, each line with their own words as the
     reason and a key to forget it by (luma.agent.rapport). The same lines the computer app shows."""
     try:
-        from luma.agent import rapport
-        return rapport.view(agent.store.setting(rapport.KEY), agent.clock())
+        from luma.agent import learned
+        return learned.rows(agent)   # with the words of theirs Luma picked up and what it changed about itself
     except Exception:
         return []
 
@@ -255,7 +255,8 @@ def compact(agent):
     return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "talked": full.get("talked") or [], "chats_today": sum(1 for c in full["chats"] if c.get("today")),
             "memory": memory_, "device": device_, "projects": projects_, "approvals": full["approvals"], "account": full.get("account"),
             "rapport": [{"key": r.get("key"), "text": cut(r.get("text"), 120),
-                         "because": [{"said": cut(b.get("said"), 90), "at": b.get("at")} for b in (r.get("because") or [])[:1]]} for r in (full.get("rapport") or [])[:6]]}
+                         "because": [({"noticed": cut(b.get("noticed"), 90), "at": b.get("at")} if b.get("noticed") else {"said": cut(b.get("said"), 90), "at": b.get("at")})
+                                     for b in (r.get("because") or [])[:1]]} for r in (full.get("rapport") or [])[:6]]}
 
 
 def chain(agent, thread_id, keep=30, limit=14000):

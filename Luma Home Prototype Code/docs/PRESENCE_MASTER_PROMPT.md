@@ -129,6 +129,18 @@ own brain (section 4.3), not only told to it. The full list of traits and where 
 | **Says sorry and fixes it** | Repair lines | A test: 30 moments where Luma got it wrong and is told so |
 | **Is quiet with you** | Stillness when they're hurting | A body that shows it (section 6) |
 
+**Where this stands (Nov 26).** Two rows are built (`src/luma/agent/pickup.py`, `tuning.py`, `learned.py`).
+
+- Picks up your words: a word Luma has never heard is kept with its sentence and the brain is told that turn. On
+  forty made-up words written after the reader was fixed, 34 were noticed. Luma's own word list is twenty thousand
+  words, so about one uncommon real word in four is taken for theirs too; the note tells the brain to leave an
+  ordinary word alone, and the app shows each one with a tap to forget it. Whether a brain then uses the word right
+  hasn't been measured.
+- Changes for real, and tunes itself: told "that's too long", the next reply is shorter; overnight Luma counts how
+  its longer and shorter replies were answered and steps down when the long ones keep getting one word. Each change
+  is written down with its reason and undone with a tap. Only reply length is tuned so far.
+- The greeting is in 9.2. The rest of the table isn't built.
+
 **And more than a friend can be.** It never forgets and never gets bored. It's awake at 3 AM. It can look something
 up, set the reminder and text your sister while it's still talking to you. It knows your mom's time zone. It has
 nowhere else to be. Say these plainly on the box: they're true.
@@ -567,7 +579,9 @@ in, says "yo Luma", and gets "wtw bro" and everything else.
   A reminder said while locked is "Something's come in for you" and is told on unlocking. The safety net answers
   anyone, locked or not: the same reply on the first 120 lines the net was built on.
 - The "done when" above passes as a test, with the passcode standing in for the camera.
-- Not built: knowing a face (step 3; it needs a licensed model and real people), guests the owner has named, locking
+- Knowing a face (step 3): the frame around the model is built and tested with a stand-in (`src/luma/agent/faces.py`).
+  The model isn't chosen, no real face has been read, and the camera doesn't call it yet.
+- Not built: guests the owner has named, locking
   overnight, the weather for someone locked out (it would say which city). Step 5, the wake word, is training work.
 - Known: someone the safety readers read is met by the whole of Luma, memory and all, even while locked. And the
   scrambled passcode keeps the words from being read back, but a three-word phrase wouldn't survive someone who

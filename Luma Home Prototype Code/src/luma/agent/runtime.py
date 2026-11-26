@@ -3640,6 +3640,16 @@ class Agent:
             taught = self.store.setting("taught_words") or {}
             if taught:
                 out.append({"mind": True, "text": "Words they taught you (use them right): " + "; ".join(f"“{w}” means {m}" for w, m in list(taught.items())[-12:])})
+            # A friend picks up your words the first time (luma.agent.pickup), and changes when told once (luma.agent.tuning).
+            # Never on a hard turn: someone hurting or who might not be safe isn't being listened to for vocabulary.
+            from luma.agent import pickup, tuning
+            said_now = str(text)
+            if (self.store.setting("pick_up_words", True) is not False and not self._hurt_recently(said_now) and not CRISIS.search(said_now.lower())
+                    and not _friend.at_risk(said_now) and not _friend.worth_asking(said_now)):
+                theirs = pickup.notice(self, said_now)
+                if theirs: out.append({"mind": True, "text": theirs})
+            tuned = tuning.note(self)
+            if tuned: out.append({"mind": True, "text": tuned})
         if self.mode != "kids":
             read = [(i, p) for i, p in understanding.guess(text, 3) if i != "chat" and p >= 0.15]
             if read:
@@ -4980,6 +4990,11 @@ class Agent:
         if self.store.setting("last_sleep") == day:
             return
         self.store.set_setting("last_sleep", day)
+        try:
+            from luma.agent import tuning
+            if self.mode != "kids": tuning.night(self, now)   # Luma looks at its own day and writes down anything it changes
+        except Exception:
+            pass
 
         def tidy():
             from luma.memory import life
@@ -5036,6 +5051,8 @@ class Agent:
                     from luma.agent import inner as _inner
                     _inner.wake(self)  # the day this Luma was first on, kept once
                     _inner.moment(self, text, getattr(self, "_caught", None))  # this turn, as labels: what they felt, what Luma got wrong
+                    from luma.agent import pickup as _pickup
+                    if isinstance(result, dict): _pickup.said_back(self, result.get("text"))   # a word of theirs said back once is enough for today
                 except Exception:
                     pass
             finally:
@@ -7757,7 +7774,7 @@ class Agent:
                             r"(?: (?:(?:that |which )?(?:you|u)(?:'ve| have)? (?:know|remember|have|got|saved|kept|learned|stored)(?: (?:about|on|of) me)?|about me|"
                             r"i(?:'ve| have)? (?:ever )?(?:told|said to) (?:you|u)))?(?: (?:please|now|for good|forever))?\W*$", re.I)
     FORGET_YES = re.compile(r"^\W*yes,? (?:forget|erase|delete|wipe) (?:everything|it all|all of it)\W*$", re.I)
-    LEARNED = ("their_style", "style_stats", "taught_words", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
+    LEARNED = ("their_style", "style_stats", "taught_words", "picked_up", "tuned", "tuning_log", "humor_taste", "depth_prefs", "late_nights", "early_starts", "leaning_note_at",
                "rapport_offered_at", "about")
 
     def forget_everything(self):
@@ -7775,8 +7792,9 @@ class Agent:
             if self.store.setting(key) is not None:
                 self.store.set_setting(key, None)
         self.last_noticed, self.last_planned, self.asked_about = [], [], None
-        from luma.agent import yeses
+        from luma.agent import faces, yeses
         yeses.forget_all(self)   # every sign-in and every standing yes
+        faces.forget(self)       # and anyone Luma knows by sight
         self.history.clear()   # this conversation too
         try: storage.tidy(self)
         except Exception: pass
@@ -7890,6 +7908,9 @@ class Agent:
                 from luma.agent import yeses
                 yes = yeses.heard(self, text)
                 if yes is not None: return yes
+                if self.mode != "kids":
+                    from luma.agent import tuning
+                    tuning.heard(self, text)   # "that's too long": shorter from this very reply, written down, undoable
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
             standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"

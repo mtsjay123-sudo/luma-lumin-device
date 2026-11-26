@@ -2701,7 +2701,10 @@
       const row = el("div", "how-row");
       const t = el("div");
       t.append(el("b", null, r.text));
-      for (const b of r.because || []) if (b.said) t.append(el("small", null, `You said: “${b.said}”` + (b.at ? " · " + ago(b.at) : "")));
+      for (const b of r.because || []) {
+        if (b.said) t.append(el("small", null, `You said: “${b.said}”` + (b.at ? " · " + ago(b.at) : "")));
+        else if (b.noticed) t.append(el("small", null, `I noticed: ${b.noticed}` + (b.at ? " · " + ago(b.at) : "")));   // Luma's own count, never their words
+      }
       const forget = btn("Forget", "pill quiet small", async () => {
         try { await api("/api/rapport/forget", { key: r.key }); toast("Forgotten."); await refreshHome(); renderIdentity(); } catch (e) { toast(e.message); }
       });

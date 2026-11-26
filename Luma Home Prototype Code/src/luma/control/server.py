@@ -269,8 +269,8 @@ def home_payload(agent, owner=True):
 
 def _rapport(agent):
     """How to be with them, as the app shows it: each line in plain words, with their own words as the reason."""
-    from luma.agent import rapport
-    return rapport.view(agent.store.setting(rapport.KEY), agent.clock())
+    from luma.agent import learned
+    return learned.rows(agent)   # with the words of theirs Luma picked up and what it changed about itself
 
 
 def _natural_voice(agent):
@@ -965,8 +965,9 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         result={'who':result}
                     elif path=='/api/rapport/forget':  # one line of "How to be with me", gone for good
                         if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)  # a paired phone may: it can forget a memory too
-                        from luma.agent import rapport
-                        agent.store.set_setting(rapport.KEY, rapport.drop(agent.store.setting(rapport.KEY), str(data.get('key',''))))
+                        from luma.agent import learned
+                        try: learned.forget(agent, str(data.get('key','')))   # a line of how to be with them, a word of theirs, or a change Luma made to itself
+                        except ValueError as gone: return self.send({'error':str(gone)},400)
                         result={'rapport':_rapport(agent)}
                     elif path=='/api/wifi/join':
                         if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
