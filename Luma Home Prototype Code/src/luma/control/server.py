@@ -547,6 +547,10 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
             if path=='/api/who':
                 from luma.agent import who
                 return self.send({'who':who.people(agent)})
+            if path=='/api/yes':
+                # What Luma may do without asking, the sign-ins it holds (never a password), and what's waiting for a confirm.
+                from luma.agent import yeses
+                return self.send({'yes':yeses.view(agent) if agent.mode!='kids' else {'standing':[],'signins':[],'waiting':[]}})
             if path=='/api/wifi':
                 # Which Wi-Fi the device is on, and (asked for) the networks around it, to switch from the phone or computer.
                 if agent.mode=='kids': return self.send({'error':'Switch to adult mode to change Wi-Fi.'},403)
@@ -926,6 +930,24 @@ def make_server(agent, port=8095, *, context=None, phone_host=None, link=None, b
                         if not isinstance(text,str) or not 1<=len(text.strip())<=2000: raise ValueError('Memory must contain 1–2000 characters.')
                         result={'memory':agent.store.put('memory',{**row,'text':text.strip()},row['id'])}
                     elif path=='/api/memory/delete': result={'deleted':agent.store.delete('memory',str(data.get('id','')))}
+                    elif path=='/api/yes':
+                        # The owner's yes (luma.agent.yeses). A sign-in is typed in here once and never sent back. The
+                        # second step of a two-step yes counts only from the paired phone: that's what "a message from
+                        # their phone" is. Taking something back works from either.
+                        if agent.mode=='kids': return self.send({'error':'Change this on your Luma, in adult mode.'},403)
+                        from luma.agent import yeses
+                        act=str(data.get('action',''))
+                        try:
+                            if act=='confirm':
+                                if not companion: return self.send({'error':'Confirm it on your phone. That second step has to come from there.'},403)
+                                done=yeses.confirm(agent,str(data.get('id','')),by='phone'); ctx.publish(done)
+                                result={'yes':yeses.view(agent),'done':{k:done[k] for k in ('state','text') if k in done}}
+                            elif act=='cancel': result={'yes':yeses.cancel(agent,str(data.get('id','')))}
+                            elif act=='take_back': yeses.take_back(agent,id=str(data.get('id',''))); result={'yes':yeses.view(agent)}
+                            elif act=='signin': yeses.save_signin(agent,data.get('site'),data.get('user') or '',data.get('secret'),data.get('label')); result={'yes':yeses.view(agent)}
+                            elif act=='forget_signin': result={'yes':yeses.forget_signin(agent,str(data.get('id','')))}
+                            else: raise ValueError('Choose what to change.')
+                        except yeses.Refused as refused: return self.send({'error':str(refused)},400)
                     elif path=='/api/who':
                         # The lock and the greeting (luma.agent.who). The passcode is chosen, changed and reset here and only
                         # here: by the owner's computer or a paired phone, never by anything said in the room. It's never sent back.

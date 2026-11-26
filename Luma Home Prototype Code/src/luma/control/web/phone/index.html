@@ -45,6 +45,12 @@
       </div>
     </section>
 
+    <section class="panel yes-card" id="yes-card" aria-live="polite" hidden>
+      <h2 id="yes-title">Luma is asking</h2>
+      <p id="yes-text"></p>
+      <div class="actions"><button type="button" class="pill primary" id="yes-confirm">Confirm</button><button type="button" class="pill" id="yes-cancel">Not now</button></div>
+    </section>
+
     <section class="panel chats" id="chats" aria-labelledby="chats-h">
       <div class="panel-head">
         <h2 id="chats-h">Today's chats</h2>
@@ -89,6 +95,7 @@
           <span><b>Microphone</b><small id="mic-sub">Checking…</small></span><i class="switch"></i>
         </button>
         <div class="row" id="nap-row"><span><b>Nap</b><small id="nap-sub">…</small></span><button type="button" class="pill" id="nap">Nap</button></div>
+        <div class="row" id="yes-row"><span><b>Without asking</b><small id="yes-sub">…</small></span><button type="button" class="pill" id="yes">Open</button></div>
         <div class="row" id="lock-row"><span><b>Passcode</b><small id="lock-sub">…</small></span><button type="button" class="pill" id="lock">Set up</button></div>
         <div class="row"><span><b>Thinking</b><small id="brain">…</small></span></div>
         <div class="row" id="plus-row" hidden><span><b>Super Intelligence</b><small id="plus-sub">…</small></span><button type="button" class="pill" id="plus-off" hidden>Turn off</button></div>

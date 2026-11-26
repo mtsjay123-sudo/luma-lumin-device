@@ -306,6 +306,8 @@ of something we love, not feeling replaced."
   disagree.
 - Run it against a simulated head first. Tests check: it never moves faster than a set speed, never while the mic
   switch is off, never during a safety reply except to turn toward them, and it always returns to rest.
+- **Built (Nov 26):** `src/luma/body/`, on a simulated head, with those four checks and nine more
+  (`tests/test_body.py`). Nothing calls it yet and no motor has been bought.
 - For a first real body, a ready-made open desktop robot saves months. Reachy Mini launched at $299 wired and $449
   wireless (known: Hugging Face, July 2025). Its license is reported as Apache-2.0 by one secondary source only:
   read the repository's license before using a line of it (rule 7).
@@ -434,6 +436,19 @@ Each with real accounts made for testing, lines written first, and a count of ta
 
 **Done when:** a person who has never seen Luma says five things from 8.3 out loud and all five are done.
 
+**Where this stands (Nov 25).** Steps 3 and 6 are built in part, and 7 has its start (`src/luma/agent/yeses.py`).
+
+- A standing yes for texting someone: said out loud, kept with their words, shown in both apps, taken back with a
+  word or a tap. Lines written first: 15 of 16 heard, 0 of 16 look-alikes taken; take-backs 8 of 8, 0 of 8.
+- The two-step yes for a sign-in: typed into the app once and sealed at home; typed by Luma only into that site's
+  password box, after they asked in their own words (or said yes) and tapped Confirm on the paired phone.
+- What Luma read is still never a yes: the red team is at 0 done without one.
+- Every step of it is in the list of what Luma did (`audit_log`), without the password.
+- Tried with a stand-in browser only. No real site has been signed in to, and steps 1, 2, 4 and 5 need real accounts
+  and a real phone.
+- Not built: the confirm by email or by a text, cards and codes, a standing yes for an email address or a booking,
+  and what someone else in the home may ask for.
+
 **Who it's for, in the order to serve them:** Americans in Japan first (the owner's call), then people living alone,
 then an older parent bought for by a son or daughter, then programs where an agency pays (`docs/BUSINESS_MODEL.md`),
 then places with one lamp a room.
@@ -479,6 +494,14 @@ room lights, the phone app, the computer app, and the brain inside them.
 
 Proof: break a release on purpose and watch ten lamps come back as they were; push a good one and see all ten on
 it within a day; `scripts/egress_check.py` shows one host, the update server, and what was sent to it.
+
+**Where this stands (Nov 26).** The device's half is built and proven on stand-in lamps (`src/luma/update/`,
+`scripts/release.py`, `tests/test_update.py`): signed releases, bytes checked against the manifest, the new version
+checking itself before it's used (the safety net first), a trial of three starts, and going back by itself. Ten
+stand-in lamps refuse a release whose safety reply lost its 988 and stay as they were; a good one puts all ten on it.
+What doesn't exist: a release key (so as Luma comes nothing can be installed), an update server, the launcher on a
+real lamp, and brains as pieces of their own. Nothing in Luma calls the updater yet, and the switch is off until the
+owner decides (section 12).
 
 ### 9.2 Always on, and locked to its people
 

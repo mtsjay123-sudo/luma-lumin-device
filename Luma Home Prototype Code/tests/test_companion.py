@@ -153,6 +153,39 @@ class CompanionTests(unittest.TestCase):
         self.assertIn(kids.exception.code,{400,403})
         self.assertFalse(who.enabled(self.agent))
 
+    def test_the_second_step_of_a_sign_in_comes_from_the_paired_phone_and_no_password_is_ever_sent_back(self):
+        # With the owner's yes, Luma does it (luma.agent.yeses): a sign-in is typed into the app once and sealed; the
+        # phone's Confirm is the second step; nothing the phone is sent holds the password; an unpaired phone gets nothing.
+        import urllib.error
+        from luma.agent import yeses
+        typed=[]
+        class Browser:
+            def describe(self,ref): return {'type':'password','label':'Password'}
+            def read(self): return {'title':'Sign in','url':'https://www.chase.com/login'}
+            def type(self,ref,text,submit=False,expected_label=None): typed.append(text); return self.read()
+        with self.assertRaises(urllib.error.HTTPError) as stranger:self.request('/api/yes',{'action':'signin','site':'chase.com','user':'x','secret':'y'})
+        self.assertIn(stranger.exception.code,{401,403})
+        self.pair()
+        with self.request('/api/yes',{'action':'signin','site':'https://www.chase.com/login','user':'jay01','secret':'correct-horse-battery','label':'my bank'}) as r:raw=r.read().decode()
+        self.assertEqual(json.loads(raw)['yes']['signins'][0]['site'],'chase.com')
+        self.assertNotIn('correct-horse',raw)
+        self.agent._browser=Browser();self.agent.enable('browser',True)
+        self.store.set_setting('browser_page','Sign in — https://www.chase.com/login')
+        self.agent.chat('log me in to my bank')
+        asked=self.agent.propose('browser.type',{'ref':2,'text':'x','submit':False})
+        with self.request('/api/today') as r:today=r.read().decode()
+        self.assertEqual(json.loads(today)['device']['yes']['waiting'][0]['id'],asked['waiting'])
+        self.assertNotIn('correct-horse',today)
+        self.assertEqual(typed,[])
+        with self.request('/api/yes',{'action':'confirm','id':asked['waiting']}) as r:done=r.read().decode()
+        self.assertEqual(typed,['correct-horse-battery'])
+        self.assertIn('typed your password on chase.com',done)
+        self.assertNotIn('correct-horse',done)
+        with self.request('/api/yes') as r:self.assertNotIn('correct-horse',r.read().decode())
+        with self.assertRaises(urllib.error.HTTPError) as again:self.request('/api/yes',{'action':'confirm','id':asked['waiting']})   # used once
+        self.assertEqual(again.exception.code,400)
+        with self.request('/api/yes',{'action':'forget_signin','id':json.loads(raw)['yes']['signins'][0]['id']}) as r:self.assertEqual(json.load(r)['yes']['signins'],[])
+
     def test_luma_on_its_stage_says_only_what_is_true(self):
         # The line under Luma on the phone is its state in its own words. A nap never says it can't hear (anything said
         # wakes it); mic off says so plainly; it never calls itself an AI or an assistant.

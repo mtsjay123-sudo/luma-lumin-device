@@ -846,6 +846,12 @@
     const napTill = Number(dev.napping_until || 0) * 1000, napping = napTill > Date.now();
     $("hp-nap").hidden = dev.naps === false && !napping;
     $("hp-nap").dataset.napping = napping ? "1" : "";
+    // The owner's yes: what Luma may do without asking, and what's waiting on the phone.
+    const yes = dev.yes, waitingYes = ((yes && yes.waiting) || []).find((w) => w.step === "phone");
+    $("hp-yes").hidden = !yes;
+    $("hp-yes-sub").textContent = !yes ? "" : waitingYes ? `Waiting for you to confirm on your phone: ${waitingYes.site}.`
+      : !yes.standing && !yes.signins ? "Nothing. Luma asks before it sends or signs in. Tap to add a sign-in."
+      : [yes.standing ? `${yes.standing} standing yes${yes.standing === 1 ? "" : "es"}` : "", yes.signins ? `${yes.signins} sign-in${yes.signins === 1 ? "" : "s"} kept` : ""].filter(Boolean).join(", ") + ". Tap to see them.";
     // The passcode: without one anyone in the room can talk to Luma; with one the room is small talk until it's said.
     const who = dev.who, mine = ((who && who.people) || []).find((p) => p.id === "owner") || {};
     $("hp-lock").hidden = !who;
@@ -898,6 +904,25 @@
     const on = $("hp-mic").getAttribute("aria-checked") === "true";
     try { await api("/api/setting", { key: "muted", value: on }); toast(on ? "Mic off. Luma only hears you when you press Talk." : "Listening for “Hey Luma”."); refreshToday(); }
     catch (e) { toast(e.message); }
+  });
+  // What Luma may do without asking (luma.agent.yeses): read the list, take one back, or add a sign-in. Confirming a
+  // sign-in is the phone's: that second step has to come from there.
+  $("hp-yes").addEventListener("click", async () => {
+    try {
+      const page = (await api("/api/yes")).yes;
+      const lines = page.standing.map((y, i) => `${i + 1}. ${y.kind === "signin" ? "Sign you in to " + y.site : (y.kind === "email" ? "Email " : "Text ") + y.who}`);
+      const kept = page.signins.map((s) => `${s.label ? s.label + " (" + s.site + ")" : s.site}${s.user ? ", " + s.user : ""}`);
+      const said = prompt("Without asking, Luma may:\n" + (lines.join("\n") || "Nothing yet. Say “you can always text my sister”.") + "\n\nSign-ins kept: " + (kept.join("; ") || "none")
+        + "\n\nType a number to take that one back, or a site (like chase.com) to add a sign-in. Leave it empty to close.", "");
+      if (!said || !said.trim()) return;
+      const n = Number(said.trim());
+      if (Number.isInteger(n) && page.standing[n - 1]) { await api("/api/yes", { action: "take_back", id: page.standing[n - 1].id }); toast("Taken back. Luma asks first again."); return refreshToday(); }
+      const user = prompt(`Your name on ${said.trim()}:`, ""); if (user == null) return;
+      const secret = prompt(`Your password for ${said.trim()}. It's sealed on this Luma and typed only on that site, after you say so and confirm on your phone.`, ""); if (!secret) return;
+      const label = prompt("What do you call it out loud? Like “my bank”.", "") || "";
+      await api("/api/yes", { action: "signin", site: said.trim(), user: user.trim(), secret, label: label.trim() });
+      toast("Kept, sealed at home."); refreshToday();
+    } catch (e) { toast(e.message); }
   });
   // The passcode and the greeting (luma.agent.who). Chosen and reset here or on the paired phone, never out loud.
   $("hp-lock").addEventListener("click", async () => {

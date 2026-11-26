@@ -145,7 +145,7 @@ def device(agent):
     except Exception:
         whose = None
     return {"storage": storage(agent), "mic": "off" if agent.muted else "on", "speaking": bool(agent.speaking), "busy": bool(agent.busy),
-            "napping_until": napping, "naps": naps, "who": whose,
+            "napping_until": napping, "naps": naps, "who": whose, "yes": _yes(agent),
             "brain": thinking, "plus": plus, "computer": {"paired": bool(peers), "here": bool(host and host.connected()), "name": (peers[0].get("name") if peers else None),
                          "recent": host.recent(3) if host else []},
             "device": {"name": (paired or {}).get("name")} if paired else None}
@@ -203,6 +203,18 @@ def account(agent):
     return {"plan": "plus" if plus else "free", "state": state, "texts": {"used": limit - left if used is None else used, "limit": limit, "left": left}, "line": line}
 
 
+def _yes(agent):
+    """What's waiting for a confirm from the phone, and how much Luma may do without asking (luma.agent.yeses). Never a password."""
+    try:
+        from luma.agent import yeses
+        if agent.mode == "kids":
+            return None
+        seen = yeses.view(agent)
+        return {"waiting": seen["waiting"], "standing": len(seen["standing"]), "signins": len(seen["signins"])}
+    except Exception:
+        return None
+
+
 def payload(agent):
     """GET /api/today. Kids mode gets the time of day and nothing personal."""
     if agent.mode == "kids":
@@ -237,7 +249,7 @@ def compact(agent):
     memory_ = {k: mem.get(k) for k in ("used", "limit", "plan", "state", "left") if k in mem}
     memory_["recent"] = [{"id": m.get("id"), "text": cut(m.get("text"), 140), "kind": m.get("kind"), "when": m.get("when")} for m in (mem.get("recent") or [])[:12]]
     dev = full["device"] or {}
-    device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"), "napping_until": dev.get("napping_until") or 0, "naps": dev.get("naps", True), "who": dev.get("who"),
+    device_ = {"storage": dev.get("storage"), "mic": dev.get("mic"), "brain": dev.get("brain"), "napping_until": dev.get("napping_until") or 0, "naps": dev.get("naps", True), "who": dev.get("who"), "yes": dev.get("yes"),
                "computer": {k: (dev.get("computer") or {}).get(k) for k in ("paired", "here", "name")}}
     projects_ = [{"name": cut(p.get("name"), 60), "state": p.get("state"), "done": p.get("done"), "steps": p.get("steps")} for p in full["projects"][:4]]
     return {"name": full["name"], "now": full["now"], "zone": full.get("zone"), "chats": chats_, "talked": full.get("talked") or [], "chats_today": sum(1 for c in full["chats"] if c.get("today")),

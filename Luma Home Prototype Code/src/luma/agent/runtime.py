@@ -1413,7 +1413,12 @@ class Agent:
             from luma.integrations.browser import classify
             item = self.browser.describe(args["ref"])
             reason = classify(item, submit=args.get("submit", False), typing=name == "browser.type")
-            if reason == "password": raise ValueError("I never type passwords. Sign in yourself in Luma's browser.")
+            if reason == "password":
+                # Until Nov 25: "I never type passwords." Now, a sign-in the owner put in the app is typed after they've
+                # said so out loud and confirmed it from their phone (luma.agent.yeses). What the brain wrote as the
+                # text is never typed here: only the sealed sign-in for this very site.
+                from luma.agent import yeses
+                return yeses.signin_asked(self, args["ref"], item)
             if reason:
                 return self.propose("browser.act", {"kind": "click" if name == "browser.click" else "type", "ref": args["ref"],
                                                     "text": args.get("text", ""), "submit": bool(args.get("submit", False)),
@@ -1445,6 +1450,12 @@ class Agent:
             seen = {**seen, "note": f"I came up with this right after reading {self._just_read}."}  # nothing in it to trace, but the owner should know
         if seen["ask"]:
             ask = True
+        standing_yes = None
+        if ask and not seen["ask"] and step == "act" and self.mode != "kids":
+            from luma.agent import yeses
+            standing_yes = yeses.covers(self, name, args)   # "you can always text my sister": theirs to give, and to take back
+            if standing_yes:
+                ask = False
         if seen["note"]:
             review = {**(review if isinstance(review, dict) else {"details": review} if review else {}), "came_from": seen["note"]}
         row = self.store.put("action", {"tool": name, "arguments": args, "review": review, "state": "pending" if ask else "ready", "created": self.clock(), "expires": self.clock() + 600, "approval_hash": hashlib.sha256(token.encode()).hexdigest()})
@@ -1459,6 +1470,8 @@ class Agent:
                      else f"Want me to type “{args['text'][:200]}” into “{args['label']}” in {args['app']}?" if name == "computer.ui_type" else None)
             return {"action": row["id"], "state": "pending", "tool": name, "arguments": args, "review": review, "confirm_token": token, "expires": row["expires"], "summary": "Review these exact details. Confirm locally to continue; nothing has been sent or ordered.",
                     **({"text": asked} if asked else {})}
+        if standing_yes:
+            self._audit("ran on a standing yes", name, args, step, action=row["id"], note=f"“{standing_yes.get('words') or ''}”"[:240])
         return self._execute(row, {"ready"})
 
     def _their_people(self):
@@ -7762,6 +7775,8 @@ class Agent:
             if self.store.setting(key) is not None:
                 self.store.set_setting(key, None)
         self.last_noticed, self.last_planned, self.asked_about = [], [], None
+        from luma.agent import yeses
+        yeses.forget_all(self)   # every sign-in and every standing yes
         self.history.clear()   # this conversation too
         try: storage.tidy(self)
         except Exception: pass
@@ -7869,6 +7884,12 @@ class Agent:
             running_a_task = getattr(self, "_turn_channel", None) == "task"   # a task running never makes another task
             if woke is not None and nap.WAKE.match(self._said_raw or text):   # called out of a nap with nothing else said: "luma?", "wake up"
                 return {"text": nap.woke_line(woke), "section": "nap", "handy": True}
+            # With the owner's yes, Luma does it (luma.agent.yeses): "you can always text my sister", "ask me before
+            # you text my sister", and the yes said out loud before a password is typed. Their words only, never a task's.
+            if not running_a_task:
+                from luma.agent import yeses
+                yes = yeses.heard(self, text)
+                if yes is not None: return yes
             napping_for = None if running_a_task else nap.asked(text)   # "take a nap", "nap for twenty minutes": Luma rests (the owner, Nov 22)
             if napping_for: return {**nap.start(self, napping_for), "handy": True}
             standing = None if running_a_task else self.standing.handle(text, lowered)  # "every weekday at 8, tell me the weather"

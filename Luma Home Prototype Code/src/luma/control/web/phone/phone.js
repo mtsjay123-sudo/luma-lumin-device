@@ -317,6 +317,20 @@
       : "Awake. A nap is 20 quiet minutes.";
     $("nap").textContent = napping ? "Wake" : "Nap";
     $("nap").dataset.napping = napping ? "1" : "";
+    // The owner's yes (luma.agent.yeses). When Luma is waiting to type a sign-in, this phone is the second step:
+    // the card says exactly what it will do and where. A password is never shown here or sent here.
+    const yes = dev.yes || { waiting: [], standing: 0, signins: 0 };
+    const ask = (yes.waiting || []).find((w) => w.step === "phone");
+    $("yes-card").hidden = !ask;
+    if (ask) {
+      $("yes-card").dataset.id = ask.id;
+      $("yes-text").textContent = ask.kind === "standing_signin"
+        ? `Let Luma sign you in to ${ask.site} whenever you ask, without checking each time? You can take this back here.`
+        : `Type your password on ${ask.site}${ask.user ? ` for ${ask.user}` : ""}? Luma types it there and nowhere else.`;
+    }
+    $("yes-row").hidden = !dev.yes;
+    $("yes-sub").textContent = !yes.standing && !yes.signins ? "Nothing. Luma asks before it sends or signs in."
+      : [yes.standing ? `${yes.standing} standing yes${yes.standing === 1 ? "" : "es"}` : "", yes.signins ? `${yes.signins} sign-in${yes.signins === 1 ? "" : "s"} kept` : ""].filter(Boolean).join(", ") + ".";
     // The passcode (luma.agent.who): said out loud at home, chosen and reset only here. Without one, anyone in the room
     // can talk to Luma; with one, the room is small talk until Luma hears it.
     lockState = dev.who || { people: [] };
@@ -544,6 +558,46 @@
       list.lastChild?.scrollIntoView({ block: "end" });
     } catch (e) { list.replaceChildren(el("p", "empty", e.message)); }
   }
+  // What Luma may do without asking, and the sign-ins it holds. Everything here can be taken back with a tap.
+  async function openYes() {
+    const wrap = el("div", "lock");
+    openSheet("Without asking", wrap);
+    let page;
+    try { page = (await api("/api/yes")).yes; } catch (e) { wrap.append(el("p", "hint", e.message)); return; }
+    const send = async (body, done) => { try { await api("/api/yes", body); toast(done); openYes(); refresh(); } catch (e) { toast(e.message); } };
+    wrap.append(el("p", "hint", "Luma asks before it sends, books or signs in. These are the times you've told it not to."));
+    const list = el("ul", "yes-list");
+    for (const y of page.standing) {
+      const li = el("li"), text = el("span");
+      text.append(el("b", null, y.kind === "signin" ? `Sign you in to ${y.site}` : `${y.kind === "email" ? "Email" : "Text"} ${y.who}`), el("small", null, y.words ? `You said: “${y.words}”` : "Set in the app"));
+      const back = el("button", "pill", "Take back"); back.type = "button";
+      back.addEventListener("click", () => send({ action: "take_back", id: y.id }, "Taken back. Luma asks first again."), { once: true });
+      li.append(text, back); list.append(li);
+    }
+    if (!page.standing.length) list.append(el("li", null, "Nothing yet. Say “you can always text my sister” and it shows up here."));
+    wrap.append(list, el("h4", null, "Sign-ins Luma can type for you"));
+    const kept = el("ul", "yes-list");
+    for (const s of page.signins) {
+      const li = el("li"), text = el("span");
+      text.append(el("b", null, s.label ? `${s.label} (${s.site})` : s.site), el("small", null, s.user || "No name saved"));
+      const gone = el("button", "pill danger", "Forget"); gone.type = "button";
+      gone.addEventListener("click", () => send({ action: "forget_signin", id: s.id }, "Forgotten."), { once: true });
+      li.append(text, gone); kept.append(li);
+    }
+    if (!page.signins.length) kept.append(el("li", null, "None. Add one and Luma can type it after you say so and confirm here."));
+    wrap.append(kept);
+    const field = (label, placeholder, type) => {
+      const l = el("label", null, label), i = el("input");
+      i.type = type || "text"; i.placeholder = placeholder; i.maxLength = 200; i.autocomplete = "off"; i.autocapitalize = "off"; i.spellcheck = false;
+      l.append(i); wrap.append(l); return i;
+    };
+    const site = field("Site", "chase.com"), name = field("What you call it", "my bank"), user = field("Your name there", "jay01"), secret = field("Password", "", "password");
+    const actions = el("div", "actions"), add = el("button", "pill primary", "Keep it at home");
+    add.type = "button";
+    add.addEventListener("click", () => send({ action: "signin", site: site.value.trim(), label: name.value.trim(), user: user.value.trim(), secret: secret.value },
+      "Kept, sealed at home. Luma types it only on that site."));
+    actions.append(add); wrap.append(actions);
+  }
   // The passcode sheet. The phrase is typed here so they can see it; Luma keeps only a scrambled form and never sends it back.
   var lockState = { people: [] };   // var: the page is drawn before this line is reached
   function openLock() {
@@ -671,6 +725,15 @@
     catch (e) { toast(e.message); }
   });
   $("lock").addEventListener("click", openLock);
+  $("yes").addEventListener("click", openYes);
+  $("yes-confirm").addEventListener("click", async () => {
+    try { const r = await api("/api/yes", { action: "confirm", id: $("yes-card").dataset.id }); toast((r.done && r.done.text) || "Done."); refresh(); }
+    catch (e) { toast(e.message); refresh(); }
+  });
+  $("yes-cancel").addEventListener("click", async () => {
+    try { await api("/api/yes", { action: "cancel", id: $("yes-card").dataset.id }); toast("Left alone. Nothing was typed."); refresh(); }
+    catch (e) { toast(e.message); }
+  });
   $("plus-off").addEventListener("click", async () => {
     try { await api("/api/brain", { action: "plus_no" }); toast("Off. Luma is thinking at home again."); refresh(); }
     catch (e) { toast(e.message); }

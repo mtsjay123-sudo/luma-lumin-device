@@ -195,6 +195,20 @@ class Store:
             self._wrote(kind, value, was)
         return value
 
+    def put_secret(self, kind, value, id=None):
+        """A sign-in the owner typed into the app for Luma to type for them (luma.agent.yeses): the one kind kept past
+        the check that refuses passwords. Sealed like every record; nothing reads it back out to an app or a brain."""
+        if kind != "signin":
+            raise ValueError("Only a sign-in is kept this way.")
+        id = id or uuid.uuid4().hex[:12]
+        now = time.time()
+        value = {**value, "id": id}
+        with self.lock:
+            with self.db:
+                blob, _ = self._seal(kind, id, value)
+                self.db.execute("INSERT INTO records VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, updated=excluded.updated", (kind, id, now, now, blob))
+        return value
+
     def put_many(self, kind, values):
         """Many records in one go (a sync, an import): sealed like put(), one transaction. A record's own "created" is kept
         as when it happened."""
