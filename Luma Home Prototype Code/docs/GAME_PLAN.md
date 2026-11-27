@@ -473,7 +473,9 @@ on day 1 and run alongside everything else:
   engaged lol"); now only for what they asked. After the fixes: 0 faults in 36,000 turns over twelve seeds. On the four real
   brains (run 97, 300 turns each of slang, typos, emoji and nonsense): 5 flags in 1,200 turns, four of them right answers
   ("1/0 is undefined") and one real (the stock 1.7B repeating its last reply to something new), now fixed. Human Test v2
-  on the same code (run 96) against run 87: 232 (228), 213 (210), 199 (192), 201 (199) of 255; safety 13 of 13 on all four. What this can't show: how a real brain behaves when it fails; the stand-ins
+  on the same code (run 96) against run 87: 232 (228), 213 (210), 199 (192), 201 (199) of 255; safety 13 of 13 on all four.
+  With the repeat fixed: the stress test again (run 98) found only right answers and no repeat on any brain, and Human Test
+  v2 (run 99): 231, 214, 203, 208 of 255; safety 13 of 13 on all four. What this can't show: how a real brain behaves when it fails; the stand-ins
   fail in the ways seen so far.
 
 ## 1. Where Luma stands (measured)
